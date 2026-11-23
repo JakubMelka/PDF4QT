@@ -23,6 +23,8 @@
 #include "pdfappminuteticker.h"
 #include "pdfapplocale.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QDateTime>
 #include <QEvent>
 #include <QTimer>
@@ -179,7 +181,7 @@ PDFAppMinuteSubscription::PDFAppMinuteSubscription(PDFAppMinuteTicker* ticker, Q
 {
     if (m_widget)
     {
-        m_widget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_widget.data(), this, this);
     }
     if (m_ticker)
     {

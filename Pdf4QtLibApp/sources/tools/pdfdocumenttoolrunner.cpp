@@ -239,6 +239,7 @@ const PDFDocumentToolOutputDocument* PDFDocumentToolRunner::findChangedDocument(
 
 PDFDocumentToolRunner::PDFDocumentToolRunner(PDFAppDocument* document, std::shared_ptr<const PDFDocumentTool> tool, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_document(document),
     m_hasDocument(document != nullptr),
     m_tool(std::move(tool)),
@@ -246,6 +247,10 @@ PDFDocumentToolRunner::PDFDocumentToolRunner(PDFAppDocument* document, std::shar
 {
     Q_ASSERT(m_tool);
 
+    // The timers are members, made children: retire (step A) stops and disconnects them with the runner (the hook
+    // stops them too; a connection from a living timer outside the subtree would stay)
+    m_previewTimer.setParent(this);
+    m_progressTimer.setParent(this);
     m_previewTimer.setSingleShot(true);
     m_previewTimer.setInterval(PREVIEW_DELAY);
     connect(&m_previewTimer, &QTimer::timeout, this, &PDFDocumentToolRunner::onPreviewTimeout);
@@ -253,9 +258,13 @@ PDFDocumentToolRunner::PDFDocumentToolRunner(PDFAppDocument* document, std::shar
 
     if (m_document)
     {
-        connect(m_document, &PDFAppDocument::documentChanged, this, &PDFDocumentToolRunner::onDocumentChanged);
-        connect(m_document, &PDFAppDocument::stateChanged, this, &PDFDocumentToolRunner::onDocumentStateChanged);
-        connect(m_document, &PDFAppDocument::aboutToBeDestroyed, this, &PDFDocumentToolRunner::onDocumentAboutToBeDestroyed);
+        // The document is outside of the subtree of the runner (step A: the handles are cut by retire of the runner).
+        // Its end comes by its notifier (lesson 1 of step A): retire of the document (its tab) cuts the signals of its
+        // destructor, the notifier says it before the document is disconnected - or from its own destructor, when the
+        // document is deleted without retire
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFDocumentToolRunner::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFDocumentToolRunner::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_document.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFDocumentToolRunner::onDocumentAboutToBeDestroyed);
     }
 }
 
@@ -384,7 +393,8 @@ bool PDFDocumentToolRunner::beginOperation()
     m_operation = operation;
     if (operation)
     {
-        connect(operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFDocumentToolRunner::onOperationCancelRequested);
+        // The operation is a child of the document (outside of the subtree of the runner)
+        PDFDeferredDeletion::connect(operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFDocumentToolRunner::onOperationCancelRequested);
     }
     return true;
 }
@@ -400,9 +410,11 @@ bool PDFDocumentToolRunner::endOperation()
     m_operation = nullptr;
     disconnect(operation, nullptr, this, nullptr);
 
+    // A slot of the end (the title of the tab, the commands) may delete the runner or close its tool (retire, step A):
+    // a closed runner goes on with nothing - no commit, no run, no signal (its tab is closing)
     QPointer<PDFDocumentToolRunner> guard(this);
     operation->finish();
-    return !guard.isNull();
+    return guard && !PDFDeferredDeletion::isRetired(this);
 }
 
 bool PDFDocumentToolRunner::run(const QVariantMap& parameters)
@@ -657,7 +669,7 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
     }
 
     document = m_document.data();
-    if (!document)
+    if (!document || PDFDeferredDeletion::isRetired(document))
     {
         return Helper::refuse(errorMessage, tr("The document is not available any more."));
     }
@@ -991,7 +1003,40 @@ void PDFDocumentToolRunner::onDocumentStateChanged()
 
 void PDFDocumentToolRunner::onDocumentAboutToBeDestroyed()
 {
+    // A runner retired with the document (its tab) ends silently in its hook: nobody is told of the lost document
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
     loseDocument();
+}
+
+void PDFDocumentToolRunner::retire()
+{
+    // Nobody waits for the workers: they see the cancellation and their late results find no runner (the link
+    // forgets it under its mutex); the timers stop, nothing computes again
+    m_link->forget();
+    m_previewTimer.stop();
+    m_progressTimer.stop();
+    m_isPreviewRequested = false;
+    m_isPreviewDeferred = false;
+    cancelPreviewJob();
+    if (m_runJob)
+    {
+        m_runJob->cancel();
+        m_runJob.reset();
+    }
+    m_state = State::Idle;
+    forgetRunSecrets();
+
+    // The operation ends synchronously, so the next tool never finds the document busy; its foreign signals run (the
+    // document announces the end), none of the runner
+    if (PDFAppDocumentOperation* operation = m_operation.data())
+    {
+        m_operation = nullptr;
+        disconnect(operation, nullptr, this, nullptr);
+        operation->finish();
+    }
 }
 
 void PDFDocumentToolRunner::loseDocument()

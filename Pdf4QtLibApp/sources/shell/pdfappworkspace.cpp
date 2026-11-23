@@ -31,6 +31,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
@@ -121,7 +122,7 @@ public:
         setObjectName(QStringLiteral("footerLogo"));
         setFixedSize(SIZE, SIZE);
         setAttribute(Qt::WA_TransparentForMouseEvents);
-        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooterLogo::update));
+        PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooterLogo::update));
     }
 
     const QString& getIconName() const { return m_iconName; }
@@ -266,7 +267,7 @@ PDFAppScrollArea::PDFAppScrollArea(QWidget* content, QWidget* parent) :
     setFocusPolicy(Qt::NoFocus);
     if (QApplication* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
     {
-        connect(application, &QApplication::focusChanged, this, &PDFAppScrollArea::onFocusChanged);
+        PDFDeferredDeletion::connect(application, &QApplication::focusChanged, this, &PDFAppScrollArea::onFocusChanged);
     }
 
     // The viewport shows what is below it (the canvas, the panel of the sidebar)
@@ -352,7 +353,7 @@ PDFAppLogoTile::PDFAppLogoTile(QWidget* parent) :
 {
     setFixedSize(36, 36);
     setAttribute(Qt::WA_TransparentForMouseEvents);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppLogoTile::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppLogoTile::update));
 }
 
 QSize PDFAppLogoTile::sizeHint() const
@@ -536,8 +537,8 @@ PDFAppSidebar::PDFAppSidebar(PDFAppContext* context, QWidget* parent) :
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSidebar::onSettingChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSidebar::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSidebar::onSettingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSidebar::onEverythingChanged);
     }
 }
 
@@ -755,14 +756,14 @@ void PDFAppBreadcrumb::clear()
         return;
     }
 
-    // A link may be the sender of the navigation, which has replaced the items
+    // A link may be the sender of the navigation, which has replaced the items: retired (step A), deleted later
     while (m_layout->count() > 1)
     {
         QLayoutItem* item = m_layout->takeAt(0);
         if (QWidget* widget = item->widget())
         {
             widget->hide();
-            widget->deleteLater();
+            PDFDeferredDeletion::retire(widget);
         }
         delete item;
     }
@@ -1302,7 +1303,7 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
     connect(m_showInFolderButton, &QPushButton::clicked, this, &PDFAppStorageBanner::showInFolderRequested);
     connect(m_checkForUpdatesButton, &QPushButton::clicked, this, &PDFAppStorageBanner::checkForUpdatesRequested);
     connect(m_dismissButton, &QPushButton::clicked, this, &PDFAppStorageBanner::onDismissClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStorageBanner::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStorageBanner::update));
 
     updateContent();
 }
@@ -1606,7 +1607,7 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
     layout->addWidget(m_targets, 0, Qt::AlignVCenter);
 
     connect(m_licenseLink, &QAbstractButton::clicked, this, &PDFAppFooter::onLicenseClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooter::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooter::update));
 
     updateTexts();
 }

@@ -931,7 +931,9 @@ void PDFAppToolImageList::setChips(const std::vector<Chip>& chips, const QString
             if (button)
             {
                 m_chipGroup->removeButton(button);
-                delete button.data();
+                // A chip may be the sender of the slot which rebuilds them (step A): hidden now, retired from the
+                // event loop (lesson 1b), deleted later
+                PDFDeferredDeletion::retireLater(button.data());
             }
         }
         m_chipButtons.clear();

@@ -32,6 +32,7 @@
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
@@ -488,7 +489,7 @@ void GalleryPages::addFormsPanels(GalleryBuilder& builder)
     passwordLayout->addWidget(password);
     passwordLayout->addWidget(liveMeter);
     passwordCard->setFixedWidth(300);
-    QObject::connect(password, &QLineEdit::textChanged, liveMeter, [liveMeter](const QString& text)
+    pdf::PDFDeferredDeletion::connect(password, &QLineEdit::textChanged, liveMeter, [liveMeter](const QString& text)
     {
         using Criterion = Painter::StrengthCriterion;
         Painter::StrengthCriteria criteria;

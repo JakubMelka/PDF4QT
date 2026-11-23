@@ -27,6 +27,7 @@
 #include "pdfapptoolfilesink.h"
 
 #include "pdfdocumenttool.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QMetaType>
 #include <QObject>
@@ -94,7 +95,12 @@ public:
 /// again. Only one cached result may hold documents or files (the memory).
 ///
 /// Every slot of a signal may delete the runner.
-class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolRunner : public QObject
+///
+/// Deferred deletion (step A): the runner is retired with its shell (PDFDocumentToolShell::close retires it, never
+/// deletes it); its hook retire() cancels the workers at once and ends the operation of the document synchronously
+/// (the next tool never finds the document busy). The end of the document comes by its PDFLifetimeNotifier (retired
+/// with its tab, or deleted without retire), not by a signal of its destructor.
+class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolRunner : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -273,9 +279,15 @@ Q_SIGNALS:
     /// The question of a file of the run has appeared or has gone (getFileQuestion)
     void fileQuestionChanged();
 
-    /// The document has left the state Ready or it is being destroyed: everything is
-    /// canceled, the state is Idle
+    /// The document has left the state Ready or it is going away (retired or destroyed, its
+    /// notifier; not for a runner retired with it): everything is canceled, the state is Idle
     void documentLost();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the workers are canceled at once (nobody
+    /// waits, their results are dropped), the timers stop and the operation of the document ends synchronously -
+    /// without the signals of the runner. No dialog, no wait.
+    virtual void retire() override;
 
 private:
     friend class PDFDocumentToolRunnerLink;

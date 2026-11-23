@@ -37,6 +37,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
@@ -210,7 +211,7 @@ PDFAppAnnotatePanel::PDFAppAnnotatePanel(PDFAppDocumentView* view, QWidget* pare
 
     if (m_creator)
     {
-        connect(m_creator.data(), &PDFAppAnnotationCreator::toolStateChanged, this, &PDFAppAnnotatePanel::onCreatorStateChanged);
+        PDFDeferredDeletion::connect(m_creator.data(), &PDFAppAnnotationCreator::toolStateChanged, this, &PDFAppAnnotatePanel::onCreatorStateChanged);
     }
     retranslate();
 }
@@ -644,7 +645,7 @@ PDFAppInsertPanel::PDFAppInsertPanel(PDFAppDocumentView* view, QWidget* parent) 
 
     if (m_creator)
     {
-        connect(m_creator.data(), &PDFAppAnnotationCreator::toolStateChanged, this, &PDFAppInsertPanel::onCreatorStateChanged);
+        PDFDeferredDeletion::connect(m_creator.data(), &PDFAppAnnotationCreator::toolStateChanged, this, &PDFAppInsertPanel::onCreatorStateChanged);
     }
     retranslate();
 }

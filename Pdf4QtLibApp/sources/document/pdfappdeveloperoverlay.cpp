@@ -29,6 +29,8 @@
 
 #include "pdfdrawspacecontroller.h"
 
+#include "pdfdeferreddeletion.h"
+
 namespace pdf
 {
 
@@ -39,15 +41,15 @@ PDFAppDeveloperOverlay::PDFAppDeveloperOverlay(PDFAppContext* context, PDFAppDoc
 {
     if (m_context && m_context->getNotifier())
     {
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDeveloperOverlay::onSettingChanged);
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDeveloperOverlay::onEverythingChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDeveloperOverlay::onSettingChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDeveloperOverlay::onEverythingChanged);
     }
 
     // The view sets the features of its own settings as a whole: the overlays are
     // set again, when the proxy has been changed without them
     if (m_view && m_view->getProxy())
     {
-        connect(m_view->getProxy(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppDeveloperOverlay::onPageImageChanged);
+        PDFDeferredDeletion::connect(m_view->getProxy(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppDeveloperOverlay::onPageImageChanged);
     }
 
     m_requested = readRequestedFeatures();

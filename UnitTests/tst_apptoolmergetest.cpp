@@ -354,7 +354,7 @@ void AppToolMergeTest::registeredAndOutOfSchema()
     QVERIFY(isFound);
 
     // At a glance of the start page (K9): a locked document can be merged
-    std::unique_ptr<pdf::PDFDocumentToolGUI> gui(pdf::PDFDocumentToolGUIRegistry::getFactory(QStringLiteral("pages.merge"))->createGUI());
+    std::unique_ptr<pdf::PDFDocumentToolGUI, pdftest::AppDocumentFixture::DeleteNow> gui(pdf::PDFDocumentToolGUIRegistry::getFactory(QStringLiteral("pages.merge"))->createGUI());
     QCOMPARE(gui->getLockedGlanceText(), QStringLiteral("Can be merged"));
 }
 

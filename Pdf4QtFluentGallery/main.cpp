@@ -22,6 +22,7 @@
 
 #include "gallerywindow.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
@@ -108,5 +109,9 @@ int main(int argc, char* argv[])
         });
     }
 
-    return application.exec();
+    const int exitCode = application.exec();
+
+    // The objects retired at the end are deleted while the window lives (the loop level is 0 here)
+    pdf::PDFDeferredDeletion::flush();
+    return exitCode;
 }

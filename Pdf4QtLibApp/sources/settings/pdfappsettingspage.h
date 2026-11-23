@@ -185,7 +185,10 @@ protected:
     virtual void showEvent(QShowEvent* event) override;
     virtual void hideEvent(QHideEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
-    virtual bool event(QEvent* event) override;
+
+    /// The hook of PDFDeferredDeletion::retire: the pending values are written, the activities of the
+    /// sections end (instead of the former handling of QEvent::DeferredDelete)
+    virtual void retire() override;
 
 private:
     /// What the next page of a navigation of this page focuses (the search field

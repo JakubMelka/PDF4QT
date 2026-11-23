@@ -37,6 +37,7 @@
 #include "pdfworkspacerepository.h"
 
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfmessagebox.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
@@ -127,23 +128,24 @@ PDFAppHomeBasePage::PDFAppHomeBasePage(PDFAppContext* context, QWidget* parent) 
     m_minuteSubscription = new PDFAppMinuteSubscription(context ? context->getMinuteTicker() : nullptr, this);
     connect(m_minuteSubscription, &PDFAppMinuteSubscription::minuteChanged, this, &PDFAppHomeBasePage::onMinuteChanged);
 
+    // The senders of the context are outside the page (step A)
     if (context)
     {
         if (PDFDatabaseNotifier* notifier = context->getNotifier())
         {
-            connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppHomeBasePage::onDatabaseChanged);
-            connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppHomeBasePage::onEverythingChanged);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppHomeBasePage::onDatabaseChanged);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppHomeBasePage::onEverythingChanged);
         }
         if (PDFAppFolderInfoService* folderInfo = context->getFolderInfo())
         {
-            connect(folderInfo, &PDFAppFolderInfoService::infoReady, this, &PDFAppHomeBasePage::onInfoReady);
+            PDFDeferredDeletion::connect(folderInfo, &PDFAppFolderInfoService::infoReady, this, &PDFAppHomeBasePage::onInfoReady);
         }
 
         // The open documents (Save open documents as workspace) follow the document tabs
         if (PDFAppDocumentRegistry* registry = context->getDocumentRegistry())
         {
-            connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppHomeBasePage::scheduleRefresh);
-            connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppHomeBasePage::scheduleRefresh);
+            PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppHomeBasePage::scheduleRefresh);
+            PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppHomeBasePage::scheduleRefresh);
         }
     }
 }
@@ -531,6 +533,7 @@ void PDFAppHomeBasePage::onPinnedLocationChosen(const QString& folder)
         box->setObjectName(QStringLiteral("duplicateLocationBox"));
         box->setAttribute(Qt::WA_DeleteOnClose);
         PDFAppMainWindow::prepareDialog(box, this);
+        PDFDeferredDeletion::setOwner(box, this);
         m_errorBox = box;
         box->open();
         return;
@@ -602,12 +605,14 @@ void PDFAppHomeBasePage::showDialog(QDialog* dialog)
     if (QDialog* previous = m_dialog.data())
     {
         previous->disconnect(this);
-        previous->hide();
-        previous->deleteLater();
+        PDFDeferredDeletion::retire(previous);
     }
 
+    // The dialog lives in the window and belongs to the page (step A): the retire of the page closes it, its
+    // connection to the page is internal then
     m_dialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &QDialog::finished, this, &PDFAppHomeBasePage::onDialogFinished);
     dialog->open();
 }
@@ -642,8 +647,7 @@ void PDFAppHomeBasePage::showDatabaseError(const PDFDatabaseError& error)
     qWarning("A change of the history was not saved: %s", qPrintable(error.toString()));
     if (QDialog* previous = m_errorBox.data())
     {
-        previous->hide();
-        previous->deleteLater();
+        PDFDeferredDeletion::retire(previous);
     }
 
     const QString text = error.isBusy() ? tr("Another PDF4QT window is saving its settings. Try it again in a moment.") : error.getMessage();
@@ -651,6 +655,7 @@ void PDFAppHomeBasePage::showDatabaseError(const PDFDatabaseError& error)
     box->setObjectName(QStringLiteral("databaseErrorBox"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     PDFAppMainWindow::prepareDialog(box, this);
+    PDFDeferredDeletion::setOwner(box, this);
     m_errorBox = box;
     box->open();
 }

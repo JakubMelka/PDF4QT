@@ -59,6 +59,10 @@
 #include "pdfappworkspace.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentpainter.h"
+#include "pdfapplifetimetokens.h"
+#include "pdfdeferreddeletion.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -342,6 +346,10 @@ private slots:
     void fixLabelsBeside();
     void fixPanelFields();
     void scaleDialogFieldsNotCut();
+
+    // Step A (PA2b): deferred deletion of the overlay and of the question
+    void retireOverlayLeavesCanvasAtOnce();
+    void retireToolClosesItsQuestion();
 };
 
 void AppToolMeasureTest::registered()
@@ -1876,6 +1884,88 @@ void AppToolMeasureTest::fixPanelFields()
     const int rowsHeight = 2 * (view->sizeHintForRow(0) + 2 * view->spacing());
     QVERIFY2(view->height() >= rowsHeight && view->height() <= rowsHeight + 24, qPrintable(QString::number(view->height())));
     QCOMPARE(hint->mapTo(window, QPoint(0, 0)).y() - view->mapTo(window, QPoint(0, view->height())).y(), 10);
+}
+
+void AppToolMeasureTest::retireOverlayLeavesCanvasAtOnce()
+{
+    // Step A (p2a_common.md, retire steps 2-9): the overlay is retired with its tool; its input and draw interfaces
+    // leave the canvas at once (tokens), not at its later deletion - a click in between reaches no inert overlay -,
+    // its callout of the canvas area goes with it (setOwner), nothing from the theme or the proxy reaches it
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    PDFDocumentToolShell* shell = H::openSimple(fixture, &tab);
+    PDFAppToolGUIMeasure* gui = H::gui(shell);
+    QVERIFY(gui && tab);
+    QPointer<pdf::PDFAppMeasureOverlay> overlay = gui->getOverlay();
+    QVERIFY(overlay);
+    QPointer<pdf::PDFAppToolCallout> callout = overlay->getCallout();
+    QVERIFY(callout && callout->isVisible());
+
+    pdf::PDFWidget* widget = tab->getView()->getPdfWidget();
+    pdf::PDFDrawWidgetProxy* proxy = widget->getDrawWidgetProxy();
+    const pdf::IDrawWidgetInputInterface* input = overlay.data();
+    const auto inputCount = [&]() { return std::count(widget->getInputInterfaces().cbegin(), widget->getInputInterfaces().cend(), input); };
+    QCOMPARE(inputCount(), 1);
+
+    // The draw interface is registered by its token (the set of the proxy is private)
+    pdf::PDFAppCanvasDrawToken* drawTokenObject = nullptr;
+    for (pdf::PDFLifetimeToken* token : overlay->findChildren<pdf::PDFLifetimeToken*>())
+    {
+        drawTokenObject = drawTokenObject ? drawTokenObject : dynamic_cast<pdf::PDFAppCanvasDrawToken*>(token);
+    }
+    QPointer<pdf::PDFLifetimeToken> drawToken = drawTokenObject;
+    QVERIFY(drawToken && !drawToken->isReleased());
+    QCOMPARE(drawTokenObject->getProxy(), proxy);
+    QVERIFY(pdf::PDFDeferredDeletion::getConnectionCount(overlay.data()) >= 3);
+
+    pdf::PDFDeferredDeletion::retire(overlay.data());
+
+    // At once, before the event loop: the overlay is still alive (inert), deleted later
+    QVERIFY(overlay);
+    QCOMPARE(inputCount(), 0);
+    QVERIFY(drawToken && drawToken->isReleased());
+    QVERIFY(!drawTokenObject->getProxy());
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(overlay.data()), 0);
+    QVERIFY(callout && pdf::PDFDeferredDeletion::isRetired(callout.data()));
+    QVERIFY(!callout->isVisible());
+
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay);
+    QVERIFY(!callout);
+    QCOMPARE(inputCount(), 0);
+}
+
+void AppToolMeasureTest::retireToolClosesItsQuestion()
+{
+    // Step A: the question of askClose belongs to the GUI (setOwner); when the tool goes without an answer (the shell
+    // is retired - a close of the tab, MCP), the question closes at once and unanswered: no Save and Close, no
+    // Discard reaches the tool, nothing is written into the document
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    QPointer<PDFDocumentToolShell> shell = H::openSimple(fixture, &tab);
+    QPointer<PDFAppToolGUIMeasure> gui = H::gui(shell);
+    QVERIFY(gui && tab);
+    QVERIFY(gui->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
+    AppToolShellFixture::settle();
+    const size_t annotationCount = H::annotations(tab->getDocument()).size();
+
+    QPointer<QDialog> question = gui->askClose();
+    QVERIFY(question && question->isVisible());
+    QCOMPARE(question->objectName(), QStringLiteral("toolCloseQuestion"));
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(question.data()), static_cast<QObject*>(gui.data()));
+    QSignalSpy finished(question.data(), &QDialog::finished);
+
+    pdf::PDFDeferredDeletion::retire(shell.data());
+
+    QVERIFY(question);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(question.data()));
+    QVERIFY(!question->isVisible());
+    QCOMPARE(finished.count(), 0);
+
+    AppToolShellFixture::settle();
+    QVERIFY(!question);
+    QVERIFY(!gui);
+    QCOMPARE(H::annotations(tab->getDocument()).size(), annotationCount);
 }
 
 QTEST_MAIN(AppToolMeasureTest)

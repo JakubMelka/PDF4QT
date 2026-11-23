@@ -51,6 +51,7 @@
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttooltablewriter.h"
 #include "pdffluentwidgets.h"
@@ -1099,6 +1100,8 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openCustomScaleDialog()
 
     QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
     PDFAppMeasureScaleDialog* dialog = new PDFAppMeasureScaleDialog(PDFAppMeasureScaleDialog::Mode::Custom, m_scale, 0.0, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppToolGUIMeasure::onCustomScaleAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
@@ -1119,6 +1122,8 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openCalibrationDialog(PDFReal le
 
     QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
     PDFAppMeasureScaleDialog* dialog = new PDFAppMeasureScaleDialog(PDFAppMeasureScaleDialog::Mode::Calibrate, m_scale, length, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppToolGUIMeasure::onCustomScaleAccepted);
     // Queued: QDialog emits rejected inside of its done() and goes on with the dialog after it
     connect(dialog, &QDialog::rejected, this, &PDFAppToolGUIMeasure::onCalibrationRejected, Qt::QueuedConnection);
@@ -1163,6 +1168,8 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openDefaultScaleDialog()
     PDFMeasureScaleRepository repository(context ? context->getDatabase() : nullptr);
     QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
     PDFAppMeasureScaleDialog* dialog = new PDFAppMeasureScaleDialog(PDFAppMeasureScaleDialog::Mode::Default, repository.getDefaultScale(), 0.0, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppToolGUIMeasure::onDefaultScaleAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
@@ -1183,6 +1190,8 @@ PDFAppMeasurePresetsDialog* PDFAppToolGUIMeasure::openPresetsDialog()
     PDFMeasureScaleRepository repository(context ? context->getDatabase() : nullptr);
     QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
     PDFAppMeasurePresetsDialog* dialog = new PDFAppMeasurePresetsDialog(repository.getPresets(), parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &PDFAppMeasurePresetsDialog::presetsAccepted, this, &PDFAppToolGUIMeasure::onPresetsAccepted);
     m_presetsDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
@@ -1391,6 +1400,8 @@ QDialog* PDFAppToolGUIMeasure::askIncompleteClose()
                                               count == 1 ? tr("%Ln measurement could not be saved as an annotation", nullptr, count)
                                                          : tr("%Ln measurements could not be saved as annotations", nullptr, count),
                                               text, QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("measureIncompleteQuestion"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton* keep = dialog->addActionButton(tr("Keep Measuring"), PDFMessageBox::ActionPosition::Trailing, true);
@@ -1535,7 +1546,7 @@ void PDFAppToolGUIMeasure::describeToolbar(PDFAppToolPanelBuilder& builder)
         // Annotations and the storage follow the lock (FM-1, FM-3)
         if (PDFAppDocument* document = getDocument())
         {
-            connect(document, &PDFAppDocument::lockChanged, this, &PDFAppToolGUIMeasure::onDocumentLockChanged, Qt::UniqueConnection);
+            PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppToolGUIMeasure::onDocumentLockChanged, Qt::UniqueConnection);
         }
     }
 
@@ -2366,9 +2377,15 @@ PDFAppMeasureLabelStyle PDFAppToolGUIMeasure::getLabelStyle() const
     return labelStyle;
 }
 
-void PDFAppToolGUIMeasure::updateOverlay()
+PDFAppMeasureOverlay* PDFAppToolGUIMeasure::getLiveOverlay() const
 {
     PDFAppMeasureOverlay* overlay = m_overlay.data();
+    return overlay && !PDFDeferredDeletion::isRetired(overlay) ? overlay : nullptr;
+}
+
+void PDFAppToolGUIMeasure::updateOverlay()
+{
+    PDFAppMeasureOverlay* overlay = getLiveOverlay();
     if (!overlay)
     {
         return;
@@ -2412,7 +2429,7 @@ void PDFAppToolGUIMeasure::updateOverlay()
 
 void PDFAppToolGUIMeasure::updateInput()
 {
-    if (PDFAppMeasureOverlay* overlay = m_overlay.data())
+    if (PDFAppMeasureOverlay* overlay = getLiveOverlay())
     {
         std::optional<PDFAppMeasureDrawKind> input;
         if (m_isCalibrating)
@@ -2430,7 +2447,7 @@ void PDFAppToolGUIMeasure::updateInput()
 
 void PDFAppToolGUIMeasure::updateCanvasCallout()
 {
-    PDFAppMeasureOverlay* overlay = m_overlay.data();
+    PDFAppMeasureOverlay* overlay = getLiveOverlay();
     if (!overlay)
     {
         return;
@@ -2657,6 +2674,8 @@ void PDFAppToolGUIMeasure::onCalibrationPicked(pdf::PDFInteger pageIndex, pdf::P
     QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("The scale cannot be calculated"),
                                               tr("The picked line has a zero length. Pick two different points of a known distance."), QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("measureZeroLengthDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton* cancel = dialog->addActionButton(tr("Cancel"), PDFMessageBox::ActionPosition::Trailing, false);

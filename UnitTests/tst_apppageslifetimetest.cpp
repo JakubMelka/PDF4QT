@@ -43,8 +43,12 @@
 //    theme switched, the window resized to 720 x 480, another connection
 //    writing, a tick of the minute ticker, an update check, the tab closed - run
 //    once with a recorder of every signal of the application, then once per
-//    signal with the tab, the window or the page deleted synchronously from it
-//    (the pattern of UnitTestsAppToolsLifetime).
+//    signal with the tab or the page closed from it by the real close of the
+//    application (PDF4QT_LIFETIME_MODE=deferred, the default: retired, deleted
+//    later, LifetimeVictimCheck checks the retired victim), and once per step with
+//    the application ended after it (the victim "end"); PDF4QT_LIFETIME_MODE=sync
+//    deletes the tab, the window or the page synchronously (diagnostics; the
+//    pattern of UnitTestsAppToolsLifetime).
 //
 // After every deletion: no popup or window of the deleted parts is left visible,
 // the surviving window works (Home, a document, the AI page); after the fixture is
@@ -56,6 +60,7 @@
 // ASan (arch/checks.md).
 
 #include "apptoolsfixture.h"
+#include "lifetimevictimcheck.h"
 
 #include "pdfappbuiltintoolcollections.h"
 #include "pdfappcontext.h"
@@ -77,9 +82,15 @@
 #include "pdfapproutetable.h"
 #include "pdfappsearchwidgets.h"
 #include "pdfapptab.h"
+#include "pdfapptooldocumentpage.h"
+#include "pdfapptoolgui_insert.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolshell.h"
+#include "pdfcompiler.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfpagecontentelements.h"
 #include "pdfrecentrepository.h"
 #include "pdfsettingsrepository.h"
 #include "pdftoolrepository.h"
@@ -96,7 +107,9 @@
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QDialog>
+#include <QFutureWatcher>
 #include <QHash>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMetaMethod>
@@ -110,6 +123,8 @@
 #include <QThreadPool>
 #include <QTimer>
 #include <QTranslator>
+#include <QTreeView>
+#include <QVariantAnimation>
 #include <QtTest>
 
 #include <QtCore/private/qhooks_p.h>
@@ -130,6 +145,83 @@ using PagesObjectSet = std::unordered_set<const QObject*>;
 class PagesObjectWithoutMetaObject : public QObject
 {
 };
+
+namespace pdf
+{
+
+/// A victim of victimCheckSelfTest: a widget of a class of PDF4QT (check 9 looks at the receivers of the classes of
+/// PDF4QT only)
+class PDFLifetimeTestVictim : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    explicit PDFLifetimeTestVictim(QWidget* parent) :
+        BaseClass(parent)
+    {
+    }
+
+    void onNameChanged() { ++m_calls; }
+
+    int getCalls() const { return m_calls; }
+
+private:
+    int m_calls = 0;
+};
+
+/// A tree view of a class of PDF4QT (victimCheckSelfTest, the expand animation of QTreeView)
+class PDFLifetimeTestTreeView : public QTreeView
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QTreeView;
+
+public:
+    explicit PDFLifetimeTestTreeView(QWidget* parent) :
+        BaseClass(parent)
+    {
+    }
+
+    void onFinished() { ++m_calls; }
+
+private:
+    int m_calls = 0;
+};
+
+/// A widget, which calls a function at its first resize event (victimCheckSelfTest: the resize sent by Qt in the
+/// show of its parent - QWidgetPrivate::show_helper, sendPendingMoveAndResizeEvents)
+class PDFLifetimeTestResizeHook : public QWidget
+{
+private:
+    using BaseClass = QWidget;
+
+public:
+    explicit PDFLifetimeTestResizeHook(QWidget* parent, std::function<void()> onFirstResize) :
+        BaseClass(parent),
+        m_onFirstResize(std::move(onFirstResize))
+    {
+    }
+
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override
+    {
+        BaseClass::resizeEvent(event);
+        if (std::function<void()> onFirstResize = std::move(m_onFirstResize))
+        {
+            m_onFirstResize = nullptr;
+            onFirstResize();
+        }
+    }
+
+private:
+    std::function<void()> m_onFirstResize;
+};
+
+}   // namespace pdf
 
 /// Tracks the living objects by the hooks of QtCore (installed before the
 /// application object is created)
@@ -693,7 +785,9 @@ public:
         {
             m_paintedWidget = static_cast<QWidget*>(watched);
         }
-        if (!m_isStopped && watched && QThread::isMainThread() && !m_hooked.contains(watched))
+        // A dead object at the same address (the allocator has reused it) is not hooked: the new object is hooked as
+        // every new object (the order of the hook does not depend on the heap)
+        if (!m_isStopped && watched && QThread::isMainThread() && !m_hooked.value(watched))
         {
             if (isConstructionEvent(event->type()))
             {
@@ -704,7 +798,7 @@ public:
                 // connected to an object before it exists), so it is no site - the
                 // recorder would delete the parent of a half-built object.
                 QPointer<QObject> guard(watched);
-                QMetaObject::invokeMethod(this, [this, guard]() { if (guard && !m_hooked.contains(guard.data())) { hookObject(guard.data()); } }, Qt::QueuedConnection);
+                QMetaObject::invokeMethod(this, [this, guard]() { if (guard && !m_hooked.value(guard.data())) { hookObject(guard.data()); } }, Qt::QueuedConnection);
             }
             else
             {
@@ -1095,8 +1189,9 @@ public:
 enum class PagesVictim
 {
     Tab,        ///< The tab of the route
-    Window,
-    Page        ///< The shown page of the tab of the route
+    Window,     ///< The window (PDF4QT_LIFETIME_MODE=sync only)
+    Page,       ///< The shown page of the tab of the route
+    End         ///< No victim: the application ends after a step (deferred and retire modes)
 };
 
 /// State of one run of a route
@@ -2181,6 +2276,7 @@ private Q_SLOTS:
     void cleanupTestCase();
     void cleanup();
     void detectorSelfTest();
+    void victimCheckSelfTest();
     void routeInventory();
     void deletionOrders_data();
     void deletionOrders();
@@ -2197,9 +2293,10 @@ private:
     void runOrder(const PagesRouteCase& routeCase, const QString& state, const QString& order, bool* hasState);
 
     /// Runs the sweep scenario of the route. In the replay mode the victim is deleted
-    /// at the target site.
+    /// (sync) or closed (deferred, retire) at the target site; the victim End ends the
+    /// application after the step \p endStep.
     void runSweep(const PagesRouteCase& routeCase, PagesLifetimeRecorder::Mode mode, const PagesLifetimeRecorder::Site& target, PagesVictim victim,
-                  std::vector<PagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred);
+                  std::vector<PagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred, int endStep = -1, bool* isTabClosable = nullptr);
 
     /// Checks, that the run left nothing: no object created by it lives (except the
     /// harmless ones of PagesObjectTracker), no warning was printed
@@ -2317,7 +2414,11 @@ void AppPagesLifetimeTest::detectorSelfTest()
         PagesLifetimeHelper::settle();
         QCOMPARE(PagesLifetimeHelper::describeStrayPopups(fixture.window).join(QStringLiteral("; ")), QString());
 
-        delete homeTab->getPage();
+        {
+            // A deliberate synchronous deletion of the detector test
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+            delete homeTab->getPage();
+        }
         PagesLifetimeHelper::settle();
         QVERIFY(!homeTab->getPage());
         QCOMPARE(PagesLifetimeHelper::describeStrayPopups(fixture.window).join(QStringLiteral("; ")), QStringLiteral("QDialog 'tabDialog' (parent pdf::PDFAppWorkspaceTab)"));
@@ -2330,6 +2431,1042 @@ void AppPagesLifetimeTest::detectorSelfTest()
         QCOMPARE(PagesLifetimeHelper::describeStrayPopups(fixture.window).join(QStringLiteral("; ")), QStringLiteral("QDialog 'windowDialog' (parent pdf::PDFAppMainWindow)"));
         delete windowDialog;
     }
+    PagesLifetimeHelper::settle();
+    PagesMessageCollector::takeMessages();
+}
+
+void AppPagesLifetimeTest::victimCheckSelfTest()
+{
+    // Each check of LifetimeVictimCheck (lifetimevictimcheck.h) finds what it is made for, a well-behaved retire
+    // finds nothing: the victims are widgets of the tab of a document, retired by PDFDeferredDeletion::retire (the mode
+    // retire), or closed by a close function, which breaks one rule of the close (the mode deferred)
+    using Mode = pdftest::LifetimeDeletionMode::Mode;
+    using Check = pdftest::LifetimeVictimCheck;
+    PagesMessageCollector::takeMessages();
+    pdftest::AppToolsFixture fixture;
+    QVERIFY(fixture.window);
+    QPointer<pdf::PDFAppDocumentTab> documentTab = fixture.openDocument(2);
+    QVERIFY(documentTab);
+    QVERIFY(QTest::qWaitFor([&documentTab]() { return !documentTab || (documentTab->getDocument() && documentTab->getDocument()->isReady()); },
+                            PagesLifetimeHelper::timeout(20000)));
+    QVERIFY(documentTab);
+    PagesLifetimeHelper::settle();
+
+    // The findings starting by the check
+    const auto findingsOf = [](const QStringList& findings, const QString& check)
+    {
+        QStringList result;
+        for (const QString& finding : findings)
+        {
+            if (finding.startsWith(check))
+            {
+                result << finding;
+            }
+        }
+        return result;
+    };
+
+    {
+        // Clean: an incoming connection through the helper and one of QObject::destroyed are no findings; the victim
+        // lives after its close, settle deletes it
+        Check check(&fixture);
+        QObject sender;
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QPointer<QObject> guard(victim);
+        pdf::PDFDeferredDeletion::connect(&sender, &QObject::objectNameChanged, victim, &pdf::PDFLifetimeTestVictim::onNameChanged);
+        QObject::connect(&sender, &QObject::destroyed, victim, &pdf::PDFLifetimeTestVictim::onNameChanged);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        QVERIFY(guard);
+        sender.setObjectName(QStringLiteral("renamed"));
+        QCOMPARE(victim->getCalls(), 0);
+        PagesLifetimeHelper::settle();
+        QVERIFY(!guard);
+        QCOMPARE(check.finish(), QStringList());
+    }
+
+    {
+        // Clean: the close hides the victim at once and retires it from the event loop (as PDFAppTab::setPage retires
+        // a replaced page) - the checks of the retired victim start then, nothing is found
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QPointer<QObject> guard(victim);
+        check.setCloseFunction([](QObject* object)
+        {
+            QPointer<QObject> closed(object);
+            QTimer::singleShot(0, qApp, [closed]() { pdf::PDFDeferredDeletion::retire(closed.data()); });
+            return true;
+        });
+        QVERIFY(check.retire(victim, Mode::Deferred));
+        QVERIFY(guard && !pdf::PDFDeferredDeletion::isRetired(victim));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!guard);
+        QCOMPARE(check.finish(), QStringList());
+    }
+
+    {
+        // (2) The close deletes the victim synchronously
+        Check check(&fixture);
+        check.setCloseFunction([](QObject* object) { delete object; return true; });
+        QVERIFY(check.retire(new pdf::PDFLifetimeTestVictim(documentTab), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        QCOMPARE(findingsOf(check.finish(), QStringLiteral("(2)")).size(), 1);
+    }
+
+    {
+        // (2) The retired victim deleted synchronously later (not by its deferred deletion)
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        delete victim;
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(2)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("not by its deferred deletion")), qPrintable(findings.front()));
+    }
+
+    {
+        // (3) The close does not retire (a plain deleteLater)
+        Check check(&fixture);
+        check.setCloseFunction([](QObject* object) { object->deleteLater(); return true; });
+        QVERIFY(check.retire(new pdf::PDFLifetimeTestVictim(documentTab), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(3)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("did not retire")), qPrintable(findings.front()));
+    }
+
+    {
+        // (3) The retired victim is not deleted by settle (its deferred deletion is lost)
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QPointer<QObject> guard(victim);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        QCoreApplication::removePostedEvents(victim, QEvent::DeferredDelete);
+        PagesLifetimeHelper::settle();
+        QVERIFY(guard);
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(3)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("not deleted by settle()")), qPrintable(findings.front()));
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete guard.data();
+    }
+
+    {
+        // (4) A dialog of the retired victim shown after the close (the gate drops its Show event, the dialog is visible
+        // at the deletion)
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QDialog* dialog = new QDialog(victim);
+        dialog->setObjectName(QStringLiteral("retiredDialog"));
+        QVERIFY(check.retire(victim, Mode::Retire));
+        dialog->show();
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(4)"));
+        QCOMPARE(findings.size(), 2);
+        QVERIFY2(findings.join(QLatin1Char('\n')).contains(QStringLiteral("retiredDialog")), qPrintable(findings.join(QLatin1Char('\n'))));
+    }
+
+    for (const bool isLateShow : { false, true })
+    {
+        // (4) The victim retired inside the show of a widget of it (the first resize of a child in
+        // QWidgetPrivate::show_helper, as a canvas sends viewChanged from its resize): Qt finishes that show on the
+        // same stack (the child, its sibling, the widget itself) - the gate drops their Show events, which are no
+        // finding; a show, which starts after the close (a dialog of the victim), still is - exactly its one event
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        victim->show();
+        QVERIFY(victim->isVisible());
+        QWidget* canvas = new QWidget(victim);
+        canvas->hide();
+        QDialog* dialog = new QDialog(victim);
+        dialog->setObjectName(QStringLiteral("lateDialog"));
+        bool isRetired = false;
+        new pdf::PDFLifetimeTestResizeHook(canvas, [&check, &isRetired, victim]() { isRetired = check.retire(victim, Mode::Retire); });
+        new QWidget(canvas);
+        const qint64 droppedBefore = pdf::PDFDeferredDeletion::getDroppedEventCount(QEvent::Show);
+        canvas->show();
+        QVERIFY(isRetired);
+        // The child and the canvas at least (the hide of the retire may end the show of the sibling first)
+        const qint64 droppedInShow = pdf::PDFDeferredDeletion::getDroppedEventCount(QEvent::Show) - droppedBefore;
+        QVERIFY2(droppedInShow >= 2, qPrintable(QString::number(droppedInShow)));
+        if (isLateShow)
+        {
+            dialog->show();
+        }
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(4)"));
+        if (isLateShow)
+        {
+            QVERIFY2(findings.join(QLatin1Char('\n')).contains(QStringLiteral("(1 Show events dropped by the gate)")), qPrintable(findings.join(QLatin1Char('\n'))));
+        }
+        else
+        {
+            QCOMPARE(findings, QStringList());
+        }
+    }
+
+    {
+        // (5) A close of a tab, which reports it done, while the window still lists the tab (it is not deleted
+        // either); the real close of the window then
+        QPointer<pdf::PDFAppDocumentTab> secondTab = fixture.openDocument(1);
+        QVERIFY(secondTab);
+        PagesLifetimeHelper::settle();
+        Check check(&fixture);
+        check.setCloseFunction([](QObject*) { return true; });
+        QVERIFY(check.retire(secondTab.data(), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        QVERIFY(secondTab);
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(5)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("after its close")), qPrintable(findings.front()));
+        QVERIFY(fixture.window->closeTab(secondTab.data()));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!secondTab);
+    }
+
+    {
+        // (6) The document of the victim changes after its close
+        Check check(&fixture);
+        pdf::PDFAppDocument* document = documentTab->getDocument();
+        QVERIFY(check.retire(new pdf::PDFLifetimeTestVictim(documentTab), Mode::Retire));
+        QVERIFY(document->commit(pdf::PDFModifiedDocument(document->getDocument(), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                                 QStringLiteral("Change"), document->getVersion(), pdf::PDFAppChangeSource::User));
+        PagesLifetimeHelper::settle();
+        QCOMPARE(findingsOf(check.finish(), QStringLiteral("(6)")).size(), 1);
+    }
+
+    {
+        // (7) A new child of the retired victim
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        QObject* child = new QObject(victim);
+        child->setObjectName(QStringLiteral("newChild"));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(7)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("newChild")), qPrintable(findings.front()));
+    }
+
+    for (const bool isFromEventLoop : { false, true })
+    {
+        // (7) The named exception: the worker thread of a page compiler of the victim started on the stack of the close
+        // (PDFDrawWidgetProxy::setDocument starts its compiler after the signal, whose slot closed the tab) is no
+        // finding; a compiler thread started after the event loop has come still is
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        pdf::PDFDrawWidgetProxy* proxy = new pdf::PDFDrawWidgetProxy(victim);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        if (isFromEventLoop)
+        {
+            // The queued marker of the stack of the close only (the deferred deletion of the victim stays posted)
+            QCoreApplication::sendPostedEvents(&check, QEvent::MetaCall);
+        }
+        proxy->getCompiler()->start();
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(7)"));
+        if (isFromEventLoop)
+        {
+            QCOMPARE(findings.size(), 1);
+            QVERIFY2(findings.front().contains(QStringLiteral("pdf::PDFAsynchronousPageCompilerWorkerThread")), qPrintable(findings.front()));
+        }
+        else
+        {
+            QCOMPARE(findings, QStringList());
+        }
+    }
+
+    {
+        // (8) A window shown while the code of the site is on the stack; a window shown after the event loop has come
+        // is no finding
+        Check check(&fixture);
+        QVERIFY(check.retire(new pdf::PDFLifetimeTestVictim(documentTab), Mode::Retire));
+        std::unique_ptr<QWidget> onStack = std::make_unique<QWidget>();
+        onStack->setObjectName(QStringLiteral("shownOnStack"));
+        onStack->show();
+        PagesLifetimeHelper::settle();
+        std::unique_ptr<QWidget> later = std::make_unique<QWidget>();
+        later->setObjectName(QStringLiteral("shownLater"));
+        later->show();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(8)"));
+        QCOMPARE(findings.size(), 1);
+        QVERIFY2(findings.front().contains(QStringLiteral("shownOnStack")), qPrintable(findings.front()));
+    }
+
+    {
+        // (8) The end of the stack of the close is decided by the stack, not by the order of the events (RB-M4): the
+        // victim closed inside an event of the loop (a queued call), a window shown by that call after the close is on
+        // the stack - a finding; a window shown by the next event of the same delivery (before the queued call of the
+        // check) is not - no finding
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        std::unique_ptr<QWidget> insideSite = std::make_unique<QWidget>();
+        insideSite->setObjectName(QStringLiteral("shownInsideTheSite"));
+        std::unique_ptr<QWidget> nextEvent = std::make_unique<QWidget>();
+        nextEvent->setObjectName(QStringLiteral("shownByTheNextEvent"));
+        bool isRetired = false;
+        QObject site;
+        QMetaObject::invokeMethod(&site, [&check, &isRetired, &insideSite, victim]()
+        {
+            isRetired = check.retire(victim, Mode::Retire);
+            insideSite->show();
+        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(&site, [&nextEvent]() { nextEvent->show(); }, Qt::QueuedConnection);
+        QCoreApplication::sendPostedEvents(&site, QEvent::MetaCall);
+        QVERIFY(isRetired);
+        QVERIFY(nextEvent->isVisible());
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(8)"));
+        QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("shownInsideTheSite")), qPrintable(findings.join(QLatin1Char('\n'))));
+    }
+
+#if PDF4QT_LIFETIME_CONNECTION_CHECK
+    {
+        // (9) A plain connection from a living sender outside of the retired subtree
+        Check check(&fixture);
+        QObject sender;
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QObject::connect(&sender, &QObject::objectNameChanged, victim, &pdf::PDFLifetimeTestVictim::onNameChanged);
+        QVERIFY(check.retire(victim, Mode::Retire));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        QVERIFY2(!findings.isEmpty() && findings.front().contains(QStringLiteral("QObject::objectNameChanged")) &&
+                 findings.front().contains(QStringLiteral("pdf::PDFLifetimeTestVictim")), qPrintable(findings.join(QLatin1Char('\n'))));
+    }
+
+    {
+        // (9) The own expand animation of a tree view (QTreeViewPrivate::animatedOperation, connected by Qt to the view
+        // itself) is the named exception; another animation without a parent, connected to the retired view, is still
+        // reported - the only findings, after the close and at the deletion
+        Check check(&fixture);
+        QVariantAnimation foreignAnimation;
+        foreignAnimation.setObjectName(QStringLiteral("foreignAnimation"));
+        pdf::PDFLifetimeTestTreeView* view = new pdf::PDFLifetimeTestTreeView(documentTab);
+        QObject::connect(&foreignAnimation, &QVariantAnimation::finished, view, &pdf::PDFLifetimeTestTreeView::onFinished);
+        QVERIFY(check.retire(view, Mode::Retire));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        QVERIFY2(findings.size() == 2, qPrintable(findings.join(QLatin1Char('\n'))));
+        for (const QString& finding : findings)
+        {
+            QVERIFY2(finding.contains(QStringLiteral("QVariantAnimation::finished")) && finding.contains(QStringLiteral("foreignAnimation")) &&
+                     finding.contains(QStringLiteral("pdf::PDFLifetimeTestTreeView")), qPrintable(finding));
+        }
+        QVERIFY2(findings.join(QLatin1Char('\n')).contains(QStringLiteral("after the close")) && findings.join(QLatin1Char('\n')).contains(QStringLiteral("at the deletion")),
+                 qPrintable(findings.join(QLatin1Char('\n'))));
+    }
+
+    {
+        // (9) The own manipulator of a page content scene (a value member, connected by the scene to itself) is the
+        // named exception; another manipulator, connected to the retired scene, is still reported - the only findings,
+        // after the close and at the deletion
+        Check check(&fixture);
+        pdf::PDFPageContentScene* scene = new pdf::PDFPageContentScene(documentTab);
+        pdf::PDFPageContentElementManipulator foreignManipulator(scene, nullptr);
+        foreignManipulator.setObjectName(QStringLiteral("foreignManipulator"));
+        QObject::connect(&foreignManipulator, &pdf::PDFPageContentElementManipulator::selectionChanged, scene, []() { });
+        QVERIFY(check.retire(scene, Mode::Retire));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        QVERIFY2(findings.size() == 2, qPrintable(findings.join(QLatin1Char('\n'))));
+        for (const QString& finding : findings)
+        {
+            QVERIFY2(finding.contains(QStringLiteral("PDFPageContentElementManipulator::selectionChanged")) && finding.contains(QStringLiteral("foreignManipulator")) &&
+                     finding.contains(QStringLiteral("pdf::PDFPageContentScene")), qPrintable(finding));
+        }
+    }
+
+    {
+        // (9) The named exceptions 1 and 2 (RB-L5): the scroll timers of the draw widget and the watcher of the text
+        // layout compiler, value members of their receivers, are no finding at the real close of a document tab; a
+        // timer and a watcher outside, connected to the same receivers, are reported - the only findings, after the
+        // close and at the deletion
+        QPointer<pdf::PDFAppDocumentTab> tab = fixture.openDocument(1);
+        QVERIFY(tab);
+        QVERIFY(QTest::qWaitFor([&tab]() { return !tab || (tab->getDocument() && tab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(tab);
+        PagesLifetimeHelper::settle();
+        // (by the class name: the draw widget is not exported by Pdf4QtLibWidgets)
+        QWidget* drawWidget = nullptr;
+        for (QWidget* widget : tab->findChildren<QWidget*>())
+        {
+            drawWidget = !drawWidget && qstrcmp(widget->metaObject()->className(), "pdf::PDFDrawWidget") == 0 ? widget : drawWidget;
+        }
+        pdf::PDFAsynchronousTextLayoutCompiler* compiler = tab->findChild<pdf::PDFAsynchronousTextLayoutCompiler*>();
+        QVERIFY(drawWidget && compiler);
+        QTimer foreignTimer;
+        foreignTimer.setObjectName(QStringLiteral("foreignTimer"));
+        QObject::connect(&foreignTimer, &QTimer::timeout, drawWidget, [drawWidget]() { drawWidget->update(); });
+        QFutureWatcher<void> foreignWatcher;
+        foreignWatcher.setObjectName(QStringLiteral("foreignWatcher"));
+        QObject::connect(&foreignWatcher, &QFutureWatcherBase::finished, compiler, [compiler]() { Q_UNUSED(compiler); });
+        Check check(&fixture);
+        QVERIFY(check.retire(tab.data(), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!tab);
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        const QString text = findings.join(QLatin1Char('\n'));
+        QVERIFY2(findings.size() == 4, qPrintable(text));
+        for (const QString& finding : findings)
+        {
+            QVERIFY2((finding.contains(QStringLiteral("QTimer::timeout")) && finding.contains(QStringLiteral("foreignTimer")) && finding.contains(QStringLiteral("pdf::PDFDrawWidget"))) ||
+                     (finding.contains(QStringLiteral("QFutureWatcherBase::finished")) && finding.contains(QStringLiteral("foreignWatcher")) &&
+                      finding.contains(QStringLiteral("pdf::PDFAsynchronousTextLayoutCompiler"))), qPrintable(finding));
+        }
+        QVERIFY2(text.contains(QStringLiteral("after the close")) && text.contains(QStringLiteral("at the deletion")), qPrintable(text));
+    }
+
+    {
+        // (9) A victim retired later (from the event loop, as PDFAppTab::setPage retires a replaced page) is checked
+        // after its close too, once the stack of that retire has returned (RB-L10), not only at its deletion
+        Check check(&fixture);
+        QObject sender;
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QObject::connect(&sender, &QObject::objectNameChanged, victim, &pdf::PDFLifetimeTestVictim::onNameChanged);
+        check.setCloseFunction([](QObject* object)
+        {
+            QPointer<QObject> closed(object);
+            QTimer::singleShot(0, qApp, [closed]() { pdf::PDFDeferredDeletion::retire(closed.data()); });
+            return true;
+        });
+        QVERIFY(check.retire(victim, Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        const QString text = findings.join(QLatin1Char('\n'));
+        QVERIFY2(findings.size() == 2 && text.contains(QStringLiteral("after the close")) && text.contains(QStringLiteral("at the deletion")), qPrintable(text));
+    }
+
+    {
+        // (9) An object of Qt in a retired subtree is checked for the senders of the application (a functor with a
+        // context of Qt runs code of the application, RB-L5); a sender of Qt into it is Qt's own business
+        Check check(&fixture);
+        pdf::PDFLifetimeTestVictim* victim = new pdf::PDFLifetimeTestVictim(documentTab);
+        QLabel* label = new QLabel(victim);
+        label->setObjectName(QStringLiteral("qtReceiver"));
+        pdf::PDFLifetimeTestVictim applicationSender(nullptr);
+        applicationSender.setObjectName(QStringLiteral("applicationSender"));
+        QObject::connect(&applicationSender, &QObject::objectNameChanged, label, [label]() { label->clear(); });
+        QTimer qtSender;
+        QObject::connect(&qtSender, &QTimer::timeout, label, [label]() { label->clear(); });
+        QVERIFY(check.retire(victim, Mode::Retire));
+        PagesLifetimeHelper::settle();
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(9)"));
+        QVERIFY2(!findings.isEmpty(), "no finding");
+        for (const QString& finding : findings)
+        {
+            QVERIFY2(finding.contains(QStringLiteral("applicationSender")) && finding.contains(QStringLiteral("qtReceiver")), qPrintable(finding));
+        }
+    }
+#else
+    QFAIL("Check 9 needs the private headers of QtCore (the test links Qt6::CorePrivate)");
+#endif
+
+    // Insert Pages with two blank pages in the tab: the work of the tool, whose leave asks the close question of the
+    // tool (PDFDocumentToolGUI::askClose, 'toolCloseQuestion')
+    const auto openInsertWithWork = [&fixture](pdf::PDFAppDocumentTab* tab) -> pdf::PDFDocumentToolShell*
+    {
+        fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), QStringLiteral("pages.insert")));
+        PagesLifetimeHelper::settle();
+        pdf::PDFAppToolDocumentPage* page = qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage());
+        pdf::PDFDocumentToolShell* shell = page ? page->getShell() : nullptr;
+        pdf::PDFAppInsertToolGUI* gui = shell ? qobject_cast<pdf::PDFAppInsertToolGUI*>(shell->getGUI()) : nullptr;
+        if (!gui)
+        {
+            return nullptr;
+        }
+        gui->addBlankPages();
+        gui->addBlankPages();
+        PagesLifetimeHelper::settle();
+        return shell->hasUnsavedWork() ? shell : nullptr;
+    };
+
+    {
+        // The close of a tab, whose tool asks its close question: the question is answered by Discard (as the user
+        // closes the tab without the work of the tool) and the tab is retired
+        QPointer<pdf::PDFAppDocumentTab> secondTab = fixture.openDocument(1);
+        QVERIFY(secondTab);
+        QVERIFY(QTest::qWaitFor([&secondTab]() { return !secondTab || (secondTab->getDocument() && secondTab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(secondTab);
+        PagesLifetimeHelper::settle();
+        QVERIFY(openInsertWithWork(secondTab.data()));
+        Check check(&fixture);
+        QVERIFY(check.retire(secondTab.data(), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!secondTab);
+        QCOMPARE(check.finish(), QStringList());
+    }
+
+    {
+        // The close of a tab, whose tool has asked its close question before (Cancel of the tool): the close waits for
+        // that question (its leave flow brings it forward) - the question of the close, answered by Discard
+        QPointer<pdf::PDFAppDocumentTab> thirdTab = fixture.openDocument(1);
+        QVERIFY(thirdTab);
+        QVERIFY(QTest::qWaitFor([&thirdTab]() { return !thirdTab || (thirdTab->getDocument() && thirdTab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(thirdTab);
+        PagesLifetimeHelper::settle();
+        QPointer<pdf::PDFDocumentToolShell> shell = openInsertWithWork(thirdTab.data());
+        QVERIFY(shell);
+        shell->cancel();
+        PagesLifetimeHelper::settle();
+        QVERIFY(shell && shell->getCloseQuestion() && shell->getCloseQuestion()->isVisible());
+        Check check(&fixture);
+        QVERIFY(check.retire(thirdTab.data(), Mode::Deferred));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!thirdTab);
+        QCOMPARE(check.finish(), QStringList());
+    }
+
+    {
+        // A deferred close: the leave flow of the close of a tab runs on without a question and completes from the
+        // event loop (as the shell applies the close choice of a tool requested inside a change of its document) - the
+        // close counts, the checks follow the later retire, settle deletes the tab
+        QPointer<pdf::PDFAppDocumentTab> pendingTab = fixture.openDocument(1);
+        QVERIFY(pendingTab);
+        QVERIFY(QTest::qWaitFor([&pendingTab]() { return !pendingTab || (pendingTab->getDocument() && pendingTab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(pendingTab);
+        PagesLifetimeHelper::settle();
+        Check check(&fixture);
+        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+        check.setCloseFunction([window](QObject* object)
+        {
+            QPointer<pdf::PDFAppTab> tab = qobject_cast<pdf::PDFAppTab*>(object);
+            if (!tab || !tab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab))
+            {
+                return false;
+            }
+            QMetaObject::invokeMethod(window.data(), [window, tab]()
+            {
+                if (window && tab)
+                {
+                    tab->getLeaveFlow()->finish(true);
+                }
+                if (window && tab && window->getTabs().contains(tab.data()))
+                {
+                    window->closeTab(tab.data());
+                }
+            }, Qt::QueuedConnection);
+            return false;
+        });
+        QVERIFY(check.retire(pendingTab.data(), Mode::Deferred));
+        QVERIFY(pendingTab && pendingTab->isLeaving());
+        PagesLifetimeHelper::settle();
+        QVERIFY(!pendingTab);
+        QCOMPARE(check.finish(), QStringList());
+    }
+
+    {
+        // A deferred close, which never completes (the flow runs on, the tab stays listed): the row fails by (3)
+        QPointer<pdf::PDFAppDocumentTab> stuckTab = fixture.openDocument(1);
+        QVERIFY(stuckTab);
+        QVERIFY(QTest::qWaitFor([&stuckTab]() { return !stuckTab || (stuckTab->getDocument() && stuckTab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(stuckTab);
+        PagesLifetimeHelper::settle();
+        {
+            Check check(&fixture);
+            check.setCloseFunction([](QObject* object)
+            {
+                // The flow of the close starts and never ends by itself: the close is not done
+                if (pdf::PDFAppTab* tab = qobject_cast<pdf::PDFAppTab*>(object))
+                {
+                    tab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab);
+                }
+                return false;
+            });
+            QVERIFY(check.retire(stuckTab.data(), Mode::Deferred));
+            PagesLifetimeHelper::settle();
+            QVERIFY(stuckTab);
+            const QStringList findings = check.finish();
+            QVERIFY2(findingsOf(findings, QStringLiteral("(3) the deferred close of")).size() == 1, qPrintable(findings.join(QLatin1Char('\n'))));
+            QVERIFY2(findings.join(QLatin1Char('\n')).contains(QStringLiteral("its leave flow still runs")), qPrintable(findings.join(QLatin1Char('\n'))));
+        }
+
+        // The same close, whose flow ends refused (the tab stays): no deferred close completes - (3) too
+        {
+            Check check(&fixture);
+            QPointer<pdf::PDFAppTab> tab = stuckTab.data();
+            tab->getLeaveFlow()->finish(false);
+            check.setCloseFunction([](QObject* object)
+            {
+                QPointer<pdf::PDFAppTab> closing = qobject_cast<pdf::PDFAppTab*>(object);
+                if (!closing || !closing->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab))
+                {
+                    return false;
+                }
+                QMetaObject::invokeMethod(closing.data(), [closing]()
+                {
+                    if (closing)
+                    {
+                        closing->getLeaveFlow()->finish(false);
+                    }
+                }, Qt::QueuedConnection);
+                return false;
+            });
+            QVERIFY(check.retire(stuckTab.data(), Mode::Deferred));
+            PagesLifetimeHelper::settle();
+            QVERIFY(stuckTab && !stuckTab->isLeaving());
+            const QStringList findings = check.finish();
+            QVERIFY2(findings.join(QLatin1Char('\n')).contains(QStringLiteral("its leave flow ended, the tab stays")), qPrintable(findings.join(QLatin1Char('\n'))));
+        }
+
+        // (10) A tab, whose leave flow ran already before the close without a visible question, refuses the close; the
+        // flow, which still runs without a question after settle(), is stuck - a finding: the user could never close it
+        {
+            Check check(&fixture);
+            QVERIFY(stuckTab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+            check.setCloseFunction([](QObject*) { return false; });
+            QVERIFY(!check.retire(stuckTab.data(), Mode::Deferred));
+            QVERIFY(check.getRefusal() == Check::Refusal::RefusedWhileLeaving);
+            PagesLifetimeHelper::settle();
+            const QStringList findings = findingsOf(check.finish(), QStringLiteral("(10)"));
+            QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("still runs without a question")), qPrintable(findings.join(QLatin1Char('\n'))));
+            stuckTab->getLeaveFlow()->finish(false);
+        }
+
+        // The same flow in the middle of a step on the stack of the site (no question yet), which ends from the event
+        // loop: the refusal counts, no finding
+        {
+            Check check(&fixture);
+            QVERIFY(stuckTab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+            QPointer<pdf::PDFAppTab> flowTab = stuckTab.data();
+            QMetaObject::invokeMethod(flowTab.data(), [flowTab]()
+            {
+                if (flowTab)
+                {
+                    flowTab->getLeaveFlow()->finish(false);
+                }
+            }, Qt::QueuedConnection);
+            check.setCloseFunction([](QObject*) { return false; });
+            QVERIFY(!check.retire(stuckTab.data(), Mode::Deferred));
+            QVERIFY(check.getRefusal() == Check::Refusal::RefusedWhileLeaving);
+            PagesLifetimeHelper::settle();
+            QVERIFY(!stuckTab->isLeaving());
+            QCOMPARE(check.finish(), QStringList());
+        }
+        QVERIFY(fixture.window->closeTab(stuckTab.data()));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!stuckTab);
+    }
+
+    // A tab of a document, whose document is ready
+    const auto openReadyTab = [&fixture]() -> QPointer<pdf::PDFAppDocumentTab>
+    {
+        QPointer<pdf::PDFAppDocumentTab> tab = fixture.openDocument(1);
+        const bool isReady = tab && QTest::qWaitFor([&tab]() { return !tab || (tab->getDocument() && tab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000));
+        PagesLifetimeHelper::settle();
+        return isReady && tab && tab->getDocument() && tab->getDocument()->isReady() ? tab : QPointer<pdf::PDFAppDocumentTab>();
+    };
+
+    // A question of a close (modal, parented to the window as the questions of the application): its button
+    // \p buttonName ends the flow of \p tab and closes the tab (the real close); the flow waits for it, when
+    // \p isFlowQuestion
+    QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+    const auto showQuestion = [window](pdf::PDFAppTab* tab, const QString& dialogName, const QString& buttonName, bool isFlowQuestion) -> QPointer<QDialog>
+    {
+        QDialog* dialog = new QDialog(window.data());
+        dialog->setObjectName(dialogName);
+        dialog->setModal(true);
+        QPushButton* button = new QPushButton(QStringLiteral("Discard"), dialog);
+        button->setObjectName(buttonName);
+        QPointer<pdf::PDFAppTab> closing(tab);
+        QPointer<QDialog> guard(dialog);
+        QObject::connect(button, &QPushButton::clicked, dialog, [window, closing, guard]()
+        {
+            if (guard)
+            {
+                guard->hide();
+                guard->deleteLater();
+            }
+            if (closing)
+            {
+                closing->getLeaveFlow()->finish(true);
+            }
+            if (window && closing && window->getTabs().contains(closing.data()))
+            {
+                window->closeTab(closing.data());
+            }
+        });
+        if (isFlowQuestion)
+        {
+            // As the application: the flow knows its question before it is shown (PDFAppLeaveFlow::waitForQuestion)
+            tab->getLeaveFlow()->setQuestion(dialog);
+        }
+        dialog->show();
+        return QPointer<QDialog>(dialog);
+    };
+
+    // The close prompts of the tools (PDFAppToolGUIRedact, PDFAppToolGUISignByHand, PDFAppToolGUIMeasure::askClose /
+    // askIncompleteClose: the dialog and its discard button) are answered by their discard; an unknown prompt is not
+    // - the close is refused, a finding (10), the question canceled
+    const std::vector<std::pair<QString, QString>> prompts = { { QStringLiteral("redactClosePrompt"), QStringLiteral("redactCloseRemove") },
+                                                               { QStringLiteral("signByHandDiscardDialog"), QStringLiteral("signByHandDiscard") },
+                                                               { QStringLiteral("measureIncompleteQuestion"), QStringLiteral("measureIncompleteDiscard") },
+                                                               { QStringLiteral("unknownClosePrompt"), QStringLiteral("unknownCloseDiscard") } };
+    for (const auto& [dialogName, buttonName] : prompts)
+    {
+        QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+        QVERIFY(tab);
+        const bool isKnown = !dialogName.startsWith(QLatin1String("unknown"));
+        QPointer<QDialog> question;
+        Check check(&fixture);
+        check.setCloseFunction([&showQuestion, &question, dialogName, buttonName](QObject* object)
+        {
+            pdf::PDFAppTab* closing = qobject_cast<pdf::PDFAppTab*>(object);
+            if (!closing || !closing->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab))
+            {
+                return false;
+            }
+            question = showQuestion(closing, dialogName, buttonName, true);
+            return false;
+        });
+        QCOMPARE(check.retire(tab.data(), Mode::Deferred), isKnown);
+        PagesLifetimeHelper::settle();
+        if (isKnown)
+        {
+            QVERIFY2(!tab, qPrintable(dialogName));
+            QCOMPARE(check.finish(), QStringList());
+        }
+        else
+        {
+            QVERIFY(tab && check.getRefusal() == Check::Refusal::Refused);
+            QVERIFY(!question || !question->isVisible());
+            const QStringList findings = findingsOf(check.finish(), QStringLiteral("(10)"));
+            QVERIFY2(findings.size() == 1 && findings.front().contains(dialogName), qPrintable(findings.join(QLatin1Char('\n'))));
+            tab->getLeaveFlow()->finish(false);
+            QVERIFY(fixture.window->closeTab(tab.data()));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+        }
+    }
+
+    {
+        // RB-L9: a new question about another tab (not of the closed tab, not waited for by its flow) is not answered
+        // by the close - even when its Don't Save would close the victim; the close is refused, a finding (10)
+        QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+        QVERIFY(tab);
+        QPointer<pdf::PDFAppDocumentChoiceDialog> stray;
+        Check check(&fixture);
+        check.setCloseFunction([&stray, window, documentTab](QObject* object)
+        {
+            QPointer<pdf::PDFAppTab> closing = qobject_cast<pdf::PDFAppTab*>(object);
+            stray = new pdf::PDFAppDocumentChoiceDialog(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Other document"), QStringLiteral("Save the other document?"), 400,
+                                                        documentTab.data());
+            stray->setObjectName(QStringLiteral("strayQuestion"));
+            QPushButton* discard = stray->addChoice(QStringLiteral("Don't Save"), pdf::PDFAppDocumentChoice::Discard, true, false, QStringLiteral("strayDiscard"));
+            QObject::connect(discard, &QPushButton::clicked, stray.data(), [window, closing]()
+            {
+                if (window && closing)
+                {
+                    window->closeTab(closing.data());
+                }
+            });
+            stray->setModal(true);
+            stray->show();
+            return false;
+        });
+        QVERIFY(!check.retire(tab.data(), Mode::Deferred));
+        QVERIFY(tab && check.getRefusal() == Check::Refusal::Refused);
+        const QStringList findings = findingsOf(check.finish(), QStringLiteral("(10)"));
+        QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("strayQuestion")), qPrintable(findings.join(QLatin1Char('\n'))));
+        pdf::PDFDeferredDeletion::retire(stray.data());
+        PagesLifetimeHelper::settle();
+        QVERIFY(!stray);
+        QVERIFY(fixture.window->closeTab(tab.data()));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!tab);
+    }
+
+    {
+        // (10) A modal dialog of the tab (owned by it, as the result dialog of a tool by its shell), open before the
+        // close, decides first (F2): the close, which it refuses, is Refusal::RefusedByOpenDialog, counted, no finding;
+        // the same dialog without its modality does not block the user - the refusal is a finding
+        for (const bool isModal : { true, false })
+        {
+            QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+            QVERIFY(tab);
+            QPointer<QDialog> dialog = new QDialog(fixture.window);
+            dialog->setObjectName(QStringLiteral("tabResultDialog"));
+            pdf::PDFDeferredDeletion::setOwner(dialog.data(), tab.data());
+            dialog->setModal(isModal);
+            dialog->show();
+            PagesLifetimeHelper::settle();
+            const int refusedBefore = Check::getRefusedByOpenDialogCount();
+            Check check(&fixture);
+            check.setCloseFunction([](QObject*) { return false; });
+            QVERIFY(!check.retire(tab.data(), Mode::Deferred));
+            QVERIFY(dialog && dialog->isVisible());
+            const QStringList findings = check.finish();
+            if (isModal)
+            {
+                QVERIFY(check.getRefusal() == Check::Refusal::RefusedByOpenDialog);
+                QCOMPARE(Check::getRefusedByOpenDialogCount(), refusedBefore + 1);
+                QCOMPARE(findings, QStringList());
+            }
+            else
+            {
+                QVERIFY(check.getRefusal() == Check::Refusal::Refused);
+                QVERIFY2(findings.size() == 1 && findings.front().startsWith(QStringLiteral("(10)")), qPrintable(findings.join(QLatin1Char('\n'))));
+            }
+            delete dialog.data();
+            QVERIFY(fixture.window->closeTab(tab.data()));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+        }
+    }
+
+    {
+        // (10) A tab, whose leave flow waits for its visible question (its own close asked by the user before):
+        // Refusal::RefusedWhileLeaving, counted; the question is not answered by the close (RB-L4, the user did not
+        // choose it) and stays; no finding while the flow ends or its question stays. A flow, which runs on without
+        // its question after the steps, is stuck - a finding. A refused close, which opens a question of its own (a stray
+        // question), is a finding too.
+        for (const bool isStray : { false, true })
+        {
+            QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+            QVERIFY(tab);
+            QVERIFY(tab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+            QPointer<QDialog> question = showQuestion(tab.data(), QStringLiteral("toolCloseQuestion"), QStringLiteral("toolCloseDiscard"), true);
+            PagesLifetimeHelper::settle();
+            Check check(&fixture);
+            QPointer<QDialog> strayQuestion;
+            check.setCloseFunction([&fixture, &strayQuestion, isStray](QObject* object)
+            {
+                if (isStray)
+                {
+                    strayQuestion = new QDialog(fixture.window);
+                    strayQuestion->setObjectName(QStringLiteral("strayLeaveQuestion"));
+                    strayQuestion->show();
+                }
+                return fixture.retire(object);
+            });
+            QVERIFY(!check.retire(tab.data(), Mode::Deferred));
+            QVERIFY(question && question->isVisible() && tab && tab->isLeaving());
+            if (isStray)
+            {
+                QVERIFY(check.getRefusal() == Check::Refusal::Refused);
+                QVERIFY(!strayQuestion || !strayQuestion->isVisible());
+                const QStringList findings = check.finish();
+                QVERIFY2(findings.size() == 1 && findings.front().startsWith(QStringLiteral("(10)")) && findings.front().contains(QStringLiteral("strayLeaveQuestion")),
+                         qPrintable(findings.join(QLatin1Char('\n'))));
+            }
+            else
+            {
+                QVERIFY(check.getRefusal() == Check::Refusal::RefusedWhileLeaving);
+            }
+            delete strayQuestion.data();
+            delete question.data();
+            tab->getLeaveFlow()->finish(false);
+            QVERIFY(fixture.window->closeTab(tab.data()));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+        }
+
+        for (const bool isStuck : { false, true })
+        {
+            QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+            QVERIFY(tab);
+            QVERIFY(tab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+            QPointer<QDialog> question = showQuestion(tab.data(), QStringLiteral("toolCloseQuestion"), QStringLiteral("toolCloseDiscard"), true);
+            PagesLifetimeHelper::settle();
+            const int refusedBefore = Check::getRefusedWhileLeavingCount();
+            {
+                Check check(&fixture);
+                QVERIFY(!check.retire(tab.data(), Mode::Deferred));
+                QVERIFY(check.getRefusal() == Check::Refusal::RefusedWhileLeaving);
+                QCOMPARE(Check::getRefusedWhileLeavingCount(), refusedBefore + 1);
+                QVERIFY(question && question->isVisible() && tab && tab->isLeaving());
+                if (isStuck)
+                {
+                    question->hide();
+                }
+                PagesLifetimeHelper::settle();
+                const QStringList findings = check.finish();
+                if (isStuck)
+                {
+                    QVERIFY2(findings.size() == 1 && findings.front().startsWith(QStringLiteral("(10)")) && findings.front().contains(QStringLiteral("still runs without a question")),
+                             qPrintable(findings.join(QLatin1Char('\n'))));
+                }
+                else
+                {
+                    QCOMPARE(findings, QStringList());
+                }
+            }
+            delete question.data();
+            tab->getLeaveFlow()->finish(false);
+            QVERIFY(fixture.window->closeTab(tab.data()));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+        }
+    }
+
+    {
+        // (8) The question of a deferred close (its flow runs without a question at the close and shows it later - here
+        // while the stack of the close is still open) is no finding and is answered from the event loop; another window
+        // shown then is a finding
+        for (const bool isOtherWindow : { false, true })
+        {
+            QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+            QVERIFY(tab);
+            Check check(&fixture);
+            check.setCloseFunction([](QObject* object)
+            {
+                // The flow of the close starts, its question comes later: the close is not done yet
+                if (pdf::PDFAppTab* closing = qobject_cast<pdf::PDFAppTab*>(object))
+                {
+                    closing->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::CloseTab);
+                }
+                return false;
+            });
+            QVERIFY(check.retire(tab.data(), Mode::Deferred));
+            QVERIFY(tab && tab->isLeaving());
+            std::unique_ptr<QWidget> otherWindow;
+            if (isOtherWindow)
+            {
+                otherWindow = std::make_unique<QWidget>();
+                otherWindow->setObjectName(QStringLiteral("otherWindow"));
+                otherWindow->show();
+            }
+            showQuestion(tab.data(), QStringLiteral("toolCloseQuestion"), QStringLiteral("toolCloseDiscard"), true);
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+            const QStringList findings = check.finish();
+            if (isOtherWindow)
+            {
+                QVERIFY2(findings.size() == 1 && findings.front().startsWith(QStringLiteral("(8)")) && findings.front().contains(QStringLiteral("otherWindow")),
+                         qPrintable(findings.join(QLatin1Char('\n'))));
+            }
+            else
+            {
+                QCOMPARE(findings, QStringList());
+            }
+        }
+    }
+
+    {
+        // (6) A change of the document tried after the close of its tab: the retired document refuses it (its version
+        // stays) and counts it - a finding; nothing without the change
+        for (const bool isChanged : { false, true })
+        {
+            QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+            QVERIFY(tab);
+            QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+            Check check(&fixture);
+            QVERIFY(check.retire(tab.data(), Mode::Deferred));
+            if (isChanged)
+            {
+                QVERIFY(!document->commit(pdf::PDFModifiedDocument(document->getDocument(), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                                          QStringLiteral("Change"), document->getVersion(), pdf::PDFAppChangeSource::User));
+            }
+            PagesLifetimeHelper::settle();
+            QVERIFY(!tab);
+            const QStringList findings = check.finish();
+            if (isChanged)
+            {
+                QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("was tried after its close")), qPrintable(findings.join(QLatin1Char('\n'))));
+            }
+            else
+            {
+                QCOMPARE(findings, QStringList());
+            }
+        }
+    }
+
+    {
+        // RB-M2: the page of a tab without a previous entry is closed by PDFAppTab::setPage(nullptr) (counted, clean);
+        // with a previous entry the navigation back replaces it (no fallback, clean); a navigation back, which did not
+        // replace it, is refused - a finding (10)
+        QPointer<pdf::PDFAppDocumentTab> tab = openReadyTab();
+        QVERIFY(tab && !tab->getHistory().canGoBack());
+        {
+            const int fallbackBefore = Check::getPageFallbackCount();
+            QPointer<pdf::PDFAppPage> page = tab->getPage();
+            Check check(&fixture);
+            QVERIFY(check.retire(page.data(), Mode::Deferred));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!page && tab && !tab->getPage());
+            QCOMPARE(Check::getPageFallbackCount(), fallbackBefore + 1);
+            QCOMPARE(check.finish(), QStringList());
+        }
+
+        // The page of the document again, then the tool page of Insert (a previous entry)
+        fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()));
+        PagesLifetimeHelper::settle();
+        fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), QStringLiteral("pages.insert")));
+        PagesLifetimeHelper::settle();
+        QVERIFY(tab && tab->getHistory().canGoBack() && qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage()));
+        {
+            Check check(&fixture);
+            check.setCloseFunction([](QObject*) { return true; });
+            QVERIFY(!check.retire(tab->getPage(), Mode::Deferred));
+            QVERIFY(check.getRefusal() == Check::Refusal::Refused);
+            const QStringList findings = findingsOf(check.finish(), QStringLiteral("(10)"));
+            QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("navigation back did not replace the page")), qPrintable(findings.join(QLatin1Char('\n'))));
+        }
+        {
+            const int fallbackBefore = Check::getPageFallbackCount();
+            QPointer<pdf::PDFAppPage> page = tab->getPage();
+            Check check(&fixture);
+            QVERIFY(check.retire(page.data(), Mode::Deferred));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!page && tab && qobject_cast<pdf::PDFAppDocumentPage*>(tab->getPage()));
+            QCOMPARE(Check::getPageFallbackCount(), fallbackBefore);
+            QCOMPARE(check.finish(), QStringList());
+        }
+
+        {
+            // RB-M2, (5) at the deletion: a page, whose navigation goes on from the event loop (the navigation flow
+            // of its tab runs without a question), is a pending close - the checks follow its later retire; it is
+            // retired there while its tab still shows it: listed at its deletion
+            QPointer<pdf::PDFAppPage> page = tab->getPage();
+            Check check(&fixture);
+            check.setCloseFunction([tab](QObject* object)
+            {
+                QPointer<QObject> closed(object);
+                if (!tab || !tab->getLeaveFlow()->start(pdf::PDFAppLeaveFlow::Goal::Navigate))
+                {
+                    return false;
+                }
+                QMetaObject::invokeMethod(tab.data(), [tab, closed]()
+                {
+                    if (tab)
+                    {
+                        tab->getLeaveFlow()->finish(true);
+                    }
+                    pdf::PDFDeferredDeletion::retire(closed.data());
+                }, Qt::QueuedConnection);
+                return true;
+            });
+            QVERIFY(check.retire(page.data(), Mode::Deferred));
+            QVERIFY(page && !pdf::PDFDeferredDeletion::isRetired(page.data()));
+            PagesLifetimeHelper::settle();
+            QVERIFY(!page);
+            const QStringList findings = check.finish();
+            QVERIFY2(findingsOf(findings, QStringLiteral("(5)")).size() == 1 && findings.join(QLatin1Char('\n')).contains(QStringLiteral("at its deletion")),
+                     qPrintable(findings.join(QLatin1Char('\n'))));
+        }
+        QVERIFY(fixture.window->closeTab(tab.data()));
+        PagesLifetimeHelper::settle();
+        QVERIFY(!tab);
+    }
+
+    {
+        // The end of the application, whose quit waits for the close question of a tool: answered by Discard, the
+        // window closes. Another tab closes already and its leave flow waits for the question of its tool (asked
+        // before the quit): the quit is refused meanwhile ("the first leave decides") - that question is answered by
+        // Discard as the user closes the tab, then the window is closed again.
+        QPointer<pdf::PDFAppDocumentTab> leavingTab = fixture.openDocument(1);
+        QVERIFY(leavingTab);
+        QVERIFY(QTest::qWaitFor([&leavingTab]() { return !leavingTab || (leavingTab->getDocument() && leavingTab->getDocument()->isReady()); }, PagesLifetimeHelper::timeout(20000)));
+        QVERIFY(leavingTab);
+        PagesLifetimeHelper::settle();
+        QVERIFY(openInsertWithWork(leavingTab.data()));
+        QVERIFY(!fixture.window->closeTab(leavingTab.data()));
+        PagesLifetimeHelper::settle();
+        QVERIFY(leavingTab && leavingTab->isLeaving());
+
+        QVERIFY(openInsertWithWork(documentTab.data()));
+        QVERIFY(Check::closeApplication(fixture));
+    }
+
     PagesLifetimeHelper::settle();
     PagesMessageCollector::takeMessages();
 }
@@ -2497,15 +3634,19 @@ void AppPagesLifetimeTest::runOrder(const PagesRouteCase& routeCase, const QStri
                 else if (victim == QStringLiteral("page"))
                 {
                     QVERIFY2(H::page(run), qPrintable(description));
+                    // The orders of the destructors: a deliberate synchronous deletion
+                    pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                     delete H::page(run);
                 }
                 else if (victim == QStringLiteral("tab"))
                 {
                     QVERIFY2(run.tab, qPrintable(description));
+                    pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                     delete run.tab.data();
                 }
                 else
                 {
+                    pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                     delete run.window.data();
                 }
                 H::settle();
@@ -2626,7 +3767,13 @@ void AppPagesLifetimeTest::deleteFromEverySignal_data()
     QTest::addColumn<int>("victim");
     QTest::addColumn<int>("part");
 
-    const std::pair<PagesVictim, const char*> victims[] = { { PagesVictim::Tab, "tab" }, { PagesVictim::Window, "window" }, { PagesVictim::Page, "page" } };
+    // The window is a victim of the synchronous diagnostics only; the deferred modes end the application after each
+    // step instead (RR-M7: the application deletes its window only after its event loop)
+    std::vector<std::pair<PagesVictim, const char*>> victims = { { PagesVictim::Tab, "tab" }, { PagesVictim::Window, "window" }, { PagesVictim::Page, "page" } };
+    if (!pdftest::LifetimeDeletionMode::hasWindowVictim())
+    {
+        victims = { { PagesVictim::Tab, "tab" }, { PagesVictim::Page, "page" }, { PagesVictim::End, pdftest::LifetimeDeletionMode::END_VICTIM } };
+    }
     for (const PagesRouteCase& routeCase : getCases())
     {
         if (!routeCase.isSweep)
@@ -2644,7 +3791,7 @@ void AppPagesLifetimeTest::deleteFromEverySignal_data()
 }
 
 void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifetimeRecorder::Mode mode, const PagesLifetimeRecorder::Site& target, PagesVictim victim,
-                                    std::vector<PagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred)
+                                    std::vector<PagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred, int endStep, bool* isTabClosable)
 {
     using H = PagesLifetimeHelper;
     const std::vector<PagesStep> steps = H::createSweepSteps();
@@ -2658,10 +3805,12 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
         run.window = fixture.window;
         QVERIFY2(H::prepare(run), qPrintable(routeCase.route));
 
+        // The close of the victim and the checks of the retired victim (deferred and retire modes)
+        pdftest::LifetimeVictimCheck victimCheck(&fixture);
         PagesLifetimeRecorder recorder(mode);
-        if (mode == PagesLifetimeRecorder::Mode::Replay)
+        if (mode == PagesLifetimeRecorder::Mode::Replay && victim != PagesVictim::End)
         {
-            recorder.setTarget(target, [&run, victim](const PagesLifetimeRecorder::Site& site)
+            recorder.setTarget(target, [&run, &victimCheck, victim](const PagesLifetimeRecorder::Site& site)
             {
                 // A victim being destroyed already (a signal of its destructor) is not
                 // deleted again: qobject_cast fails once the derived destructor has run
@@ -2681,11 +3830,22 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
                         object = qobject_cast<pdf::PDFAppPage*>(tab ? tab->getPage() : nullptr);
                         break;
                     }
+
+                    case PagesVictim::End:
+                        break;
                 }
                 if (!object)
                 {
                     return PagesLifetimeRecorder::Action::None;
                 }
+
+                // Deferred: the real close of the application (it stays alive and inert until the step returns,
+                // no deferred site or state is needed)
+                if (pdftest::LifetimeDeletionMode::isRetiring())
+                {
+                    return victimCheck.retire(object) ? PagesLifetimeRecorder::Action::Deferred : PagesLifetimeRecorder::Action::None;
+                }
+
                 // A tab deleted inside of a language change: a sibling of the receiver of the
                 // event (the route of an own tab of a tool shows its page in the Home tab while
                 // a document tab is open, step 2 of phase 2)
@@ -2695,6 +3855,7 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
                     object->deleteLater();
                     return PagesLifetimeRecorder::Action::Deferred;
                 }
+                pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                 delete object;
                 return PagesLifetimeRecorder::Action::Deleted;
             });
@@ -2702,6 +3863,11 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
 
         for (size_t i = 0; i < steps.size(); ++i)
         {
+            if (mode == PagesLifetimeRecorder::Mode::Replay && victim == PagesVictim::End && int(i) > endStep)
+            {
+                break;
+            }
+
             recorder.setStep(int(i));
             recorder.hookApplication();
             recorder.hookTree(fixture.context.get());
@@ -2732,8 +3898,26 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
 
         recorder.setStep(int(steps.size()));
         H::settle();
+        if (mode == PagesLifetimeRecorder::Mode::Replay && victim == PagesVictim::End)
+        {
+            // The end of the application after the step: the window closed as the user closes it, then the fixture
+            // ends the application (the window deleted, flush, the context closed)
+            recorder.stop();
+            QVERIFY2(pdftest::LifetimeVictimCheck::closeApplication(fixture), qPrintable(QStringLiteral("%1: the window did not close after step %2").arg(routeCase.route).arg(endStep)));
+            return;
+        }
+        if (mode == PagesLifetimeRecorder::Mode::Replay && !recorder.isFired())
+        {
+            // (10) A refused close is a finding, except a tab, whose leave flow waited for its visible question
+            const QStringList refusals = victimCheck.finish();
+            QVERIFY2(refusals.isEmpty(), qPrintable(refusals.join(QLatin1Char('\n'))));
+        }
         if (mode == PagesLifetimeRecorder::Mode::Replay && recorder.isFired())
         {
+            // The retired victim (deferred, retire): checks (2)-(9) of LifetimeVictimCheck
+            const QStringList findings = victimCheck.finish();
+            QVERIFY2(findings.isEmpty(), qPrintable(findings.join(QLatin1Char('\n'))));
+
             // The deferred work of the deleted objects finds nothing; no popup of the
             // deleted parts is left; the window keeps working after a tab or the
             // page was deleted
@@ -2765,6 +3949,10 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
         {
             *isDeferred = recorder.isDeferredFired();
         }
+        if (isTabClosable)
+        {
+            *isTabClosable = run.tab && run.tab->isClosable();
+        }
     }
 }
 
@@ -2772,8 +3960,9 @@ void AppPagesLifetimeTest::deleteFromEverySignal()
 {
     // The scenario of the route is run once with the recorder of every signal of
     // the application, then again for each site (the first emission of a signal of
-    // an object in a step) with the victim deleted synchronously from it; nothing of
-    // a replay is left after it
+    // an object in a step) with the victim closed from it by the close of the
+    // application (deferred; sync: deleted synchronously); the victim "end" ends the
+    // application after each step instead; nothing of a replay is left after it
     QFETCH(QString, route);
     QFETCH(int, victim);
     QFETCH(int, part);
@@ -2789,7 +3978,8 @@ void AppPagesLifetimeTest::deleteFromEverySignal()
     QVERIFY(!routeCase.route.isEmpty());
 
     std::vector<PagesLifetimeRecorder::Site> sites;
-    runSweep(routeCase, PagesLifetimeRecorder::Mode::Discover, PagesLifetimeRecorder::Site(), PagesVictim(victim), &sites, nullptr, nullptr);
+    bool isTabClosable = false;
+    runSweep(routeCase, PagesLifetimeRecorder::Mode::Discover, PagesLifetimeRecorder::Site(), PagesVictim(victim), &sites, nullptr, nullptr, -1, &isTabClosable);
     if (QTest::currentTestFailed())
     {
         return;
@@ -2798,12 +3988,42 @@ void AppPagesLifetimeTest::deleteFromEverySignal()
     PagesLifetimeHelper::settle();
     PagesMessageCollector::takeMessages();
 
+    if (PagesVictim(victim) == PagesVictim::Tab && pdftest::LifetimeDeletionMode::isRetiring() && !isTabClosable)
+    {
+        QSKIP("The route is shown in the Home tab, which the application closes only with its window (the victim end)");
+    }
+
+    if (PagesVictim(victim) == PagesVictim::End)
+    {
+        // The application ends after each step (its every PART_COUNT-th step; the discovery has warmed up the lazily
+        // created objects); nothing of a run is left after it
+        const int stepCount = int(PagesLifetimeHelper::createSweepSteps().size());
+        for (int step = part; step < stepCount; step += PART_COUNT)
+        {
+            const PagesObjectSet before = PagesObjectTracker::getLiveObjects();
+            runSweep(routeCase, PagesLifetimeRecorder::Mode::Replay, PagesLifetimeRecorder::Site(), PagesVictim::End, nullptr, nullptr, nullptr, step);
+            if (!QTest::currentTestFailed())
+            {
+                checkLeftovers(before, QStringLiteral("the end after step %1").arg(step));
+            }
+            if (QTest::currentTestFailed())
+            {
+                qWarning().noquote() << QStringLiteral("failed at the end after step %1").arg(step);
+                return;
+            }
+        }
+        qInfo().noquote() << QStringLiteral("%1: the application ended after %2 steps in part %3").arg(route).arg(stepCount).arg(part);
+        return;
+    }
+
     // PDF4QT_LIFETIME_SITE=<n> replays one site only (debugging)
     const int onlySite = qEnvironmentVariableIsSet("PDF4QT_LIFETIME_SITE") ? qEnvironmentVariableIntValue("PDF4QT_LIFETIME_SITE") : -1;
     const bool isTrace = qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE");
     QStringList notReproduced;
     int replayed = 0;
     int deferred = 0;
+    int withoutVictim = 0;
+    int refusedWhileLeaving = 0;
     for (size_t i = 0; i < sites.size(); ++i)
     {
         if (onlySite >= 0 ? int(i) != onlySite : int(i) % PART_COUNT != part)
@@ -2818,6 +4038,8 @@ void AppPagesLifetimeTest::deleteFromEverySignal()
         const PagesObjectSet before = PagesObjectTracker::getLiveObjects();
         bool isFired = false;
         bool isDeferred = false;
+        const int notClosableBefore = pdftest::LifetimeVictimCheck::getNotClosableCount();
+        const int refusedBefore = pdftest::LifetimeVictimCheck::getAcceptedRefusalCount();
         runSweep(routeCase, PagesLifetimeRecorder::Mode::Replay, sites[i], PagesVictim(victim), nullptr, &isFired, &isDeferred);
         if (!QTest::currentTestFailed())
         {
@@ -2833,13 +4055,28 @@ void AppPagesLifetimeTest::deleteFromEverySignal()
             ++replayed;
             deferred += isDeferred ? 1 : 0;
         }
+        else if (pdftest::LifetimeVictimCheck::getNotClosableCount() > notClosableBefore)
+        {
+            // The victim tab was the Home tab at the site (before the tab of the route is shown): no victim
+            ++withoutVictim;
+        }
+        else if (pdftest::LifetimeVictimCheck::getAcceptedRefusalCount() > refusedBefore)
+        {
+            // The tab refused the close: its leave flow waited for its visible question before the close (check 10
+            // failed the row for any other refusal)
+            ++refusedWhileLeaving;
+        }
         else
         {
             notReproduced << QStringLiteral("step %1: %2").arg(sites[i].step).arg(sites[i].key);
         }
     }
 
-    qInfo().noquote() << QStringLiteral("%1: %2 sites, %3 deletions (%4 deferred) in part %5").arg(route).arg(sites.size()).arg(replayed).arg(deferred).arg(part);
+    qInfo().noquote() << QStringLiteral("%1: %2 sites, %3 deletions (%4 deferred), %5 without the victim in part %6, mode %7, pages closed by setPage(nullptr) %8, "
+                                        "closes refused while a question or a modal dialog of the tab decided %9")
+                             .arg(route).arg(sites.size()).arg(replayed).arg(deferred).arg(withoutVictim).arg(part)
+                             .arg(QLatin1String(pdftest::LifetimeDeletionMode::getModeName(pdftest::LifetimeDeletionMode::getMode())))
+                             .arg(pdftest::LifetimeVictimCheck::getPageFallbackCount()).arg(refusedWhileLeaving);
     for (const QString& site : notReproduced)
     {
         qInfo().noquote() << QStringLiteral("not reproduced (the emission differs in the run, or the victim does not exist): ") + site;

@@ -44,6 +44,8 @@
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
+class PDFAppCanvasInputToken;
 class PDFAppToolCallout;
 class PDFDocument;
 class PDFDrawWidgetProxy;
@@ -157,11 +159,13 @@ public:
 /// at its right, the live label of a shape "Click the first point to close · A = …" above its first edge (471:6681).
 ///
 /// Ownership: the widget is an empty child of the canvas area (no area of its own, transparent for the mouse),
-/// deleted by the shell when the tool closes. It holds the PDFWidget and its proxy by QPointer and unregisters
-/// itself in its destructor. The callout is a child of the canvas area too (transparent for the mouse), held by
-/// QPointer and deleted by the destructor (or by the canvas area, when it dies first). A finished measurement is
-/// emitted from the event loop (never inside of the dispatch of the input of the PDFWidget); every Q_EMIT is the
-/// last call.
+/// retired with the tool (step A, PDFDeferredDeletion). It holds the PDFWidget and its proxy by QPointer; its draw
+/// and input interfaces are tokens (PDFAppCanvasDrawToken, PDFAppCanvasInputToken, children), so retire takes them
+/// off the canvas at once, the destructor otherwise. The callout is a child of the canvas area too (transparent for
+/// the mouse) owned logically by the overlay (setOwner: it is retired with it), held by QPointer and deleted by the
+/// destructor (or by the canvas area, when it dies first). The filter of the canvas area and the connections from
+/// the proxy and the theme go through PDFDeferredDeletion. A finished measurement is emitted from the event loop
+/// (never inside of the dispatch of the input of the PDFWidget); every Q_EMIT is the last call.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMeasureOverlay : public QWidget, public IDocumentDrawInterface, public IDrawWidgetInputInterface, public IPDFAppToolDragSource
 {
     Q_OBJECT
@@ -321,6 +325,8 @@ private:
     QString m_calloutTitle;
     QPointer<PDFDrawWidgetProxy> m_proxy;
     QPointer<QWidget> m_drawWidget;
+    QPointer<PDFAppCanvasDrawToken> m_drawToken;    ///< Child: the draw interface on the proxy
+    QPointer<PDFAppCanvasInputToken> m_inputToken;  ///< Child: the input interface of the PDFWidget
     std::optional<PDFAppMeasureDrawKind> m_input;
     std::optional<QCursor> m_cursor;
     std::vector<PDFAppMeasureShape> m_shapes;

@@ -62,6 +62,8 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfcomponentrows.h
     sources/pdfcomponentwindow.cpp
     sources/pdfcomponentwindow.h
+    sources/pdfdeferreddeletion.cpp
+    sources/pdfdeferreddeletion.h
     sources/pdffluentglobal.h
     sources/pdffluentwidgets.cpp
     sources/pdffluentwidgets.h

@@ -26,6 +26,7 @@
 #include "pdfappmcpdocumentresolver.h"
 #include "pdfapplocale.h"
 #include "pdfappdocument.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
@@ -111,7 +112,7 @@ PDFAppMcpBodyBox::PDFAppMcpBodyBox(QWidget* parent) :
     BaseClass(parent)
 {
     setAttribute(Qt::WA_NoSystemBackground, true);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMcpBodyBox::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMcpBodyBox::update));
 }
 
 PDFAppMcpBodyBox::~PDFAppMcpBodyBox() = default;
@@ -133,9 +134,9 @@ PDFAppMcpConfirmScrim::PDFAppMcpConfirmScrim(QWidget* host) :
     if (host)
     {
         setGeometry(host->rect());
-        host->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(host, this, this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMcpConfirmScrim::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMcpConfirmScrim::update));
 }
 
 PDFAppMcpConfirmScrim::~PDFAppMcpConfirmScrim()

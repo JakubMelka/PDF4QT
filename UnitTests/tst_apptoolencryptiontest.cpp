@@ -277,7 +277,7 @@ public:
     EncryptionDiskFixture() :
         AppToolShellFixture(QSize(1440, 960))
     {
-        delete window.data();
+        deleteNow(window.data());
         settle();
         context.reset();
 
@@ -1006,7 +1006,7 @@ void AppToolEncryptionPackages::registerPasswordCases(std::vector<AppToolEncrypt
             QVERIFY2(!it.value().toString().contains(canary), qPrintable(it.key()));
         }
         QVERIFY(directRunner->getRunParameters().contains(QString::fromLatin1(Tool::PARAMETER_OWNER_SAME_AS_OPEN)));
-        delete directRunner.data();
+        pdftest::AppDocumentFixture::deleteNow(directRunner.data());
         AppToolShellFixture::settle();
 
         // The database of the application: the fixture has it in memory (portable), its whole
@@ -1110,7 +1110,7 @@ void AppToolEncryptionPackages::registerPasswordCases(std::vector<AppToolEncrypt
         checkFiles(false);
 
         // PDF4QT ends: the window and the context (the database checkpoints its -wal into the file)
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         AppToolShellFixture::settle();
         fixture.context.reset();
         checkFiles(true);

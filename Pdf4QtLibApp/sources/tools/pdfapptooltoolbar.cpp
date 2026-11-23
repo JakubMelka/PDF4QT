@@ -28,6 +28,7 @@
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpresentation.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -179,7 +180,7 @@ PDFAppToolToolbar::PDFAppToolToolbar(PDFAppToolHost* host, const PDFDocumentTool
 
     if (m_host)
     {
-        connect(m_host.data(), &PDFAppToolHost::commandStatesChanged, this, &PDFAppToolToolbar::updateCommands);
+        PDFDeferredDeletion::connect(m_host.data(), &PDFAppToolHost::commandStatesChanged, this, &PDFAppToolToolbar::updateCommands);
     }
 }
 
@@ -376,9 +377,9 @@ void PDFAppToolToolbar::addPanel(QToolButton* button, PDFAppToolPanelPopup* pane
     item.panel = panel;
     m_panels.push_back(item);
 
-    connect(button, &QToolButton::clicked, this, &PDFAppToolToolbar::onPanelButtonClicked);
-    connect(panel, &PDFAppDocumentPanelPopup::closed, this, &PDFAppToolToolbar::onPanelClosed);
-    connect(panel, &PDFAppDocumentPanelPopup::neighborRequested, this, &PDFAppToolToolbar::onPanelNeighborRequested);
+    PDFDeferredDeletion::connect(button, &QToolButton::clicked, this, &PDFAppToolToolbar::onPanelButtonClicked);
+    PDFDeferredDeletion::connect(panel, &PDFAppDocumentPanelPopup::closed, this, &PDFAppToolToolbar::onPanelClosed);
+    PDFDeferredDeletion::connect(panel, &PDFAppDocumentPanelPopup::neighborRequested, this, &PDFAppToolToolbar::onPanelNeighborRequested);
     PDFAppToolbarMenuBar::watchPanel(panel, this);
 }
 

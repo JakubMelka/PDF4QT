@@ -23,6 +23,7 @@
 #include "pdfapphelppage.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumentpanels_common.h"
+#include "pdfappinfowidgets.h"
 #include "pdfapplocale.h"
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
@@ -236,10 +237,10 @@ QString PDFAppHelpPage::getHeaderSubtitle() const
 
 void PDFAppHelpPage::build()
 {
-    if (m_content)
-    {
-        delete m_content.data();
-    }
+    // The old content is retired (step A, A2): the slot of a link of the topic may be
+    // on the stack; it leaves the layout now and is deleted later
+    PDFAppPageRebuild::retireWidget(m_content.data());
+    m_content = nullptr;
 
     m_content = new QWidget(this);
     m_content->setObjectName(QStringLiteral("helpContent"));

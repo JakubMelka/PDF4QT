@@ -33,6 +33,7 @@
 #include "pdfdocumenttoolsearch.h"
 
 #include "pdfcomponentbadges.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
@@ -81,8 +82,8 @@ PDFAppSearchPage::PDFAppSearchPage(PDFAppContext* context, QWidget* parent) :
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSearchPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSearchPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSearchPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSearchPage::onEverythingChanged);
     }
 }
 
@@ -400,13 +401,10 @@ void PDFAppSearchPage::rebuildResults()
         }
     }
 
-    // The old content may hold the sender of the current signal (Show all)
-    if (m_resultsContent)
-    {
-        m_resultsContent->hide();
-        m_resultsContent->deleteLater();
-        m_resultsContent = nullptr;
-    }
+    // The old content may hold the sender of the current signal (Show all): it is
+    // retired (step A, A2), leaves the layout now and is deleted later
+    PDFAppPageRebuild::retireWidget(m_resultsContent.data());
+    m_resultsContent = nullptr;
     m_rows.clear();
     m_emptyState = nullptr;
     m_emptyTitle = nullptr;
@@ -802,8 +800,20 @@ void PDFAppSearchPage::changeEvent(QEvent* event)
         // Every text of the page in the new language
         m_rows.clear();
         m_chips.clear();
-        delete m_content.data();
-        delete m_chipGroup.data();
+
+        // The old content is retired (step A, A2): it leaves the layout now and is
+        // deleted later; its pointers are forgotten, as its deletion did
+        PDFAppPageRebuild::retireWidget(m_content.data());
+        PDFDeferredDeletion::retire(m_chipGroup.data());
+        m_content = nullptr;
+        m_chipGroup = nullptr;
+        m_sideColumn = nullptr;
+        m_resultsCard = nullptr;
+        m_resultsContent = nullptr;
+        m_emptyState = nullptr;
+        m_emptyTitle = nullptr;
+        m_emptyText = nullptr;
+        m_searchManualButton = nullptr;
         build();
         refresh();
     }

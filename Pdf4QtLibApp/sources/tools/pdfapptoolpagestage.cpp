@@ -201,10 +201,12 @@ PDFAppToolPageStage::PDFAppToolPageStage(QWidget* parent) :
 {
     setObjectName(QStringLiteral("toolPageStage"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // A member, made a child: retire (step A) stops it with the stage
+    m_renderTimer.setParent(this);
     m_renderTimer.setSingleShot(true);
     m_renderTimer.setInterval(RENDER_DELAY);
     connect(&m_renderTimer, &QTimer::timeout, this, &PDFAppToolPageStage::startRender);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppToolPageStage::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppToolPageStage::update));
 }
 
 PDFAppToolPageStage::~PDFAppToolPageStage()

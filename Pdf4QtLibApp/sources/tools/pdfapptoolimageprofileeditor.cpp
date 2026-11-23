@@ -30,6 +30,7 @@
 #include "pdfapptoolparametermodel.h"
 
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_optimizeimages.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
@@ -266,10 +267,13 @@ PDFAppToolImageProfileEditor::PDFAppToolImageProfileEditor(PDFAppToolParameterMo
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(PDFAppToolPanelBuilder::SECTION_GAP);
 
-    // A typed threshold rests as the fields of the binder; the write comes from the event loop
+    // A typed threshold rests as the fields of the binder; the write comes from the event loop. The timer is a
+    // child (in the subtree of the editor), so retire writes a resting value (setFlushOnRetire)
+    m_thresholdTimer.setParent(this);
     m_thresholdTimer.setSingleShot(true);
     m_thresholdTimer.setInterval(PDFAppSettingControl::WRITE_DELAY);
-    connect(&m_thresholdTimer, &QTimer::timeout, this, &PDFAppToolImageProfileEditor::writePendingThreshold, Qt::QueuedConnection);
+    connect(&m_thresholdTimer, &QTimer::timeout, this, &PDFAppToolImageProfileEditor::onThresholdTimeout);
+    PDFDeferredDeletion::setFlushOnRetire(&m_thresholdTimer);
 
     // header 298:3333: the title and the Tag of the scope (gap 8)
     QWidget* header = new QWidget(this);
@@ -328,7 +332,7 @@ PDFAppToolImageProfileEditor::PDFAppToolImageProfileEditor(PDFAppToolParameterMo
 
     if (m_model)
     {
-        connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolImageProfileEditor::onModelChanged);
+        PDFDeferredDeletion::connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolImageProfileEditor::onModelChanged);
     }
 
     rebuild();
@@ -729,10 +733,27 @@ void PDFAppToolImageProfileEditor::onThresholdEditingFinished()
     // Enter or the loss of the focus: the typed value is written now (from the event loop)
     if (m_pendingThreshold && m_thresholdTimer.isActive())
     {
-        m_thresholdTimer.stop();
-        m_isThresholdWriteQueued = true;
-        QMetaObject::invokeMethod(this, &PDFAppToolImageProfileEditor::writePendingThreshold, Qt::QueuedConnection);
+        queueThresholdWrite();
     }
+}
+
+void PDFAppToolImageProfileEditor::onThresholdTimeout()
+{
+    // The rest has ended (or retire flushes the timer)
+    queueThresholdWrite();
+}
+
+void PDFAppToolImageProfileEditor::queueThresholdWrite()
+{
+    m_thresholdTimer.stop();
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        // retire drops the queued calls of the editor: the value is written now (the last call)
+        writePendingThreshold();
+        return;
+    }
+    m_isThresholdWriteQueued = true;
+    QMetaObject::invokeMethod(this, &PDFAppToolImageProfileEditor::writePendingThreshold, Qt::QueuedConnection);
 }
 
 void PDFAppToolImageProfileEditor::scheduleThresholdWrite(int threshold, bool isTyped)
@@ -747,9 +768,7 @@ void PDFAppToolImageProfileEditor::scheduleThresholdWrite(int threshold, bool is
     }
     else if (!m_isThresholdWriteQueued)
     {
-        m_thresholdTimer.stop();
-        m_isThresholdWriteQueued = true;
-        QMetaObject::invokeMethod(this, &PDFAppToolImageProfileEditor::writePendingThreshold, Qt::QueuedConnection);
+        queueThresholdWrite();
     }
 }
 

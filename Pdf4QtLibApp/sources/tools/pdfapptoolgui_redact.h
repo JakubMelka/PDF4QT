@@ -56,6 +56,8 @@ class QToolButton;
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
+class PDFAppCanvasInputToken;
 class PDFAppDocumentView;
 class PDFAppParagraph;
 class PDFAppToolCallout;
@@ -197,9 +199,9 @@ public:
 /// resized and deleted by the engine of the annotations (PDFAppToolGUIRedact is its filter).
 ///
 /// Ownership: the widget is an empty child of the canvas area (no own area, transparent for the mouse),
-/// deleted by the shell when the tool closes; the caption (PDFAppToolPageCaption, the pages lie below
-/// its band) is a second child of the canvas area owned by it (deleted in its destructor). It holds the PDFWidget and its proxy by QPointer and unregisters itself
-/// from both in its destructor. A finished pick is emitted from the event loop (never from inside of the
+/// retired by the shell when the tool closes; the caption (PDFAppToolPageCaption, the pages lie below
+/// its band) is a second child of the canvas area owned by it (setOwner, deleted in its destructor). It holds the PDFWidget and its proxy by
+/// QPointer; its draw and input interfaces are tokens (retire takes them off at once, the destructor otherwise). A finished pick is emitted from the event loop (never from inside of the
 /// dispatch of the input of the PDFWidget), Q_EMIT is the last call.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolRedactOverlay : public QWidget, public IDocumentDrawInterface, public IDrawWidgetInputInterface, public IPDFAppToolDragSource
 {
@@ -333,7 +335,9 @@ private:
     QPointer<PDFWidget> m_pdfWidget;
     QPointer<PDFDrawWidgetProxy> m_proxy;
     QPointer<QWidget> m_drawWidget;
-    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay
+    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay (setOwner)
+    QPointer<PDFAppCanvasDrawToken> m_drawToken;    ///< Child: the draw interface on the proxy
+    QPointer<PDFAppCanvasInputToken> m_inputToken;  ///< Child: the input interface of the PDFWidget
     Input m_input = Input::None;
     std::optional<QCursor> m_cursor;
     std::map<PDFInteger, std::vector<QPainterPath>> m_markPaths;

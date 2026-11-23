@@ -27,6 +27,7 @@
 #include "pdfappsettingssection.h"
 #include "pdfappdocumentspeech.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 
 #include <QPointer>
@@ -54,8 +55,10 @@ class PDFAppSettingRow;
 /// error state disables them and says so in the description of the synthesizer.
 /// A stored value the engine does not offer is shown as "… (not available)" (the
 /// engine uses its default). The combo boxes write from the event loop (a slot
-/// may delete the page); the sample is stopped, when the page is hidden.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppSpeechSettingsSection : public PDFAppGenericSettingsSection
+/// may delete the page); the sample is stopped, when the page is hidden. A retire
+/// of the section (alone or with its page) stops the sample and writes the chosen
+/// values at once (its hook, step A).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppSpeechSettingsSection : public PDFAppGenericSettingsSection, public PDFRetirable
 {
     Q_OBJECT
 
@@ -117,6 +120,11 @@ protected:
     virtual void finishContent() override;
     virtual void showEvent(QShowEvent* event) override;
     virtual void hideEvent(QHideEvent* event) override;
+
+    /// The hook of PDFDeferredDeletion::retire (step A): the sample stops and the chosen
+    /// values, whose write waits for the event loop (retire drops the queued call), are
+    /// written now - without the status message and the refresh of the going section
+    virtual void retire() override;
 
 private:
     PDFAppSettingRow* createComboRow(const PDFSettingDefinition& definition, QPointer<PDFComboBox>& comboBox);

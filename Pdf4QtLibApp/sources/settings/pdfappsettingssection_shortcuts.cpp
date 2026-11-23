@@ -28,6 +28,7 @@
 #include "pdfshortcutrepository.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyleproperties.h"
@@ -117,7 +118,7 @@ PDFAppShortcutsTableHeader::PDFAppShortcutsTableHeader(QWidget* parent) :
     shortcut->setAlignment(Qt::AlignTrailing | Qt::AlignVCenter);
     layout->addWidget(shortcut);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppShortcutsTableHeader::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppShortcutsTableHeader::update));
 }
 
 PDFAppShortcutsTableHeader::~PDFAppShortcutsTableHeader() = default;
@@ -386,6 +387,7 @@ void PDFAppShortcutsSettingsSection::openConflictDialog(const QString& commandId
     m_conflictCommandId = commandId;
     m_conflictShortcut = shortcut;
     PDFAppShortcutConflictDialog* dialog = new PDFAppShortcutConflictDialog(m_model->getCommandTitle(commandId), shortcut, titles, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QDialog::finished, this, &PDFAppShortcutsSettingsSection::onConflictDialogFinished);
     m_conflictDialog = dialog;

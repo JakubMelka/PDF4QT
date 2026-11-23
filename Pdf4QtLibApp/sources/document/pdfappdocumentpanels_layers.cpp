@@ -25,6 +25,7 @@
 #include "pdfappdocumentpanels_common.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 
 #include <QEvent>
@@ -56,7 +57,7 @@ void PDFAppLayersModel::setLayers(PDFDocumentPointer document, PDFOptionalConten
 
     if (activity && m_activity != activity)
     {
-        connect(activity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFAppLayersModel::onStateChanged);
+        PDFDeferredDeletion::connect(activity, &PDFOptionalContentActivity::optionalContentGroupStateChanged, this, &PDFAppLayersModel::onStateChanged);
         connect(activity, &QObject::destroyed, this, &PDFAppLayersModel::onActivityDestroyed);
     }
 
@@ -182,7 +183,7 @@ void PDFAppLayersPanel::setDocument(PDFAppDocument* document, PDFAppDocumentView
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppLayersPanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppLayersPanel::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppLayersPanel::onDocumentDestroyed);
     }
     m_connectedDocument = document;

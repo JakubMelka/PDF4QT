@@ -35,6 +35,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmarkdownview.h"
@@ -51,6 +52,7 @@
 #include "pdftoolstartpage.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfappdocumentstatusbar.h"
@@ -525,6 +527,9 @@ private slots:
     void startPageLanguageChange();
     void startPageDeletedWithDialog();
     void screenshots();
+
+    // Step A (PA2b): the hook of the overlay
+    void retireBeforeAfterOverlayCancelsRender();
 };
 
 void AppToolCompressTest::initTestCase()
@@ -590,7 +595,7 @@ void AppToolCompressTest::oneThreadReachesTheNextRun()
     QVERIFY(tab);
 
     // The tool of the row: its tab, or the tab of a second window
-    std::unique_ptr<pdf::PDFAppMainWindow> secondWindow;
+    std::unique_ptr<pdf::PDFAppMainWindow, pdftest::AppDocumentFixture::DeleteNow> secondWindow;
     pdf::PDFAppDocumentTab* toolTab = tab;
     PDFDocumentToolShell* firstShell = H::openCompress(fixture, tab);
     QVERIFY(firstShell);
@@ -603,7 +608,7 @@ void AppToolCompressTest::oneThreadReachesTheNextRun()
     PDFDocumentToolShell* shell = firstShell;
     if (way == QLatin1String("window"))
     {
-        secondWindow = std::make_unique<pdf::PDFAppMainWindow>(fixture.context.get());
+        secondWindow.reset(new pdf::PDFAppMainWindow(fixture.context.get()));
         secondWindow->resize(1440, 960);
         secondWindow->show();
         const QString secondFile = H::writePhoto(fixture.path(QStringLiteral("second.pdf")), 120, 10);
@@ -643,7 +648,7 @@ void AppToolCompressTest::oneThreadReachesTheNextRun()
     if (way == QLatin1String("window"))
     {
         // The first window goes, with its document and its view
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         AppToolShellFixture::settle();
     }
 
@@ -2743,7 +2748,7 @@ void AppToolCompressTest::deletedDuringMeasuring()
     QVERIFY(overlay);
     QElapsedTimer timer;
     timer.start();
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     QVERIFY2(timer.elapsed() < 1000 * AppToolShellFixture::getTimeoutFactor(), "Nobody waits for the worker");
     QVERIFY(!shell);
     QVERIFY(!overlay);
@@ -3213,7 +3218,7 @@ void AppToolCompressTest::chooserChoosesDocument()
     AppToolShellFixture::settle();
 
     // Another window of the context shows no document of this window
-    std::unique_ptr<pdf::PDFAppMainWindow> otherWindow(new pdf::PDFAppMainWindow(fixture.context.get()));
+    std::unique_ptr<pdf::PDFAppMainWindow, pdftest::AppDocumentFixture::DeleteNow> otherWindow(new pdf::PDFAppMainWindow(fixture.context.get()));
     pdf::PDFAppToolDocumentChooser chooser(fixture.context.get(), H::TOOL_ID, otherWindow.get());
     chooser.refresh();
     QVERIFY(chooser.getRows().empty());
@@ -3295,7 +3300,7 @@ void AppToolCompressTest::reviewOpenFileOfAnotherWindow()
     // The first window shows Home over the document, the second one has the start page
     fixture.window->activateTab(fixture.window->getHomeTab());
     QCOMPARE(fixture.window->getCurrentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
-    std::unique_ptr<pdf::PDFAppMainWindow> otherWindow(new pdf::PDFAppMainWindow(fixture.context.get()));
+    std::unique_ptr<pdf::PDFAppMainWindow, pdftest::AppDocumentFixture::DeleteNow> otherWindow(new pdf::PDFAppMainWindow(fixture.context.get()));
     otherWindow->show();
     otherWindow->getNavigator()->navigate(pdf::PDFAppRoutes::tool(H::TOOL_ID), pdf::PDFAppNavigationMode::Push, otherWindow->getHomeTab());
     AppToolShellFixture::settle();
@@ -3626,7 +3631,7 @@ void AppToolCompressTest::startPageDeletedWithDialog()
     QPointer<PDFToolStartPage> guard(page);
     pdf::PDFAppFileDialogs::setOpenFilesHandler([window](QWidget*, const QString&)
     {
-        delete window.data();
+        pdftest::AppDocumentFixture::deleteNow(window.data());
         return QStringList{ QStringLiteral("x.pdf") };
     });
     page->getChooser()->getOpenButton()->click();
@@ -3762,6 +3767,53 @@ void AppToolCompressTest::screenshots()
         shell->stop();
         AppToolShellFixture::settle();
     }
+}
+
+void AppToolCompressTest::retireBeforeAfterOverlayCancelsRender()
+{
+    // Step A: retire of the overlay (with its tool) cancels the waiting render of the result at once - the hook, not
+    // the later deletion - and its draw interface leaves the canvas at once (a token); the canvas draws no line of an
+    // inert overlay in between
+    using H = CompressGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeSolidPages(fixture.path(QStringLiteral("red.pdf")), QColor(220, 0, 0), 2));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = H::openCompress(fixture, tab);
+    PDFAppToolGUICompress* gui = H::gui(shell);
+    QVERIFY(gui);
+    H::waitMeasured(gui);
+    AppToolShellFixture::settle();
+    QPointer<PDFAppToolBeforeAfterOverlay> overlay = gui->getBeforeAfterOverlay();
+    QVERIFY(overlay);
+    pdf::PDFDocumentPointer blue = H::readDocument(H::writeSolid(fixture.path(QStringLiteral("blue.pdf")), QColor(0, 0, 220)));
+    overlay->setResult(blue, QStringLiteral("AFTER · 1 MB"));
+    QWidget* canvas = AppDocumentFixture::canvasWidget(tab->getView());
+    canvas->repaint();
+    QVERIFY(overlay->isRenderPending());
+
+    // The draw interface is registered by its token (the set of the proxy is private)
+    pdf::PDFDrawWidgetProxy* proxy = tab->getView()->getPdfWidget()->getDrawWidgetProxy();
+    pdf::PDFAppCanvasDrawToken* tokenObject = nullptr;
+    for (pdf::PDFLifetimeToken* item : overlay->findChildren<pdf::PDFLifetimeToken*>())
+    {
+        tokenObject = tokenObject ? tokenObject : dynamic_cast<pdf::PDFAppCanvasDrawToken*>(item);
+    }
+    QPointer<pdf::PDFLifetimeToken> token = tokenObject;
+    QVERIFY(token && !token->isReleased());
+    QCOMPARE(tokenObject->getProxy(), proxy);
+    const int finishedRenders = overlay->getFinishedRenderCount();
+
+    pdf::PDFDeferredDeletion::retire(overlay.data());
+
+    QVERIFY(overlay);
+    QVERIFY(!overlay->isRenderPending());
+    QVERIFY(token && token->isReleased());
+    QVERIFY(!tokenObject->getProxy());
+    QCOMPARE(overlay->getFinishedRenderCount(), finishedRenders);
+
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay);
+    QCOMPARE(overlay.data(), nullptr);
 }
 
 QTEST_MAIN(AppToolCompressTest)

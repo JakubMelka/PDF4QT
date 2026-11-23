@@ -25,6 +25,7 @@
 
 #include "pdfappdocumentpermissions.h"
 #include "pdfappglobal.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfappleaveflow.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
@@ -188,7 +189,17 @@ public:
 /// \p enter saves the state of the view, \p close gives it back. The keys are Esc
 /// (Stop of a run, otherwise Cancel) and Ctrl+Enter (the Primary button). The shell never
 /// navigates: its page does, after \p closeRequested. Every signal may delete the shell.
-class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolShell : public QObject
+///
+/// Deferred deletion (step A): the shell is closed only by PDFDeferredDeletion::retire (by closing its page or
+/// tab, PDFAppToolTabPage / PDFAppToolDocumentPage retire a shell, which could not enter); its hook retire() ends
+/// the mode of the tool at once. Ownership: the GUI, the model, the runner, the undo target and the actions are
+/// children; the holder of the parts, the parts (toolbar, panels, canvas page - in the layout of the view during the
+/// mode), the overlay (a child of the canvas area) and the dialogs of the tool parented to the window (the result
+/// dialog, the refusal of a permission, the question of a file, the question of a leave during a run) belong to the
+/// shell logically (PDFDeferredDeletion::setOwner) and are retired with it. The tool mode of the host is a token
+/// (a child), released by close, by retire after the hooks, or with the shell. close retires the runner and the
+/// overlay (never deletes them: their code may be on the stack - the input of the overlay, a signal of the runner).
+class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolShell : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -470,6 +481,19 @@ Q_SIGNALS:
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
+    /// The hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the inert part of close, without the signals of
+    /// the shell and without foreign answers - the state Closed (no stateChanged, no closeRequested), no question is
+    /// answered and no leave is reported (the flow, which waits for this shell, refuses its step by the end of the
+    /// shell, PDFAppLeaveFlowStep), the watching of the visibility and of a modal dialog ends, a result waiting for a
+    /// decision is dropped, the info bar of the result goes. The rest is done by retire itself: the runner (a child)
+    /// cancels its workers and ends the operation of the document in its hook, the GUI has its hook, the parts, the
+    /// overlay and the dialogs of the tool are retired with the shell (setOwner, the dialogs closed without their
+    /// signals), and the token of the mode gives the view its parts and its state back right after the hooks (step 4)
+    /// - another tool never finds the view in the mode or the document busy after retire. Use of an interactive tool
+    /// is not recorded here (PDFAppPage::prepareClose and close do it, as the destructor never did). No dialog, no
+    /// wait.
+    virtual void retire() override;
+
 private:
     /// Creates the parts of the GUI (at the entry, again after a change of the language)
     void createContent();
@@ -513,9 +537,18 @@ private:
     /// its end without it Refused (from the event loop; Done when the tool has ended meanwhile)
     PDFAppLeaveResult waitForLeaveQuestion(QDialog* question, PDFAppLeaveFlow* flow);
 
-    /// The question waited for has ended (finished or destroyed): the answer is read from the event loop
+    /// The question waited for has ended (finished, retired or destroyed): the answer is read from the event loop
     void onLeaveQuestionEnded();
+
+    /// The connections of the question waited for (m_leaveQuestion) to this shell are cut
+    void disconnectLeaveQuestion();
     void onLeaveQuestionSettled();
+
+    /// The choice of the close question, which a leave applies, from the event loop: the leave was asked inside of
+    /// the change notification of the document (a slot of documentChanged closed the tab), whose version this shell
+    /// and its GUI have not seen yet - the choice would miss the change being announced (a mark just added). Applies
+    /// it once and reports the step of the flow (the last call).
+    void onFinishLeaveQueued();
 
     /// The answer of the question of a run (close-running)
     void onLeaveRunningChosen(PDFAppDocumentChoice choice);
@@ -627,6 +660,7 @@ private:
     QPointer<QWidget> m_rightContent;
     QPointer<QWidget> m_leftContent;
     QPointer<QWidget> m_partsParent;    ///< Holds the parts, while they are not shown
+    QPointer<PDFLifetimeToken> m_modeToken; ///< The tool mode of the host (a child token): its release gives the view back
     QPointer<PDFAppToolProgressCard> m_progressCard;
     QPointer<PDFAppToolCallout> m_busyCallout;
     QPointer<PDFAppToolCallout> m_certificationCallout;    ///< Owned by the right panel or by the content of the GUI (its layout); dies with them
@@ -661,6 +695,7 @@ private:
     quint64 m_leaveWaitId = 0;              ///< The current wait of a leave (a queued end of an older wait is ignored)
     quint64 m_endedLeaveWaitId = 0;         ///< The wait, whose question has ended
     bool m_isCloseQuestionActionDeferred = false;   ///< The choice of the question waits for finishLeave (decision 8)
+    quint64 m_knownDocumentVersion = 0;     ///< The version of the document, which this shell has seen (entry, documentChanged)
     QPointer<PDFAppContext> m_context;  ///< The context of the entry (recordUse after the host has gone)
     QPointer<QWidget> m_visibleKeyWidget;   ///< The key widget of the host watched by the event filter (an interactive tool); not owned
     QPointer<QWidget> m_visibleWindow;      ///< Its window watched by the event filter (nullptr = the key widget is the window); not owned

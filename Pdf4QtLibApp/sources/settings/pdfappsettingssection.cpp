@@ -38,6 +38,8 @@
 
 #include "pdfdocumenttoolsearch.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QCoreApplication>
 #include <QVBoxLayout>
 
@@ -308,7 +310,7 @@ void PDFAppSettingsSection::connectRow(PDFAppSettingRow* row)
 {
     if (row && row->getControl())
     {
-        connect(row->getControl(), &PDFAppSettingControl::writeFailed, this, &PDFAppSettingsSection::onWriteFailed);
+        PDFDeferredDeletion::connect(row->getControl(), &PDFAppSettingControl::writeFailed, this, &PDFAppSettingsSection::onWriteFailed);
     }
 }
 

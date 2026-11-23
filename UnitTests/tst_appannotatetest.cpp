@@ -418,6 +418,7 @@ private slots:
     void markAsAnnotations();
     void markAsAnnotationsLarge();
     void markAsAnnotationsLargeLifetime();
+    void markResultsCanceledOnRetire();
     void markResultsFooterGeometry();
     void deleteTool();
     void lockedDocument();
@@ -537,9 +538,9 @@ void AppAnnotateTest::floatingBarGeometry()
 
     // The bars die with the canvas in any order (the shadow goes with its bar)
     QPointer<pdf::PDFAppFloatingBarShadow> shadow = compact->getShadow();
-    delete compact.data();
+    pdftest::AppDocumentFixture::deleteNow(compact.data());
     QVERIFY(!shadow);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     pdftest::AppDocumentFixture::settle();
     QVERIFY(!bar);
 }
@@ -2244,12 +2245,51 @@ void AppAnnotateTest::markAsAnnotationsLarge()
     QVERIFY(markResults->mark(pdf::AnnotationType::StrikeOut, QColor(), pdf::PDFAppMarkResults::Scope::All));
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
 
-    // The tab deleted while the worker runs: nothing crashes, nothing is committed
-    delete tab;
+    // The tab closed by the window (the real close: its questions answered as the user, who closes it, does) while
+    // the worker runs: nothing crashes, nothing is committed
+    fixture.retire(tab);
     pdftest::AppDocumentFixture::settle();
+    pdftest::AppDocumentFixture::answerCloseQuestions();
     QVERIFY(!tabGuard);
+    QVERIFY(fixture.window->getDocumentTabs().isEmpty());
     QTest::qWait(200);
     pdftest::AppDocumentFixture::settle();
+}
+
+void AppAnnotateTest::markResultsCanceledOnRetire()
+{
+    // Step A (conventions Lifetime: work outside ends in the hook): retire of Mark as annotations
+    // with a running worker ends the operation of the document at once - the document is not
+    // busy before the event loop, nothing is committed, the own signals are not emitted
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::large(fixture.folder(), 2000));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QPointer<pdf::PDFAppMarkResults> markResults = H::markResults(tab);
+    QVERIFY(markResults);
+
+    QVERIFY(H::search(tab, QStringLiteral("alpha")));
+    QCOMPARE(markResults->getMatchCount(pdf::PDFAppMarkResults::Scope::All), 2000);
+    QSignalSpy finished(markResults.data(), &pdf::PDFAppMarkResults::finished);
+    QSignalSpy stateChanged(markResults.data(), &pdf::PDFAppMarkResults::stateChanged);
+    QVERIFY(markResults->mark(pdf::AnnotationType::Highlight, QColor(), pdf::PDFAppMarkResults::Scope::All));
+    QVERIFY(markResults->isRunning());
+    QVERIFY(document->isBlockedByOperation());
+    stateChanged.clear();
+
+    pdf::PDFDeferredDeletion::retire(markResults.data());
+    QVERIFY(markResults);
+    QVERIFY(!markResults->isRunning());
+    QVERIFY(!document->isBlockedByOperation());
+    QVERIFY(document->getOperations().empty() || document->getOperations().front()->isFinished());
+    QCOMPARE(finished.count(), 0);
+    QCOMPARE(stateChanged.count(), 0);
+
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!markResults);
+    QVERIFY(document);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    QCOMPARE(H::annotationCount(document, 1999), 0);
 }
 
 void AppAnnotateTest::markAsAnnotationsLargeLifetime()
@@ -2289,6 +2329,9 @@ void AppAnnotateTest::markAsAnnotationsLargeLifetime()
             {
                 isArmed = false;
                 ++deletions;
+
+                // The guards of the synchronous path are checked: a deliberate synchronous deletion (step A)
+                pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                 delete tabGuard.data();
             }
         });
@@ -2331,7 +2374,7 @@ void AppAnnotateTest::markAsAnnotationsLargeLifetime()
         pdf::PDFAppDocumentTab* again = H::openReady(fixture, path);
         QVERIFY(again);
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(again->getDocument()), 0);
-        delete again;
+        QVERIFY(fixture.retire(again));
         pdftest::AppDocumentFixture::settle();
     }
 }
@@ -2441,7 +2484,8 @@ void AppAnnotateTest::permissionDenied()
 
 void AppAnnotateTest::deletionMatrix()
 {
-    // Each open part of the package; the tab or the window deleted meanwhile
+    // Each open part of the package; the tab or the window deleted meanwhile (the order of the destructors: a
+    // deliberate synchronous deletion of the victim only, step A)
     enum class Part
     {
         ToolBar,
@@ -2517,11 +2561,11 @@ void AppAnnotateTest::deletionMatrix()
             QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
             if (deleteWindow)
             {
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             }
             else
             {
-                delete tab;
+                pdftest::AppDocumentFixture::deleteNow(tab);
             }
             pdftest::AppDocumentFixture::settle();
             QVERIFY(!tabGuard);
@@ -2534,7 +2578,8 @@ void AppAnnotateTest::deletionMatrix()
 
 void AppAnnotateTest::deleteFromOwnSignals()
 {
-    // The tab deleted synchronously from every signal of the package
+    // The tab closed from every signal of the package (step A: by retire, the single place of the
+    // close - inert at once, deleted after the event loop; the test settles after each step)
     enum class Source
     {
         ActiveKind,
@@ -2555,9 +2600,12 @@ void AppAnnotateTest::deleteFromOwnSignals()
         QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
         pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
         pdf::PDFAppDocumentView* view = tab->getView();
-        auto deleteTab = [&tabGuard]()
+        // The real close of the window (RB-M6): a question about the new annotations is answered from the body
+        bool wasModified = false;
+        auto deleteTab = [&fixture, &tabGuard, &wasModified]()
         {
-            delete tabGuard.data();
+            wasModified = tabGuard && tabGuard->getDocument() && tabGuard->getDocument()->isModified();
+            fixture.retire(tabGuard.data());
         };
 
         switch (source)
@@ -2614,7 +2662,21 @@ void AppAnnotateTest::deleteFromOwnSignals()
         }
 
         pdftest::AppDocumentFixture::settle();
+        const int answered = pdftest::AppDocumentFixture::answerCloseQuestions();
+
+        // The close of a tab with unsaved changes asks (Don't Save answered), without changes it closes at once; the
+        // created annotations are unsaved changes (the marking may also ask about its running operation)
+        if (source == Source::Created)
+        {
+            QVERIFY(wasModified);
+        }
+        if (source != Source::MarkFinished && source != Source::MarkState)
+        {
+            QCOMPARE(answered, wasModified ? 1 : 0);
+        }
         QVERIFY2(!tabGuard, qPrintable(QString::number(int(source))));
+        // The window's lists have forgotten the closed tab (the only document tab)
+        QVERIFY2(fixture.window->getDocumentTabs().isEmpty(), qPrintable(QString::number(int(source))));
     }
 }
 
@@ -3372,7 +3434,8 @@ void AppAnnotateTest::panelColorTargetsThemes()
 
 void AppAnnotateTest::panelColorTargetsDeletion()
 {
-    // The tab or the window deleted while the hover intent of a tile is pending
+    // The tab or the window deleted while the hover intent of a tile is pending (a deliberate synchronous deletion
+    // of the victim, step A)
     for (int deleteWindow = 0; deleteWindow < 2; ++deleteWindow)
     {
         pdftest::AppDocumentFixture fixture;
@@ -3388,11 +3451,11 @@ void AppAnnotateTest::panelColorTargetsDeletion()
 
         if (deleteWindow)
         {
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         }
         else
         {
-            delete tab;
+            pdftest::AppDocumentFixture::deleteNow(tab);
         }
         QTest::qWait(pdf::PDFAppAnnotatePanel::HOVER_INTENT_DELAY * 2);
         pdftest::AppDocumentFixture::settle();
@@ -3680,7 +3743,7 @@ void AppAnnotateTest::moreColorsDialogDeletion()
     using Dialog = pdf::PDFColorPickerDialog;
 
     // The tab or the window deleted with the dialog open; the tab deleted from the
-    // chosen color (the slot of the row)
+    // chosen color (the slot of the row) - deliberate synchronous deletions of the victim (step A)
     for (int variant = 0; variant < 3; ++variant)
     {
         pdftest::AppDocumentFixture fixture;
@@ -3697,13 +3760,13 @@ void AppAnnotateTest::moreColorsDialogDeletion()
         switch (variant)
         {
             case 0:
-                delete tab;
+                pdftest::AppDocumentFixture::deleteNow(tab);
                 break;
             case 1:
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 break;
             default:
-                QObject::connect(row, &pdf::PDFColorSwatchRow::colorSelected, tab, [tab]() { delete tab; });
+                QObject::connect(row, &pdf::PDFColorSwatchRow::colorSelected, tab, [tab]() { pdftest::AppDocumentFixture::deleteNow(tab); });
                 MoreColors::type(dialog, QStringLiteral("#010203"));
                 dialog->getOkButton()->click();
                 break;

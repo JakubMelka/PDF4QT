@@ -42,6 +42,7 @@ namespace pdf
 
 class PDFIconButton;
 class PDFLabel;
+class PDFLifetimeToken;
 class PDFLineEdit;
 class PDFSpinBox;
 
@@ -321,6 +322,16 @@ private:
     void onPickingTimer();
     void onOkClicked();
 
+    /// Ends the eyedropper without a change of the color: the grabs, the timer, the tracking
+    /// of the pointer and the token (deleted, unless it is being released)
+    void endPicking();
+
+    /// The token of the eyedropper is released (the dialog is retired, or the token deleted):
+    /// the eyedropper ends at once, the color stays (no signal of the dialog)
+    void onPickingTokenReleased();
+
+    friend class PDFColorPickerGrabToken;
+
     QColor m_currentColor;
     QColor m_color;
     qreal m_hue = 0.0;
@@ -335,6 +346,10 @@ private:
     QPoint m_lastCursorPosition;
     /// A member, not a child: the application cannot reach it by children() and delete it
     QTimer m_pickingTimer;
+
+    /// While the eyedropper picks: the grabs of the pointer and the keys reach outside of the
+    /// dialog, retire of the dialog ends them by this token (a child of the dialog)
+    QPointer<PDFLifetimeToken> m_pickingToken;
 
     // The parts are children of the dialog, which the application may delete
     // (Qt deletes them with the dialog), so they are held by QPointer

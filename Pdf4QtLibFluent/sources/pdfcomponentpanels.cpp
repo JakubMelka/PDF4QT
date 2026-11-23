@@ -23,6 +23,7 @@
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
@@ -803,8 +804,11 @@ void PDFDocumentTabBar::setTabClosable(int index, bool closable)
     }
     else if (QWidget* button = tabButton(index, side))
     {
+        // The button may be inside of its own click (a slot of tabCloseRequested): it is hidden
+        // now and retired from the event loop - a retire now would cut the rest of its click
+        // (the later receivers of clicked never run)
         setTabButton(index, side, nullptr);
-        button->deleteLater();
+        PDFDeferredDeletion::retireLater(button);
     }
 }
 
@@ -1667,7 +1671,7 @@ PDFPageSelection::PDFPageSelection(QWidget* parent) :
         connect(box, &QCheckBox::toggled, this, &PDFPageSelection::onFilterToggled);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFPageSelection::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFPageSelection::onThemeChanged);
 
     retranslate();
 }
@@ -2486,7 +2490,7 @@ PDFContinueWith::PDFContinueWith(QWidget* parent) :
         connect(choice, &QAbstractButton::toggled, this, &PDFContinueWith::onChoiceToggled);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFContinueWith::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFContinueWith::onThemeChanged);
 
     retranslate();
 }
@@ -3078,7 +3082,7 @@ PDFColorPalette::PDFColorPalette(QWidget* parent, Qt::WindowFlags flags) :
 
     m_more = new PDFTextLink(this);
     connect(m_more.data(), &QAbstractButton::clicked, this, &PDFColorPalette::onMoreClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 
     retranslate();
     rebuild();
@@ -3550,11 +3554,12 @@ void PDFColorPalette::watchAnchor(bool watch)
         return;
     }
 
+    // The anchor and its window are foreign widgets: a retired palette filters nothing
     for (QWidget* widget : { m_anchor.data(), m_anchorWindow.data() })
     {
         if (widget)
         {
-            widget->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(widget, this);
         }
     }
 
@@ -4166,7 +4171,7 @@ PDFColorSwatchRow::PDFColorSwatchRow(QWidget* parent) :
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     setFocusPolicy(Qt::NoFocus);
     m_group.setExclusive(true);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFColorSwatchRow::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFColorSwatchRow::onThemeChanged);
 
     // retranslate takes the entries of the options and creates the swatches
     retranslate();
@@ -5020,7 +5025,7 @@ PDFSignatureCard::PDFSignatureCard(QWidget* parent) :
 
     m_toggle = new PDFIconButton(QStringLiteral("chevron-down"), PDFIconButton::Size::Small, this);
     connect(m_toggle.data(), &QAbstractButton::clicked, this, &PDFSignatureCard::onToggleClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFSignatureCard::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFSignatureCard::onThemeChanged);
 
     m_card.paintNested = false;
     retranslate();
@@ -5346,7 +5351,7 @@ PDFStrengthMeter::PDFStrengthMeter(QWidget* parent) :
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     setFocusPolicy(Qt::NoFocus);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFStrengthMeter::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFStrengthMeter::onThemeChanged);
 
     retranslate();
 }

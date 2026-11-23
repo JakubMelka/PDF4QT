@@ -45,9 +45,19 @@ namespace pdf
 {
 
 PDFDocumentToolGUI::PDFDocumentToolGUI(QObject* parent) :
-    BaseClass(parent)
+    BaseClass(parent),
+    PDFRetirable(this)
 {
 
+}
+
+void PDFDocumentToolGUI::retire()
+{
+    // The generic steps of PDFDeferredDeletion::retire do the rest: the question of askClose and the dialogs of the
+    // tools belong to the GUI (setOwner) and close unanswered, the watchers of the GUI (children) are disconnected,
+    // the connections from outside (PDFDeferredDeletion::connect) and the filters on foreign widgets are cut. The
+    // GUI itself keeps no outside work; a tool with a computation of its own (a worker with its cancellation, a
+    // speech) overrides the hook and ends it.
 }
 
 PDFDocumentToolGUI::~PDFDocumentToolGUI()
@@ -513,6 +523,9 @@ QDialog* PDFDocumentToolGUI::askClose()
     discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
     connect(discardButton, &QPushButton::clicked, this, &PDFDocumentToolGUI::onCloseQuestionDiscardClicked);
     m_closeQuestion = dialog;
+
+    // The question belongs to the GUI (step A): retire of the tool closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
 
     if (parent)
     {

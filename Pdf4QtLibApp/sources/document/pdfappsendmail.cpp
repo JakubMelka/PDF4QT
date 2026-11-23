@@ -138,7 +138,7 @@ PDFAppSendMail::PDFAppSendMail(PDFAppDocumentTab* tab, PDFAppDocumentSaver* save
 {
     if (m_saver)
     {
-        connect(m_saver, &PDFAppDocumentSaver::finished, this, &PDFAppSendMail::onSaverFinished);
+        PDFDeferredDeletion::connect(m_saver.data(), &PDFAppDocumentSaver::finished, this, &PDFAppSendMail::onSaverFinished);
     }
 }
 
@@ -541,6 +541,7 @@ void PDFAppSendMail::showSaveFirstDialog()
 
     m_dialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 
@@ -621,6 +622,7 @@ void PDFAppSendMail::showErrorDialog(PDFAppMailResult result)
     PDFAppMainWindow::prepareDialog(dialog, m_tab);
     m_dialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 

@@ -23,6 +23,7 @@
 #include "pdfcolorpickerdialog.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
@@ -171,7 +172,7 @@ PDFColorArea::PDFColorArea(QWidget* parent) :
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setLayoutDirection(Qt::LeftToRight);
     setAccessibleName(tr("Saturation and brightness"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFColorArea::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFColorArea::update));
     updateDescription();
 }
 
@@ -372,7 +373,7 @@ PDFHueSlider::PDFHueSlider(QWidget* parent) :
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setLayoutDirection(Qt::LeftToRight);
     setAccessibleName(tr("Hue"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFHueSlider::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFHueSlider::update));
 }
 
 PDFHueSlider::~PDFHueSlider() = default;
@@ -531,7 +532,7 @@ PDFColorComparison::PDFColorComparison(QWidget* parent) :
 {
     using Metrics = PDFComponentPainter::ColorPickerMetrics;
     setFixedSize(Metrics::COMPARISON_WIDTH, Metrics::ROW_HEIGHT);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFColorComparison::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFColorComparison::update));
     updateTexts();
 }
 
@@ -597,7 +598,8 @@ PDFColorPickerDialog::PDFColorPickerDialog(const QColor& currentColor, QWidget* 
 
     setObjectName(QStringLiteral("colorPickerDialog"));
     setBadgeVisible(false);
-    connect(&m_pickingTimer, &QTimer::timeout, this, &PDFColorPickerDialog::onPickingTimer);
+    // A member, not a child: retire does not stop it, a retired dialog gets nothing of it
+    PDFDeferredDeletion::connect(&m_pickingTimer, &QTimer::timeout, this, &PDFColorPickerDialog::onPickingTimer);
     setCardWidth(Metrics::CARD_WIDTH);
 
     // Saturation / value area 354 x 176: the place in the layout is kept by a
@@ -736,15 +738,42 @@ PDFColorPickerDialog::PDFColorPickerDialog(const QColor& currentColor, QWidget* 
     area->setFocus(Qt::OtherFocusReason);
 }
 
+/// The eyedropper reaches outside of the dialog (the grabs of the pointer and the keys): retire
+/// of the dialog ends it at once by this token. It has no meta object of its own.
+class PDFColorPickerGrabToken : public PDFLifetimeToken
+{
+public:
+    explicit PDFColorPickerGrabToken(PDFColorPickerDialog* dialog) :
+        PDFLifetimeToken(dialog),
+        m_dialog(dialog)
+    {
+        setObjectName(QStringLiteral("pdf4qt_color_picker_grab_token"));
+    }
+
+    virtual ~PDFColorPickerGrabToken() override
+    {
+        // The dialog deletes an unreleased token while it is whole (endPicking)
+        releaseToken();
+    }
+
+protected:
+    virtual void release() override
+    {
+        m_dialog->onPickingTokenReleased();
+    }
+
+private:
+    PDFColorPickerDialog* m_dialog;
+};
+
 PDFColorPickerDialog::~PDFColorPickerDialog()
 {
-    m_pickingTimer.stop();
-    if (m_isGrabbing)
+    // The eyedropper ends while the dialog is whole: the grabs and the token
+    if (m_isPicking)
     {
-        m_isGrabbing = false;
-        releaseMouse();
-        releaseKeyboard();
+        endPicking();
     }
+    m_pickingTimer.stop();
 }
 
 void PDFColorPickerDialog::setColor(const QColor& color)
@@ -1081,6 +1110,7 @@ void PDFColorPickerDialog::startPicking()
         grabKeyboard();
         m_isGrabbing = true;
     }
+    m_pickingToken = new PDFColorPickerGrabToken(this);
     m_lastCursorPosition = QCursor::pos();
     m_pickingTimer.start(PDFColorPickerDialogHelper::PICKING_INTERVAL);
 }
@@ -1092,6 +1122,15 @@ void PDFColorPickerDialog::stopPicking(bool keepColor)
         return;
     }
 
+    endPicking();
+    if (!keepColor)
+    {
+        setState(m_stateBeforePicking);
+    }
+}
+
+void PDFColorPickerDialog::endPicking()
+{
     m_isPicking = false;
     m_pickingTimer.stop();
     if (m_isGrabbing)
@@ -1101,9 +1140,24 @@ void PDFColorPickerDialog::stopPicking(bool keepColor)
         releaseKeyboard();
     }
     setMouseTracking(m_wasMouseTracking);
-    if (!keepColor)
+
+    // The dialog ends the picking itself (not the token in its release): the token goes, its
+    // release finds the picking ended
+    if (PDFLifetimeToken* token = m_pickingToken.data())
     {
-        setState(m_stateBeforePicking);
+        m_pickingToken = nullptr;
+        delete token;
+    }
+}
+
+void PDFColorPickerDialog::onPickingTokenReleased()
+{
+    // Released by retire of the dialog (or the token deleted by somebody): the released token
+    // stays a child of the dialog until the dialog is deleted
+    m_pickingToken = nullptr;
+    if (m_isPicking)
+    {
+        endPicking();
     }
 }
 

@@ -26,6 +26,7 @@
 #include "pdfapptoolpanelpopup.h"
 
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_pdftoimages.h"
 #include "pdffluentwidgets.h"
 
@@ -98,7 +99,7 @@ PDFAppToolImageFormatMenu::PDFAppToolImageFormatMenu(PDFAppToolPanelPopup* panel
         connect(row, &PDFTileRow::clicked, this, &PDFAppToolImageFormatMenu::onRowClicked);
         m_allRows.push_back(row);
     }
-    connect(panel, &PDFAppDocumentPanelPopup::closed, this, &PDFAppToolImageFormatMenu::onPanelClosed);
+    PDFDeferredDeletion::connect(panel, &PDFAppDocumentPanelPopup::closed, this, &PDFAppToolImageFormatMenu::onPanelClosed);
     updateRows();
 }
 

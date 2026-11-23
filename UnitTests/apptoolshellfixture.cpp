@@ -71,7 +71,9 @@ ShellTestGUI::ShellTestGUI(bool hasLeftPanel, const QString& initialPanel, bool 
     m_onlySegments(onlySegments),
     m_initialPanel(initialPanel)
 {
-
+    // The model of the pending list is a member: a child, so a retired GUI takes it along (check 9 of the lifetime
+    // sweeps - a parentless model would stay connected to the view of the retired list)
+    pendingModel.setParent(this);
 }
 
 std::vector<pdf::PDFAppToolFlagItem> ShellTestGUI::getStepItems()

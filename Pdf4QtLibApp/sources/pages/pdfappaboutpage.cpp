@@ -29,6 +29,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 
@@ -243,7 +244,7 @@ PDFAppAboutPage::PDFAppAboutPage(PDFAppContext* context, QWidget* parent) :
 
     if (context)
     {
-        connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppAboutPage::onStorageStateChanged);
+        PDFDeferredDeletion::connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppAboutPage::onStorageStateChanged);
     }
 }
 
@@ -281,7 +282,10 @@ void PDFAppAboutPage::rebuild()
     const QString focusName = PDFAppPageRebuild::getFocusedName(this);
 
     m_linkRows.clear();
-    delete m_columns.data();
+
+    // The old content is retired (step A, A2): a link of it may be on the stack
+    PDFAppPageRebuild::retireWidget(m_columns.data());
+    m_columns = nullptr;
     buildContent();
     m_columns->show();
 
@@ -303,7 +307,7 @@ void PDFAppAboutPage::rebuild()
 void PDFAppAboutPage::changeEvent(QEvent* event)
 {
     BaseClass::changeEvent(event);
-    if (event->type() == QEvent::LanguageChange && m_columns)
+    if (event->type() == QEvent::LanguageChange && m_columns && !PDFDeferredDeletion::isRetired(this))
     {
         rebuild();
     }

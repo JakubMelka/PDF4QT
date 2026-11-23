@@ -22,6 +22,7 @@
 
 #include "pdfappundostack.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfobject.h"
 
 #include <QPointer>
@@ -318,12 +319,13 @@ bool PDFAppUndoStack::undoImpl(bool isToolStep)
     }
 
     // An open editor of a form field becomes an undo step first (step 4, package D);
-    // the stack belongs to the document, which a slot may delete
+    // the stack belongs to the document, which a slot may delete or close with its tab
+    // (a retired document changes no more)
     if (m_document->hasPendingEdits())
     {
         QPointer<PDFAppDocument> guard(m_document);
         m_document->commitPendingEdits();
-        if (!guard || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+        if (!guard || PDFDeferredDeletion::isRetired(m_document) || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
         {
             return false;
         }
@@ -384,12 +386,13 @@ bool PDFAppUndoStack::redoImpl(bool isToolStep)
     }
 
     // An open editor of a form field becomes an undo step first (step 4, package D);
-    // the stack belongs to the document, which a slot may delete
+    // the stack belongs to the document, which a slot may delete or close with its tab
+    // (a retired document changes no more)
     if (m_document->hasPendingEdits())
     {
         QPointer<PDFAppDocument> guard(m_document);
         m_document->commitPendingEdits();
-        if (!guard || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+        if (!guard || PDFDeferredDeletion::isRetired(m_document) || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
         {
             return false;
         }

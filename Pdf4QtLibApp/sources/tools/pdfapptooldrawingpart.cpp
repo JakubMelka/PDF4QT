@@ -33,6 +33,7 @@
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
@@ -293,7 +294,9 @@ void PDFAppToolDrawingElementList::rebuild()
     m_rows.clear();
     m_captions.clear();
 
-    if (!m_part || !m_card)
+    // A retired card (step A: its tab, page or shell closed, a change of the drawing reaching the list from the rest
+    // of a call or emission) gets no new rows
+    if (!m_part || !m_card || PDFDeferredDeletion::isRetired(m_card.data()))
     {
         return;
     }
@@ -718,7 +721,7 @@ PDFAppToolDrawingHint::PDFAppToolDrawingHint(QWidget* canvasArea) :
     layout->addWidget(m_label);
     if (canvasArea)
     {
-        canvasArea->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(canvasArea, this);
     }
     updatePlacement();
 }
@@ -764,6 +767,7 @@ void PDFAppToolDrawingHint::updatePlacement()
 
 PDFAppToolDrawingPart::PDFAppToolDrawingPart(PDFAppContext* context, Layout layout, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_context(context),
     m_layout(layout)
 {
@@ -799,6 +803,14 @@ PDFAppToolDrawingPart::~PDFAppToolDrawingPart()
         m_scene->deleteLater();
         m_scene = nullptr;
     }
+}
+
+void PDFAppToolDrawingPart::retire()
+{
+    // The scene leaves the view at once (the proxy and the widget forget it, the creation tools leave the tool
+    // manager); detachFromView reports nothing (m_isDetaching). The form of a text and the error message are
+    // owned by the part (setOwner) and close with it.
+    detachFromView();
 }
 
 void PDFAppToolDrawingPart::describeToolbar(PDFAppToolPanelBuilder& builder)
@@ -953,7 +965,10 @@ QWidget* PDFAppToolDrawingPart::createCanvasHint(QWidget* canvasArea)
 void PDFAppToolDrawingPart::setCanvasHintText(const QString& text)
 {
     m_canvasHintText = text;
-    if (m_canvasHint)
+
+    // The hint lies on the canvas of the tool: once the shell has closed (step A: the canvas retired, its GUI
+    // still updating from the rest of a call or emission) it is shown no more
+    if (m_canvasHint && !PDFDeferredDeletion::isRetired(m_canvasHint.data()))
     {
         m_canvasHint->setText(text);
     }
@@ -1123,8 +1138,8 @@ void PDFAppToolDrawingPart::bindParameter(PDFAppToolParameterModel* model, const
         return;
     }
 
-    connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolDrawingPart::onModelChanged);
-    connect(model, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolDrawingPart::onModelUndoStateChanged);
+    PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolDrawingPart::onModelChanged);
+    PDFDeferredDeletion::connect(model, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolDrawingPart::onModelUndoStateChanged);
 
     // The scene shows the value of the model (an Undo step of the open tool, a new GUI after a
     // change of the language)
@@ -1826,6 +1841,7 @@ void PDFAppToolDrawingPart::editText(PDFInteger id)
     dialog->setProperty(PDFAppToolDrawingPartHelper::ELEMENT_PROPERTY, qint64(id));
     connect(dialog, &QDialog::accepted, this, &PDFAppToolDrawingPart::onEditTextAccepted);
     m_editDialog = dialog;
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 
@@ -2084,6 +2100,7 @@ void PDFAppToolDrawingPart::showSvgError(const QString& errorMessage)
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Critical, tr("The SVG image cannot be used"), errorMessage, QDialogButtonBox::Ok, parent);
     dialog->setObjectName(QStringLiteral("drawingSvgErrorDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 

@@ -185,7 +185,12 @@ private:
     /// (RS4APP: one undo step for "128", not one per key, as PDFAppSettingControl).
     void scheduleThresholdWrite(int threshold, bool isTyped);
     void onThresholdEditingFinished();
+    void onThresholdTimeout();
     void writePendingThreshold();
+
+    /// The pending threshold is written from the event loop; while the editor is retired (step A: retire drops
+    /// the queued calls, the timer is flushed, the focus leaves the field) it is written at once, the last call
+    void queueThresholdWrite();
 
     QPointer<PDFAppToolParameterModel> m_model;
     Mode m_mode;

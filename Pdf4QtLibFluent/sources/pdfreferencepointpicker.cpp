@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfreferencepointpicker.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
@@ -40,7 +41,7 @@ PDFReferencePointPicker::PDFReferencePointPicker(QWidget* parent) :
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFReferencePointPicker::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFReferencePointPicker::update));
     updateDescription();
 }
 

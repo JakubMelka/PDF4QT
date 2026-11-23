@@ -43,6 +43,7 @@
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
 class PDFAppToolChecklist;
 class PDFDrawWidgetProxy;
 class PDFKeyValueList;
@@ -274,9 +275,10 @@ private:
 /// pages lie below its band). The widget itself is empty (transparent for the mouse), the frames are
 /// drawn into the pages by its draw interface.
 ///
-/// Ownership: a child of the canvas area, which the shell deletes (the canvas area, when it dies
-/// first); the caption is a second child of the canvas area owned by it (deleted in its destructor).
-/// It holds the canvas and its proxy by QPointer and emits no signals.
+/// Ownership: a child of the canvas area, which the shell retires (the canvas area deletes it, when
+/// it dies first); the caption is a second child of the canvas area owned by it (setOwner: retired
+/// with it, deleted in its destructor). It holds the canvas and its proxy by QPointer, its draw
+/// interface is a token (PDFAppCanvasDrawToken) and it emits no signals.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolLinkOverlay : public QWidget, public IDocumentDrawInterface
 {
     Q_OBJECT
@@ -319,7 +321,8 @@ private:
     QPointer<PDFWidget> m_pdfWidget;
     QPointer<PDFDrawWidgetProxy> m_proxy;
     QPointer<QWidget> m_drawWidget;
-    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay
+    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay (setOwner)
+    QPointer<PDFAppCanvasDrawToken> m_drawToken;    ///< Child: the draw interface on the proxy
     std::map<PDFInteger, std::vector<PDFDocumentLinkOperations::ExternalLink>> m_pageLinks;
     std::set<QString> m_keptIds;
     QString m_selectedId;

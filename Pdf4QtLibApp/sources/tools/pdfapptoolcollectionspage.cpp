@@ -34,6 +34,8 @@
 
 #include "pdfdocumenttoolcatalog.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QEvent>
@@ -165,15 +167,17 @@ PDFAppToolCollectionsPage::PDFAppToolCollectionsPage(PDFAppContext* context, QWi
     connect(m_editor.data(), &PDFAppToolCollectionEditor::leaveRequested, this, &PDFAppToolCollectionsPage::onLeaveRequested);
     connect(m_editor.data(), &PDFAppToolCollectionEditor::toolActivated, this, &PDFAppToolCollectionsPage::onToolActivated);
 
-    // Notifications are joined into one refresh per turn of the event loop
+    // Notifications are joined into one refresh per turn of the event loop (the timer is a member, made a child:
+    // retire (step A) stops it with the page)
+    m_refreshTimer.setParent(this);
     m_refreshTimer.setSingleShot(true);
     m_refreshTimer.setInterval(0);
     connect(&m_refreshTimer, &QTimer::timeout, this, &PDFAppToolCollectionsPage::refresh);
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppToolCollectionsPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolCollectionsPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppToolCollectionsPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolCollectionsPage::onEverythingChanged);
     }
 
     retranslate();
@@ -482,7 +486,10 @@ bool PDFAppToolCollectionsPage::requestDelete()
         return true;
     }
 
-    if (!m_editor || m_editor->isNewCollection() || m_editor->isBuiltin() || m_editor->getRowId() <= 0)
+    // A closed page (retired, or replaced by the navigation of its tab - by the slot of a
+    // signal, which this call follows) asks nothing: no question is shown for a page
+    // waiting for its deletion
+    if (!m_editor || m_editor->isNewCollection() || m_editor->isBuiltin() || m_editor->getRowId() <= 0 || isClosed())
     {
         return false;
     }
@@ -514,6 +521,7 @@ bool PDFAppToolCollectionsPage::requestDelete()
     // The confirmation of a destructive action: Delete (Secondary, leading) and the
     // focused Cancel (Primary) - the pattern of Remove certificates
     PDFAppDeleteCollectionDialog* dialog = new PDFAppDeleteCollectionDialog(name, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QDialog::finished, this, &PDFAppToolCollectionsPage::onDeleteDialogFinished);
 
@@ -685,7 +693,8 @@ void PDFAppToolCollectionsPage::requestRefresh()
 
 void PDFAppToolCollectionsPage::updateList()
 {
-    if (!m_listCard)
+    // A retired page builds no new rows (nothing new in a retired subtree)
+    if (!m_listCard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

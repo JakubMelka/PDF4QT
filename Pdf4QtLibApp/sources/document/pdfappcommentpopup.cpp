@@ -34,6 +34,7 @@
 #include "pdfwidgetsnapshot.h"
 
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -102,7 +103,7 @@ PDFAppCommentPopupShadow::PDFAppCommentPopupShadow(QWidget* parent) :
     setObjectName(QStringLiteral("commentPopupShadow"));
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppCommentPopupShadow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppCommentPopupShadow::update));
 }
 
 PDFAppCommentPopupShadow::~PDFAppCommentPopupShadow() = default;
@@ -127,7 +128,7 @@ PDFAppCommentPopupIcon::PDFAppCommentPopupIcon(const QString& iconName, int exte
 {
     setFixedSize(m_extent, m_extent);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppCommentPopupIcon::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppCommentPopupIcon::update));
 }
 
 PDFAppCommentPopupIcon::~PDFAppCommentPopupIcon() = default;
@@ -175,22 +176,23 @@ PDFAppCommentPopup::PDFAppCommentPopup(PDFAppDocumentView* view, QWidget* parent
     if (parent)
     {
         m_shadow = new PDFAppCommentPopupShadow(parent);
+        PDFDeferredDeletion::setOwner(m_shadow.data(), this);
         m_shadow->hide();
         m_watchedParent = parent;
-        parent->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(parent, this);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppCommentPopup::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppCommentPopup::onThemeChanged);
     if (view)
     {
         if (PDFDrawWidgetProxy* proxy = view->getProxy())
         {
-            connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFAppCommentPopup::onViewChanged);
-            connect(proxy, &PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFAppCommentPopup::onViewChanged);
+            PDFDeferredDeletion::connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFAppCommentPopup::onViewChanged);
+            PDFDeferredDeletion::connect(proxy, &PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFAppCommentPopup::onViewChanged);
         }
         if (PDFAppAnnotationController* controller = view->getAnnotationController())
         {
-            connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppCommentPopup::onEditingAllowedChanged);
+            PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppCommentPopup::onEditingAllowedChanged);
         }
     }
 
@@ -662,7 +664,9 @@ bool PDFAppCommentPopup::commitContents()
     {
         QPointer<PDFAppCommentPopup> guard(this);
         isCommitted = controller->commit(*result, PDFAppAnnotationChangeKind::Annotation, tr("Edit comment"));
-        if (!guard)
+
+        // A slot of the change may close the tab: a retired popup (step A) builds nothing more
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return isCommitted;
         }
@@ -729,11 +733,16 @@ void PDFAppCommentPopup::updateReplies()
 {
     using H = PDFAppCommentPopupHelper;
 
-    // The rows are created again (a reply has no state of its own)
+    // The rows are created again (a reply has no state of its own); an old row is retired
+    // (deleted later), a retired one waiting for its deletion is skipped
     const QList<QWidget*> rows = m_repliesWidget->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
     for (QWidget* row : rows)
     {
-        delete row;
+        if (!PDFDeferredDeletion::isRetired(row))
+        {
+            m_repliesLayout->removeWidget(row);
+            PDFDeferredDeletion::retire(row);
+        }
     }
 
     const PDFAppDocument* document = getDocument();
@@ -992,7 +1001,7 @@ void PDFAppCommentPopup::watchCanvas(bool watch)
     if (watch && drawWidget)
     {
         m_watchedCanvas = drawWidget;
-        drawWidget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(drawWidget, this);
     }
 }
 
@@ -1183,8 +1192,8 @@ void PDFAppCommentPopup::connectDocument()
     m_document = document;
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppCommentPopup::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppCommentPopup::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppCommentPopup::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppCommentPopup::onDocumentChanged);
     }
 }
 

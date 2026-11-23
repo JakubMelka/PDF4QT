@@ -31,6 +31,7 @@
 #include "pdfshortcutrepository.h"
 
 #include "pdfdocumenttoolsearch.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
@@ -41,7 +42,7 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
-#include <QTimerEvent>
+#include <QTimer>
 #include <QPainter>
 #include <QtMath>
 
@@ -433,7 +434,7 @@ PDFAppSearchGroupHeader::PDFAppSearchGroupHeader(const QString& title, const QSt
     setObjectName(QStringLiteral("searchGroupHeader"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAccessibleName(QStringLiteral("%1 %2").arg(title, count));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchGroupHeader::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchGroupHeader::update));
 }
 
 QSize PDFAppSearchGroupHeader::sizeHint() const
@@ -464,7 +465,7 @@ PDFAppSearchPopupShadow::PDFAppSearchPopupShadow(QWidget* parent) :
     setObjectName(QStringLiteral("searchPopupShadow"));
     setAttribute(Qt::WA_TransparentForMouseEvents);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchPopupShadow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchPopupShadow::update));
 }
 
 QMargins PDFAppSearchPopupShadow::getMargins()
@@ -510,11 +511,14 @@ PDFAppSearchPopup::PDFAppSearchPopup(QWidget* window) :
     setAttribute(Qt::WA_Hover);
     setAccessibleName(PDFAppSearchWidgetsHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Search results")));
 
+    // The shadow is a sibling (a child of the window), which belongs to the popup:
+    // a retire of the popup hides and retires it too
     m_shadow = new PDFAppSearchPopupShadow(window);
     m_shadow->hide();
+    PDFDeferredDeletion::setOwner(m_shadow.data(), this);
     hide();
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchPopup::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSearchPopup::update));
 }
 
 PDFAppSearchPopup::~PDFAppSearchPopup()
@@ -1157,9 +1161,17 @@ PDFAppSearchController::PDFAppSearchController(PDFLineEdit* field) :
         return;
     }
 
-    field->installEventFilter(this);
-    connect(field, &QLineEdit::textEdited, this, &PDFAppSearchController::onTextEdited);
-    connect(field, &QLineEdit::returnPressed, this, &PDFAppSearchController::onReturnPressed);
+    // The field is the parent of the controller: its filter and its signals go through the helper of
+    // step A (a retired controller gets nothing more); the delay of the search is a child timer (retire
+    // stops it with the controller)
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    m_searchTimer->setInterval(SEARCH_DELAY);
+    connect(m_searchTimer, &QTimer::timeout, this, &PDFAppSearchController::updateSearch);
+
+    PDFDeferredDeletion::installEventFilter(field, this, this);
+    PDFDeferredDeletion::connect(field, &QLineEdit::textEdited, this, &PDFAppSearchController::onTextEdited);
+    PDFDeferredDeletion::connect(field, &QLineEdit::returnPressed, this, &PDFAppSearchController::onReturnPressed);
 }
 
 PDFAppSearchController::~PDFAppSearchController()
@@ -1186,7 +1198,7 @@ bool PDFAppSearchController::isPopupOpen() const
 
 bool PDFAppSearchController::isSearchPending() const
 {
-    return m_timerId != 0;
+    return m_searchTimer && m_searchTimer->isActive();
 }
 
 PDFAppContext* PDFAppSearchController::findContext() const
@@ -1227,8 +1239,9 @@ void PDFAppSearchController::connectToTab()
     m_connectedTab = tab;
     if (tab)
     {
-        connect(this, &PDFAppSearchController::navigationRequested, tab, &PDFAppTab::navigationRequested);
-        connect(this, &PDFAppSearchController::externalUrlRequested, tab, &PDFAppTab::externalUrlRequested);
+        // The handles are kept at the tab (a retired tab gets no route)
+        PDFDeferredDeletion::connect(this, &PDFAppSearchController::navigationRequested, tab, &PDFAppTab::navigationRequested);
+        PDFDeferredDeletion::connect(this, &PDFAppSearchController::externalUrlRequested, tab, &PDFAppTab::externalUrlRequested);
     }
 }
 
@@ -1247,17 +1260,13 @@ void PDFAppSearchController::connectToNotifier()
     }
 
     m_connectedNotifier = notifier;
-    connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppSearchController::onDatabaseChanged);
-    connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSearchController::onEverythingChanged);
+    PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppSearchController::onDatabaseChanged);
+    PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSearchController::onEverythingChanged);
 }
 
 void PDFAppSearchController::onTextEdited(const QString& text)
 {
-    if (m_timerId != 0)
-    {
-        killTimer(m_timerId);
-        m_timerId = 0;
-    }
+    m_searchTimer->stop();
 
     if (PDFSearchQuery::sanitize(text).isEmpty())
     {
@@ -1266,26 +1275,14 @@ void PDFAppSearchController::onTextEdited(const QString& text)
     }
 
     // Typing is joined into one search
-    m_timerId = startTimer(SEARCH_DELAY);
-}
-
-void PDFAppSearchController::timerEvent(QTimerEvent* event)
-{
-    if (event->timerId() == m_timerId)
-    {
-        updateSearch();
-        return;
-    }
-
-    BaseClass::timerEvent(event);
+    m_searchTimer->start();
 }
 
 void PDFAppSearchController::updateSearch()
 {
-    if (m_timerId != 0)
+    if (m_searchTimer)
     {
-        killTimer(m_timerId);
-        m_timerId = 0;
+        m_searchTimer->stop();
     }
 
     // The popup is shown only for the field, which the user types into
@@ -1316,16 +1313,21 @@ void PDFAppSearchController::openPopup(const PDFAppSearchResults& results)
         return;
     }
 
-    // A field moved into another window gets a new popup
+    // A field moved into another window gets a new popup (the old one is retired: hidden and
+    // disconnected now, deleted later)
     if (m_popup && m_popup->parentWidget() != window)
     {
-        m_popup->disconnect(this);
-        delete m_popup.data();
+        PDFAppSearchPopup* oldPopup = m_popup.data();
+        m_popup = nullptr;
+        oldPopup->disconnect(this);
+        PDFDeferredDeletion::retire(oldPopup);
     }
 
     if (!m_popup)
     {
+        // The popup is a child of the window and belongs to the controller (retired with it)
         m_popup = new PDFAppSearchPopup(window);
+        PDFDeferredDeletion::setOwner(m_popup.data(), this);
         connect(m_popup.data(), &PDFAppSearchPopup::resultActivated, this, &PDFAppSearchController::onResultActivated);
         connect(m_popup.data(), &PDFAppSearchPopup::showAllRequested, this, &PDFAppSearchController::onShowAllRequested);
         connect(m_popup.data(), &PDFAppSearchPopup::currentRowChanged, this, &PDFAppSearchController::onCurrentRowChanged);
@@ -1364,10 +1366,9 @@ void PDFAppSearchController::placePopup()
 
 void PDFAppSearchController::closePopup()
 {
-    if (m_timerId != 0)
+    if (m_searchTimer)
     {
-        killTimer(m_timerId);
-        m_timerId = 0;
+        m_searchTimer->stop();
     }
 
     watch(false);
@@ -1397,7 +1398,7 @@ void PDFAppSearchController::watch(bool isOpen)
         m_watchedWindow = window;
         if (window)
         {
-            window->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(window, this, this);
         }
     }
 
@@ -1415,7 +1416,8 @@ void PDFAppSearchController::watch(bool isOpen)
         // The filter is kept (a press may close the popup inside of the filter)
         if (isOpen)
         {
-            application->installEventFilter(m_pressFilter);
+            // Through the helper: the event gate stays in front, retire of the controller removes it
+            PDFDeferredDeletion::installEventFilter(application, m_pressFilter, this);
         }
         else
         {

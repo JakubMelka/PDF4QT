@@ -41,6 +41,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolsuggestions.h"
 #include "pdffluentwidgets.h"
@@ -51,6 +52,7 @@
 
 #include <QAccessible>
 #include <QApplication>
+#include <QDialog>
 #include <QElapsedTimer>
 #include <QMimeData>
 #include <QLabel>
@@ -298,6 +300,7 @@ private Q_SLOTS:
     void builtinNotDeletable();
     void draftInHistory();
     void otherInstanceWhileEditing();
+    void retiredPageCreatesNothing();
     void limitsAndRouteIds();
     void performance();
     void hostileStoredRows();
@@ -1693,6 +1696,40 @@ void AppToolCollectionsTest::otherInstanceWhileEditing()
     QVERIFY(page->getEditor()->getSaveButton()->isEnabled());
 }
 
+void AppToolCollectionsTest::retiredPageCreatesNothing()
+{
+    // Step A: code of the page, which goes on after a signal whose slot has retired the
+    // page (the collection deleted meanwhile with a draft), creates nothing in the retired
+    // subtree - no info bar and no shadow of it (deferred deletion, check 7 of the sweeps)
+    pdftest::AppToolsFixture fixture;
+    const qint64 id = CollectionsTestHelper::create(fixture, QStringLiteral("Invoices"), { QStringLiteral("pages.merge"), QStringLiteral("optimize.compress") });
+    QPointer<pdf::PDFAppToolCollectionsPage> page = CollectionsTestHelper::open(fixture, QStringLiteral("/tools/collections/custom-%1").arg(id));
+    QVERIFY(page);
+    QPointer<pdf::PDFAppToolCollectionEditor> editor = page->getEditor();
+    CollectionsTestHelper::typeName(editor, QStringLiteral("Mine"));
+    QVERIFY(editor->isModified());
+    QVERIFY(!editor->getInfoBar());
+    const qsizetype shadows = editor->findChildren<pdf::PDFAppInfoBarShadow*>().size();
+
+    pdf::PDFDeferredDeletion::retire(page.data());
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(editor.data()));
+
+    // No question of the delete is shown for the retired page
+    QVERIFY(!page->requestDelete());
+    QVERIFY(!page->getDeleteDialog());
+    QCOMPARE(fixture.window->findChildren<QDialog*>().size(), qsizetype(0));
+
+    // The draft is kept (as for a shown page), but no bar is built for the retired editor
+    QVERIFY(editor->setStoredCollection(nullptr));
+    QVERIFY(!editor->getInfoBar());
+    QCOMPARE(editor->findChildren<pdf::PDFAppInfoBar*>().size(), qsizetype(0));
+    QCOMPARE(editor->findChildren<pdf::PDFAppInfoBarShadow*>().size(), shadows);
+
+    fixture.settle();
+    QVERIFY(!page);
+    QVERIFY(!editor);
+}
+
 void AppToolCollectionsTest::limitsAndRouteIds()
 {
     pdftest::AppToolsFixture fixture;
@@ -1720,8 +1757,9 @@ void AppToolCollectionsTest::limitsAndRouteIds()
     }
     QVERIFY(CollectionsTestHelper::open(fixture, QStringLiteral("/tools/collections/custom-%1").arg(id)));
 
-    // The direct API refuses invalid routes too
-    pdf::PDFAppToolCollectionsPage direct(fixture.context.get());
+    // The direct API refuses invalid routes too (a standalone page, deleted at the end of the function on purpose)
+    std::unique_ptr<pdf::PDFAppToolCollectionsPage, pdftest::AppDocumentFixture::DeleteNow> directOwner(new pdf::PDFAppToolCollectionsPage(fixture.context.get()));
+    pdf::PDFAppToolCollectionsPage& direct = *directOwner;
     QVERIFY(!direct.setRoute(pdf::PDFAppRoute()));
     QVERIFY(!direct.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/tools"))));
     QVERIFY(direct.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/tools/collections"))));
@@ -1891,7 +1929,7 @@ void AppToolCollectionsTest::deletionMatrix()
         QVERIFY(page->requestDelete());
         fixture.settle();
         QPointer<pdf::PDFAppCardDialog> dialog = page->getDeleteDialog();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!dialog);
         QVERIFY(fixture.collections().getCollection(id));
@@ -1926,7 +1964,7 @@ void AppToolCollectionsTest::deletionMatrix()
 
         if (variant == 0)
         {
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         }
         else if (variant == 1)
         {
@@ -1936,7 +1974,7 @@ void AppToolCollectionsTest::deletionMatrix()
         }
         else
         {
-            delete page;
+            pdftest::AppDocumentFixture::deleteNow(page);
         }
         fixture.settle();
         QTest::qWait(100);
@@ -1952,7 +1990,7 @@ void AppToolCollectionsTest::deletionMatrix()
         QDragEnterEvent enter(QPoint(20, 10), Qt::MoveAction, mimeData.get(), Qt::LeftButton, Qt::NoModifier);
         QApplication::sendEvent(list, &enter);
         QVERIFY(list->getDropIndicatorIndex() >= 0);
-        delete page;
+        pdftest::AppDocumentFixture::deleteNow(page);
         fixture.settle();
     }
 
@@ -1961,7 +1999,7 @@ void AppToolCollectionsTest::deletionMatrix()
         pdftest::AppToolsFixture fixture;
         pdf::PDFAppToolCollectionsPage* page = CollectionsTestHelper::open(fixture, QStringLiteral("/tools/collections/new"));
         QVERIFY(page);
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 }
@@ -1977,7 +2015,7 @@ void AppToolCollectionsTest::deleteFromOwnSignals()
         pdf::PDFAppToolCollectionEditor* editor = page->getEditor();
         pdf::PDFAppCollectionToolList* list = editor->getToolList();
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        auto deleter = [window]() { delete window.data(); };
+        auto deleter = [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); };
         switch (signal)
         {
             case 0:
@@ -2008,7 +2046,7 @@ void AppToolCollectionsTest::deleteFromOwnSignals()
         const qint64 id = CollectionsTestHelper::create(fixture, QStringLiteral("Signals"), { QStringLiteral("pages.merge") });
         pdf::PDFAppToolCollectionsPage* page = CollectionsTestHelper::open(fixture, action == 3 ? QStringLiteral("/tools/collections/new?tool=pages.merge") : QStringLiteral("/tools/collections/custom-%1").arg(id));
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        QObject::connect(page, &pdf::PDFAppPage::navigationRequested, window.data(), [window]() { window->deleteLater(); });
+        QObject::connect(page, &pdf::PDFAppPage::navigationRequested, window.data(), [window]() { pdftest::AppDocumentFixture::deleteLater(window.data()); });
         pdf::PDFAppToolCollectionEditor* editor = page->getEditor();
         switch (action)
         {

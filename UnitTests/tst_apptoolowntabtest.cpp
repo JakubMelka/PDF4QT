@@ -838,7 +838,10 @@ void AppToolOwnTabTest::previewCacheOfGeneration()
     std::shared_ptr<OwnTabTestTool> tool = fixture.registerOwnTabTool(QStringLiteral("pages.merge"));
     QVERIFY(tool);
     tool->setPreview(true);
-    pdf::PDFDocumentToolRunner runner(nullptr, tool, nullptr);
+
+    // A standalone runner of the test: its deletion at the end is a deliberate synchronous deletion (step A)
+    std::unique_ptr<pdf::PDFDocumentToolRunner, pdftest::AppDocumentFixture::DeleteNow> runnerOwner(new pdf::PDFDocumentToolRunner(nullptr, tool, nullptr));
+    pdf::PDFDocumentToolRunner& runner = *runnerOwner;
     pdf::PDFAppToolRunEnvironment environment;
     environment.additionalDocuments.push_back(pdf::PDFDocumentToolInputDocument::create(OwnTabTestTool::createDocument(2), QByteArray(), QString(), true));
     runner.setEnvironment(environment);
@@ -898,7 +901,11 @@ void AppToolOwnTabTest::deleteTabInEveryState()
         QVERIFY(dialog);
     }
 
-    delete tab.data();
+    {
+        // A deliberate synchronous delete of the tab (step A: the detector is quiet in the scope)
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete tab.data();
+    }
     AppToolOwnTabFixture::settle();
     QVERIFY(!list);
     QVERIFY(!dialog);

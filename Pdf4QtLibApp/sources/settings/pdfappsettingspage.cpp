@@ -31,6 +31,7 @@
 #include "pdfsettingdefinitions.h"
 
 #include "pdfdocumenttoolsearch.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
@@ -116,6 +117,10 @@ PDFAppSettingsPage::PDFAppSettingsPage(PDFAppContext* context, QWidget* parent) 
     m_columns->addColumn(m_contentColumn, 0, 1, MINIMUM_CONTENT_WIDTH, Qt::AlignTop);
     layout->addStretch(1);
 
+    // The timers are children (a member leaves the children before the page is destroyed): retire stops
+    // them with the page (step A)
+    m_searchTimer.setParent(this);
+    m_statusTimer.setParent(this);
     m_searchTimer.setSingleShot(true);
     m_searchTimer.setInterval(SEARCH_DELAY);
     connect(&m_searchTimer, &QTimer::timeout, this, &PDFAppSettingsPage::onSearchTimeout);
@@ -128,8 +133,8 @@ PDFAppSettingsPage::PDFAppSettingsPage(PDFAppContext* context, QWidget* parent) 
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSettingsPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSettingsPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSettingsPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSettingsPage::onEverythingChanged);
     }
 }
 
@@ -275,8 +280,13 @@ void PDFAppSettingsPage::rebuild()
         return;
     }
     clearContent();
-    delete m_menuBody.data();
-    delete m_contentBody.data();
+
+    // The old bodies are closed by retire (step A, A2): the language combo, whose signal changed the
+    // language, may be on the stack - they are hidden and taken out of the layouts now, deleted later
+    PDFAppPageRebuild::retireWidget(m_menuBody.data());
+    PDFAppPageRebuild::retireWidget(m_contentBody.data());
+    m_menuBody = nullptr;
+    m_contentBody = nullptr;
     buildMenu();
     buildContent();
 
@@ -306,30 +316,39 @@ void PDFAppSettingsPage::rebuild()
 
 void PDFAppSettingsPage::clearContent()
 {
-    // The dialog belongs to the section, which goes. It is hidden at once and
-    // deleted later: the page is built again while QEvent::LanguageChange is sent
+    // The dialog belongs to the section, which goes. It is retired (hidden at once,
+    // deleted later): the page is built again while QEvent::LanguageChange is sent
     // to a copy of the list of the children of the window, of which the dialog is
     // one (its scrim is deleted later by the box).
     if (PDFAppRestoreDefaultsDialog* dialog = m_restoreDialog.data())
     {
-        dialog->disconnect(this);
-        dialog->hide();
-        dialog->deleteLater();
+        m_restoreDialog = nullptr;
+        PDFDeferredDeletion::retire(dialog);
     }
     m_restoreDialog = nullptr;
 
+    // The parts of the content are retired (step A, A2): a slot of a row may be on the stack
+    // (a restore of the defaults, a written value); they leave the layout now, deleted later
     for (const QPointer<PDFAppSettingsSection>& section : std::as_const(m_sections))
     {
-        delete section.data();
+        // The activity of the section (the sample of the speech) ends now, as the former
+        // synchronous deletion ended it
+        if (section)
+        {
+            section->finishActivity();
+        }
+        PDFAppPageRebuild::retireWidget(section.data());
     }
     m_sections.clear();
     for (const auto& item : m_filterHeaders)
     {
-        delete item.second.data();
+        PDFAppPageRebuild::retireWidget(item.second.data());
     }
     m_filterHeaders.clear();
-    delete m_sectionHeader.data();
-    delete m_emptyState.data();
+    PDFAppPageRebuild::retireWidget(m_sectionHeader.data());
+    PDFAppPageRebuild::retireWidget(m_emptyState.data());
+    m_sectionHeader = nullptr;
+    m_emptyState = nullptr;
 }
 
 void PDFAppSettingsPage::connectSection(PDFAppSettingsSection* section)
@@ -736,6 +755,7 @@ bool PDFAppSettingsPage::openRestoreDefaultsDialog()
     }
 
     PDFAppRestoreDefaultsDialog* dialog = new PDFAppRestoreDefaultsDialog(section, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QDialog::finished, this, &PDFAppSettingsPage::onRestoreDialogFinished);
     m_restoreDialog = dialog;
@@ -811,7 +831,7 @@ void PDFAppSettingsPage::applyPendingFocus()
 void PDFAppSettingsPage::changeEvent(QEvent* event)
 {
     BaseClass::changeEvent(event);
-    if (event->type() == QEvent::LanguageChange && m_contentBody)
+    if (event->type() == QEvent::LanguageChange && m_contentBody && !PDFDeferredDeletion::isRetired(this))
     {
         rebuild();
     }
@@ -838,40 +858,24 @@ void PDFAppSettingsPage::hideEvent(QHideEvent* event)
     QMetaObject::invokeMethod(this, &PDFAppSettingsPage::commitPendingValues, Qt::QueuedConnection);
 }
 
-bool PDFAppSettingsPage::event(QEvent* event)
+void PDFAppSettingsPage::retire()
 {
-    if (event->type() == QEvent::DeferredDelete)
+    // The page is closed (a navigation replaced it, its tab closes - step A): the pending values are
+    // written and the activities of the sections (the sample of the speech) end now, before the page is
+    // disconnected, hidden and deleted later - not from the destructor, whose signals would reach code,
+    // which deletes an ancestor of the page being destroyed. The queued commit of hideEvent (step 7) is
+    // dropped by step 8 of retire. The page is inert already (incoming connections cut), so a written
+    // value reaches only the internal slots of the page and the foreign listeners of the setting.
+    BaseClass::retire();
+    commitPendingValues();
+    const QList<QPointer<PDFAppSettingsSection>> sections = m_sections;
+    for (const QPointer<PDFAppSettingsSection>& section : sections)
     {
-        // The deferred deletion (a page replaced by a navigation) can come before
-        // the queued commit of the hide: the pending values are written and the
-        // activities of the sections (the sample of the speech) end here, from the
-        // event loop, not from the destructor, whose signals would reach code,
-        // which deletes an ancestor of the page being destroyed. A slot may
-        // delete the page meanwhile (QObject::event deletes it here too).
-        QPointer<PDFAppSettingsPage> guard(this);
-        commitPendingValues();
-        if (!guard)
+        if (section)
         {
-            return true;
-        }
-        const QList<QPointer<PDFAppSettingsSection>> sections = m_sections;
-        for (const QPointer<PDFAppSettingsSection>& section : sections)
-        {
-            if (!guard)
-            {
-                return true;
-            }
-            if (section)
-            {
-                section->finishActivity();
-            }
-        }
-        if (!guard)
-        {
-            return true;
+            section->finishActivity();
         }
     }
-    return BaseClass::event(event);
 }
 
 bool PDFAppSettingsPage::eventFilter(QObject* watched, QEvent* event)

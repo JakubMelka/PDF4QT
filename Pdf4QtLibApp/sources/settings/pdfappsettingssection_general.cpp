@@ -30,6 +30,7 @@
 #include "pdftoolrepository.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfwidgetstyleproperties.h"
 
 #include <QEvent>
@@ -104,8 +105,8 @@ PDFAppClearToolHistoryDialog::PDFAppClearToolHistoryDialog(PDFAppContext* contex
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppClearToolHistoryDialog::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppClearToolHistoryDialog::updateTexts);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppClearToolHistoryDialog::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppClearToolHistoryDialog::updateTexts);
     }
 
     updateTexts();
@@ -212,6 +213,7 @@ bool PDFAppGeneralSettingsSection::openClearHistoryDialog()
     }
 
     PDFAppClearToolHistoryDialog* dialog = new PDFAppClearToolHistoryDialog(context, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QDialog::finished, this, &PDFAppGeneralSettingsSection::onClearHistoryDialogFinished);
     m_clearHistoryDialog = dialog;
@@ -265,7 +267,7 @@ void PDFAppGeneralSettingsSection::finishContent()
 
     if (PDFAppContext* context = getContext(); context && context->getTranslator())
     {
-        connect(context->getTranslator(), &PDFAppTranslator::languageChanged, this, &PDFAppGeneralSettingsSection::updateLanguageRow);
+        PDFDeferredDeletion::connect(context->getTranslator(), &PDFAppTranslator::languageChanged, this, &PDFAppGeneralSettingsSection::updateLanguageRow);
     }
 
     updateToolHistory();

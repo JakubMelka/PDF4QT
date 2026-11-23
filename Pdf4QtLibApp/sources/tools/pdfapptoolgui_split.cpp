@@ -42,6 +42,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -232,7 +233,7 @@ PDFAppToolNumberField::PDFAppToolNumberField(PDFAppToolParameterModel* model, co
     connect(this, &QLineEdit::editingFinished, this, &PDFAppToolNumberField::commit);
     if (m_model)
     {
-        connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolNumberField::onParameterChanged);
+        PDFDeferredDeletion::connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolNumberField::onParameterChanged);
     }
     readValue();
 }
@@ -1482,8 +1483,8 @@ void PDFAppSplitToolGUI::connectRunner()
     m_runner = runner;
     if (m_runner)
     {
-        connect(m_runner.data(), &PDFDocumentToolRunner::runProgress, this, &PDFAppSplitToolGUI::onRunProgress);
-        connect(m_runner.data(), &PDFDocumentToolRunner::runFinished, this, &PDFAppSplitToolGUI::onRunFinished);
+        PDFDeferredDeletion::connect(m_runner.data(), &PDFDocumentToolRunner::runProgress, this, &PDFAppSplitToolGUI::onRunProgress);
+        PDFDeferredDeletion::connect(m_runner.data(), &PDFDocumentToolRunner::runFinished, this, &PDFAppSplitToolGUI::onRunFinished);
     }
 }
 

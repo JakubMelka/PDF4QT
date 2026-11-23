@@ -110,8 +110,10 @@ public:
     static PDFAppPasswordDialog* openDialog(PDFAppToolInputList* list, const QString& inputId, QWidget* parent);
 
     /// Opens the document mode without blocking (window modal, deleted when it is closed);
-    /// an open dialog of the same document in the window is raised instead of a second one.
-    /// \returns the dialog, nullptr when the document cannot be unlocked (PDFAppDocumentPermissions::canUnlock)
+    /// an open dialog of the same document in the window is raised instead of a second one. The dialog belongs
+    /// logically to the document (PDFDeferredDeletion::setOwner): the close of its tab closes it.
+    /// \returns the dialog, nullptr when the document cannot be unlocked (PDFAppDocumentPermissions::canUnlock) or is
+    /// retired (its tab closed)
     static PDFAppPasswordDialog* openOwnerDialog(PDFAppDocument* document, const PDFAppPermissionRequest& request, QWidget* parent);
 
     /// The document of the document mode (null in the mode of an input, or deleted)

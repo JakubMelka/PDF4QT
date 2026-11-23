@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapptoolbeforeafteroverlay.h"
+#include "pdfapplifetimetokens.h"
 
 #include "pdfapppagerendercontext.h"
 #include "pdfapptoolpanelparts.h"
@@ -188,6 +189,7 @@ private:
 
 PDFAppToolBeforeAfterOverlay::PDFAppToolBeforeAfterOverlay(PDFWidget* pdfWidget, QWidget* canvasArea) :
     BaseClass(canvasArea),
+    PDFRetirable(this),
     m_pdfWidget(pdfWidget),
     m_proxy(pdfWidget ? pdfWidget->getDrawWidgetProxy() : nullptr),
     m_canvasArea(canvasArea),
@@ -201,19 +203,21 @@ PDFAppToolBeforeAfterOverlay::PDFAppToolBeforeAfterOverlay(PDFWidget* pdfWidget,
     setAccessibleName(tr("Divider between the original and the result"));
     hide();
 
+    // A member, made a child: retire (step A) stops it with the overlay
+    m_renderTimer.setParent(this);
     m_renderTimer.setSingleShot(true);
     m_renderTimer.setInterval(RENDER_DELAY);
     connect(&m_renderTimer, &QTimer::timeout, this, &PDFAppToolBeforeAfterOverlay::startRender);
 
     if (m_canvasArea)
     {
-        m_canvasArea->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_canvasArea.data(), this);
     }
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(this);
+        m_drawToken = new PDFAppCanvasDrawToken(this, m_proxy.data(), this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolBeforeAfterOverlay::updateCanvas);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolBeforeAfterOverlay::updateCanvas);
     updatePlacement();
 }
 
@@ -222,11 +226,21 @@ PDFAppToolBeforeAfterOverlay::~PDFAppToolBeforeAfterOverlay()
     // Nobody waits: the job goes on with its own data, its late result is dropped
     cancelRender();
     m_link->detach();
-    if (m_proxy)
+
+    // The interface leaves the canvas before this object is half destroyed (the token is a child, deleted only by
+    // ~QObject); after retire it is released already
+    if (PDFAppCanvasDrawToken* token = m_drawToken.data())
     {
-        m_proxy->unregisterDrawInterface(this);
+        token->releaseToken();
     }
     updateCanvas();
+}
+
+void PDFAppToolBeforeAfterOverlay::retire()
+{
+    // The job goes on with its own data; its late result is dropped (the link is cut)
+    cancelRender();
+    m_link->detach();
 }
 
 void PDFAppToolBeforeAfterOverlay::setBeforeText(const QString& text)
@@ -348,7 +362,9 @@ QPoint PDFAppToolBeforeAfterOverlay::getCanvasOffset() const
 
 void PDFAppToolBeforeAfterOverlay::updatePlacement()
 {
-    if (hasResult() && m_isOverlayShown)
+    // A retired overlay is shown never again (step A): the close of the shell retires it and then emits its state
+    // Closed, whose slot of the GUI sets the overlay shown
+    if (hasResult() && m_isOverlayShown && !PDFDeferredDeletion::isRetired(this))
     {
         move(getHandleRect().topLeft() - QPoint(FOCUS_MARGIN, FOCUS_MARGIN));
         show();

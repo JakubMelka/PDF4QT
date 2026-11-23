@@ -43,6 +43,7 @@
 #include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
@@ -241,10 +242,11 @@ PDFToolStartPage::PDFToolStartPage(PDFAppContext* context, const QString& toolId
         // The link "Edit … in its tab" follows the open documents too (a tab closed, renamed)
         if (tool->hasDocumentHost() && getContext() && getContext()->getDocumentRegistry())
         {
+            // The registry of the context (step A: the handles are cut by retire of the page)
             PDFAppDocumentRegistry* registry = getContext()->getDocumentRegistry();
-            connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFToolStartPage::updateEditInTabLink);
-            connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFToolStartPage::updateEditInTabLink);
-            connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFToolStartPage::updateEditInTabLink);
+            PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFToolStartPage::updateEditInTabLink);
+            PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFToolStartPage::updateEditInTabLink);
+            PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFToolStartPage::updateEditInTabLink);
         }
     }
     build();
@@ -254,11 +256,12 @@ PDFToolStartPage::~PDFToolStartPage() = default;
 
 void PDFToolStartPage::connectInputList()
 {
-    // The page is the context object: the connections end with the page or with the list
+    // The page is the context object: the connections end with the page or with the list. The list leaves the page
+    // for the tab of the tool (onOpenToolRequested): the handles are cut by retire of the page (step A)
     if (m_inputList)
     {
-        connect(m_inputList.data(), &PDFAppToolInputList::inputsChanged, this, &PDFToolStartPage::updateEditInTabLink);
-        connect(m_inputList.data(), &PDFAppToolInputList::inputChanged, this, &PDFToolStartPage::updateEditInTabLink);
+        PDFDeferredDeletion::connect(m_inputList.data(), &PDFAppToolInputList::inputsChanged, this, &PDFToolStartPage::updateEditInTabLink);
+        PDFDeferredDeletion::connect(m_inputList.data(), &PDFAppToolInputList::inputChanged, this, &PDFToolStartPage::updateEditInTabLink);
     }
 }
 
@@ -451,9 +454,9 @@ void PDFToolStartPage::rebuild()
     m_content = nullptr;
     if (oldContent)
     {
-        // A slot of a part may run below this call: the old parts go from the event loop
-        oldContent->hide();
-        oldContent->deleteLater();
+        // A slot of a part may run below this call: the old parts are retired (hidden and inert at once) and go
+        // from the event loop (step A)
+        PDFDeferredDeletion::retire(oldContent);
     }
     build();
 
@@ -751,13 +754,15 @@ void PDFToolStartPage::onManualLinkClicked()
 QString PDFToolStartPage::getLockedGlanceText() const
 {
     // The GUI of the tool may have its own text (Merge "Can be merged"); it is made only
-    // for the text and deleted at once (no parent, no document)
+    // for the text and deleted at once (no parent, no document, never attached or shown: a deliberate synchronous
+    // deletion of step A - the scope outlives the GUI)
     const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(m_toolId);
     if (!factory)
     {
         return QString();
     }
 
+    const PDFDeferredDeletion::SynchronousDeletionScope scope;
     const std::unique_ptr<PDFDocumentToolGUI> gui(factory->createGUI());
     return gui ? gui->getLockedGlanceText() : QString();
 }
@@ -874,13 +879,14 @@ QWidget* PDFToolStartPage::createOpenTool(QWidget* parent)
 
 QString PDFToolStartPage::getStartPageText(PDFAppToolStartPageText text) const
 {
-    // As getLockedGlanceText: the GUI of the tool is made only for its text
+    // As getLockedGlanceText: the GUI of the tool is made only for its text (never shown, deleted at once)
     const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(m_toolId);
     if (!factory)
     {
         return QString();
     }
 
+    const PDFDeferredDeletion::SynchronousDeletionScope scope;
     const std::unique_ptr<PDFDocumentToolGUI> gui(factory->createGUI());
     return gui ? gui->getStartPageText(text) : QString();
 }

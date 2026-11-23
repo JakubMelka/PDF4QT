@@ -31,6 +31,7 @@
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -223,7 +224,7 @@ QWidget* PDFAppToolGUIStructure::createOverlay(QWidget* canvasArea)
     m_chip = new PDFAppToolCanvasChip(canvasArea);
     if (PDFDocumentToolShell* shell = getShell())
     {
-        connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUIStructure::onShellStateChanged);
+        PDFDeferredDeletion::connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUIStructure::onShellStateChanged);
     }
     updateParts();
     return m_chip.data();
@@ -338,7 +339,9 @@ void PDFAppToolGUIStructure::updateParts()
         m_performedList->setResults(std::move(results));
     }
 
-    if (m_chip)
+    // A retired chip is shown never again (step A): the close of the shell retires it and then emits its state
+    // Closed, whose slot updates the parts
+    if (m_chip && !PDFDeferredDeletion::isRetired(m_chip.data()))
     {
         m_chip->setChip(tr("Lossless · pages look exactly the same"), QStringLiteral("shield-check"));
     }

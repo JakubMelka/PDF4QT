@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfappdocumentpanel.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfglobal.h"
 
 #include <QList>
@@ -170,7 +171,10 @@ private:
 /// are the settings speech.* (the panel and Settings › Speech write the same keys,
 /// a change from anywhere applies at once). The engine is created with the
 /// controller (at the first use of the speech in the tab).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSpeechController : public QObject
+///
+/// Deferred deletion (step A): the voice of the system is outside the tab, so the hook stops it at once (the
+/// reading does not go on until the later deletion).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSpeechController : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -242,6 +246,10 @@ Q_SIGNALS:
 
     /// The block being read or its spoken part has changed
     void textChanged();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire: the engine stops saying at once (no signal of the controller)
+    virtual void retire() override;
 
 private:
     void createEngine();

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmarkdownview.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfaccenthue.h"
 #include "pdfstylepainter.h"
@@ -879,7 +880,7 @@ PDFAppMarkdownView::PDFAppMarkdownView(QWidget* parent) :
     setSizePolicy(policy);
     setFocusPolicy(Qt::NoFocus);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppMarkdownView::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppMarkdownView::onThemeChanged);
 }
 
 PDFAppMarkdownView::~PDFAppMarkdownView() = default;

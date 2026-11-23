@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentsearchcontroller.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsearchindex.h"
@@ -319,6 +320,7 @@ bool PDFAppDocumentSearchHighlighter::isMatchBeforePage(const PDFDocumentTextSea
 
 PDFAppDocumentSearchController::PDFAppDocumentSearchController(PDFAppDocument* document, PDFAppDocumentView* view, PDFAppDocumentTextIndexer* indexer, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_document(document),
     m_view(view),
     m_indexer(indexer),
@@ -333,32 +335,41 @@ PDFAppDocumentSearchController::PDFAppDocumentSearchController(PDFAppDocument* d
 
     if (indexer)
     {
-        connect(indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppDocumentSearchController::onIndexReady);
-        connect(indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppDocumentSearchController::onIndexBuildingChanged);
-        connect(indexer, &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppDocumentSearchController::onIndexProgressChanged);
+        PDFDeferredDeletion::connect(indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppDocumentSearchController::onIndexReady);
+        PDFDeferredDeletion::connect(indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppDocumentSearchController::onIndexBuildingChanged);
+        PDFDeferredDeletion::connect(indexer, &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppDocumentSearchController::onIndexProgressChanged);
     }
 
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSearchController::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSearchController::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSearchController::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSearchController::onDocumentStateChanged);
     }
 
+    // The highlights on the canvas of the view (outside the controller): a token, which retire releases
     m_proxy = view ? view->getProxy() : nullptr;
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(m_highlighter.get());
+        m_highlightToken = new PDFAppCanvasDrawToken(this, m_proxy, m_highlighter.get());
     }
 }
 
 PDFAppDocumentSearchController::~PDFAppDocumentSearchController()
 {
     stopSearch();
-    if (m_proxy)
+
+    // The highlights leave the canvas while the highlighter is alive (the token, a child, would go after it)
+    if (m_highlightToken)
     {
-        m_proxy->unregisterDrawInterface(m_highlighter.get());
-        m_proxy->repaintNeeded();
+        m_highlightToken->releaseToken();
     }
+}
+
+void PDFAppDocumentSearchController::retire()
+{
+    // The worker ends soon after the cancellation, nobody waits for it, its result is not wanted (stopSearch emits
+    // nothing; the token of the highlights is released by retire after the hooks)
+    stopSearch();
 }
 
 PDFDrawWidgetProxy* PDFAppDocumentSearchController::getProxy() const

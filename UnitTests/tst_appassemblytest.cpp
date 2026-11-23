@@ -1065,8 +1065,10 @@ void AppAssemblyTest::openPageRecentAssemblies()
     // pin), hidden without one; it follows the change log (an assembly recorded later appears), a
     // star pins the file in the repository
     pdftest::AppDocumentFixture fixture;
-    pdf::PDFAppOpenPage page(fixture.context.get(), nullptr);
-    QWidget* section = page.findChild<QWidget*>(QStringLiteral("recentAssemblies"));
+    // A standalone page, deleted at the end of the function on purpose (only its deletion is a deliberate
+    // synchronous deletion: the rows it rebuilds from the change log meanwhile are checked by the detector)
+    std::unique_ptr<pdf::PDFAppOpenPage, pdftest::AppDocumentFixture::DeleteNow> page(new pdf::PDFAppOpenPage(fixture.context.get(), nullptr));
+    QWidget* section = page->findChild<QWidget*>(QStringLiteral("recentAssemblies"));
     QVERIFY(section);
     QVERIFY(section->isHidden());
 

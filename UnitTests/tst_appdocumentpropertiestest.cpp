@@ -368,6 +368,7 @@ private slots:
     void linkHover();
     void linkClick();
     void actionLifetime();
+    void linkHoverEndsOnRetire();
     void linkClickDeferred();
     void toolManagerNotification();
     void securityRules();
@@ -867,14 +868,16 @@ void AppDocumentPropertiesTest::propertiesRoute()
     fixture.settle();
     QVERIFY(!qobject_cast<pdf::PDFAppDocumentPropertiesPage*>(tab->getPage()));
 
-    // Back without a history goes to the document as well
-    pdf::PDFAppDocumentPropertiesPage page2(fixture.context.get(), tab);
-    QVERIFY(!page2.setRoute(pdf::PDFAppRoutes::documentProperties(QStringLiteral("AAAAAAAAAAAAAAAAAAAAAAAAAA"), QStringLiteral("general"))));
-    QVERIFY(!page2.setRoute(pdf::PDFAppRoutes::document(tab->getDocumentId())));
-    pdf::PDFAppDocumentPropertiesPage orphan(fixture.context.get(), nullptr);
-    QVERIFY(!orphan.setRoute(pdf::PDFAppRoutes::documentProperties(tab->getDocumentId(), QStringLiteral("general"))));
-    QVERIFY(!orphan.getDocumentTab());
-    QVERIFY(orphan.getCopyText().isEmpty());
+    // Back without a history goes to the document as well (standalone pages of the test, deleted at the end of
+    // the function on purpose - deliberate synchronous deletions)
+    using StandalonePage = std::unique_ptr<pdf::PDFAppDocumentPropertiesPage, pdftest::AppDocumentFixture::DeleteNow>;
+    StandalonePage page2(new pdf::PDFAppDocumentPropertiesPage(fixture.context.get(), tab));
+    QVERIFY(!page2->setRoute(pdf::PDFAppRoutes::documentProperties(QStringLiteral("AAAAAAAAAAAAAAAAAAAAAAAAAA"), QStringLiteral("general"))));
+    QVERIFY(!page2->setRoute(pdf::PDFAppRoutes::document(tab->getDocumentId())));
+    StandalonePage orphan(new pdf::PDFAppDocumentPropertiesPage(fixture.context.get(), nullptr));
+    QVERIFY(!orphan->setRoute(pdf::PDFAppRoutes::documentProperties(tab->getDocumentId(), QStringLiteral("general"))));
+    QVERIFY(!orphan->getDocumentTab());
+    QVERIFY(orphan->getCopyText().isEmpty());
 }
 
 void AppDocumentPropertiesTest::propertiesCommands()
@@ -1305,7 +1308,7 @@ void AppDocumentPropertiesTest::pageDeletion()
     // The window deleted with the properties shown
     tab = fixture.open(PropertiesTestHelper::infoDocument(fixture.folder(), QStringLiteral("Delete3.pdf"), false));
     QVERIFY(PropertiesTestHelper::showProperties(fixture, tab, QStringLiteral("fonts")));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
     QTest::qWait(100);
 }
@@ -1800,6 +1803,54 @@ void AppDocumentPropertiesTest::otherActions()
     }
 }
 
+void AppDocumentPropertiesTest::linkHoverEndsOnRetire()
+{
+    // Step A: a retired tab is inert at once and deleted later by the event loop. A move over
+    // a link asks for the link later (the hover timer of the action handler); the timer is a
+    // part of the handler, so retire stops it - no link of the retired tab is described while
+    // the event loop runs before the deletion
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = PropertiesTestHelper::openReady(fixture, pdftest::AppDocumentSamples::links(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFAppDocumentActionHandler> handler = PropertiesTestHelper::handler(tab)->getActionHandler();
+    QVERIFY(handler);
+    QWidget* drawWidget = view->getPdfWidget()->getDrawWidget()->getWidget();
+    view->getProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
+    fixture.settle();
+    QTest::qWait(50);
+
+    // The web link (page rectangle 30, 140, 200, 16 in the coordinates of PDF): the move only
+    // starts the timer, the link is described from the event loop
+    const QPoint webLink = PropertiesTestHelper::pagePoint(view, QPointF(100, 148));
+    QVERIFY(drawWidget->rect().contains(webLink));
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, webLink, Qt::NoButton, Qt::NoButton);
+    QVERIFY(handler->getHoverTitle().isEmpty());
+
+    // The pending question is a timer of the handler itself (in its subtree: retire reaches it)
+    const auto activeTimers = [&handler]()
+    {
+        int count = 0;
+        for (const QTimer* timer : handler->findChildren<QTimer*>())
+        {
+            count += timer->isActive() ? 1 : 0;
+        }
+        return count;
+    };
+    QCOMPARE(activeTimers(), 1);
+
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    pdf::PDFDeferredDeletion::retire(tab);
+    QVERIFY(guard);
+    QVERIFY(handler);
+    QCOMPARE(activeTimers(), 0);
+    QVERIFY(handler->getHoverTitle().isEmpty());
+
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!handler);
+}
+
 void AppDocumentPropertiesTest::linkHover()
 {
     pdftest::AppDocumentFixture fixture;
@@ -2139,7 +2190,7 @@ void AppDocumentPropertiesTest::actionLifetime()
     handler->performAction(actions[2]);
     QPointer<pdf::PDFMessageBox> question = PropertiesTestHelper::findShown(QStringLiteral("linkConfirmDialog"));
     QVERIFY(question);
-    delete tabGuard.data();
+    pdftest::AppDocumentFixture::deleteNow(tabGuard.data());
     fixture.settle();
     QVERIFY(!tabGuard);
     QVERIFY(!handler);
@@ -2207,7 +2258,7 @@ void AppDocumentPropertiesTest::actionLifetime()
     handler->performAction(links[2]);
     QPointer<QDialog> orphan = handler->getQuestion();
     QVERIFY(orphan);
-    delete handler.data();
+    pdftest::AppDocumentFixture::deleteNow(handler.data());
     fixture.settle();
     QVERIFY(!orphan);
     QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QLatin1Char('|'))));
@@ -2308,7 +2359,7 @@ void AppDocumentPropertiesTest::linkClickDeferred()
                 isShown = true;
                 isShownInsideEvent = !isDelivered;
                 poll.stop();
-                delete tabGuard.data();
+                pdftest::AppDocumentFixture::deleteNow(tabGuard.data());
                 return;
             }
         }
@@ -2618,7 +2669,7 @@ void AppDocumentPropertiesTest::renderingIssuesLifetime()
                 issues->hidePopover();
                 break;
             case 2:
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 break;
         }
         fixture.settle();
@@ -2665,11 +2716,11 @@ void AppDocumentPropertiesTest::deleteFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            pdftest::AppDocumentFixture::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
         }
     };
 

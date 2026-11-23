@@ -515,6 +515,10 @@ protected:
     virtual void describeLeftPanel(PDFAppToolPanelBuilder& builder) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
+    /// Hook of PDFDeferredDeletion::retire: the jobs of the view and of the report are canceled at once (they end
+    /// by themselves on their copies, their results go nowhere)
+    virtual void retire() override;
+
 private:
     enum class StaleReason
     {

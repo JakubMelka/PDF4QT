@@ -34,6 +34,7 @@
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfpreviewpainter.h"
 #include "pdfthemeiconengine.h"
@@ -263,11 +264,11 @@ PDFAppDocumentPanelPopup::PDFAppDocumentPanelPopup(PDFAppDocumentView* view, int
     m_contentLayout->setSpacing(SECTION_GAP);
     m_contentLayout->setSizeConstraint(QLayout::SetNoConstraint);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentPanelPopup::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentPanelPopup::update));
     if (view)
     {
-        connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
-        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
     }
 }
 
@@ -916,11 +917,12 @@ void PDFAppDocumentPanelPopup::watchAnchor(bool watch)
         return;
     }
 
+    // The anchor and its window are foreign: retire of the popup removes the filters
     for (QWidget* widget : { m_anchor.data(), m_anchorWindow.data() })
     {
         if (widget)
         {
-            widget->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(widget, this);
         }
     }
 

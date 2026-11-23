@@ -25,6 +25,7 @@
 #include "pdfappworkspace.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
@@ -367,7 +368,7 @@ PDFAppKeyCap::PDFAppKeyCap(const QString& text, QWidget* parent) :
     setAttribute(Qt::WA_TransparentForMouseEvents);
     setFont(PDFThemeFonts::getFont(QFont::Medium, 10));
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppKeyCap::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppKeyCap::update));
 }
 
 QSize PDFAppKeyCap::sizeHint() const
@@ -659,10 +660,13 @@ void PDFPageNotFoundPage::updateContent()
 
     if (m_hints)
     {
-        // Hints: the keys of Back and of the search (the shortcuts of the user)
+        // Hints: the keys of Back and of the search (the shortcuts of the user); the rows of the previous hints leave
+        // the hints at once and are retired (step A: a rebuilt row is never deleted synchronously)
         for (QWidget* child : m_hints->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
         {
-            delete child;
+            child->hide();
+            child->setParent(nullptr);
+            PDFDeferredDeletion::retire(child);
         }
         if (QHBoxLayout* hintsLayout = qobject_cast<QHBoxLayout*>(m_hints->layout()))
         {

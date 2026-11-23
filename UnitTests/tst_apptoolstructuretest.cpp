@@ -800,11 +800,11 @@ void AppToolStructureTest::deletedInEachState()
 
             if (isWindow)
             {
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             }
             else
             {
-                delete tab;
+                pdftest::AppDocumentFixture::deleteNow(tab);
             }
             AppToolShellFixture::settle();
             QVERIFY(!shell);

@@ -36,6 +36,7 @@
 #include "pdfdocumenttoolguiregistry.h"
 #include "pdfdocumenttoolshell.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
@@ -349,7 +350,7 @@ void PDFAppToolPagePicture::setProxy(PDFDrawWidgetProxy* proxy)
     m_proxy = proxy;
     if (m_proxy)
     {
-        connect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppToolPagePicture::onPageImageChanged);
+        PDFDeferredDeletion::connect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppToolPagePicture::onPageImageChanged);
         connect(m_proxy.data(), &QObject::destroyed, this, &PDFAppToolPagePicture::onProxyDestroyed);
     }
     invalidate();
@@ -870,12 +871,12 @@ QWidget* PDFAppToolGUIExtractText::createCanvasPage(QWidget* parent)
     m_previewPage->getPicture()->setView(view);
     if (view && m_connectedView != view)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIExtractText::onDisplayedPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIExtractText::onDisplayedPageChanged);
         m_connectedView = view;
     }
     if (PDFDocumentToolShell* shell = getShell())
     {
-        connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUIExtractText::onShellStateChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUIExtractText::onShellStateChanged, Qt::UniqueConnection);
     }
 
     updatePreviewPage();

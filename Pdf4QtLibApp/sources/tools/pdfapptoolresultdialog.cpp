@@ -42,6 +42,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolsearch.h"
 #include "pdfdocumenttoolsuggestions.h"
@@ -693,7 +694,15 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
             m_kind = ResultKind::Analysis;
         }
         connect(m_runner, &QObject::destroyed, this, &PDFAppToolResultDialog::onRunnerGone);
-        connect(m_runner, &PDFDocumentToolRunner::documentLost, this, &PDFAppToolResultDialog::onRunnerGone);
+        PDFDeferredDeletion::connect(m_runner.data(), &PDFDocumentToolRunner::documentLost, this, &PDFAppToolResultDialog::onRunnerGone);
+
+        // Step A (lesson 1): retire of the shell cuts the signals of the runner at once and deletes it later; the
+        // dialog learns the end of the runner from its notifier, not from a signal of its destruction
+        PDFLifetimeNotifier* notifier = PDFDeferredDeletion::isRetired(m_runner.data()) ? nullptr : PDFDeferredDeletion::getNotifier(m_runner.data());
+        if (notifier)
+        {
+            PDFDeferredDeletion::connect(notifier, &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppToolResultDialog::onRunnerGone);
+        }
     }
 
     const PDFAppDocument* document = m_runner ? m_runner->getDocument() : nullptr;
@@ -2929,7 +2938,7 @@ void PDFAppToolResultDialog::setVisible(bool visible)
             m_host = host;
             if (host)
             {
-                host->installEventFilter(this);
+                PDFDeferredDeletion::installEventFilter(host, this);
             }
         }
         adaptToHost();

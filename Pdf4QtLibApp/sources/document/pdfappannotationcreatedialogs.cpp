@@ -31,6 +31,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
@@ -243,6 +244,7 @@ PDFAppTextBoxPopup::PDFAppTextBoxPopup(QWidget* parent) :
     if (parent)
     {
         m_shadow = new PDFAppCommentPopupShadow(parent);
+        PDFDeferredDeletion::setOwner(m_shadow.data(), this);
         m_shadow->setObjectName(QStringLiteral("textBoxPopupShadow"));
         m_shadow->hide();
     }
@@ -258,7 +260,7 @@ PDFAppTextBoxPopup::PDFAppTextBoxPopup(QWidget* parent) :
     connect(m_borderColorRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppTextBoxPopup::onValueChanged);
     PDFAppColorPicker::attach(m_textColorRow.data());
     PDFAppColorPicker::attach(m_borderColorRow.data());
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppTextBoxPopup::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppTextBoxPopup::update));
 
     retranslate();
     updateState();
@@ -848,7 +850,7 @@ PDFAppPageLinkTargetItem::PDFAppPageLinkTargetItem(DestinationType type, QWidget
     setFocusPolicy(Qt::TabFocus);
     setAttribute(Qt::WA_Hover, true);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppPageLinkTargetItem::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppPageLinkTargetItem::update));
 }
 
 PDFAppPageLinkTargetItem::~PDFAppPageLinkTargetItem() = default;
@@ -1029,7 +1031,7 @@ PDFAppPageLinkTargetMenu::PDFAppPageLinkTargetMenu(QWidget* parent) :
     m_layout->addWidget(option);
     connect(m_keepZoom.data(), &QCheckBox::toggled, this, &PDFAppPageLinkTargetMenu::onKeepZoomToggled);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppPageLinkTargetMenu::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppPageLinkTargetMenu::update));
     retranslate();
 }
 
@@ -1306,6 +1308,9 @@ void PDFAppPageLinkTargetSelect::showPopup()
     if (!m_menu)
     {
         m_menu = new PDFAppPageLinkTargetMenu(window());
+
+        // The menu is parented to the window, but it belongs to the select (it closes with its tab)
+        PDFDeferredDeletion::setOwner(m_menu.data(), this);
         connect(m_menu.data(), &PDFAppPageLinkTargetMenu::targetChosen, this, &PDFAppPageLinkTargetSelect::onMenuTargetChosen);
     }
     m_menu->popup(this, getType(), m_keepZoom, m_zoom);

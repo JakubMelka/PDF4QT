@@ -32,6 +32,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfapppage.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyle.h"
 #include "pdfwidgetstyleproperties.h"
@@ -235,11 +236,13 @@ QAction* PDFAppAnnotationMenus::findAction(const QMenu* menu, const QString& id)
 
 QMenu* PDFAppAnnotationMenus::showMenu(const PDFAnnotationMenuRequest& request)
 {
-    // One menu at a time
+    // One menu at a time: the shown one closes (its aboutToHide removes the outline of
+    // a hovered row), then it is retired (deleted later - its slot may be on the stack)
     if (m_menu)
     {
         m_menu->close();
-        delete m_menu.data();
+        PDFDeferredDeletion::retire(m_menu.data());
+        m_menu = nullptr;
     }
 
     QWidget* parent = m_view ? m_view->window() : nullptr;
@@ -266,6 +269,9 @@ QMenu* PDFAppAnnotationMenus::createMenu(const PDFAnnotationMenuRequest& request
     m_request = request;
     QMenu* menu = new QMenu(parent);
     menu->setObjectName(QStringLiteral("annotationMenu"));
+
+    // Parented to the window, the menu belongs to the menus of its tab (it closes with the tab)
+    PDFDeferredDeletion::setOwner(menu, this);
     if (m_view)
     {
         menu->setLayoutDirection(m_view->layoutDirection());

@@ -272,7 +272,7 @@ PDFAppDocumentSaver::PDFAppDocumentSaver(PDFAppDocumentTab* tab, QObject* parent
     {
         // A document read again from the disk (a reload, another file) asks again
         // before its signatures are saved incrementally
-        connect(m_document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSaver::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentSaver::onDocumentStateChanged);
     }
 }
 
@@ -766,6 +766,7 @@ void PDFAppDocumentSaver::showSignedDialog(int signatureCount)
     m_dialog = dialog;
     m_step = Step::SignedDialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
     Q_EMIT stateChanged();
 }
@@ -816,6 +817,7 @@ void PDFAppDocumentSaver::showRestoredDialog(const PDFAppDocumentSnapshot& snaps
     m_dialog = dialog;
     m_step = Step::RestoredDialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
     Q_EMIT stateChanged();
 }
@@ -900,6 +902,7 @@ void PDFAppDocumentSaver::showErrorDialog(const QString& filePath, const QString
     m_dialog = dialog;
     m_step = Step::ErrorDialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
     Q_EMIT stateChanged();
 }
@@ -1090,7 +1093,7 @@ PDFAppDocumentFileCommandHandler::PDFAppDocumentFileCommandHandler(PDFAppDocumen
 
     connect(m_saver, &PDFAppDocumentSaver::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
     connect(m_saver, &PDFAppDocumentSaver::finished, this, &PDFAppDocumentFileCommandHandler::onSaverFinished);
-    connect(m_saver, &PDFAppDocumentSaver::fileWritten, m_autoRefresh, &PDFAppAutoRefresh::ignoreOwnWrite);
+    PDFDeferredDeletion::connect(m_saver.data(), &PDFAppDocumentSaver::fileWritten, m_autoRefresh.data(), &PDFAppAutoRefresh::ignoreOwnWrite);
     connect(m_autoRefresh, &PDFAppAutoRefresh::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
     connect(m_printController, &PDFAppPrintController::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
     connect(m_sendMail, &PDFAppSendMail::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
@@ -1098,9 +1101,9 @@ PDFAppDocumentFileCommandHandler::PDFAppDocumentFileCommandHandler(PDFAppDocumen
     if (PDFAppDocument* document = tab ? tab->getDocument() : nullptr)
     {
         // Save is enabled by the changes of the document
-        connect(document, &PDFAppDocument::modifiedChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
-        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::modifiedChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
     }
 }
 

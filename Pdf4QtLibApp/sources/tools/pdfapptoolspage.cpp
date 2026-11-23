@@ -39,6 +39,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfwidgetstyleproperties.h"
@@ -140,6 +141,10 @@ PDFAppToolsPage::PDFAppToolsPage(PDFAppContext* context, QWidget* parent) :
     // Only the first page of a navigation takes the pending focus
     s_pending = Pending();
 
+    // The timers are members, made children: retire (step A) stops them with the page
+    m_searchTimer.setParent(this);
+    m_refreshTimer.setParent(this);
+    m_statusTimer.setParent(this);
     m_searchTimer.setSingleShot(true);
     m_searchTimer.setInterval(SEARCH_DELAY);
     connect(&m_searchTimer, &QTimer::timeout, this, &PDFAppToolsPage::onSearchTimeout);
@@ -157,10 +162,11 @@ PDFAppToolsPage::PDFAppToolsPage(PDFAppContext* context, QWidget* parent) :
     layout->addStretch(1);
     buildContent();
 
+    // The notifier of the context is outside the page (step A)
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppToolsPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolsPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppToolsPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolsPage::onEverythingChanged);
     }
 
     // O25: the times of Recent tools follow the clock while the page is visible
@@ -243,10 +249,11 @@ void PDFAppToolsPage::rebuild()
         PDFAppToolMenu* menu = m_menu;
         m_menu = nullptr;
         menu->disconnect(this);
-        menu->hide();
-        menu->deleteLater();
+        PDFDeferredDeletion::retire(menu);
     }
 
+    // The previous content leaves the page at once (no lookup by a name finds it, its members are forgotten) and is
+    // retired (step A: a rebuilt row is never deleted synchronously), deleted later
     m_chips.clear();
     m_tiles.clear();
     m_categoryCards.clear();
@@ -255,8 +262,19 @@ void PDFAppToolsPage::rebuild()
     m_recentRows.clear();
     m_nearestRows.clear();
     m_nearestTools.clear();
-    delete m_chipGroup.data();
-    delete m_columns.data();
+    m_collectionCard = nullptr;
+    if (QButtonGroup* chipGroup = m_chipGroup.data())
+    {
+        m_chipGroup = nullptr;
+        PDFDeferredDeletion::retire(chipGroup);
+    }
+    if (PDFAppColumns* columns = m_columns.data())
+    {
+        m_columns = nullptr;
+        columns->hide();
+        columns->setParent(nullptr);
+        PDFDeferredDeletion::retire(columns);
+    }
     buildContent();
     m_columns->show();
 
@@ -792,8 +810,7 @@ PDFAppToolMenu* PDFAppToolsPage::showToolMenu(const QString& toolId, const QPoin
         PDFAppToolMenu* previous = m_menu;
         m_menu = nullptr;
         previous->disconnect(this);
-        previous->hide();
-        previous->deleteLater();
+        PDFDeferredDeletion::retire(previous);
     }
 
     // The menu belongs to the page (it goes with it) and deletes itself, when it is hidden
@@ -821,8 +838,11 @@ PDFAppClearRecentToolsDialog* PDFAppToolsPage::openClearRecentDialog()
         return nullptr;
     }
 
+    // The dialog lives in the window and belongs to the page (step A): the retire of the page closes it, its
+    // connection to the page is internal then
     PDFAppClearRecentToolsDialog* dialog = new PDFAppClearRecentToolsDialog(window());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &QDialog::finished, this, &PDFAppToolsPage::onClearDialogFinished);
     m_clearDialog = dialog;
     dialog->open();
@@ -1454,10 +1474,10 @@ void PDFAppToolsPage::rebuildPinnedTiles()
     {
         if (tile)
         {
-            // The tile may be the sender of the change (its star): deleted later
+            // The tile may be the sender of the change (its star): retired (step A), deleted later
             tile->hide();
             tile->setParent(nullptr);
-            tile->deleteLater();
+            PDFDeferredDeletion::retire(tile.data());
         }
     }
     m_tiles.clear();
@@ -1504,9 +1524,10 @@ void PDFAppToolsPage::updateCollections()
     {
         if (row)
         {
+            // Retired (step A), deleted later
             row->hide();
             row->setParent(nullptr);
-            row->deleteLater();
+            PDFDeferredDeletion::retire(row.data());
         }
     }
     m_collectionRows.clear();
@@ -1546,9 +1567,10 @@ void PDFAppToolsPage::updateRecentTools()
         {
             if (row)
             {
+                // Retired (step A), deleted later
                 row->hide();
                 row->setParent(nullptr);
-                row->deleteLater();
+                PDFDeferredDeletion::retire(row.data());
             }
         }
         m_recentRows.clear();
@@ -1604,10 +1626,10 @@ void PDFAppToolsPage::updateCollectionCard()
     m_collectionCard = nullptr;
     if (previous)
     {
-        // A row of the card may be the sender (its star): deleted later
+        // A row of the card may be the sender (its star): retired (step A), deleted later
         previous->hide();
         previous->setParent(nullptr);
-        previous->deleteLater();
+        PDFDeferredDeletion::retire(previous.data());
     }
 
     if (!collection || !m_allToolsSection)
@@ -1678,10 +1700,10 @@ void PDFAppToolsPage::updateNearestTools(bool isShown)
         {
             if (row)
             {
-                // A row may be the sender (its star): deleted later
+                // A row may be the sender (its star): retired (step A), deleted later
                 row->hide();
                 row->setParent(nullptr);
-                row->deleteLater();
+                PDFDeferredDeletion::retire(row.data());
             }
         }
         m_nearestRows.clear();

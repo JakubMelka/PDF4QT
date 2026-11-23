@@ -973,14 +973,14 @@ void AppToolSignByHandTest::viewDiesBeforeTool()
     QObject context;
     QObject::connect(scene.data(), &pdf::PDFPageContentScene::sceneActiveStateChanged, &context, [&reports, &widget](bool isActive) { reports.emplace_back(isActive, !widget.isNull()); });
 
-    delete fixture.currentDocumentTab();
+    pdftest::AppDocumentFixture::deleteNow(fixture.currentDocumentTab());
     QVERIFY(!widget);
     if (part)
     {
         QVERIFY(!part->isAttached());
         QVERIFY(scene);
         QVERIFY(!scene->widget());
-        delete part.data();
+        pdftest::AppDocumentFixture::deleteNow(part.data());
     }
 
     QCOMPARE(reports.size(), size_t(1));

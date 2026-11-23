@@ -40,6 +40,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
@@ -116,14 +117,14 @@ PDFAppAnnotationBar::PDFAppAnnotationBar(PDFAppDocumentView* view, QWidget* pare
 
     if (PDFAppAnnotationController* controller = getController())
     {
-        connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppAnnotationBar::onSelectionChanged);
-        connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationBar::onStateChanged);
-        connect(controller, &PDFAppAnnotationController::activeToolChanged, this, &PDFAppAnnotationBar::onActiveToolChanged);
-        connect(controller, &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationBar::onDocumentChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppAnnotationBar::onSelectionChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationBar::onStateChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::activeToolChanged, this, &PDFAppAnnotationBar::onActiveToolChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationBar::onDocumentChanged);
     }
     if (view)
     {
-        connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppAnnotationBar::onStateChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppAnnotationBar::onStateChanged);
     }
 }
 

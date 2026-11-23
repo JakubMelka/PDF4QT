@@ -114,6 +114,9 @@ class MultiInstanceHelper
 public:
     MultiInstanceHelper() = delete;
 
+    /// A line of a child instance: a report of the synchronous deletion detector of step A follows
+    static constexpr const char* SYNCHRONOUS_DELETION_LINE = "synchronous-deletion: ";
+
     static int timeout(int milliseconds) { return milliseconds * AppDocumentFixture::getTimeoutFactor(); }
 
     static qint64 now() { return QDateTime::currentMSecsSinceEpoch(); }
@@ -754,10 +757,37 @@ private:
             // unsaved changes (quit-unsaved) is given, when it is asked
             arm(arguments.value(1), false);
             QPointer<MultiChildAgent> guard(this);
-            const bool isAccepted = m_window && m_window->close();
+            QPointer<pdf::PDFAppMainWindow> window(m_window);
+            bool isAccepted = window && window->close();
             if (!guard)
             {
                 return;
+            }
+
+            // A0: the question about unsaved changes is shown without a nested event loop - close()
+            // returns at once and the window closes after the answer (the timer gives it)
+            if (!isAccepted && window && window->isVisible())
+            {
+                const int answerTimeout = MultiInstanceHelper::timeout(30000);
+                const bool isAnswered = QTest::qWaitFor([&guard, &window]() { return !guard || !window || !window->isVisible() || guard->m_answerTimer.isActive() == false; }, answerTimeout);
+                Q_UNUSED(isAnswered);
+                if (!guard)
+                {
+                    return;
+                }
+
+                // An answer, which lets the close go on (Don't Save), hides the window: the same limit as the answer
+                // (a short one failed under load, RB-L7); Cancel keeps the window, nothing to wait for
+                if (m_answer != pdf::PDFAppDocumentChoice::Cancel)
+                {
+                    const bool isClosed = QTest::qWaitFor([&guard, &window]() { return !guard || !window || !window->isVisible(); }, answerTimeout);
+                    Q_UNUSED(isClosed);
+                    if (!guard)
+                    {
+                        return;
+                    }
+                }
+                isAccepted = !window || !window->isVisible();
             }
             m_answerTimer.stop();
             result[QStringLiteral("accepted")] = isAccepted;
@@ -884,6 +914,11 @@ public:
 
         QApplication::setStyle(new pdf::PDFWidgetStyle());
 
+        // The synchronous deletion detector of step A as in the fixtures of the tests (RB-H2): its reports go to the
+        // test by the standard output, the test fails on them (AppMultiInstanceTest::cleanup)
+        s_previousHandler = qInstallMessageHandler(&MultiChild::handleMessage);
+        AppDeletionCheck deletionCheck(false);
+
         int exitCode = 0;
         {
             pdf::PDFAppContext context(commandLine);
@@ -909,11 +944,30 @@ public:
 
             exitCode = application.exec();
             agent.finish();
-            window.reset();
+
+            // The end of main.cpp: the window deleted at once, the retired objects flushed before the context closes
+            deletionCheck.closeWindow(window.release());
         }
         MultiInstanceHelper::print("exit");
         return exitCode;
     }
+
+private:
+    /// The report of the detector to the standard output (a line SYNCHRONOUS_DELETION_LINE), every message to the
+    /// previous handler too
+    static void handleMessage(QtMsgType type, const QMessageLogContext& context, const QString& message)
+    {
+        if (type == QtCriticalMsg && message.startsWith(QLatin1String(pdf::PDFDeferredDeletion::SYNCHRONOUS_DELETION_MESSAGE)))
+        {
+            MultiInstanceHelper::print(QByteArray(MultiInstanceHelper::SYNCHRONOUS_DELETION_LINE) + message.toUtf8());
+        }
+        if (s_previousHandler)
+        {
+            s_previousHandler(type, context, message);
+        }
+    }
+
+    static inline QtMessageHandler s_previousHandler = nullptr;
 };
 
 /// One child instance (or the executable PDF4QT) seen from the test
@@ -1291,8 +1345,22 @@ void AppMultiInstanceTest::cleanup()
     // Every process of the test has ended (no orphan process): the children are
     // killed, when the test failed before it ended them
     const bool isEnded = m_fixture->end();
+
+    // The child instances ran with the synchronous deletion detector of step A (RB-H2): none of them reported
+    QByteArray reports;
+    for (const std::unique_ptr<MultiInstance>& instance : m_fixture->instances)
+    {
+        for (const QByteArray& line : instance->readOutput().split('\n'))
+        {
+            if (line.startsWith(MultiInstanceHelper::SYNCHRONOUS_DELETION_LINE))
+            {
+                reports += instance->name.toUtf8() + ": " + line.trimmed() + '\n';
+            }
+        }
+    }
     m_fixture.reset();
     QVERIFY(isEnded);
+    QVERIFY2(reports.isEmpty(), reports.constData());
 }
 
 void AppMultiInstanceTest::concurrentStart_data()

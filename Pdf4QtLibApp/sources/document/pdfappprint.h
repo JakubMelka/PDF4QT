@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 
 #include "pdfcms.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfoperationcontrol.h"
 #include "pdfrenderer.h"
@@ -288,7 +289,7 @@ public:
 /// the canvas (1030:25227: Stop) and the progress on the tab (operation Print),
 /// the document stays usable; the error dialog (1030:25672) offers Print the Rest…,
 /// which opens the dialog again with the pages, which were not printed.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppPrintController : public QObject
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppPrintController : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -338,6 +339,11 @@ Q_SIGNALS:
 
     /// A job has ended
     void printFinished();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire: a running job is canceled at once (it stops after its page, as
+    /// by the destructor), its result is not delivered (no signal); the dialogs go with the controller (setOwner)
+    virtual void retire() override;
 
 private:
     void openDialog(const std::vector<PDFInteger>& initialPages, int copies);

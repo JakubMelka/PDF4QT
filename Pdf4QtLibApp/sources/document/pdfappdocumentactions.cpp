@@ -320,8 +320,11 @@ PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::getResult(int c
 
 PDFAppDocumentActionHandler::PDFAppDocumentActionHandler(PDFAppDocumentTab* tab, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_tab(tab)
 {
+    // A child (a value member has no parent otherwise): retire stops it with the handler (step A)
+    m_hoverTimer.setParent(this);
     m_hoverTimer.setSingleShot(true);
     m_hoverTimer.setInterval(0);
     connect(&m_hoverTimer, &QTimer::timeout, this, &PDFAppDocumentActionHandler::onHoverTimeout);
@@ -331,13 +334,13 @@ PDFAppDocumentActionHandler::PDFAppDocumentActionHandler(PDFAppDocumentTab* tab,
     {
         if (PDFWidgetAnnotationManager* annotationManager = view->getAnnotationManager())
         {
-            connect(annotationManager, &PDFWidgetAnnotationManager::actionTriggered, this, &PDFAppDocumentActionHandler::onActionTriggered);
+            PDFDeferredDeletion::connect(annotationManager, &PDFWidgetAnnotationManager::actionTriggered, this, &PDFAppDocumentActionHandler::onActionTriggered);
         }
         if (PDFWidgetFormManager* formManager = view->getFormManager())
         {
-            connect(formManager, &PDFFormManager::actionTriggered, this, &PDFAppDocumentActionHandler::onActionTriggered);
+            PDFDeferredDeletion::connect(static_cast<PDFFormManager*>(formManager), &PDFFormManager::actionTriggered, this, &PDFAppDocumentActionHandler::onActionTriggered);
         }
-        connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppDocumentActionHandler::onInfoBarActionTriggered);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppDocumentActionHandler::onInfoBarActionTriggered);
 
         // The text selection is the tool of the canvas: a click on a link goes
         // through it to the annotation manager, which follows the link
@@ -354,16 +357,26 @@ PDFAppDocumentActionHandler::PDFAppDocumentActionHandler(PDFAppDocumentTab* tab,
             m_drawWidget = pdfWidget->getDrawWidget()->getWidget();
             if (m_drawWidget)
             {
-                m_drawWidget->installEventFilter(this);
+                PDFDeferredDeletion::installEventFilter(m_drawWidget, this);
             }
         }
     }
 
     if (PDFAppDocument* document = getDocument())
     {
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentActionHandler::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentActionHandler::onDocumentStateChanged);
     }
     onDocumentStateChanged();
+}
+
+void PDFAppDocumentActionHandler::retire()
+{
+    // The tooltip is a window of the application: the tooltip of a link of the tab goes now (as in the destructor);
+    // the confirmation goes with the handler (setOwner), the filter of the canvas is removed by retire
+    if (!m_hoverTitle.isEmpty() && PDFToolTip::isVisible() && PDFToolTip::getTitle() == m_hoverTitle)
+    {
+        PDFToolTip::hideText();
+    }
 }
 
 PDFAppDocumentActionHandler::~PDFAppDocumentActionHandler()
@@ -693,6 +706,7 @@ void PDFAppDocumentActionHandler::showQuestion(PDFMessageBox* dialog, void (PDFA
     // the handler (a handler deleted meanwhile gets nothing), the dialog is deleted after
     // its answer. A dialog deleted with the tab answers Rejected from the event loop.
     m_question = dialog;
+    PDFDeferredDeletion::setOwner(dialog, this);
     if (PDFAppDialogAnswer* answer = PDFAppDialogAnswer::show(dialog, this, slot))
     {
         answer->setDeleteDialog(true);

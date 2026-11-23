@@ -1514,7 +1514,7 @@ void AppToolInsertTest::deletedWithToolOpen()
                 QTest::mouseClick(gui->getStrip()->viewport(), Qt::LeftButton, Qt::NoModifier, H::tilePoint(gui->getStrip(), 4, true));
                 break;
         }
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         AppToolShellFixture::settle();
         QVERIFY(!guiGuard);
         QVERIFY(!listGuard);

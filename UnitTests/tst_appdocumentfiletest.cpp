@@ -862,7 +862,7 @@ void AppDocumentFileTest::saveRequest()
     QVERIFY(handler->requestSaveAs(&receiver, &SaveRequestReceiver::onSaved));
     QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
     QVERIFY(dialog);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     QVERIFY(results.empty());
     fixture.settle();
     QVERIFY(results == std::vector<bool>({ false }));
@@ -1438,11 +1438,11 @@ void AppDocumentFileTest::restoredFileBarDeletion()
     {
         if (deleteWindow)
         {
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         }
         else
         {
-            delete tabGuard.data();
+            pdftest::AppDocumentFixture::deleteNow(tabGuard.data());
         }
     };
 
@@ -2073,7 +2073,7 @@ void AppDocumentFileTest::printPortPrompt()
     const QString deletedAnswer = QDir(folder).absoluteFilePath(QStringLiteral("deleted.pdf"));
     pdf::PDFAppFileDialogs::setPrintFileHandler([&tabGuard, deletedAnswer](QWidget*, const QString&)
     {
-        delete tabGuard.data();
+        pdftest::AppDocumentFixture::deleteNow(tabGuard.data());
         return deletedAnswer;
     });
     dialog = FileTestHelper::openPrintDialog(tab);
@@ -2135,7 +2135,7 @@ void AppDocumentFileTest::printPortPromptFileDialog()
     dialog->getPrintButton()->click();
     QPointer<QFileDialog> fileDialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
     QVERIFY(fileDialog);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
     QVERIFY(fileDialog);
@@ -3028,7 +3028,7 @@ void AppDocumentFileTest::deleteTabDuringSave()
     QVERIFY(FileTestHelper::handler(tab)->save());
 
     // The worker writes its snapshot; nothing is delivered to the deleted tab
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QThreadPool::globalInstance()->waitForDone(30000);
     fixture.settle();
@@ -3047,7 +3047,7 @@ void AppDocumentFileTest::deleteTabDuringPrint()
     QVERIFY(FileTestHelper::handler(tab)->getPrintController()->isPrinting());
 
     // The job is stopped after its page and keeps its printer and its snapshot
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QThreadPool::globalInstance()->waitForDone(60000);
     fixture.settle();
@@ -3148,11 +3148,11 @@ void AppDocumentFileTest::deleteTabWithDialogs()
 
     if (deleteWindow)
     {
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     }
     else
     {
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
     }
     fixture.settle();
     QThreadPool::globalInstance()->waitForDone(30000);
@@ -3215,7 +3215,7 @@ void AppDocumentFileTest::deleteTabFromOwnSignals()
     pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
     auto deleteTab = [&tab]()
     {
-        delete tab.data();
+        pdftest::AppDocumentFixture::deleteNow(tab.data());
     };
 
     if (signal.contains(QStringLiteral("Operation")))

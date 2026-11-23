@@ -34,6 +34,7 @@
 
 #include "pdfaction.h"
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
@@ -587,21 +588,21 @@ void PDFAppOutlinePanel::setDocument(PDFAppDocument* document, PDFAppDocumentVie
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlinePanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlinePanel::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppOutlinePanel::onDocumentDestroyed);
     }
     if (isNewView)
     {
-        connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppOutlinePanel::onCurrentPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppOutlinePanel::onCurrentPageChanged);
         PDFAppContext* context = view->getContext();
         if (context && context->getNotifier())
         {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppOutlinePanel::onDatabaseChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppOutlinePanel::onDatabaseChanged);
         }
     }
     if (editor && m_connectedEditor != editor)
     {
-        connect(editor, &PDFAppOutlineEditor::stateChanged, this, &PDFAppOutlinePanel::onEditingStateChanged);
+        PDFDeferredDeletion::connect(editor, &PDFAppOutlineEditor::stateChanged, this, &PDFAppOutlinePanel::onEditingStateChanged);
     }
     m_connectedDocument = document;
     m_connectedView = view;

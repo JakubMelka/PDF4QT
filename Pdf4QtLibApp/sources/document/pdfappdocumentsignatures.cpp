@@ -209,20 +209,21 @@ public:
 
 PDFAppDocumentSignatureVerifier::PDFAppDocumentSignatureVerifier(PDFAppDocument* document, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_document(document)
 {
     if (document)
     {
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentChanged);
-        connect(document, &PDFAppDocument::originalDataChanged, this, &PDFAppDocumentSignatureVerifier::onOriginalDataChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::originalDataChanged, this, &PDFAppDocumentSignatureVerifier::onOriginalDataChanged);
         m_wasSignatureLostOnSave = document->isSignatureLostOnSave();
 
         PDFAppContext* context = document->getContext();
         if (context && context->getNotifier())
         {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSignatureVerifier::onDatabaseChanged);
-            connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentSignatureVerifier::onDatabaseEverythingChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSignatureVerifier::onDatabaseChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentSignatureVerifier::onDatabaseEverythingChanged);
         }
 
         if (document->isReady())
@@ -384,6 +385,11 @@ void PDFAppDocumentSignatureVerifier::startVerification()
     m_watcher->setFuture(QtConcurrent::run(&PDFAppDocumentSignatureVerifier::runVerification, snapshot.document, snapshot.originalData,
                                            readSettings(m_document->getContext()), m_cancelFlag));
     Q_EMIT verificationChanged();
+}
+
+void PDFAppDocumentSignatureVerifier::retire()
+{
+    stopVerification();
 }
 
 void PDFAppDocumentSignatureVerifier::stopVerification()
@@ -866,7 +872,7 @@ PDFAppSignatureStatusItem::PDFAppSignatureStatusItem(PDFAppDocumentSignatureVeri
     connect(this, &QToolButton::clicked, this, &PDFAppSignatureStatusItem::onClicked);
     if (verifier)
     {
-        connect(verifier, &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppSignatureStatusItem::updateItem);
+        PDFDeferredDeletion::connect(verifier, &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppSignatureStatusItem::updateItem);
     }
     updateItem();
 }
@@ -1046,13 +1052,14 @@ void PDFAppDocumentSignaturesPanel::setDocument(PDFAppDocument* document, PDFApp
     m_verifier = handler ? handler->getSignatureVerifier() : nullptr;
     if (m_verifier)
     {
-        connect(m_verifier, &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppDocumentSignaturesPanel::onVerificationChanged);
+        PDFDeferredDeletion::connect(m_verifier.data(), &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppDocumentSignaturesPanel::onVerificationChanged);
     }
 
-    // The cards of another document start collapsed
+    // The cards of another document start collapsed (a card may be in the delivery of its own signal: hidden now,
+    // retired from the event loop - lesson 1b of step A)
     for (const QPointer<PDFSignatureCard>& card : m_cards)
     {
-        delete card.data();
+        PDFDeferredDeletion::retireLater(card.data());
     }
     m_cards.clear();
     m_expanded.clear();
@@ -1105,7 +1112,7 @@ void PDFAppDocumentSignaturesPanel::rebuild()
         for (const QPointer<PDFSignatureCard>& card : m_cards)
         {
             m_expanded.push_back(card && card->isExpanded());
-            delete card.data();
+            PDFDeferredDeletion::retire(card.data());
         }
     }
     m_cards.clear();
@@ -1286,6 +1293,7 @@ void PDFAppDocumentSignaturesPanel::onCertificateLinkActivated(int index)
                                       window());
     m_trustDialog->setObjectName(QStringLiteral("trustCertificateDialog"));
     m_trustDialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(m_trustDialog, this);
 
     // O18: the subject, the issuer and the SHA-256 fingerprint, which the user can
     // compare with the one published by the owner of the certificate

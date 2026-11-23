@@ -1279,7 +1279,8 @@ void PDFAppPrintDialog::setVisible(bool visible)
             m_host = host;
             if (host)
             {
-                host->installEventFilter(this);
+                // The window it covers is outside the dialog
+                PDFDeferredDeletion::installEventFilter(host, this);
             }
         }
         adaptToHost();

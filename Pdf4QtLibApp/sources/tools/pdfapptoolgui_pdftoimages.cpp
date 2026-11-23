@@ -282,7 +282,7 @@ void PDFAppToolGUIPdfToImages::describeToolbar(PDFAppToolPanelBuilder& builder)
 
     // tool-actions 339:3546 with the menus of 339:4239: Format (the shared menu of the image
     // exports, 356:11387), the resolution, Options
-    delete m_formatMenu.data();
+    PDFDeferredDeletion::retire(m_formatMenu.data());
     m_formatMenu = new PDFAppToolImageFormatMenu(builder.addMenu(QStringLiteral("format"), QStringLiteral("image"), QString(), MENU_WIDTH), this);
     m_formatMenu->setFormat(getImageFormat().format);
     connect(m_formatMenu.data(), &PDFAppToolImageFormatMenu::formatChosen, this, &PDFAppToolGUIPdfToImages::onFormatChosen);

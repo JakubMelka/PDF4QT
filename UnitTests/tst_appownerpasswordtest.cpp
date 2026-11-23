@@ -58,6 +58,7 @@
 #include "pdfapptoolinputloader.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolshell.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
@@ -429,6 +430,7 @@ private Q_SLOTS:
     void sanitizeAsksOwnerPassword();
     void sanitizeOwnerDialogLifetime();
     void dialogLifetime();
+    void retiredDocumentClosesWithoutError();
     void themesAndRightToLeft();
 
     // Step 5 of phase 2 (package P2): ChangeSecurity (R5-4, K5.13), Open Restrict Permissions (Q5.12)
@@ -1252,9 +1254,63 @@ void AppOwnerPasswordTest::dialogLifetime()
     QPointer<pdf::PDFAppDocument> document = tab->getDocument();
     dialog = pdf::PDFAppPasswordDialog::openOwnerDialog(document, print, tab);
     QVERIFY(dialog);
-    delete fixture.window.data();
+    AppDocumentFixture::deleteNow(fixture.window.data());
     AppDocumentFixture::settle();
     QVERIFY(!dialog);
+}
+
+void AppOwnerPasswordTest::retiredDocumentClosesWithoutError()
+{
+    // (1) The dialog is parented to the window, outside the subtree of the tab: it belongs logically to the document
+    // (arch/conventions.md, step A), so the close of the tab closes it at once (Rejected, no answer of a password)
+    // and it is deleted with the document; a document of a closed tab opens no new dialog
+    AppDocumentFixture fixture;
+    const PDFAppPermissionRequest print = PDFAppPermissionRequest::create(PDFAppPermissionAction::Print);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::sample(fixture.folder(), QStringLiteral("6")));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QPointer<pdf::PDFAppPasswordDialog> dialog = pdf::PDFAppPasswordDialog::openOwnerDialog(document, print, fixture.window);
+    QVERIFY(dialog);
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(dialog.data()), document.data());
+    AppDocumentFixture::settle();
+    QTest::keyClicks(dialog->getPasswordField(), H::owner());
+
+    QVERIFY(fixture.retire(tab));
+    QVERIFY(document);
+    QVERIFY(dialog);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(dialog.data()));
+    QVERIFY(!dialog->isVisible());
+    QCOMPARE(dialog->result(), int(QDialog::Rejected));
+    QVERIFY(dialog->getErrorText().isEmpty());
+    QVERIFY(!pdf::PDFAppPasswordDialog::openOwnerDialog(document, print, fixture.window));
+    AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(!document);
+
+    // (2) A dialog without the logical owner (opened by somebody else for the document) outlives the close of the
+    // tab until the deferred deletion of the document: Unlock then asks a document, which refuses every change - the
+    // dialog closes as nothing waits for the password any more, never with the error of a wrong password (the right
+    // owner password is typed)
+    tab = H::openReady(fixture, H::sample(fixture.folder(), QStringLiteral("6"), QStringLiteral("unowned.pdf")));
+    QVERIFY(tab);
+    document = tab->getDocument();
+    dialog = pdf::PDFAppPasswordDialog::openOwnerDialog(document, print, fixture.window);
+    QVERIFY(dialog);
+    pdf::PDFDeferredDeletion::setOwner(dialog.data(), nullptr);
+    AppDocumentFixture::settle();
+    QTest::keyClicks(dialog->getPasswordField(), H::owner());
+
+    QVERIFY(fixture.retire(tab));
+    QVERIFY(document);
+    QVERIFY(dialog && dialog->isVisible());
+    QTest::mouseClick(dialog->getUnlockButton(), Qt::LeftButton);
+    QVERIFY(dialog);
+    QVERIFY(!dialog->isVisible());
+    QVERIFY(dialog->getErrorText().isEmpty());
+    QCOMPARE(dialog->result(), int(QDialog::Rejected));
+    AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(!document);
 }
 
 void AppOwnerPasswordTest::themesAndRightToLeft()

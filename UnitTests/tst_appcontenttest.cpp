@@ -25,6 +25,7 @@
 // against a loopback HTTP server, the What's New pages, the Markdown parser and
 // view and the user manual /help.
 
+#include "appdocumentfixture.h"
 #include "pdfappbuiltintools.h"
 #include "pdfdocumenttoolregistry.h"
 #include "applocaleguard.h"
@@ -32,6 +33,7 @@
 #include "pdfappcontext.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfapphelppage.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmarkdown.h"
 #include "pdfappmarkdownview.h"
@@ -232,7 +234,7 @@ public:
 
     ~ContentFixture()
     {
-        delete window.data();
+        deletionCheck.closeWindow(window.data());
         context.reset();
         pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     }
@@ -268,6 +270,8 @@ public:
         return tab ? tab->getPageScrollArea() : nullptr;
     }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
 
@@ -1257,6 +1261,14 @@ void AppContentTest::markdownReviewFixes()
         {
             QEvent languageChange(QEvent::LanguageChange);
             QCoreApplication::sendEvent(page, &languageChange);
+
+            // The old content is retired (deleted later) and has left the page at once:
+            // a lookup of the page by name finds only the new content (step A)
+            const QList<QWidget*> contents = page->findChildren<QWidget*>(QStringLiteral("helpContent"));
+            QCOMPARE(contents.size(), 1);
+            QVERIFY(!pdf::PDFDeferredDeletion::isRetired(contents.front()));
+            QVERIFY(contents.front()->isVisibleTo(page));
+
             QCoreApplication::processEvents();
             QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         }
@@ -3248,7 +3260,7 @@ void AppContentTest::whatsNewDeletedDuringCheck()
         fixture.checker()->setUrl(server.getUrl());
         fixture.navigate(QStringLiteral("/whats-new"));
         QTRY_VERIFY(fixture.checker()->isChecking());
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         QCoreApplication::processEvents();
         QVERIFY(fixture.checker()->isChecking());
         const int closed = server.closedConnections;
@@ -3435,7 +3447,9 @@ void AppContentTest::whatsNewPageStandalone()
     ContentFixture fixture(false);
     fixture.checker()->setRunningVersion(QVersionNumber({ 1, 6, 0, 0 }));
 
-    pdf::PDFAppWhatsNewPage page(fixture.context.get());
+    // Standalone pages of the test, deleted at the end on purpose (deliberate synchronous deletions)
+    std::unique_ptr<pdf::PDFAppWhatsNewPage, pdftest::AppDocumentFixture::DeleteNow> pageOwner(new pdf::PDFAppWhatsNewPage(fixture.context.get()));
+    pdf::PDFAppWhatsNewPage& page = *pageOwner;
     QVERIFY(!page.getRelease().isValid());
     QCOMPARE(page.getHeaderSubtitle(), QStringLiteral("What changed in the latest PDF4QT release: new tools, improvements and fixed issues."));
     QVERIFY(!page.saveViewState().value(pdf::PDFAppWhatsNewPage::getAllVersionsKey()).toBool());
@@ -3460,7 +3474,8 @@ void AppContentTest::whatsNewPageStandalone()
     QVERIFY(!page.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/whats-new"))));
     QVERIFY(!page.getUpdateStatusCard());
 
-    pdf::PDFAppReleaseNotesPage notes(fixture.context.get());
+    std::unique_ptr<pdf::PDFAppReleaseNotesPage, pdftest::AppDocumentFixture::DeleteNow> notesOwner(new pdf::PDFAppReleaseNotesPage(fixture.context.get()));
+    pdf::PDFAppReleaseNotesPage& notes = *notesOwner;
     QVERIFY(notes.getHeaderBreadcrumbs().isEmpty());
     QVERIFY(!notes.saveViewState().value(pdf::PDFAppWhatsNewPage::getAllVersionsKey()).toBool());
     notes.restoreViewState({ { pdf::PDFAppWhatsNewPage::getAllVersionsKey(), true } });
@@ -3475,7 +3490,8 @@ void AppContentTest::whatsNewPageStandalone()
     pdf::PDFAppContext unopened(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT"), QStringLiteral("--portable") }, QDir::currentPath()));
     for (pdf::PDFAppContext* context : { static_cast<pdf::PDFAppContext*>(nullptr), &unopened })
     {
-        pdf::PDFAppWhatsNewPage pageWithoutDatabase(context);
+        std::unique_ptr<pdf::PDFAppWhatsNewPage, pdftest::AppDocumentFixture::DeleteNow> pageWithoutDatabaseOwner(new pdf::PDFAppWhatsNewPage(context));
+        pdf::PDFAppWhatsNewPage& pageWithoutDatabase = *pageWithoutDatabaseOwner;
         QVERIFY(pageWithoutDatabase.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/whats-new/1.5.2"))));
         pageWithoutDatabase.resize(1000, 800);
         pageWithoutDatabase.show();
@@ -3577,6 +3593,9 @@ void AppContentTest::whatsNewPageCatalog()
     QPointer<pdf::PDFAppUpdateStatusCard> oldCard = page->getUpdateStatusCard();
     QEvent languageChange(QEvent::LanguageChange);
     QApplication::sendEvent(page, &languageChange);
+    // The old content is retired at once and deleted later (step A)
+    QVERIFY(oldCard && pdf::PDFDeferredDeletion::isRetired(oldCard.data()));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(oldCard.isNull());
     QVERIFY(page->getVersionHistory()->isAllShown());
     QCOMPARE(page->getToolRows().size(), int(pdf::PDFDocumentToolCatalog::getCategories().size()));
@@ -3632,6 +3651,9 @@ void AppContentTest::releaseNotesPageStates()
     QPointer<pdf::PDFAppMarkdownView> oldView = page->getMarkdownView();
     QEvent languageChange(QEvent::LanguageChange);
     QApplication::sendEvent(page, &languageChange);
+    // The old content is retired at once and deleted later (step A)
+    QVERIFY(oldView && pdf::PDFDeferredDeletion::isRetired(oldView.data()));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(oldView.isNull());
     QVERIFY(page->getVersionHistory()->isAllShown());
     page->restoreViewState({ { pdf::PDFAppWhatsNewPage::getAllVersionsKey(), false } });
@@ -4228,12 +4250,16 @@ void AppContentTest::helpPageCatalog()
     QPointer<pdf::PDFAppMarkdownView> oldView = page->getMarkdownView();
     QEvent languageChange(QEvent::LanguageChange);
     QApplication::sendEvent(page, &languageChange);
+    // The old content is retired at once and deleted later (step A)
+    QVERIFY(oldView && pdf::PDFDeferredDeletion::isRetired(oldView.data()));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(oldView.isNull());
     QVERIFY(page->getMarkdownView());
     QVERIFY(page->openLink(QStringLiteral("#usage")));
 
-    // A page without a route
-    pdf::PDFAppHelpPage standalone(fixture.context.get());
+    // A page without a route (standalone, deleted at the end on purpose - a deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFAppHelpPage, pdftest::AppDocumentFixture::DeleteNow> standaloneOwner(new pdf::PDFAppHelpPage(fixture.context.get()));
+    pdf::PDFAppHelpPage& standalone = *standaloneOwner;
     QVERIFY(standalone.getHeaderBreadcrumbs().isEmpty());
     QVERIFY(standalone.openLink(QStringLiteral("#usage")));
     standalone.setCatalog(catalog);

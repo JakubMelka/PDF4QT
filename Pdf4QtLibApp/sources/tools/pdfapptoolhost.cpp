@@ -75,22 +75,25 @@ bool PDFAppToolHost::isOwnTab() const
 
 PDFAppDocumentToolHost::PDFAppDocumentToolHost(PDFAppDocumentTab* tab, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_tab(tab),
     m_view(tab ? tab->getView() : nullptr),
     m_document(tab ? tab->getDocument() : nullptr)
 {
+    // The view and the document belong to the tab, the host to the page of the tool (step A: the handles are cut by
+    // retire of the page)
     if (m_view)
     {
-        connect(m_view.data(), &PDFAppDocumentView::toolModeChanged, this, &PDFAppDocumentToolHost::onToolModeChanged);
-        connect(m_view.data(), &PDFAppDocumentView::toolModeLockChanged, this, &PDFAppToolHost::lockChanged);
-        connect(m_view.data(), &PDFAppDocumentView::commandStatesChanged, this, &PDFAppToolHost::commandStatesChanged);
-        connect(m_view.data(), &PDFAppDocumentView::toolUndoStateChanged, this, &PDFAppToolHost::commandStatesChanged);
-        connect(m_view.data(), &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolHost::pagesChanged);
-        connect(m_view.data(), &PDFAppDocumentView::selectedPagesChanged, this, &PDFAppToolHost::pagesChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::toolModeChanged, this, &PDFAppDocumentToolHost::onToolModeChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::toolModeLockChanged, this, &PDFAppToolHost::lockChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::commandStatesChanged, this, &PDFAppToolHost::commandStatesChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::toolUndoStateChanged, this, &PDFAppToolHost::commandStatesChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolHost::pagesChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::selectedPagesChanged, this, &PDFAppToolHost::pagesChanged);
     }
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentToolHost::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentToolHost::onDocumentStateChanged);
     }
 }
 
@@ -141,7 +144,12 @@ void PDFAppDocumentToolHost::activate()
 
 bool PDFAppDocumentToolHost::enterMode(const PDFAppToolModeParts& parts)
 {
-    return m_view && m_view->enterToolMode(parts);
+    // A retired host or view (the page or the tab of the tool closed, step A) enters no mode
+    if (!m_view || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(m_view.data()))
+    {
+        return false;
+    }
+    return m_view->enterToolMode(parts);
 }
 
 void PDFAppDocumentToolHost::leaveMode()
@@ -328,6 +336,14 @@ std::vector<PDFInteger> PDFAppDocumentToolHost::getExplicitlySelectedPages() con
 PDFAppTab* PDFAppDocumentToolHost::getTab() const
 {
     return m_tab.data();
+}
+
+void PDFAppDocumentToolHost::retire()
+{
+    // The connections of the view are cut already (step 3): a mode left from now on is never a modeLeft. The view
+    // itself is given back by the token of the mode of the shell (released after the hooks, step 4), which still
+    // uses this host - its saved state is kept for it.
+    m_isLeaving = true;
 }
 
 void PDFAppDocumentToolHost::onToolModeChanged(bool isActive)

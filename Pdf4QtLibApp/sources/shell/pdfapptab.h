@@ -35,13 +35,16 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <vector>
+
 namespace pdf
 {
 
 /// Content of a tab of the main window: its kind, its history and its current
 /// page. The navigator creates the pages and gives them to the tab (setPage);
-/// the tab owns the page and destroys the previous one (deleteLater, the page
-/// may be the sender of the navigation).
+/// the tab owns the page and retires the previous one (PDFDeferredDeletion::retire,
+/// step A) from the event loop: the page is usually the sender of the navigation,
+/// and retire would cut the rest of its emission.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppTab : public QWidget
 {
     Q_OBJECT
@@ -64,9 +67,13 @@ public:
     /// Current page (nullptr before the first navigation)
     PDFAppPage* getPage() const { return m_page; }
 
-    /// Shows the page (the tab takes it over); the previous page is hidden and
-    /// deleted later
+    /// Shows the page (the tab takes it over); the previous page leaves the layout
+    /// and is hidden at once, it is retired from the event loop (step A)
     void setPage(PDFAppPage* page);
+
+    /// \p page was replaced by setPage and waits for its retire from the event loop (it is hidden and out of the
+    /// layout, the rest of the emission, which replaced it, may still run its slots)
+    bool isPageReplaced(const PDFAppPage* page) const;
 
     /// Highlighted item of the navigation (only the Home tab has the navigation)
     virtual void setNavItem(PDFAppNavItem item);
@@ -136,6 +143,9 @@ protected:
 private:
     void onPageTitleChanged();
 
+    /// The pages replaced by setPage are retired (queued: a page may be inside its own emission)
+    void retireReplacedPages();
+
     static quint64 s_nextId;
 
     PDFAppTabKind m_kind;
@@ -144,6 +154,9 @@ private:
     PDFAppHistory m_history;
     QPointer<PDFAppPage> m_page;
     QPointer<PDFAppLeaveFlow> m_leaveFlow;  ///< Owned (a child of the tab)
+
+    /// Replaced pages (children of the tab, hidden), which wait for retireReplacedPages
+    std::vector<QPointer<PDFAppPage>> m_replacedPages;
 };
 
 /// Tab Home (pdf4qt-home 28:4: the sidebar, the workspace with the header, the

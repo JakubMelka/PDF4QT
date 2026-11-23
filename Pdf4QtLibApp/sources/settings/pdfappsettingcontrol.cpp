@@ -31,6 +31,7 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfdocumenttoolsearch.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
@@ -167,9 +168,13 @@ PDFAppSettingControl::PDFAppSettingControl(PDFAppContext* context, const PDFSett
     m_definition(definition),
     m_kind(getKind(definition))
 {
+    // The delayed write is in the subtree of the control (the member is destroyed first, it leaves the
+    // children then): a retired row writes the pending value at once (step A, setFlushOnRetire)
+    m_writeTimer.setParent(this);
     m_writeTimer.setSingleShot(true);
     m_writeTimer.setInterval(WRITE_DELAY);
     connect(&m_writeTimer, &QTimer::timeout, this, &PDFAppSettingControl::onWriteTimeout);
+    PDFDeferredDeletion::setFlushOnRetire(&m_writeTimer);
 
     createControl(parent);
     refresh();

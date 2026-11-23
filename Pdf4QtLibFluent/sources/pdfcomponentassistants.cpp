@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentassistants.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -106,7 +107,7 @@ PDFAssistantAvatar::PDFAssistantAvatar(QWidget* parent) :
     // A picture: the mouse goes to the widget below it
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFAssistantAvatar::PDFAssistantAvatar(const PDFComponentPainter::AssistantAvatar& avatar, QWidget* parent) :
@@ -161,7 +162,7 @@ PDFAssistantRow::PDFAssistantRow(QWidget* parent) :
 
     m_disconnectButton->installEventFilter(this);
     connect(m_disconnectButton.data(), &QAbstractButton::clicked, this, &PDFAssistantRow::onDisconnectButtonClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 
     updateButtonTexts();
     updateAccessibility();
@@ -593,7 +594,7 @@ PDFCodeBox::PDFCodeBox(QWidget* parent) :
     m_copyButton->setFixedSize(36, 36);
     m_copyButton->setFocusPolicy(Qt::TabFocus);
     connect(m_copyButton.data(), &QAbstractButton::clicked, this, &PDFCodeBox::onCopyButtonClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 
     updateButtonTexts();
 }

@@ -45,6 +45,7 @@
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfapptooltimestampauthoritypart.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
 
@@ -1531,7 +1532,9 @@ public:
         m_counter(std::move(counter)),
         m_message(std::move(message))
     {
-        // The first read at once (from the event loop), then by the interval of the runner
+        // The first read at once (from the event loop), then by the interval of the runner; the timer is a member,
+        // made a child: retire (step A) stops it with the progress
+        m_timer.setParent(this);
         connect(&m_timer, &QTimer::timeout, this, &PDFAppMcpCatalogToolProgress::onTimeout);
         m_timer.start(0);
     }
@@ -2029,7 +2032,7 @@ public:
         }
 
         PDFAppDocument* document = m_request.document;
-        if (!document)
+        if (!document || PDFDeferredDeletion::isRetired(document))
         {
             fail(QStringLiteral("The file was written, but the tab of the document was closed meanwhile."), PDFMcpActivityStatus::DeniedClosed);
             return;
@@ -2216,8 +2219,9 @@ private:
     /// a new version - F8). A copy of a closed tab is written from its snapshot.
     bool checkDocument(QString* text, PDFMcpActivityStatus* status) const
     {
+        // A tab closed meanwhile: its document is deleted, or retired (it changes no more)
         const PDFAppDocument* document = m_request.document;
-        if (!document)
+        if (!document || (isChangingDocument() && PDFDeferredDeletion::isRetired(document)))
         {
             if (isChangingDocument())
             {
@@ -2835,7 +2839,7 @@ public:
         QObject(saver),
         m_job(std::move(job))
     {
-        connect(saver, &PDFAppDocumentSaver::silentWriteFinished, this, &PDFAppMcpCatalogToolWriteLink::onWritten);
+        PDFDeferredDeletion::connect(saver, &PDFAppDocumentSaver::silentWriteFinished, this, &PDFAppMcpCatalogToolWriteLink::onWritten);
     }
 
     virtual ~PDFAppMcpCatalogToolWriteLink() override
@@ -2893,11 +2897,12 @@ void PDFAppMcpCatalogToolJob::startOverwrite()
     PDFAppDocumentFileWriter::Request request = PDFAppToolResultWriter::createOverwriteRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, document, &m_result);
 
     // The operation keeps the version of the result during the write, it ends just
-    // before the commit (as F2 of the runner). A slot of its announcement may close the tab.
+    // before the commit (as F2 of the runner). A slot of its announcement may close the tab
+    // (deleted, or retired: inert, deleted later - nothing is written for a closed tab).
     const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
     m_saver = saver;
     m_operation = document->beginOperation(PDFAppDocumentOperationKind::Tool, m_request.tool->getInfo() ? m_request.tool->getInfo()->getTitle() : getActionId(), true);
-    if (!m_saver || !m_request.document)
+    if (!m_saver || !m_request.document || PDFDeferredDeletion::isRetired(m_request.document.data()))
     {
         endOperation();
         fail(PDFAppMcpCatalogToolsHelper::getClosedText(), PDFMcpActivityStatus::DeniedClosed);
@@ -3279,10 +3284,12 @@ private:
         // A canceled call (also by a stopped server) withdraws the dialog at once: the host reports it.
         // The host stopped without the event loop (the quit order deletes it at once) ends the request
         // with itself (the destructor).
-        connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpCatalogToolSecretRequest::onCallCanceled);
+        // The document of a closed (retired) tab sends nothing more: its end is aboutToBeDeleted (step A)
+        PDFDeferredDeletion::connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpCatalogToolSecretRequest::onCallCanceled);
         if (PDFAppDocument* document = m_request.document)
         {
-            connect(document, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
+            PDFDeferredDeletion::connect(document, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
+            PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
         }
     }
 
@@ -3389,8 +3396,10 @@ private:
         m_dialog = dialog;
         if (dialog)
         {
-            connect(dialog, &PDFAppMcpSecretConfirmation::confirmationEnded, this, &PDFAppMcpCatalogToolSecretRequest::onConfirmationEnded);
-            connect(dialog, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
+            // The dialog lives in the tab: a closed (retired) tab ends it without confirmationEnded
+            PDFDeferredDeletion::connect(dialog, &PDFAppMcpSecretConfirmation::confirmationEnded, this, &PDFAppMcpCatalogToolSecretRequest::onConfirmationEnded);
+            PDFDeferredDeletion::connect(dialog, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
+            PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(dialog), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
         }
         else
         {

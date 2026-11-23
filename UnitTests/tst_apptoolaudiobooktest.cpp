@@ -822,7 +822,7 @@ void AppToolAudioBookTest::voicesInAJob()
     QVERIFY(AppToolShellFixture::waitFor([audio]() { return audio && audio->isProbingVoices(); }));
     shell->close();
     AppToolShellFixture::settle();
-    delete audio.data();
+    pdftest::AppDocumentFixture::deleteNow(audio.data());
     QVERIFY(!audio);
     slow->release();
     QTest::qWait(100);
@@ -1168,7 +1168,7 @@ void AppToolAudioBookTest::contextMenuActionMayCloseTheTab()
             return;
         }
         ++changesAfterTrigger;
-        delete tab.data();
+        pdftest::AppDocumentFixture::deleteNow(tab.data());
     });
     skip->trigger();
     isTriggerReturned = true;

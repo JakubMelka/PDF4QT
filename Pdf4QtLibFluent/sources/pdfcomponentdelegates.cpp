@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainterguard.h"
 #include "pdfthememanager.h"
 #include "pdftooltip.h"
@@ -221,7 +222,7 @@ private:
 PDFRowDelegate::PDFRowDelegate(QObject* parent) :
     BaseClass(parent)
 {
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFRowDelegate::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFRowDelegate::onThemeChanged);
 
     if (QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent))
     {
@@ -380,9 +381,14 @@ QMenu* PDFRowDelegate::createContextMenu(QAbstractItemView* view, const QModelIn
     menu->setAttribute(Qt::WA_DeleteOnClose, true);
     if (addActionsToMenu(menu, view, index) == 0)
     {
+        // Never shown: deleted at once
         delete menu;
         return nullptr;
     }
+
+    // The menu is a child of a view, but its actions call the delegate: a retired delegate
+    // closes its menu too
+    PDFDeferredDeletion::setOwner(menu, this);
     return menu;
 }
 
@@ -512,7 +518,9 @@ void PDFRowDelegate::installViewport(WatchedView& watched, QWidget* viewport)
 
     if (viewport)
     {
-        viewport->installEventFilter(this);
+        // The viewport may belong to a view, which is not the parent of the delegate: a retired
+        // delegate filters nothing
+        PDFDeferredDeletion::installEventFilter(viewport, this);
         connect(viewport, &QObject::destroyed, this, &PDFRowDelegate::onWatchedDestroyed, Qt::UniqueConnection);
 
         // The actions react to the pointer without a pressed button
@@ -581,7 +589,7 @@ void PDFRowDelegate::watchView(QAbstractItemView* view)
 
     WatchedView watched;
     watched.view = view;
-    view->installEventFilter(this);
+    PDFDeferredDeletion::installEventFilter(view, this);
 
     // The signal destroyed of a widget comes before its children are deleted, so
     // the viewport (the first child of the view) still exists then (review C1)
@@ -593,7 +601,7 @@ void PDFRowDelegate::watchView(QAbstractItemView* view)
         watched.header = treeView->header();
         if (watched.header)
         {
-            watched.headerConnection = connect(watched.header.data(), &QHeaderView::sectionResized, this, &PDFRowDelegate::onHeaderSectionResized);
+            watched.headerConnection = PDFDeferredDeletion::connect(watched.header.data(), &QHeaderView::sectionResized, this, &PDFRowDelegate::onHeaderSectionResized);
         }
     }
 
@@ -675,7 +683,7 @@ void PDFRowDelegate::installPendingViewportFilters()
             watched.isFilterReinstallPending = false;
             if (watched.viewport)
             {
-                watched.viewport->installEventFilter(this);
+                PDFDeferredDeletion::installEventFilter(watched.viewport.data(), this);
             }
         }
     }
@@ -2893,10 +2901,11 @@ bool PDFShortcutDelegate::startRecording(QAbstractItemView* view, const QModelIn
 QWidget* PDFShortcutDelegate::createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
     // createEditor is a const function of Qt, the delegate receives the signals of the editor
+    // (the editor is a child of the viewport, not of the delegate)
     PDFShortcutRecorder* recorder = new PDFShortcutRecorder(parent);
     PDFShortcutDelegate* self = const_cast<PDFShortcutDelegate*>(this);
-    connect(recorder, &PDFShortcutRecorder::recorded, self, &PDFShortcutDelegate::onRecorderRecorded);
-    connect(recorder, &PDFShortcutRecorder::canceled, self, &PDFShortcutDelegate::onRecorderCanceled);
+    PDFDeferredDeletion::connect(recorder, &PDFShortcutRecorder::recorded, self, &PDFShortcutDelegate::onRecorderRecorded);
+    PDFDeferredDeletion::connect(recorder, &PDFShortcutRecorder::canceled, self, &PDFShortcutDelegate::onRecorderCanceled);
 
     // Each recorder remembers its view and its item (one delegate for more views, review C3)
     purgeRecordings();

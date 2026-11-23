@@ -649,6 +649,8 @@ PDFAppInstanceServer::PDFAppInstanceServer(QObject* parent) :
     QObject(parent)
 {
     qRegisterMetaType<pdf::PDFAppInstanceRequest>();
+    // A member, made a child: retire (step A) stops it with the server
+    m_retryTimer.setParent(this);
     m_retryTimer.setSingleShot(true);
     connect(&m_retryTimer, &QTimer::timeout, this, &PDFAppInstanceServer::retryResume);
 }
@@ -1055,6 +1057,8 @@ PDFAppInstanceConnection::PDFAppInstanceConnection(QLocalSocket* socket, int rea
     connect(socket, &QLocalSocket::disconnected, this, &PDFAppInstanceConnection::onDisconnected);
 
     m_age.start();
+    // A member, made a child: retire (step A) stops it with the connection
+    m_timer.setParent(this);
     m_timer.setSingleShot(true);
     connect(&m_timer, &QTimer::timeout, this, &PDFAppInstanceConnection::onTimeout);
     m_timer.start(readTimeout);

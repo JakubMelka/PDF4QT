@@ -36,6 +36,7 @@
 #include "pdfcertificatemanager.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_encryption.h"
 #include "pdffluentwidgets.h"
 #include "pdfsecurityhandler.h"
@@ -1222,6 +1223,8 @@ void PDFAppToolCertificatePresetPart::openCreateDialog()
 
     // new + QPointer: the dialog deletes itself, when it closes
     PDFAppCertificateCreateDialog* dialog = new PDFAppCertificateCreateDialog(m_context, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_createDialog = dialog;
     connect(dialog, &PDFAppCertificateCreateDialog::certificateCreated, this, &PDFAppToolCertificatePresetPart::onCertificateCreated);
     dialog->open();
@@ -1260,6 +1263,8 @@ void PDFAppToolCertificatePresetPart::onImportFileChosen(const QString& filePath
     }
 
     PDFAppCertificateImportDialog* dialog = new PDFAppCertificateImportDialog(m_context, filePath, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_importDialog = dialog;
     connect(dialog, &PDFAppCertificateImportDialog::certificateImported, this, &PDFAppToolCertificatePresetPart::onCertificateImported);
 

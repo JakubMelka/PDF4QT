@@ -45,6 +45,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocmdppermissions.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -287,7 +288,7 @@ void PDFAppToolGUISignature::ensureParts()
         m_verifier = getVerifier();
         if (m_verifier)
         {
-            connect(m_verifier.data(), &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppToolGUISignature::onVerificationChanged);
+            PDFDeferredDeletion::connect(m_verifier.data(), &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppToolGUISignature::onVerificationChanged);
         }
     }
 }
@@ -1695,6 +1696,9 @@ void PDFAppToolGUISignature::openQuestion(Question question)
         connect(backButton, &QPushButton::clicked, dialog, &QDialog::reject);
     }
 
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
+
     // new + QPointer, it deletes itself
     dialog->setObjectName(QStringLiteral("signatureQuestionDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -1807,6 +1811,8 @@ void PDFAppToolGUISignature::openTimestampErrorDialog(const PDFDocumentToolResul
     const QString text = result.message.isEmpty() ? fallbackText + QLatin1Char(' ') + nothingWritten : result.message;
 
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Critical, title, text, QDialogButtonBox::NoButton, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("signatureTimestampErrorDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setCardWidth(TIMESTAMP_ERROR_WIDTH);
@@ -2090,6 +2096,8 @@ void PDFAppToolGUISignature::onCreateClicked()
 
     // new + QPointer: the dialog deletes itself, when it closes (the dialog of step 5)
     PDFAppCertificateCreateDialog* dialog = new PDFAppCertificateCreateDialog(getContext(), getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_createDialog = dialog;
     connect(dialog, &PDFAppCertificateCreateDialog::certificateCreated, this, &PDFAppToolGUISignature::onCertificateCreated);
     dialog->open();
@@ -2122,6 +2130,8 @@ void PDFAppToolGUISignature::onImportFileChosen(const QString& filePath)
     }
 
     PDFAppCertificateImportDialog* dialog = new PDFAppCertificateImportDialog(getContext(), filePath, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_importDialog = dialog;
     connect(dialog, &PDFAppCertificateImportDialog::certificateImported, this, &PDFAppToolGUISignature::onCertificateImported);
 

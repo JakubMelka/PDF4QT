@@ -274,8 +274,8 @@ void PDFAppDocumentSearchPanel::setDocument(PDFAppDocument* document, PDFAppDocu
     m_listView->setModel(m_controller ? m_controller->getModel() : nullptr);
     if (m_controller)
     {
-        connect(m_controller, &PDFAppDocumentSearchController::stateChanged, this, &PDFAppDocumentSearchPanel::updateState);
-        connect(m_controller, &PDFAppDocumentSearchController::currentIndexChanged, this, &PDFAppDocumentSearchPanel::onCurrentIndexChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppDocumentSearchController::stateChanged, this, &PDFAppDocumentSearchPanel::updateState);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppDocumentSearchController::currentIndexChanged, this, &PDFAppDocumentSearchPanel::onCurrentIndexChanged);
     }
     if (m_listView->selectionModel())
     {

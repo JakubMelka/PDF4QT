@@ -35,6 +35,7 @@
 #include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdffluentwidgets.h"
@@ -199,7 +200,10 @@ void PDFAppToolDocumentRow::setRemovable(bool isRemovable)
     }
     else if (!isRemovable && m_removeButton)
     {
-        delete m_removeButton.data();
+        // Step A: the button may be the sender of the slot which made the row fixed; hidden now, retired from the
+        // event loop (lesson 1b), deleted later
+        PDFDeferredDeletion::retireLater(m_removeButton.data());
+        m_removeButton = nullptr;
     }
     updateChildGeometry();
     update();
@@ -462,9 +466,9 @@ PDFAppToolDocumentChooser::PDFAppToolDocumentChooser(PDFAppContext* context, con
 
     if (PDFAppDocumentRegistry* registry = context ? context->getDocumentRegistry() : nullptr)
     {
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolDocumentChooser::onDocumentChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolDocumentChooser::onDocumentChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolDocumentChooser::onDocumentRemoved);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolDocumentChooser::onDocumentChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolDocumentChooser::onDocumentChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolDocumentChooser::onDocumentRemoved);
     }
     refresh();
 }
@@ -627,7 +631,10 @@ public:
 
 PDFAppToolInputRules PDFAppToolInputChooser::getInputRules(const QString& toolId)
 {
-    // The GUI of the tool is made only for its rules and deleted at once (no parent, no document)
+    // The GUI of the tool is made only for its rules and deleted at once (no parent, no document). It is never
+    // shown, attached or connected and its rules are read synchronously: a deliberate synchronous deletion (step A,
+    // the scope is declared first, so it outlives the GUI)
+    const PDFDeferredDeletion::SynchronousDeletionScope synchronousDeletionScope;
     const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(toolId);
     const std::unique_ptr<PDFDocumentToolGUI> gui(factory ? factory->createGUI() : nullptr);
     return gui ? gui->getInputRules() : PDFAppToolInputRules();
@@ -721,9 +728,9 @@ PDFAppToolInputChooser::PDFAppToolInputChooser(PDFAppContext* context, const QSt
 
     if (PDFAppDocumentRegistry* registry = context ? context->getDocumentRegistry() : nullptr)
     {
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolInputChooser::onDocumentChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolInputChooser::onDocumentChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolInputChooser::onDocumentRemoved);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolInputChooser::onDocumentChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolInputChooser::onDocumentChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolInputChooser::onDocumentRemoved);
     }
 
     setInputList(list);
@@ -754,8 +761,8 @@ void PDFAppToolInputChooser::setInputList(PDFAppToolInputList* list)
     {
         // K41: the list takes what the tool takes (before the connections: no row is built twice)
         list->setAcceptedInputs(m_rules.maximum, m_rules.acceptsPdf, m_rules.acceptsImages, getUnsupportedReason(m_toolId, m_rules));
-        connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppToolInputChooser::onListChanged);
-        connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppToolInputChooser::onInputChanged);
+        PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppToolInputChooser::onListChanged);
+        PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppToolInputChooser::onInputChanged);
 
         // The files of a list given with its inputs are the files of this chooser
         for (int i = 0; i < list->getCount(); ++i)

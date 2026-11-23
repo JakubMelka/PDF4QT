@@ -124,6 +124,11 @@ PDFUpdateChecker::PDFUpdateChecker(PDFAppContext* context, QObject* parent) :
     m_manager->setAutoDeleteReplies(false);
     m_manager->setRedirectPolicy(QNetworkRequest::UserVerifiedRedirectPolicy);
 
+    // The timers are members, made children: retire (step A) stops them with the checker
+    m_timer.setParent(this);
+    m_startTimer.setParent(this);
+    m_deadlineTimer.setParent(this);
+    m_retryTimer.setParent(this);
     m_timer.setInterval(TIMER_INTERVAL);
     connect(&m_timer, &QTimer::timeout, this, &PDFUpdateChecker::onTimer);
     m_startTimer.setSingleShot(true);

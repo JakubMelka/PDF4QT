@@ -639,6 +639,24 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsFluentComponents "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsFluentComponents")
     set_tests_properties(UnitTestsFluentComponents PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # Deferred deletion at one place (step A): PDFDeferredDeletion::retire, the notifier, the
+    # connection scope, the logical owner, the tokens, the event gate and the detector. The
+    # precompiled header is the one of UnitTestsFluentLifetime (its donor UnitTestsPchWidgets:
+    # the lifetime test exists only with the private headers of QtCore)
+    add_executable(UnitTestsDeferredDeletion
+        tst_deferreddeletiontest.cpp
+    )
+    target_link_libraries(UnitTestsDeferredDeletion PRIVATE Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsDeferredDeletion REUSE_FROM UnitTestsPchWidgets)
+    set_target_properties(UnitTestsDeferredDeletion PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsDeferredDeletion "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDeferredDeletion")
+    set_tests_properties(UnitTestsDeferredDeletion PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # Destruction of every widget of every page of the gallery in every order and
     # situation (child first, parent first, from its own signal, with an open popup,
     # models, delegates and views of item views). Objects are tracked by the hooks
@@ -765,7 +783,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppInfoPages
         tst_appinfopagestest.cpp
     )
-    target_link_libraries(UnitTestsAppInfoPages PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsAppInfoPages PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppInfoPages REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppInfoPages PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -784,7 +802,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppContent
         tst_appcontenttest.cpp
     )
-    target_link_libraries(UnitTestsAppContent PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    target_link_libraries(UnitTestsAppContent PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppContent REUSE_FROM UnitTestsAppDocumentFixture)
     target_compile_definitions(UnitTestsAppContent PRIVATE PDF4QT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
     set_target_properties(UnitTestsAppContent PROPERTIES
@@ -803,7 +821,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppSearch
         tst_appsearchtest.cpp
     )
-    target_link_libraries(UnitTestsAppSearch PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsAppSearch PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppSearch REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppSearch PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -939,6 +957,12 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_test(UnitTests${PDF4QT_SETTINGS_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_SETTINGS_TEST}")
         set_tests_properties(UnitTests${PDF4QT_SETTINGS_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
+    # Check 9 of the lifetime victims (lifetimevictimcheck.h) reads the senders of a
+    # retired object from the private part of QObject, when the headers are installed
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        target_link_libraries(UnitTestsAppSettingsLifetime PRIVATE Qt6::CorePrivate)
+    endif()
 endif()
 
 # The Tools catalog (step 6 of the new application): wave 0 and package A in
@@ -966,6 +990,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_test(UnitTests${PDF4QT_TOOLS_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_TOOLS_TEST}")
         set_tests_properties(UnitTests${PDF4QT_TOOLS_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
+    # Check 9 of the lifetime victims (lifetimevictimcheck.h), as UnitTestsAppSettingsLifetime
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        target_link_libraries(UnitTestsAppToolsLifetime PRIVATE Qt6::CorePrivate)
+    endif()
 endif()
 
 # The shell of the tools of phase 2: the runner, the parameter model, the result dialog
@@ -1019,6 +1048,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsAppToolPagesLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolPagesLifetime")
     set_tests_properties(UnitTestsAppToolPagesLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # Check 9 of the lifetime victims (lifetimevictimcheck.h), as UnitTestsAppSettingsLifetime
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE Qt6::CorePrivate)
+    endif()
 
     # The own tab of a tool (step 2 of phase 2, package B1): the tab, its host, the layout,
     # the close questions, the result of a new document, Blank without the dialog, MCP
@@ -1195,6 +1229,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     endforeach()
     # The print of a paged XFA form (the printers of the test)
     target_link_libraries(UnitTestsAppXfa PRIVATE Qt6::PrintSupport)
+    # Check 9 of the lifetime victims (lifetimevictimcheck.h), as UnitTestsAppSettingsLifetime
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        target_link_libraries(UnitTestsAppMcpLifetime PRIVATE Qt6::CorePrivate)
+    endif()
 
     # The MCP actions of the tools of step 3a of phase 2 over HTTP (plan 7, 8): each package
     # registers its cases in its own file appmcppages_<package>.cpp
@@ -1810,6 +1849,39 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsAppAsyncDialogs "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppAsyncDialogs")
     set_tests_properties(UnitTestsAppAsyncDialogs PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Step A (deferred deletion), the skeleton in the application: the shared tokens, the A0 helpers ended by retire
+    # and the fixture's retire; the precompiled header of the root fixture
+    add_executable(UnitTestsAppDeferredDeletion
+        tst_appdeferreddeletiontest.cpp
+    )
+    target_link_libraries(UnitTestsAppDeferredDeletion PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppDeferredDeletion REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppDeferredDeletion PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppDeferredDeletion "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppDeferredDeletion")
+    set_tests_properties(UnitTestsAppDeferredDeletion PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+# Check 9 of the lifetime victims (lifetimevictimcheck.h) recognizes the own expand animation of a QTreeView by
+# its exact address in the private part of QtWidgets, when its headers are installed (else by a bound)
+find_package(Qt6 QUIET COMPONENTS WidgetsPrivate)
+if(TARGET Qt6::WidgetsPrivate)
+    foreach(PDF4QT_LIFETIME_TEST
+            UnitTestsAppAnnotationLifetime
+            UnitTestsAppSettingsLifetime
+            UnitTestsAppToolsLifetime
+            UnitTestsAppToolPagesLifetime
+            UnitTestsAppMcpLifetime
+            UnitTestsAppPagesLifetime)
+        if(TARGET ${PDF4QT_LIFETIME_TEST})
+            target_link_libraries(${PDF4QT_LIFETIME_TEST} PRIVATE Qt6::WidgetsPrivate)
+        endif()
+    endforeach()
 endif()
 
 # A0 gate: no entry into a nested event loop in Pdf4QtLibApp / Pdf4QtLibFluent (the sources are scanned, nothing is

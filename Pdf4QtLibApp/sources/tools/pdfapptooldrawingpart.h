@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfapptoolundotarget.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfpagedrawing.h"
 
 #include <QPointer>
@@ -230,8 +231,10 @@ private:
 /// view by attachToView and unregistered by detachFromView, which the destructor calls before the scene
 /// dies; the tools are added to the tool manager of the view (it forgets a destroyed tool). The view,
 /// the proxy, the widget, the tool manager and the model are held by QPointer. Every Q_EMIT is the last
-/// call of its function. A worker gets only toDrawing (a value).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolDrawingPart : public PDFAppToolUndoTarget
+/// call of its function. A worker gets only toDrawing (a value). Step A: retire of the GUI detaches the scene
+/// at once (the hook); the form of a text and the error message belong to the part (setOwner), the
+/// connections from the model go through PDFDeferredDeletion.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolDrawingPart : public PDFAppToolUndoTarget, public PDFRetirable
 {
     Q_OBJECT
 
@@ -460,6 +463,11 @@ Q_SIGNALS:
 
     /// A request of Clear All of the toolbar: the GUI asks (435:10500 style) and calls clearAll
     void clearRequested();
+
+protected:
+    /// Hook of PDFDeferredDeletion::retire (with the GUI of its tool): the scene leaves the view at once (its
+    /// draw and input interfaces, the creation tools of the tool manager - detachFromView, which reports nothing)
+    virtual void retire() override;
 
 private:
     /// Creates the creation tools for the view (attachToView)

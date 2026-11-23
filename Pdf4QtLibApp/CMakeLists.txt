@@ -81,6 +81,8 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfappfolderinfo.h
     sources/core/pdfappinstance.cpp
     sources/core/pdfappinstance.h
+    sources/core/pdfapplifetimetokens.cpp
+    sources/core/pdfapplifetimetokens.h
     sources/core/pdfapplog.cpp
     sources/core/pdfapplog.h
     sources/core/pdfapplocale.cpp

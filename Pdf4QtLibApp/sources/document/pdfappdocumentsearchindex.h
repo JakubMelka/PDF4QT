@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfoperationcontrol.h"
 
@@ -78,7 +79,10 @@ public:
 /// operation cancel the build, nobody waits for it. The index belongs to the
 /// document (PDFAppDocument::setTextIndex), which keeps it over changes without new
 /// page contents; a changed version is indexed again at the next request.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentTextIndexer : public QObject
+///
+/// Deferred deletion (step A): the hook cancels the worker at once (no signal); the operation of the document ends
+/// with the deletion of the indexer, as before.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentTextIndexer : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -119,6 +123,11 @@ Q_SIGNALS:
 
     /// The progress of the build has changed (getProgress)
     void progressChanged(int progress);
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire: the worker of a running build is canceled, its result is not wanted
+    /// (no signal; the operation of the document is finished by the destructor)
+    virtual void retire() override;
 
 private:
     void onBuildFinished();

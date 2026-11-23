@@ -35,6 +35,7 @@
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdffluentwidgets.h"
@@ -128,7 +129,7 @@ PDFAppToolEnumMenu::PDFAppToolEnumMenu(PDFAppToolParameterModel* model, const QS
 
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolEnumMenu::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolEnumMenu::onParameterChanged);
     }
     refresh();
 }
@@ -315,7 +316,7 @@ PDFAppToolFlagsMenu::PDFAppToolFlagsMenu(PDFAppToolParameterModel* model, std::v
 
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolFlagsMenu::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolFlagsMenu::onParameterChanged);
     }
     refresh();
 }
@@ -451,7 +452,7 @@ PDFAppToolStepList::PDFAppToolStepList(PDFAppToolParameterModel* model, std::vec
 
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolStepList::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolStepList::onParameterChanged);
     }
     refresh();
 }
@@ -567,7 +568,7 @@ PDFAppToolChecklist::PDFAppToolChecklist(PDFAppToolParameterModel* model, std::v
 
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolChecklist::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolChecklist::onParameterChanged);
     }
     refresh();
 }
@@ -647,7 +648,7 @@ PDFAppToolPageSelectionBinder::PDFAppToolPageSelectionBinder(PDFDocumentToolGUI*
     PDFAppToolParameterModel* model = gui ? gui->getModel() : nullptr;
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolPageSelectionBinder::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolPageSelectionBinder::onParameterChanged);
         onParameterChanged(parameter);
     }
 
@@ -665,12 +666,12 @@ PDFAppToolPageSelectionBinder::PDFAppToolPageSelectionBinder(PDFDocumentToolGUI*
     }
     if (gui && gui->getHost())
     {
-        connect(gui->getHost(), &PDFAppToolHost::pagesChanged, this, &PDFAppToolPageSelectionBinder::updateViewPages);
+        PDFDeferredDeletion::connect(gui->getHost(), &PDFAppToolHost::pagesChanged, this, &PDFAppToolPageSelectionBinder::updateViewPages);
     }
     if (PDFAppDocument* document = gui ? gui->getDocument() : nullptr)
     {
         // An assistant may change the pages below an open tool
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppToolPageSelectionBinder::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppToolPageSelectionBinder::onDocumentChanged);
     }
     writeValue(false);
 }
@@ -1064,9 +1065,9 @@ PDFAppToolPendingList::PDFAppToolPendingList(const QString& title, QAbstractItem
 
     if (model)
     {
-        connect(model, &QAbstractItemModel::rowsInserted, this, &PDFAppToolPendingList::updateCount);
-        connect(model, &QAbstractItemModel::rowsRemoved, this, &PDFAppToolPendingList::updateCount);
-        connect(model, &QAbstractItemModel::modelReset, this, &PDFAppToolPendingList::updateCount);
+        PDFDeferredDeletion::connect(model, &QAbstractItemModel::rowsInserted, this, &PDFAppToolPendingList::updateCount);
+        PDFDeferredDeletion::connect(model, &QAbstractItemModel::rowsRemoved, this, &PDFAppToolPendingList::updateCount);
+        PDFDeferredDeletion::connect(model, &QAbstractItemModel::modelReset, this, &PDFAppToolPendingList::updateCount);
     }
     updateCount();
 }
@@ -1141,7 +1142,7 @@ PDFAppSettingControl* PDFAppToolPanelBuilder::addSegments(const QString& paramet
     }
 
     PDFAppSettingControl* control = new PDFAppSettingControl(m_gui->getContext(), *definition, m_widget, model->createValueStore());
-    QObject::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+    PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
     if (PDFSegmentedControl* segmented = control->getSegmentedControl())
     {
         segmented->setObjectName(QStringLiteral("toolSegments-") + parameter);
@@ -1171,7 +1172,7 @@ PDFAppSettingControl* PDFAppToolPanelBuilder::createValueControl(const QString& 
     }
 
     PDFAppSettingControl* control = new PDFAppSettingControl(m_gui->getContext(), *definition, parent, model->createValueStore());
-    QObject::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+    PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
     return control;
 }
 

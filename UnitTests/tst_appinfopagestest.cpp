@@ -29,6 +29,7 @@
 // deletion of the pages at any moment. PDF4QT_APP_SCREENSHOTS=<folder> writes
 // pictures of the pages.
 
+#include "appdocumentfixture.h"
 #include "pdfappaboutinfo.h"
 #include "pdfappaboutpage.h"
 #include "pdfappcommandline.h"
@@ -60,6 +61,7 @@
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
@@ -125,7 +127,7 @@ public:
 
     ~InfoFixture()
     {
-        delete window.data();
+        deletionCheck.closeWindow(window.data());
         context.reset();
         pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
         QApplication::setLayoutDirection(Qt::LeftToRight);
@@ -165,6 +167,8 @@ public:
         }
     }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
     QString memoryName;
@@ -1524,12 +1528,16 @@ void AppInfoPagesTest::languageChange()
     QVERIFY(InfoTestHelper::texts(sponsor).contains(QStringLiteral("Free since 2018")));
 
     // Pages outside of a window (not shown, no context): no scroll, the anchor of the
-    // route is kept for the showing of the page
+    // route is kept for the showing of the page (standalone pages, deleted at the end of the block on purpose -
+    // deliberate synchronous deletions)
     {
-        pdf::PDFAppAboutPage hiddenAbout(nullptr);
+        std::unique_ptr<pdf::PDFAppAboutPage, pdftest::AppDocumentFixture::DeleteNow> hiddenAboutOwner(new pdf::PDFAppAboutPage(nullptr));
+        pdf::PDFAppAboutPage& hiddenAbout = *hiddenAboutOwner;
         QVERIFY(hiddenAbout.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/about#third-party"))));
-        pdf::PDFAppSupportPage hiddenSupport(nullptr);
-        pdf::PDFAppSponsorPage hiddenSponsor(nullptr);
+        std::unique_ptr<pdf::PDFAppSupportPage, pdftest::AppDocumentFixture::DeleteNow> hiddenSupportOwner(new pdf::PDFAppSupportPage(nullptr));
+        pdf::PDFAppSupportPage& hiddenSupport = *hiddenSupportOwner;
+        std::unique_ptr<pdf::PDFAppSponsorPage, pdftest::AppDocumentFixture::DeleteNow> hiddenSponsorOwner(new pdf::PDFAppSponsorPage(nullptr));
+        pdf::PDFAppSponsorPage& hiddenSponsor = *hiddenSponsorOwner;
         QVERIFY(QCoreApplication::installTranslator(&translator));
         InfoFixture::settle();
         QVERIFY(InfoTestHelper::texts(&hiddenAbout).contains(QStringLiteral("Über den Autor")));
@@ -2745,7 +2753,7 @@ void AppInfoPagesTest::deleteWithPendingNotification()
     changed.clear();
     notifier->setPollInterval(3600 * 1000);
     QVERIFY(InfoTestHelper::insertUsageRowInThread(fixture.context->getDatabase(), QStringLiteral("review.measure")));
-    delete page.data();
+    pdftest::AppDocumentFixture::deleteNow(page.data());
     QCOMPARE(InfoTestHelper::countUsageNotifications(changed), 0);
     notifier->setPollInterval(20);
     QTRY_VERIFY_WITH_TIMEOUT(InfoTestHelper::countUsageNotifications(changed) > 0, 10000);
@@ -2753,7 +2761,7 @@ void AppInfoPagesTest::deleteWithPendingNotification()
     // The storage state changes after the About page has gone
     fixture.navigate(QStringLiteral("/about"));
     QPointer<pdf::PDFAppAboutPage> about = fixture.page<pdf::PDFAppAboutPage>();
-    delete about.data();
+    pdftest::AppDocumentFixture::deleteNow(about.data());
     Q_EMIT fixture.context->storageStateChanged();
     InfoFixture::settle();
 }
@@ -2766,11 +2774,12 @@ void AppInfoPagesTest::deleteWithPendingScroll()
     QPointer<pdf::PDFAppAboutPage> page = fixture.page<pdf::PDFAppAboutPage>();
     QVERIFY(page);
     page->restoreViewState({ { QStringLiteral("scroll"), 50 } });
-    delete page.data();
+    pdftest::AppDocumentFixture::deleteNow(page.data());
     InfoFixture::settle();
 
-    // A page outside of a tab has no scroll area
-    pdf::PDFAppAboutPage standalone(fixture.context.get());
+    // A page outside of a tab has no scroll area (standalone, deleted at the end on purpose)
+    std::unique_ptr<pdf::PDFAppAboutPage, pdftest::AppDocumentFixture::DeleteNow> standaloneOwner(new pdf::PDFAppAboutPage(fixture.context.get()));
+    pdf::PDFAppAboutPage& standalone = *standaloneOwner;
     QVERIFY(!standalone.getScrollArea());
     QVERIFY(!standalone.scrollToWidget(standalone.getLibrariesSection()));
     QVERIFY(standalone.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/about#third-party"))));
@@ -2795,7 +2804,7 @@ void AppInfoPagesTest::deleteFromOwnLink()
     fixture.navigate(QStringLiteral("/support"));
     QPointer<pdf::PDFAppSupportPage> support = fixture.page<pdf::PDFAppSupportPage>();
     QVERIFY(support);
-    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::externalUrlOpened, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::externalUrlOpened, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
     QTest::mouseClick(support->getChannelButton(), Qt::LeftButton);
     InfoFixture::settle();
     QVERIFY(fixture.window.isNull());
@@ -2810,7 +2819,7 @@ void AppInfoPagesTest::deleteWindow()
         fixture.navigate(route);
         QPointer<pdf::PDFAppPage> page = fixture.currentPage();
         QVERIFY(page);
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         QVERIFY(page.isNull());
         InfoFixture::settle();
     }
@@ -2818,8 +2827,8 @@ void AppInfoPagesTest::deleteWindow()
     // The context goes before the page (the connections to it are cut)
     InfoFixture fixture;
     fixture.navigate(QStringLiteral("/support"));
-    std::unique_ptr<pdf::PDFAppSupportPage> page = std::make_unique<pdf::PDFAppSupportPage>(fixture.context.get());
-    delete fixture.window.data();
+    std::unique_ptr<pdf::PDFAppSupportPage, pdftest::AppDocumentFixture::DeleteNow> page(new pdf::PDFAppSupportPage(fixture.context.get()));
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.context.reset();
     page->refreshUsedTools();
     QCOMPARE(page->getUsedToolIds().size(), 0);
@@ -3167,6 +3176,9 @@ void AppInfoPagesTest::columns()
     header->setTrailingWidget(first);
     QVERIFY(first && header->getTrailingWidget() == first);
     header->setTrailingWidget(new QWidget());
+    // The previous one is retired at once (out of the header) and deleted later (step A)
+    QVERIFY(first && pdf::PDFDeferredDeletion::isRetired(first.data()) && first->parentWidget() != header);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(first.isNull());
     QCOMPARE(pdf::PDFAppPageWidgets::createCard(8, 2, &content)->getLayout()->contentsMargins(), QMargins(9, 9, 9, 9));
 }
@@ -3705,8 +3717,10 @@ void AppInfoPagesTest::sectionHeader()
     QVERIFY(trailing);
     QCOMPARE(trailing->parentWidget(), header);
 
-    // No trailing widget: the previous one is deleted
+    // No trailing widget: the previous one is retired at once and deleted later (step A)
     header->setTrailingWidget(nullptr);
+    QVERIFY(trailing && pdf::PDFDeferredDeletion::isRetired(trailing.data()) && !trailing->isVisible());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(trailing.isNull());
     QVERIFY(!header->getTrailingWidget());
     header->setTrailingWidget(nullptr);
@@ -3729,6 +3743,8 @@ void AppInfoPagesTest::sectionHeader()
     QVERIFY(!unplaced->parentWidget());
     QCOMPARE(header->getTrailingWidget(), unplaced.data());
     header->setTrailingWidget(nullptr);
+    QVERIFY(unplaced && pdf::PDFDeferredDeletion::isRetired(unplaced.data()));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(unplaced.isNull());
 }
 

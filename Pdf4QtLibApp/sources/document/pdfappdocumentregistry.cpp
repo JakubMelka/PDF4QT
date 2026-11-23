@@ -24,6 +24,8 @@
 #include "pdfappdocument.h"
 #include "pdfrepositoryhelper.h"
 
+#include "pdfdeferreddeletion.h"
+
 namespace pdf
 {
 
@@ -57,11 +59,15 @@ void PDFAppDocumentRegistry::addDocument(PDFAppDocument* document)
     entry.object = document;
     m_entries.push_back(entry);
 
+    // The document lives in its tab (outside the registry, step A). A retired document (its tab closed) leaves the
+    // registry at once - it is never found again, while it waits for its deletion; destroyed stays for a document
+    // deleted without retire
     connect(document, &QObject::destroyed, this, &PDFAppDocumentRegistry::onDocumentDestroyed);
-    connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
-    connect(document, &PDFAppDocument::modifiedChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
-    connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
-    connect(document, &PDFAppDocument::fileChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
+    PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDocumentRegistry::onDocumentDestroyed);
+    PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
+    PDFDeferredDeletion::connect(document, &PDFAppDocument::modifiedChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
+    PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
+    PDFDeferredDeletion::connect(document, &PDFAppDocument::fileChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
 
     // Not emitted here: the tab, which is being constructed, calls this function
     queueSignal(entry.id, document);
@@ -136,12 +142,13 @@ std::vector<PDFAppDocument*> PDFAppDocumentRegistry::getDocuments() const
 
 void PDFAppDocumentRegistry::onDocumentDestroyed(QObject* object)
 {
-    // Only the pointer is compared, the document is not whole any more
+    // Only the pointer is compared, the document is not whole any more (destroyed) or it is being retired
+    // (aboutToBeDeleted: its tab is closed, the document must not be found any more)
     for (auto it = m_entries.begin(); it != m_entries.end(); ++it)
     {
         if (it->object == object)
         {
-            // Not emitted here: the tab of the document is being destroyed
+            // Not emitted here: the tab of the document is being destroyed or retired
             const QString id = it->id;
             m_entries.erase(it);
             queueSignal(id, nullptr);

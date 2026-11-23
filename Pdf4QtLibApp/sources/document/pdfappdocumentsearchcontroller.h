@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfdocumenttextindex.h"
@@ -42,6 +43,7 @@ namespace pdf
 {
 
 class PDFAppCancelFlag;
+class PDFAppCanvasDrawToken;
 class PDFAppDocument;
 class PDFAppDocumentTextIndexer;
 class PDFAppDocumentView;
@@ -143,7 +145,10 @@ private:
 /// the results with a safety limit of MAXIMUM_RESULTS (the panel shows a note), the
 /// current occurrence (next / previous, F3 / Shift+F3) and the highlights of the
 /// canvas. A change of the page contents searches again.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSearchController : public QObject
+///
+/// Deferred deletion (step A): the highlights are a draw token of the canvas (they leave it at retire); the hook
+/// cancels the running search at once (the worker ends soon, nobody waits, the result is not wanted).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSearchController : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -224,6 +229,10 @@ Q_SIGNALS:
     /// The current occurrence has changed
     void currentIndexChanged(int index);
 
+protected:
+    /// The hook of PDFDeferredDeletion::retire: the running search is canceled (no signal)
+    virtual void retire() override;
+
 private:
     void setState(State state);
     void startSearch();
@@ -246,6 +255,7 @@ private:
     QPointer<PDFAppDocumentView> m_view;
     QPointer<PDFAppDocumentTextIndexer> m_indexer;
     QPointer<PDFDrawWidgetProxy> m_proxy;
+    QPointer<PDFAppCanvasDrawToken> m_highlightToken;  ///< m_highlighter on the canvas of m_proxy
     QPointer<PDFAppDocumentSearchResultModel> m_model;
     QPointer<Watcher> m_watcher;
     QPointer<QTimer> m_refreshTimer;

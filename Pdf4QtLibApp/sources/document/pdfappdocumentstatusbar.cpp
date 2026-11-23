@@ -22,6 +22,7 @@
 
 #include "pdfappdocumentstatusbar.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -84,7 +85,7 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     m_messageTimer->setSingleShot(true);
     connect(m_messageTimer, &QTimer::timeout, this, &PDFAppDocumentStatusBar::onMessageTimeout);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentStatusBar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentStatusBar::update));
 }
 
 PDFAppDocumentStatusBar::~PDFAppDocumentStatusBar() = default;

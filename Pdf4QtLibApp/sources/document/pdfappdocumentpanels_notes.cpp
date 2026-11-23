@@ -31,6 +31,7 @@
 #include "pdfapppage.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
@@ -795,12 +796,12 @@ void PDFAppNotesPanel::setDocument(PDFAppDocument* document, PDFAppDocumentView*
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppNotesPanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppNotesPanel::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppNotesPanel::onDocumentDestroyed);
     }
     if (controller && m_connectedController != controller)
     {
-        connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppNotesPanel::onPageSelectionChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppNotesPanel::onPageSelectionChanged);
     }
     m_connectedDocument = document;
     m_connectedController = controller;

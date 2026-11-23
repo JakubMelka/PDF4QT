@@ -495,7 +495,7 @@ void AppToolProtectTest::sanitizeDeletedWithPresetPanel()
     AppToolShellFixture::settle();
     QVERIFY(panel && panel->isVisible());
 
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     AppToolShellFixture::settle();
     QVERIFY(!guiGuard);
     QVERIFY(!panel || !panel->isVisible());

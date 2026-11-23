@@ -209,6 +209,8 @@ public:
         PDFAppDocumentChoiceAnswer* answer = createAnswer(dialog, receiver);
         if (answer)
         {
+            // A plain connection: the answer is a child of the receiver (retire of the receiver cuts its outgoing
+            // signals); its connections from the dialog go through PDFDeferredDeletion::connect (PDFAppDialogAnswer)
             QObject::connect(answer, &PDFAppDocumentChoiceAnswer::chosen, receiver, slot);
             PDFAppDialogAnswer::showModal(dialog);
         }

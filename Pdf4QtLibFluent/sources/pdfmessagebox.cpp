@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfmessagebox.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfwidgetstyleimpl.h"
@@ -102,7 +103,9 @@ public:
     {
         setAttribute(Qt::WA_NoSystemBackground, true);
         setGeometry(host->rect());
-        host->installEventFilter(this);
+
+        // The host is not a part of the scrim: a retired scrim filters nothing
+        PDFDeferredDeletion::installEventFilter(host, this);
     }
 
     virtual ~PDFMessageBoxScrim() override
@@ -496,9 +499,10 @@ void PDFMessageBox::setHeadWidget(QWidget* widget)
 
     if (QWidget* oldWidget = m_headWidget.data())
     {
+        // The old head (a widget of the application) becomes inert at once and is deleted later
         m_headLayout->removeWidget(oldWidget);
         oldWidget->hide();
-        oldWidget->deleteLater();
+        PDFDeferredDeletion::retire(oldWidget);
     }
 
     if (hasOwnHead && !m_hasOwnHead)
@@ -728,7 +732,10 @@ void PDFMessageBox::showScrim()
         return;
     }
 
+    // The scrim is a child of the target, but it belongs to the message box: a retired message
+    // box retires it too
     m_scrim = new PDFMessageBoxScrim(host);
+    PDFDeferredDeletion::setOwner(m_scrim, this);
     m_scrim->raise();
     m_scrim->show();
 }
@@ -749,7 +756,7 @@ void PDFMessageBox::hideScrim()
             host->removeEventFilter(scrim);
         }
         scrim->hide();
-        scrim->deleteLater();
+        PDFDeferredDeletion::retire(scrim);
     }
 }
 

@@ -35,6 +35,7 @@
 #include "pdfdocumenttoolshell.h"
 
 #include "pdfcomponentbadges.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_signbyhand.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
@@ -355,11 +356,15 @@ bool PDFAppToolGUISignByHand::askDiscard()
                                               count == 1 ? tr("Closing the tool removes the element you have drawn. The document stays as it was.")
                                                          : tr("Closing the tool removes the %Ln elements you have drawn. The document stays as it was.", nullptr, count),
                                               QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("signByHandDiscardDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton* keepButton = dialog->addActionButton(tr("Keep Drawing"), PDFMessageBox::ActionPosition::Trailing, true);
     QPushButton* discardButton = dialog->addActionButton(tr("Discard Drawing"), PDFMessageBox::ActionPosition::Trailing, false);
     discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
+    keepButton->setObjectName(QStringLiteral("signByHandDiscardKeep"));
+    discardButton->setObjectName(QStringLiteral("signByHandDiscard"));
     connect(keepButton, &QPushButton::clicked, dialog, &QDialog::reject);
     connect(discardButton, &QPushButton::clicked, this, &PDFAppToolGUISignByHand::onDiscardClicked);
     m_discardDialog = dialog;
@@ -415,6 +420,8 @@ void PDFAppToolGUISignByHand::askClearAll()
                                               count == 1 ? tr("Clear All removes the element you have drawn. Undo brings it back.")
                                                          : tr("Clear All removes the %Ln elements you have drawn. Undo brings them back.", nullptr, count),
                                               QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("signByHandClearDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton* keepButton = dialog->addActionButton(tr("Keep Drawing"), PDFMessageBox::ActionPosition::Trailing, true);

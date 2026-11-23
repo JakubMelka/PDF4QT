@@ -55,6 +55,7 @@
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentwindow.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -189,24 +190,25 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
     updateShortcuts();
     updateCommandStates();
 
+    // The senders outside the window (the context, the application, the theme): step A
     if (context)
     {
         if (PDFDatabaseNotifier* notifier = context->getNotifier())
         {
-            connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppMainWindow::onDatabaseChanged);
-            connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppMainWindow::onEverythingChanged);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppMainWindow::onDatabaseChanged);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppMainWindow::onEverythingChanged);
         }
-        connect(context, &PDFAppContext::openRequested, this, &PDFAppMainWindow::onOpenRequested);
+        PDFDeferredDeletion::connect(context, &PDFAppContext::openRequested, this, &PDFAppMainWindow::onOpenRequested);
     }
 
     // The geometry is stored also, when the application quits without the closing
     // of the window (QCoreApplication::quit, the end of the session of the system)
-    connect(qApp, &QCoreApplication::aboutToQuit, this, &PDFAppMainWindow::onAboutToQuit);
+    PDFDeferredDeletion::connect(qApp, &QCoreApplication::aboutToQuit, this, &PDFAppMainWindow::onAboutToQuit);
 
     // The end of the session of the system asks about the unsaved changes of all
     // windows (step 9, N7): one handler of the process
     PDFAppSessionEnd::install();
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMainWindow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMainWindow::update));
 
     // The Home tab with its Home page
     getHomeTab();
@@ -335,6 +337,8 @@ PDFAppTab* PDFAppMainWindow::addTab(PDFAppTab* tab, int index)
     m_tabIds[tab] = tab->getId();
 
     connect(tab, &QObject::destroyed, this, &PDFAppMainWindow::onTabDestroyed);
+    // A tab retired by somebody else than requestCloseTab (step A) leaves the lists at once, never current again
+    connect(PDFDeferredDeletion::getNotifier(tab), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMainWindow::onTabAboutToBeDeleted);
     connect(tab, &PDFAppTab::pageTitleChanged, this, &PDFAppMainWindow::onPageTitleChanged);
     connect(tab, &PDFAppTab::commandStatesChanged, this, &PDFAppMainWindow::onTabCommandStatesChanged);
     if (m_navigator)
@@ -414,7 +418,7 @@ PDFAppTab* PDFAppMainWindow::openNewTab()
 void PDFAppMainWindow::activateTab(PDFAppTab* tab)
 {
     PDFDocumentTabBar* tabBar = getTabBar();
-    if (!tab || !tabBar)
+    if (!tab || !tabBar || PDFDeferredDeletion::isRetired(tab))
     {
         return;
     }
@@ -434,7 +438,7 @@ bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
 PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
 {
     PDFDocumentTabBar* tabBar = getTabBar();
-    if (!tab || !tabBar || !tab->isClosable())
+    if (!tab || !tabBar || !tab->isClosable() || PDFDeferredDeletion::isRetired(tab))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -459,8 +463,7 @@ PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
         return result;
     }
 
-    const int index = findTabIndex(tab->getId());
-    if (index < 0)
+    if (findTabIndex(tab->getId()) < 0 || PDFDeferredDeletion::isRetired(tab))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -468,7 +471,24 @@ PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
     // The page records what it must while the tab is whole (the use of an interactive tool; no signal)
     prepareTabClose(tab);
 
-    // The tab may be the sender of the request (its close button, its page): deleted later
+    // The tab leaves the lists, the tab bar and the stack, the focus goes to the new current tab; then it is
+    // retired (step A): inert at once, deleted later (it may be the sender of the request - its close button, its
+    // page). A close from a signal of the tab's own subtree is queued (onDocumentLoadFailed): retire cuts the rest
+    // of the emission.
+    QPointer<PDFAppMainWindow> guard(this);
+    QPointer<PDFAppTab> closedTab(tab);
+    detachTab(tab);
+    if (!guard)
+    {
+        return PDFAppLeaveResult::Done;
+    }
+    PDFDeferredDeletion::retire(closedTab.data());
+    updateWindowTitle();
+    return PDFAppLeaveResult::Done;
+}
+
+void PDFAppMainWindow::detachTab(PDFAppTab* tab)
+{
     m_tabIds.erase(tab);
     for (qsizetype i = m_tabs.size() - 1; i >= 0; --i)
     {
@@ -479,21 +499,57 @@ PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
     }
     tab->disconnect(this);
 
+    // The tab bar makes another tab current (its slot shows it in the stack, which takes the focus over from the
+    // detached tab); the slot runs code of the window and of the tabs
     QPointer<PDFAppMainWindow> guard(this);
-    tabBar->removeTab(index);
-    if (!guard)
+    QPointer<PDFAppTab> tabGuard(tab);
+    const int index = findTabIndex(tab->getId());
+    if (PDFDocumentTabBar* tabBar = getTabBar(); tabBar && index >= 0)
     {
-        return PDFAppLeaveResult::Done;
+        tabBar->removeTab(index);
+    }
+    if (!guard || !tabGuard)
+    {
+        return;
     }
 
     if (m_stack)
     {
         m_stack->removeWidget(tab);
+
+        // A focus left in the detached tab (the stack has not moved it) goes to the current tab, as the stack
+        // moves it, before retire clears it
+        QWidget* focusWidget = QApplication::focusWidget();
+        QWidget* current = m_stack->currentWidget();
+        if (focusWidget && tab->isAncestorOf(focusWidget) && current && current != tab)
+        {
+            QWidget* next = current->focusWidget();
+            (next ? next : current)->setFocus(Qt::OtherFocusReason);
+        }
     }
-    tab->hide();
-    tab->deleteLater();
-    updateWindowTitle();
-    return PDFAppLeaveResult::Done;
+}
+
+void PDFAppMainWindow::onTabAboutToBeDeleted(QObject* object)
+{
+    // A tab retired by somebody else (step A): it is whole (retire emits before the shutdown), it leaves the lists,
+    // the tab bar and the stack at once. The fallback emission of a tab deleted without retire comes from its
+    // destructor: only onTabDestroyed handles that one (the tab is not called).
+    if (m_tabIds.find(object) == m_tabIds.end() || !PDFDeferredDeletion::isRetired(object))
+    {
+        return;
+    }
+
+    PDFAppTab* tab = qobject_cast<PDFAppTab*>(object);
+    if (!tab)
+    {
+        return;
+    }
+    QPointer<PDFAppMainWindow> guard(this);
+    detachTab(tab);
+    if (guard)
+    {
+        updateWindowTitle();
+    }
 }
 
 PDFAppToolTab* PDFAppMainWindow::addToolTab(const QString& toolId, const QString& instanceId, PDFAppToolInputList* inputList)
@@ -549,6 +605,12 @@ PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppTool
 
 PDFAppToolTab* PDFAppMainWindow::createToolTabForDocument(const QString& toolId, PDFAppDocumentTab* documentTab)
 {
+    // A tab, which is being closed (retired, step A), starts no tool
+    if (documentTab && PDFDeferredDeletion::isRetired(documentTab))
+    {
+        return nullptr;
+    }
+
     PDFAppToolInputList* inputList = new PDFAppToolInputList(nullptr);
     if (documentTab && documentTab->getDocument())
     {
@@ -567,10 +629,13 @@ PDFAppToolTab* PDFAppMainWindow::createToolTabForDocument(const QString& toolId,
 
 PDFAppToolTab* PDFAppMainWindow::findSingleToolTab(const QString& toolId) const
 {
-    // The GUI of the tool is made only for the answer and deleted at once (no parent, no shell)
+    // The GUI of the tool is made only for the answer (no parent, no shell, never shown): retired at once, deleted
+    // later (step A: no synchronous deletion of an object with a hook)
     const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(toolId);
-    const std::unique_ptr<PDFDocumentToolGUI> gui(factory ? factory->createGUI() : nullptr);
-    if (!gui || !gui->isSingleOwnTab())
+    PDFDocumentToolGUI* gui = factory ? factory->createGUI() : nullptr;
+    const bool isSingleOwnTab = gui && gui->isSingleOwnTab();
+    PDFDeferredDeletion::retire(gui);
+    if (!isSingleOwnTab)
     {
         return nullptr;
     }
@@ -1601,7 +1666,8 @@ void PDFAppMainWindow::watchModalWidget(QWidget* widget)
     m_watchedModal = widget;
     if (widget)
     {
-        widget->installEventFilter(this);
+        // A foreign widget (a dialog of another owner): the filter is removed also by retire of the window (step A)
+        PDFDeferredDeletion::installEventFilter(widget, this, this);
         connect(widget, &QObject::destroyed, this, &PDFAppMainWindow::onWatchedModalDestroyed);
     }
 }
@@ -1702,13 +1768,16 @@ void PDFAppMainWindow::onDocumentLoadFailed(const QString& filePath, const QStri
     if (tab && tab->isLeaving())
     {
         // A question of the tab is open (a navigation, a lock): the tab closes after its answer
-        m_failedTabs.emplace_back(tab);
-        connect(tab->getLeaveFlow(), &PDFAppLeaveFlow::finished, this, &PDFAppMainWindow::onFailedTabFlowFinished, Qt::UniqueConnection);
+        closeFailedTabAfterFlow(tab);
         return;
     }
     if (tab)
     {
-        closeTab(tab);
+        // The signal comes from the emission of stateChanged of the document of the tab: the close (retire, step A)
+        // would cut the rest of that emission - the view, the tools and the MCP waiters would not see the failure.
+        // The tab closes from the event loop (closeFailedTabs reads it again).
+        m_failedTabs.emplace_back(tab);
+        QMetaObject::invokeMethod(this, &PDFAppMainWindow::closeFailedTabs, Qt::QueuedConnection);
     }
 }
 
@@ -1716,6 +1785,12 @@ void PDFAppMainWindow::onFailedTabFlowFinished()
 {
     // The slot runs inside of the end of the flow (its waiter may still run): the tabs close from the event loop
     QMetaObject::invokeMethod(this, &PDFAppMainWindow::closeFailedTabs, Qt::QueuedConnection);
+}
+
+void PDFAppMainWindow::closeFailedTabAfterFlow(PDFAppDocumentTab* tab)
+{
+    m_failedTabs.emplace_back(tab);
+    connect(tab->getLeaveFlow(), &PDFAppLeaveFlow::finished, this, &PDFAppMainWindow::onFailedTabFlowFinished, Qt::UniqueConnection);
 }
 
 void PDFAppMainWindow::closeFailedTabs()
@@ -1741,7 +1816,9 @@ void PDFAppMainWindow::closeFailedTabs()
         }
         if (tab->isLeaving())
         {
-            m_failedTabs.push_back(tab);
+            // A flow started after the failure, before this queued close (a later receiver of the same failure, an
+            // assistant): the tab closes at the end of that flow (RA-L2)
+            closeFailedTabAfterFlow(tab.data());
             continue;
         }
         closeTab(tab);
@@ -1784,7 +1861,8 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentCopy(const PDFAppDocument* sour
     QPointer<PDFAppDocumentTab> tab(documentTab);
     if (!documentTab->openCopyOf(source))
     {
-        delete documentTab;
+        // Never added nor shown: retired, deleted later (step A)
+        PDFDeferredDeletion::retire(tab.data());
         return nullptr;
     }
     connectDocumentTab(documentTab);
@@ -1858,7 +1936,8 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemoryAt(QByteArray bytes, 
     QPointer<PDFAppDocumentTab> tab(documentTab);
     if (!guard || !m_stack)
     {
-        delete tab.data();
+        // Never added: retired, deleted later (step A)
+        PDFDeferredDeletion::retire(tab.data());
         return nullptr;
     }
     if (!tab)
@@ -2969,7 +3048,8 @@ void PDFAppMainWindow::updateWindowFilter()
     m_filteredWindow = window;
     if (window)
     {
-        window->installEventFilter(this);
+        // The QWindow is no child of the widget: the filter goes through the helper (step A)
+        PDFDeferredDeletion::installEventFilter(window, this, this);
     }
 }
 

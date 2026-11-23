@@ -34,6 +34,7 @@
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
 #include "pdfcomponentwindow.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
 #include "pdfpreviewpainter.h"
@@ -80,7 +81,7 @@ public:
         m_sizeHint(sizeHint),
         m_paint(std::move(paint))
     {
-        connect(pdf::PDFThemeManager::getInstance(), &pdf::PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+        pdf::PDFDeferredDeletion::connect(pdf::PDFThemeManager::getInstance(), &pdf::PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
     }
 
     virtual QSize sizeHint() const override { return m_sizeHint; }

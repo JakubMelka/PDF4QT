@@ -24,6 +24,7 @@
 #define PDFAPPFILEDROP_H
 
 #include "pdfappglobal.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfworkspacerepository.h"
 
 #include <QObject>
@@ -187,17 +188,19 @@ public:
     void answerByHandler(FileHandler handler);
     void answerByHandler(PanelFileHandler handler);
 
-    /// Connects the signal of the mode to the member slot of the receiver (the requester)
+    /// Connects the signal of the mode to the member slot of the receiver (the requester). The request is a child of
+    /// the requester; a receiver of another subtree is safe too: the connection is cut, when the receiver is retired
+    /// (PDFDeferredDeletion::connect, step A)
     template<typename Receiver>
     void connectTo(Receiver* receiver, void (Receiver::*slot)(const QStringList&))
     {
-        QObject::connect(this, &PDFAppFileDialogRequest::filesChosen, receiver, slot);
+        PDFDeferredDeletion::connect(this, &PDFAppFileDialogRequest::filesChosen, receiver, slot);
     }
 
     template<typename Receiver>
     void connectTo(Receiver* receiver, void (Receiver::*slot)(const QString&))
     {
-        QObject::connect(this, &PDFAppFileDialogRequest::fileChosen, receiver, slot);
+        PDFDeferredDeletion::connect(this, &PDFAppFileDialogRequest::fileChosen, receiver, slot);
     }
 
     /// The requests, which wait for their answer, oldest first (tests: AppAsyncDialogs answers them)

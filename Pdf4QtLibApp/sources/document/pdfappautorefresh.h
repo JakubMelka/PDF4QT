@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfappdocument.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 
 #include <QByteArray>
@@ -100,7 +101,10 @@ public:
 /// file, which needs a password, is read by the loader of the tab (the password
 /// state). The refresh is on by default (setting document.autoRefresh) and it has
 /// a switch per document (the command file.autoRefresh).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppAutoRefresh : public QObject
+///
+/// Deferred deletion (step A): its question belongs to it (setOwner); the hook stops watching the file and drops
+/// the result of a running read at once.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppAutoRefresh : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -152,6 +156,11 @@ Q_SIGNALS:
 
     /// The document has been reloaded from the changed file
     void reloaded();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire: the file is not watched any more, the result of a running read is
+    /// not delivered (no signal)
+    virtual void retire() override;
 
 private:
     void updateWatchedPath();

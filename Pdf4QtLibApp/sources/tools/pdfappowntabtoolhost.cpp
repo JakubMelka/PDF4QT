@@ -97,7 +97,8 @@ PDFAppDocumentStatusBar* PDFAppToolTabView::getStatusBar() const
 
 bool PDFAppToolTabView::enterToolMode(const PDFAppToolModeParts& parts)
 {
-    if (m_isToolModeActive || !m_layout)
+    // A retired view (its tab closed, step A) takes no parts
+    if (m_isToolModeActive || !m_layout || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -109,8 +110,10 @@ bool PDFAppToolTabView::enterToolMode(const PDFAppToolModeParts& parts)
     m_undoTarget = parts.undoTarget;
     if (parts.undoTarget)
     {
-        connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolTabView::onUndoStateChanged);
-        connect(parts.undoTarget, &QObject::destroyed, this, &PDFAppToolTabView::onPartDestroyed);
+        // The target belongs to the shell of the tool (step A: the handles are cut by retire of the view; destroyed
+        // stays for a target deleted without retire)
+        PDFDeferredDeletion::connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolTabView::onUndoStateChanged);
+        PDFDeferredDeletion::connect(parts.undoTarget, &QObject::destroyed, this, &PDFAppToolTabView::onPartDestroyed);
     }
 
     m_layout->installParts(parts);
@@ -269,10 +272,11 @@ PDFAppOwnTabToolHost::PDFAppOwnTabToolHost(PDFAppToolTab* tab, PDFAppToolTabView
     m_tab(tab),
     m_view(view)
 {
+    // The view is a sibling under the page (step A: the handles are cut by retire of the host)
     if (m_view)
     {
-        connect(m_view.data(), &PDFAppToolTabView::toolModeChanged, this, &PDFAppOwnTabToolHost::onToolModeChanged);
-        connect(m_view.data(), &PDFAppToolTabView::undoStateChanged, this, &PDFAppToolHost::commandStatesChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppToolTabView::toolModeChanged, this, &PDFAppOwnTabToolHost::onToolModeChanged);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppToolTabView::undoStateChanged, this, &PDFAppToolHost::commandStatesChanged);
     }
 }
 
@@ -323,7 +327,8 @@ void PDFAppOwnTabToolHost::activate()
 
 bool PDFAppOwnTabToolHost::enterMode(const PDFAppToolModeParts& parts)
 {
-    if (!m_view || !m_view->enterToolMode(parts))
+    // A retired host or view (the own tab of the tool closed, step A) enters no mode
+    if (!m_view || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(m_view.data()) || !m_view->enterToolMode(parts))
     {
         return false;
     }

@@ -240,6 +240,9 @@ PDFAppMcpSecretConfirmation::PDFAppMcpSecretConfirmation(PDFAppContext* context,
     setObjectName(QStringLiteral("mcpSecretConfirmation"));
     setAttribute(Qt::WA_DeleteOnClose);
 
+    // The timers are members, made children: retire (step A) stops them with the dialog
+    m_timer.setParent(this);
+    m_tickTimer.setParent(this);
     m_timer.setSingleShot(true);
     connect(&m_timer, &QTimer::timeout, this, &PDFAppMcpSecretConfirmation::onTimeout);
     m_tickTimer.setInterval(1000);

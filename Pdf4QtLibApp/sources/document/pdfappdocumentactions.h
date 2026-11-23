@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 
 #include "pdfaction.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QCoreApplication>
 #include <QObject>
@@ -136,7 +137,10 @@ public:
 /// the event loop: its dialog never runs inside of the mouse handler of the
 /// canvas, which the deletion of the tab would leave with destroyed objects. The
 /// text selection lets a click on a link through (PDFSelectTextTool::setLinksClickable).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentActionHandler : public QObject
+///
+/// Deferred deletion (step A): the confirmation belongs to the handler (setOwner); the hook hides the tooltip of a
+/// link (a window of the application, outside the tab) at once.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentActionHandler : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -227,6 +231,9 @@ public:
 
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+    /// The hook of PDFDeferredDeletion::retire: the tooltip of a link of the handler is hidden (no signal)
+    virtual void retire() override;
 
 private:
     PDFAppDocumentTab* getTab() const;

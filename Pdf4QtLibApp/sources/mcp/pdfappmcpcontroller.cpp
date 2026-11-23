@@ -31,6 +31,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfappsysteminfo.h"
 #include "pdfsettingdefinitions.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfmcpjson.h"
 
@@ -82,8 +83,8 @@ void PDFAppMcpController::initialize()
 
     if (m_context && m_context->getNotifier())
     {
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppMcpController::onNotifierChanged);
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppMcpController::onEverythingChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppMcpController::onNotifierChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppMcpController::onEverythingChanged);
     }
 
     if (m_host)

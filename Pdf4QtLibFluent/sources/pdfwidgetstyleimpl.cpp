@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 #include "pdfthemeiconengine.h"
 #include "pdffluentwidgets.h"
@@ -206,8 +207,8 @@ PDFWidgetStyleImpl::PDFWidgetStyleImpl(PDFWidgetStyle* style) :
     m_areas.push_back(PDFWidgetStyleAreas::createContainers(this));
 
     m_clock.start();
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFWidgetStyleImpl::onThemeChanged);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::followingSystemColorSchemeChanged, this, &PDFWidgetStyleImpl::onFollowingSystemColorSchemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFWidgetStyleImpl::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::followingSystemColorSchemeChanged, this, &PDFWidgetStyleImpl::onFollowingSystemColorSchemeChanged);
 }
 
 PDFWidgetStyleImpl::~PDFWidgetStyleImpl()
@@ -759,7 +760,8 @@ void PDFWidgetStyleImpl::polish(QApplication* application)
         m_installedItemEditorFactory = factory;
     }
 
-    application->installEventFilter(this);
+    // A filter of the application: the gate of the retired objects stays in front of it
+    PDFDeferredDeletion::installEventFilter(application, this);
 }
 
 void PDFWidgetStyleImpl::unpolish(QApplication* application)
@@ -1436,14 +1438,15 @@ void PDFWidgetStyleImpl::updateFocusFrame()
 
         m_focusFrame->setWidget(focusWidget);
 
+        // The focused widget is foreign to the frame (the frame is only placed beside it)
         if (QAbstractButton* button = qobject_cast<QAbstractButton*>(focusWidget))
         {
             // The ring of a check box depends on its state
-            connect(button, &QAbstractButton::toggled, m_focusFrame, qOverload<>(&QWidget::update));
+            PDFDeferredDeletion::connect(button, &QAbstractButton::toggled, m_focusFrame.data(), qOverload<>(&QWidget::update));
         }
         else if (QGroupBox* groupBox = qobject_cast<QGroupBox*>(focusWidget))
         {
-            connect(groupBox, &QGroupBox::toggled, m_focusFrame, qOverload<>(&QWidget::update));
+            PDFDeferredDeletion::connect(groupBox, &QGroupBox::toggled, m_focusFrame.data(), qOverload<>(&QWidget::update));
         }
     }
 

@@ -38,6 +38,7 @@ class QTimer;
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
 class PDFAppDocumentView;
 class PDFDrawWidgetProxy;
 
@@ -85,6 +86,7 @@ private:
     void onProxyDestroyed();
 
     QPointer<PDFDrawWidgetProxy> m_proxy;
+    QPointer<PDFAppCanvasDrawToken> m_drawToken;     ///< The registration on the canvas (a child)
     QPointer<QTimer> m_timer;
     QElapsedTimer m_elapsed;
     PDFInteger m_pageIndex = -1;

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapphomewidgets.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfapplocale.h"
 #include "pdfappinfowidgets.h"
 #include "pdfappworkspace.h"
@@ -638,7 +639,7 @@ PDFAppDropZone::PDFAppDropZone(Variant variant, QWidget* parent) :
     m_variant(variant)
 {
     setObjectName(variant == Variant::Large ? QStringLiteral("dropZone") : QStringLiteral("compactDropZone"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDropZone::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDropZone::update));
 
     if (variant == Variant::Compact)
     {
@@ -749,7 +750,7 @@ PDFAppSessionRow::PDFAppSessionRow(bool isAccent, QWidget* parent) :
     m_isAccent(isAccent)
 {
     setObjectName(QStringLiteral("restoreLastSession"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSessionRow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppSessionRow::update));
 
     // restore-last-session: paddings 10 (inside the border), gap 12, height 54
     QHBoxLayout* layout = new QHBoxLayout(this);
@@ -812,7 +813,7 @@ PDFAppContinueCard::PDFAppContinueCard(QWidget* parent) :
     BaseClass(parent)
 {
     setObjectName(QStringLiteral("continueCard"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppContinueCard::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppContinueCard::update));
 
     // card: paddings 14 (inside the border), gap 14; the thumbnail 80 x 106, the texts 216
     QHBoxLayout* layout = new QHBoxLayout(this);

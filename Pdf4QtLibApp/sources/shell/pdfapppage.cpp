@@ -31,6 +31,7 @@ namespace pdf
 
 PDFAppPage::PDFAppPage(PDFAppContext* context, QWidget* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_context(context)
 {
 
@@ -40,6 +41,11 @@ PDFAppPage::~PDFAppPage()
 {
     // The page says it is going away while it is still a page (its children exist)
     Q_EMIT aboutToBeDestroyed();
+}
+
+void PDFAppPage::retire()
+{
+    // The base page has nothing outside its subtree (step A, the packages add the hooks of the pages)
 }
 
 QBoxLayout* PDFAppPage::getBannerLayout() const
@@ -116,6 +122,24 @@ quint64 PDFAppPage::getWorkStamp() const
 void PDFAppPage::prepareClose()
 {
 
+}
+
+bool PDFAppPage::isClosed() const
+{
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return true;
+    }
+
+    // The replaced page is still a child of its tab (hidden, out of the layout)
+    for (const QObject* parent = this->parent(); parent; parent = parent->parent())
+    {
+        if (const PDFAppTab* tab = qobject_cast<const PDFAppTab*>(parent))
+        {
+            return tab->isPageReplaced(this);
+        }
+    }
+    return false;
 }
 
 bool PDFAppPage::isQuestionOpen() const

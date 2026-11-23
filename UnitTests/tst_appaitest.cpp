@@ -1785,10 +1785,10 @@ void AppAiTest::deletionMatrix()
         switch (victim)
         {
             case 0:
-                delete page.data();
+                pdftest::AppDocumentFixture::deleteNow(page.data());
                 break;
             case 1:
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 break;
             case 2:
                 fixture.controller()->shutdown();
@@ -1811,7 +1811,7 @@ void AppAiTest::deletionMatrix()
         QVERIFY(!AppAiTestHelper::repository(fixture).upsertClient(AppAiTestHelper::client(QStringLiteral("a:00000000000000000000000000000001"), QStringLiteral("Claude Code"))).isError());
         QVERIFY(!AppAiTestHelper::repository(fixture).addActivity({ AppAiTestHelper::activity(QStringLiteral("files.open"), pdf::PDFMcpActivityStatus::Waiting) }).isError());
         fixture.controller()->start();
-        delete page.data();
+        pdftest::AppDocumentFixture::deleteNow(page.data());
         pdftest::AppDocumentFixture::settle();
         QTRY_COMPARE_WITH_TIMEOUT(fixture.controller()->getState(), pdf::PDFAppMcpServerState::Running, AppAiTestHelper::timeout(10000));
     }
@@ -1831,15 +1831,15 @@ void AppAiTest::deleteFromOwnSignals()
         QMetaObject::Connection connection;
         if (name == "stateChanged")
         {
-            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::stateChanged, fixture.controller(), [window]() { delete window.data(); });
+            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::stateChanged, fixture.controller(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         }
         else if (name == "assistantsChanged")
         {
-            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::assistantsChanged, fixture.controller(), [window]() { delete window.data(); });
+            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::assistantsChanged, fixture.controller(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         }
         else
         {
-            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::activityChanged, fixture.controller(), [window]() { delete window.data(); });
+            connection = QObject::connect(fixture.controller(), &pdf::PDFAppMcpController::activityChanged, fixture.controller(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         }
 
         // The page is connected before the test: the page gets the signal first, then the window goes
@@ -1861,11 +1861,12 @@ void AppAiTest::deleteFromOwnSignals()
         fixture.controller()->stop();
     }
 
-    // The page deleted from the click of a tile, a chip, Clear and the Start button
+    // The page deleted from the click of a tile, a chip, Clear and the Start button (the page closed by the
+    // real close of the application - the navigation back, step A -, the window deleted later on purpose)
     {
         pdftest::AppMcpFixture fixture;
         QPointer<pdf::PDFAppAiPage> page = AppAiTestHelper::open(fixture);
-        QObject::connect(page->getTile(pdf::PDFAppMcpSetupClient::Codex), &QAbstractButton::clicked, page, [page]() { page->deleteLater(); });
+        QObject::connect(page->getTile(pdf::PDFAppMcpSetupClient::Codex), &QAbstractButton::clicked, page, [&fixture, page]() { fixture.retire(page.data()); });
         page->getTile(pdf::PDFAppMcpSetupClient::Codex)->click();
         QTRY_VERIFY(!page);
     }
@@ -1873,7 +1874,7 @@ void AppAiTest::deleteFromOwnSignals()
         pdftest::AppMcpFixture fixture;
         QPointer<pdf::PDFAppAiPage> page = AppAiTestHelper::open(fixture);
         QPointer<QPushButton> chip = page->getVariantChips().at(1);
-        QObject::connect(chip, &QAbstractButton::toggled, fixture.window, [window = fixture.window]() { window->deleteLater(); });
+        QObject::connect(chip, &QAbstractButton::toggled, fixture.window, [window = fixture.window]() { pdftest::AppDocumentFixture::deleteLater(window.data()); });
         chip->click();
         QTRY_VERIFY(!fixture.window);
     }

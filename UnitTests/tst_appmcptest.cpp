@@ -233,6 +233,7 @@ private slots:
     void concurrentReads() { AppMcpReadTests::concurrentReads(); }
     void hostileInput() { AppMcpReadTests::hostileInput(); }
     void deletionMatrix() { AppMcpReadTests::deletionMatrix(); }
+    void retiredTabEndsWaiters() { AppMcpReadTests::retiredTabEndsWaiters(); }
     void resourceSubscriptionsHttp() { AppMcpReadTests::resourceSubscriptionsHttp(); }
     void resourceListOrder() { AppMcpReadTests::resourceListOrder(); }
     void httpEndToEnd() { AppMcpReadTests::httpEndToEnd(); }
@@ -1246,8 +1247,10 @@ void AppMcpTest::aiPageRoute()
     fixture.controller()->stop();
     QTRY_COMPARE(page->getStateText(), QStringLiteral("The MCP server is stopped."));
 
-    // A query is refused (Page Not Found)
-    QVERIFY(!pdf::PDFAppAiPage(fixture.context.get()).setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/ai?x=1"))));
+    // A query is refused (Page Not Found); a standalone page, deleted at the end on purpose (a deliberate
+    // synchronous deletion)
+    std::unique_ptr<pdf::PDFAppAiPage, pdftest::AppDocumentFixture::DeleteNow> standalonePage(new pdf::PDFAppAiPage(fixture.context.get()));
+    QVERIFY(!standalonePage->setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/ai?x=1"))));
 }
 
 void AppMcpTest::clientNames()

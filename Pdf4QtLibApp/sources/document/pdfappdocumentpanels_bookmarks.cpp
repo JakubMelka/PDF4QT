@@ -34,6 +34,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfthemeiconengine.h"
@@ -229,6 +230,7 @@ QString PDFAppBookmarks::getDefaultTitle(const PDFDocument* document, PDFInteger
 void PDFAppBookmarks::showError(QWidget* parent, const QString& title, const QString& text)
 {
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, title, text, QDialogButtonBox::Ok, parent ? parent->window() : nullptr);
+    PDFDeferredDeletion::setOwner(box, parent);
     PDFAppPanelWidgets::prepareMessageBox(box, parent, QStringLiteral("bookmarkErrorBox"));
     box->open();
 }
@@ -670,18 +672,18 @@ void PDFAppBookmarksPanel::setDocument(PDFAppDocument* document, PDFAppDocumentV
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppBookmarksPanel::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppBookmarksPanel::reload);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppBookmarksPanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppBookmarksPanel::reload);
         connect(document, &QObject::destroyed, this, &PDFAppBookmarksPanel::onDocumentDestroyed);
     }
     if (isNewView)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppBookmarksPanel::onCurrentPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppBookmarksPanel::onCurrentPageChanged);
         PDFAppContext* context = view->getContext();
         if (context && context->getNotifier())
         {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppBookmarksPanel::onStorageChanged);
-            connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppBookmarksPanel::onEverythingChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppBookmarksPanel::onStorageChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppBookmarksPanel::onEverythingChanged);
         }
     }
     m_connectedDocument = document;
@@ -813,6 +815,7 @@ void PDFAppBookmarksPanel::renameBookmark(int row)
     }
 
     PDFAppRenameBookmarkDialog* dialog = new PDFAppRenameBookmarkDialog(context, item->id, item->title, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     m_renameDialog = dialog;
     dialog->open();

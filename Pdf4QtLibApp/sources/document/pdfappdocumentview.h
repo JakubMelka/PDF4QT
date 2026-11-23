@@ -27,6 +27,7 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappviewstate.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfglobal.h"
 
 #include <QPointer>
@@ -188,7 +189,10 @@ public:
 /// (executeCommand / requestCommand); the keys of the Canvas commands (Ctrl+C,
 /// Ctrl+A, arrows, PgUp / PgDn, Home / End) are actions of the canvas with the
 /// context Qt::WidgetWithChildrenShortcut, so they keep their meaning in fields.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentView : public QWidget
+///
+/// Deferred deletion (step A): the view is retired with its tab; its hook retire() (PDFRetirable) ends what the
+/// view has outside its subtree.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentView : public QWidget, public PDFRetirable
 {
     Q_OBJECT
 
@@ -587,6 +591,15 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
 
+    /// The hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the view itself has nothing outside its
+    /// subtree - the full screen of the window ends by the hide of retire (hideEvent), the state of the canvas
+    /// stays (the tab writes the reading position after the hooks). The rest is ended by its owners: the popups
+    /// parented to the window by setOwner of their creators, the search, the speech, the signatures, the print, the
+    /// auto refresh and the actions by the hooks of their classes (parts of the command handlers of the tab), the
+    /// parts and the undo target of a tool by the tool shell, the highlight of an assistant by its token. Emits
+    /// none of the view's signals, opens no dialog, waits for nothing.
+    virtual void retire() override;
+
 private:
     /// Values of the settings applied to the canvas (a change is applied again only)
     struct AppliedSettings
@@ -625,6 +638,9 @@ private:
     void restorePageAnchor(const PageAnchor& anchor);
     void onDocumentStateChanged();
     void onDocumentAboutToBeDestroyed();
+    /// PDFLifetimeNotifier::aboutToBeDeleted of the document (step A: the document is retired); nothing for a view
+    /// retired with it
+    void onDocumentRetired();
     void onDocumentDestroyed();
     void onSignatureResultsChanged();
     void onThemeChanged();
@@ -668,6 +684,7 @@ private:
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFAppDocument> m_document;
+    QMetaObject::Connection m_documentRetiredConnection;   ///< The notifier of m_document (onDocumentRetired)
     QPointer<PDFAppDocumentTab> m_tab;
     QPointer<PDFAppDocumentToolbar> m_toolbar;
     QPointer<QStackedWidget> m_toolbarStack;    ///< The toolbar of the document or the toolbar of a tool

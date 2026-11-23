@@ -56,8 +56,8 @@ PDFAppPasswordDialog::PDFAppPasswordDialog(PDFAppToolInputList* list, const QStr
     createParts();
     if (list)
     {
-        connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppPasswordDialog::onInputChanged);
-        connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppPasswordDialog::onInputsChanged);
+        PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppPasswordDialog::onInputChanged);
+        PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppPasswordDialog::onInputsChanged);
         connect(list, &QObject::destroyed, this, &PDFAppPasswordDialog::onListDestroyed);
     }
 
@@ -80,8 +80,8 @@ PDFAppPasswordDialog::PDFAppPasswordDialog(PDFAppDocument* document, const PDFAp
     createParts();
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppPasswordDialog::onDocumentDestroyed);
     }
 
@@ -170,7 +170,8 @@ void PDFAppPasswordDialog::createParts()
 
 PDFAppPasswordDialog* PDFAppPasswordDialog::openOwnerDialog(PDFAppDocument* document, const PDFAppPermissionRequest& request, QWidget* parent)
 {
-    if (!document || !document->isReady() || !PDFAppDocumentPermissions::canUnlock(document->getDocument().data()))
+    // A document of a closed tab (retired, step A) asks for nothing
+    if (!document || !document->isReady() || !PDFAppDocumentPermissions::canUnlock(document->getDocument().data()) || PDFDeferredDeletion::isRetired(document))
     {
         return nullptr;
     }
@@ -190,9 +191,12 @@ PDFAppPasswordDialog* PDFAppPasswordDialog::openOwnerDialog(PDFAppDocument* docu
         }
     }
 
+    // The dialog is parented to the window (outside the subtree of the tab): it belongs logically to the document
+    // (step A, RB-M3), so the close of the tab closes it with it
     PDFAppPasswordDialog* dialog = new PDFAppPasswordDialog(document, request, parent);
     dialog->setAttribute(Qt::WA_DeleteOnClose, true);
     dialog->setWindowModality(Qt::WindowModal);
+    PDFDeferredDeletion::setOwner(dialog, document);
     dialog->open();
     return dialog;
 }
@@ -471,6 +475,14 @@ void PDFAppPasswordDialog::unlockDocument()
         return;
     }
 
+    // A document of a closed tab (step A: retired, deleted later; the dialog belongs to the window) refuses every
+    // change - nothing waits for the password any more, the dialog closes without an error
+    if (PDFDeferredDeletion::isRetired(document))
+    {
+        reject();
+        return;
+    }
+
     // The document verifies the password by its handler and emits documentChanged - its
     // slots may delete the dialog or the document (the tab closes)
     const QString password = m_passwordField->text();
@@ -486,6 +498,13 @@ void PDFAppPasswordDialog::unlockDocument()
     if (isUnlocked)
     {
         accept();
+        return;
+    }
+
+    // The tab closed by a slot of the verification: no wrong password, the dialog closes
+    if (!m_document || PDFDeferredDeletion::isRetired(m_document.data()))
+    {
+        reject();
         return;
     }
 

@@ -247,6 +247,9 @@ public:
     static std::pair<QString, QString> getPartialResultTexts(const PDFDocumentToolResult& result);
 
 protected:
+    /// Hook of PDFDeferredDeletion::retire: the workers are told to stop at once (not waited for)
+    virtual void retire() override;
+
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
     virtual void describeLeftPanel(PDFAppToolPanelBuilder& builder) override;
     virtual void describeRightPanel(PDFAppToolPanelBuilder& builder) override;

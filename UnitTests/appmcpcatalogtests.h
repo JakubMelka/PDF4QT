@@ -483,7 +483,7 @@ public:
         // The tab closed during the question ends the call, the file is not touched
         started = fixture.startCall(toolName(id), call);
         QVERIFY(fixture.confirmDialog());
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
         result = pdftest::AppMcpFixture::waitResult(started);
         QVERIFY(result && result->isError);

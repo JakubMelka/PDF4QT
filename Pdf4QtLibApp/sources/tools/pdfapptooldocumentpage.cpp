@@ -358,8 +358,9 @@ QString PDFAppToolDocumentPage::getRefusalText() const
 
 void PDFAppToolDocumentPage::applyRoute()
 {
-    // The same route again (a restored entry of the history): the tool stays
-    if (m_shell)
+    // The same route again (a restored entry of the history): the tool stays. A retired page (its tab closed, step A)
+    // opens nothing.
+    if (m_shell || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -398,10 +399,11 @@ void PDFAppToolDocumentPage::applyRoute()
     const bool isEntered = m_shell->enter();
     if (guard && !isEntered)
     {
+        // Retired, never deleted here (step A): its parts and its runner go with it from the event loop
         PDFDocumentToolShell* shell = m_shell.data();
         m_shell = nullptr;
-        delete shell;
-        if (guard)
+        PDFDeferredDeletion::retire(shell);
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             leaveToDocument(tr("This tool cannot run on this document."));
         }

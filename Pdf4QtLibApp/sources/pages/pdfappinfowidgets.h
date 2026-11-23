@@ -86,8 +86,18 @@ public:
     static QString getFocusedName(const QWidget* page);
 
     /// Gives the focus to the descendant of the page with the object name (the
-    /// widget of the new content); nothing for an empty name or no such widget
+    /// widget of the new content - a retired part of the old content waiting for
+    /// its deletion is skipped); nothing for an empty name or no such widget
     static void restoreFocus(QWidget* page, const QString& name);
+
+    /// A part of the old content of a rebuild (step A, A2): retired by
+    /// PDFDeferredDeletion::retire (inert and hidden at once, deleted later - a
+    /// slot of it may be on the stack), taken out of the layout of its parent
+    /// widget now (nested layouts too), so the new content takes its place, and
+    /// unparented (a hidden top-level waiting for its deletion), so no lookup of
+    /// the page by name or by type (findChild, findChildren) finds the old part
+    /// before the new one. Nothing for nullptr.
+    static void retireWidget(QWidget* widget);
 
     /// Lays the new content out now (the posted layout requests of the nested
     /// widgets), so the scroll position of the page can be restored at once

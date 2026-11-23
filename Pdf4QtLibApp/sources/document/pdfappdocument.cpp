@@ -26,6 +26,7 @@
 #include "pdfappcontext.h"
 #include "pdfappundostack.h"
 #include "pdfsettingdefinitions.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfdocumenttextindex.h"
 #include "pdfform.h"
@@ -422,8 +423,32 @@ bool PDFAppDocument::commitToolResult(const PDFModifiedDocument& modified, const
     return commitChange(modified, description, expectedVersion, source, QString(), m_isWholeFileRewritten || isWholeFileRewrite);
 }
 
+bool PDFAppDocument::isRetiredChangeRefused(const char* entryPoint)
+{
+    if (!PDFDeferredDeletion::isRetired(this))
+    {
+        return false;
+    }
+
+    // Defense in depth: the caller should have stopped after the close (a slot of its foreign call closed the
+    // tab); the refusal keeps the closing document as it was, the lifetime sweeps report the caller
+    ++m_retiredChangeRefusalCount;
+    m_lastRetiredChangeRefusal = entryPoint;
+    if (PDFDeferredDeletion::isTestMode())
+    {
+        qWarning("%s: %s", RETIRED_CHANGE_MESSAGE, entryPoint);
+    }
+    return true;
+}
+
 bool PDFAppDocument::commitChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey, bool isWholeFileRewritten)
 {
+    // A retired document is refused as a closed one (the callers handle false as a refused change)
+    if (isRetiredChangeRefused("commit"))
+    {
+        return false;
+    }
+
     const PDFDocumentPointer newDocument = modified;
     // A display version of an XFA form (step 8) is never changed: every change of
     // the user, of a panel or of an assistant ends here at the latest
@@ -489,7 +514,7 @@ void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::M
 
 void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isWholeFileRewritten)
 {
-    if (!isReady() || document.isNull())
+    if (!isReady() || document.isNull() || isRetiredChangeRefused("restore"))
     {
         return;
     }
@@ -608,7 +633,7 @@ bool PDFAppDocument::isOwnerUnlocked() const
 
 bool PDFAppDocument::unlockWithOwnerPassword(const QString& ownerPassword)
 {
-    if (!isReady() || !m_document || !PDFAppDocumentPermissions::canUnlock(m_document.data()))
+    if (!isReady() || !m_document || !PDFAppDocumentPermissions::canUnlock(m_document.data()) || isRetiredChangeRefused("unlockWithOwnerPassword"))
     {
         return false;
     }
@@ -778,6 +803,10 @@ bool PDFAppDocument::setLoadingFromMemory(const QString& title, const QString& o
 
 void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA, PDFAppDocumentRestoration restoration)
 {
+    if (isRetiredChangeRefused("setLoaded"))
+    {
+        return;
+    }
     if (document.isNull())
     {
         setFailed(filePath, tr("The file is not a valid PDF document."));
@@ -818,7 +847,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
 
 void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA, PDFAppDocumentRestoration restoration)
 {
-    if (!isReady() || document.isNull())
+    if (!isReady() || document.isNull() || isRetiredChangeRefused("reload"))
     {
         return;
     }
@@ -865,7 +894,8 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
 {
     // A document with encrypted attachments (isAttachmentsLocked) has no copy: the copy
     // would not be locked and its file would be broken
-    if (!source || source == this || !source->isReady() || source->getDocument().isNull() || m_state == PDFAppDocumentState::Ready || source->isAttachmentsLocked())
+    if (!source || source == this || !source->isReady() || source->getDocument().isNull() || m_state == PDFAppDocumentState::Ready || source->isAttachmentsLocked() ||
+        isRetiredChangeRefused("setCopyOf"))
     {
         return false;
     }

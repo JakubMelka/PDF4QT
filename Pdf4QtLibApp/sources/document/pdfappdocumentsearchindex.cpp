@@ -34,6 +34,7 @@ namespace pdf
 
 PDFAppDocumentTextIndexer::PDFAppDocumentTextIndexer(PDFAppDocument* document, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_document(document)
 {
     m_progressTimer = new QTimer(this);
@@ -42,7 +43,7 @@ PDFAppDocumentTextIndexer::PDFAppDocumentTextIndexer(PDFAppDocument* document, Q
 
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentTextIndexer::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentTextIndexer::onDocumentChanged);
     }
 }
 
@@ -51,6 +52,20 @@ PDFAppDocumentTextIndexer::~PDFAppDocumentTextIndexer()
     // The worker keeps its snapshot and its job, it ends soon after the
     // cancellation; nobody waits for it (closing a tab never waits)
     stopJob();
+}
+
+void PDFAppDocumentTextIndexer::retire()
+{
+    // Only the pure computation ends now: the operation of the document stays until the destructor (stopJob), its
+    // end announced now would run the slots of the tab and the window in the middle of the retire
+    if (m_job)
+    {
+        m_job->cancelFlag.cancel();
+    }
+    if (m_watcher)
+    {
+        m_watcher->disconnect(this);
+    }
 }
 
 std::shared_ptr<const PDFDocumentTextIndex> PDFAppDocumentTextIndexer::getIndex() const
@@ -97,7 +112,7 @@ bool PDFAppDocumentTextIndexer::requestIndex()
     m_operation = operation;
     if (m_operation)
     {
-        connect(m_operation, &PDFAppDocumentOperation::cancelRequested, this, &PDFAppDocumentTextIndexer::onOperationCancelRequested);
+        PDFDeferredDeletion::connect(m_operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFAppDocumentTextIndexer::onOperationCancelRequested);
     }
     m_progressTimer->start();
 

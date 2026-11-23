@@ -269,7 +269,7 @@ public:
     explicit StorageFixture(const QString& folder = QString(), int extraVersions = 0, QSize size = QSize(1440, 960)) :
         AppSettingsFixture(size)
     {
-        delete window.data();
+        deleteNow(window.data());
         settle();
         context.reset();
 
@@ -2228,7 +2228,7 @@ void AppSettingsShortcutsTest::deletionMatrix()
         section->openConflictDialog(pdf::PDFAppCommands::save(), QKeySequence(Qt::CTRL | Qt::Key_O), { pdf::PDFAppCommands::open() });
         QPointer<pdf::PDFAppShortcutConflictDialog> dialog = section->getConflictDialog();
         QVERIFY(dialog);
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!dialog);
         QVERIFY(fixture.context->getShortcuts().getShortcuts().empty());
@@ -2265,7 +2265,7 @@ void AppSettingsShortcutsTest::deletionMatrix()
         section->getView()->setFocus();
         section->getView()->setCurrentIndex(ShortcutsTestHelper::viewIndex(section, pdf::PDFAppCommands::save()));
         QTest::keyClick(section->getView(), Qt::Key_F2);
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -2315,7 +2315,7 @@ void AppSettingsShortcutsTest::deletionMatrix()
             switch (deletion)
             {
                 case 0:
-                    delete fixture.window.data();
+                    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                     break;
                 case 1:
                     fixture.navigate(QStringLiteral("/home"));
@@ -2340,7 +2340,7 @@ void AppSettingsShortcutsTest::deletionMatrix()
         fixture.settle();
         QPointer<pdf::PDFAppInfoBar> bar = section->getExportInfoBar();
         QVERIFY(bar);
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!bar);
     }
@@ -2350,7 +2350,7 @@ void AppSettingsShortcutsTest::deletionMatrix()
         QVERIFY(section);
         fixture.context->close();
         fixture.settle();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 }
@@ -2366,8 +2366,8 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
         pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
         QVERIFY(section);
         const QString backupPath = fixture.path(QStringLiteral("own.pdf4qt-backup"));
-        pdf::PDFAppFileDialogs::setSaveBackupHandler([&](QWidget*, const QString&) { delete fixture.window.data(); return backupPath; });
-        pdf::PDFAppFileDialogs::setOpenBackupHandler([&](QWidget*, const QString&) { delete fixture.window.data(); return backupPath; });
+        pdf::PDFAppFileDialogs::setSaveBackupHandler([&](QWidget*, const QString&) { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); return backupPath; });
+        pdf::PDFAppFileDialogs::setOpenBackupHandler([&](QWidget*, const QString&) { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); return backupPath; });
         if (kind == 0)
         {
             section->exportSettings();
@@ -2391,7 +2391,7 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
         section->requestDelete(pdf::PDFDatabaseFiles::getFilePath(directory.path(), 1));
         fixture.settle();
         pdf::PDFAppStorageDialog* dialog = ShortcutsTestHelper::storageDialog();
-        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { fixture.window->deleteLater(); });
+        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteLater(fixture.window.data()); });
         QTest::mouseClick(dialog->getActionButton(), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -2405,7 +2405,7 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
         section->exportSettings();
         fixture.settle();
         pdf::PDFAppInfoBar* bar = section->getExportInfoBar();
-        QObject::connect(bar, &pdf::PDFAppInfoBar::actionTriggered, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(bar, &pdf::PDFAppInfoBar::actionTriggered, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QTest::mouseClick(bar->getActionButtons().front(), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -2418,7 +2418,7 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
         section->exportSettings();
         fixture.settle();
         pdf::PDFAppInfoBar* bar = section->getExportInfoBar();
-        QObject::connect(bar, &pdf::PDFAppInfoBar::closeRequested, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(bar, &pdf::PDFAppInfoBar::closeRequested, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QTest::mouseClick(bar->getCloseButton(), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -2426,7 +2426,7 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
     {
         pdftest::AppSettingsFixture fixture;
         pdf::PDFAppShortcutsSettingsSection* section = ShortcutsTestHelper::shortcuts(fixture.openSettings(QStringLiteral("shortcuts")));
-        QObject::connect(section->getModel(), &pdf::PDFAppShortcutsModel::conflictFound, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(section->getModel(), &pdf::PDFAppShortcutsModel::conflictFound, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QVERIFY(ShortcutsTestHelper::record(section, pdf::PDFAppCommands::save(), Qt::Key_O, Qt::ControlModifier));
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -2438,7 +2438,7 @@ void AppSettingsShortcutsTest::deleteFromOwnSignals()
         pdf::PDFAppShortcutsSettingsSection* section = ShortcutsTestHelper::shortcuts(fixture.openSettings(QStringLiteral("shortcuts")));
         section->openConflictDialog(pdf::PDFAppCommands::save(), QKeySequence(Qt::CTRL | Qt::Key_O), { pdf::PDFAppCommands::open() });
         pdf::PDFAppShortcutConflictDialog* dialog = section->getConflictDialog();
-        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { fixture.window->deleteLater(); });
+        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteLater(fixture.window.data()); });
         QTest::mouseClick(dialog->getAssignButton(), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);

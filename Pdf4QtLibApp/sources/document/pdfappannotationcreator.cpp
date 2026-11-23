@@ -49,6 +49,7 @@
 #include "pdfwidgetsnapshot.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QEvent>
 #include <QJsonObject>
@@ -898,35 +899,36 @@ PDFAppAnnotationCreator::PDFAppAnnotationCreator(PDFAppDocumentView* view, QObje
         m_controller = view->getAnnotationController();
         m_toolManager = view->getToolManager();
         m_canvasWidget = getCanvasWidget();
-        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppAnnotationCreator::onViewChanged);
-        connect(view, &PDFAppDocumentView::toolModeChanged, this, &PDFAppAnnotationCreator::updateMarkupBar);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppAnnotationCreator::onViewChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::toolModeChanged, this, &PDFAppAnnotationCreator::updateMarkupBar);
     }
 
     createTools();
 
     if (m_controller)
     {
-        connect(m_controller.data(), &PDFAppAnnotationController::activeToolChanged, this, &PDFAppAnnotationCreator::onActiveToolChanged);
-        connect(m_controller.data(), &PDFAppAnnotationController::creationRequested, this, &PDFAppAnnotationCreator::onCreationRequested);
-        connect(m_controller.data(), &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationCreator::onEditingAllowedChanged);
-        connect(m_controller.data(), &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationCreator::onChangeCommitted);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppAnnotationController::activeToolChanged, this, &PDFAppAnnotationCreator::onActiveToolChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppAnnotationController::creationRequested, this, &PDFAppAnnotationCreator::onCreationRequested);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationCreator::onEditingAllowedChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationCreator::onChangeCommitted);
     }
 
+    // The text selection tool belongs to the tool manager of the view
     if (PDFSelectTextTool* selectTextTool = getSelectTextTool())
     {
-        connect(selectTextTool, &PDFSelectTextTool::selectionChanged, this, &PDFAppAnnotationCreator::onTextSelectionChanged);
+        PDFDeferredDeletion::connect(selectTextTool, &PDFSelectTextTool::selectionChanged, this, &PDFAppAnnotationCreator::onTextSelectionChanged);
     }
 
     PDFAppContext* context = getContext();
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAnnotationCreator::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAnnotationCreator::onSettingsChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAnnotationCreator::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAnnotationCreator::onSettingsChanged);
     }
 
     if (m_canvasWidget)
     {
-        m_canvasWidget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_canvasWidget.data(), this);
     }
 }
 
@@ -1216,6 +1218,13 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
     }
     m_isStarting = false;
 
+    // A slot of the activation (a signal of the view) closed the tab: the creator is retired (step A - inert, deleted
+    // later, not deleted now), nothing more starts in it
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return false;
+    }
+
     if (!isStarted)
     {
         if (selectTextTool)
@@ -1438,7 +1447,7 @@ void PDFAppAnnotationCreator::applyToolStyle(PDFAppAnnotationToolKind kind)
 void PDFAppAnnotationCreator::showToolBar(PDFAppAnnotationToolKind kind)
 {
     QWidget* canvasArea = m_view ? m_view->getCanvasArea() : nullptr;
-    if (!canvasArea)
+    if (!canvasArea || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1446,6 +1455,9 @@ void PDFAppAnnotationCreator::showToolBar(PDFAppAnnotationToolKind kind)
     if (!m_toolBar)
     {
         m_toolBar = new PDFAppAnnotationToolBar(this, canvasArea);
+
+        // A child of the canvas area, a part of the creator
+        PDFDeferredDeletion::setOwner(m_toolBar.data(), this);
     }
 
     if (m_toolBar->getKind() != kind)
@@ -1900,8 +1912,8 @@ bool PDFAppAnnotationCreator::commentTextSelection()
 
     m_composeKind = ComposeKind::HighlightComment;
     m_composeParts = std::move(parts);
-    connect(popup, &PDFAppCommentPopup::composeAccepted, this, &PDFAppAnnotationCreator::onComposeAccepted, Qt::UniqueConnection);
-    connect(popup, &PDFAppCommentPopup::composeCanceled, this, &PDFAppAnnotationCreator::onComposeCanceled, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(popup, &PDFAppCommentPopup::composeAccepted, this, &PDFAppAnnotationCreator::onComposeAccepted, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(popup, &PDFAppCommentPopup::composeCanceled, this, &PDFAppAnnotationCreator::onComposeCanceled, Qt::UniqueConnection);
     if (m_markupBar)
     {
         m_markupBar->hide();
@@ -2039,8 +2051,8 @@ void PDFAppAnnotationCreator::onCreationRequested(const PDFAnnotationCreationReq
             const QRectF iconArea(request.point.x(), request.point.y() - H::STICKY_NOTE_ANCHOR, H::STICKY_NOTE_ANCHOR, H::STICKY_NOTE_ANCHOR);
             m_composeKind = ComposeKind::StickyNote;
             m_composeRequest = request;
-            connect(popup, &PDFAppCommentPopup::composeAccepted, this, &PDFAppAnnotationCreator::onComposeAccepted, Qt::UniqueConnection);
-            connect(popup, &PDFAppCommentPopup::composeCanceled, this, &PDFAppAnnotationCreator::onComposeCanceled, Qt::UniqueConnection);
+            PDFDeferredDeletion::connect(popup, &PDFAppCommentPopup::composeAccepted, this, &PDFAppAnnotationCreator::onComposeAccepted, Qt::UniqueConnection);
+            PDFDeferredDeletion::connect(popup, &PDFAppCommentPopup::composeCanceled, this, &PDFAppAnnotationCreator::onComposeCanceled, Qt::UniqueConnection);
             popup->showCompose(pageRectToCanvas(request.pageIndex, iconArea), PDFAppAnnotationTools::getStickyNoteName(request.icon),
                                PDFAppAnnotationTools::getStickyNoteIconName(request.icon));
             break;
@@ -2057,6 +2069,9 @@ void PDFAppAnnotationCreator::onCreationRequested(const PDFAnnotationCreationReq
             PDFAppWebLinkDialog* dialog = new PDFAppWebLinkDialog(m_view->window());
             PDFAppMainWindow::prepareDialog(dialog, m_view);
             dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+            // Parented to the window, it belongs to the creator (it closes with the tab)
+            PDFDeferredDeletion::setOwner(dialog, this);
             connect(dialog, &QDialog::finished, this, &PDFAppAnnotationCreator::onWebLinkFinished);
             m_webLinkDialog = dialog;
             dialog->open();
@@ -2108,6 +2123,7 @@ void PDFAppAnnotationCreator::onTextBoxAreaPicked(PDFInteger pageIndex, QRectF r
     if (!m_textBoxPopup)
     {
         m_textBoxPopup = new PDFAppTextBoxPopup(canvasArea);
+        PDFDeferredDeletion::setOwner(m_textBoxPopup.data(), this);
         connect(m_textBoxPopup.data(), &PDFAppTextBoxPopup::accepted, this, &PDFAppAnnotationCreator::onTextBoxAccepted);
         connect(m_textBoxPopup.data(), &PDFAppTextBoxPopup::canceled, this, &PDFAppAnnotationCreator::onTextBoxCanceled);
         connect(m_textBoxPopup.data(), &PDFAppTextBoxPopup::previewChanged, this, &PDFAppAnnotationCreator::onTextBoxPreviewChanged);
@@ -2334,6 +2350,7 @@ void PDFAppAnnotationCreator::updateMarkupBar()
     if (!m_markupBar)
     {
         m_markupBar = new PDFAppMarkupBar(this, canvasArea);
+        PDFDeferredDeletion::setOwner(m_markupBar.data(), this);
     }
     m_markupBarSelection = selection;
     m_markupBar->showAt(selection, isCreationAllowed());

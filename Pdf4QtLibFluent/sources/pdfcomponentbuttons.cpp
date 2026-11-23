@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
@@ -543,7 +544,7 @@ PDFComponentButton::PDFComponentButton(FocusRing focusRing, QWidget* parent) :
         setProperty(PDFWidgetStyleProperties::RADIUS, 0.0);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFComponentButton::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFComponentButton::onThemeChanged);
 }
 
 PDFComponentButton::~PDFComponentButton()
@@ -1418,7 +1419,7 @@ PDFToolBadge::PDFToolBadge(QWidget* parent) :
     BaseClass(parent)
 {
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFToolBadge::PDFToolBadge(const QString& iconName, PDFAccentHue hue, BadgeSize size, QWidget* parent) :
@@ -1781,10 +1782,12 @@ bool PDFMoreButton::showMenu()
     // The button stays pressed, while its menu is shown. A menu deleted while
     // it is shown sends no aboutToHide (the destructor of QWidget hides it
     // without QMenu::hideEvent), so its signal destroyed releases the button
-    // as well (nothing of the menu is called then).
+    // as well (nothing of the menu is called then). The menu belongs to the
+    // application (it may live outside of the button): a retired button gets
+    // nothing of it.
     disconnectMenu();
     setDown(true);
-    m_menuHiddenConnection = connect(menu, &QMenu::aboutToHide, this, &PDFMoreButton::onMenuClosed);
+    m_menuHiddenConnection = PDFDeferredDeletion::connect(menu, &QMenu::aboutToHide, this, &PDFMoreButton::onMenuClosed);
     m_menuDestroyedConnection = connect(menu, &QObject::destroyed, this, &PDFMoreButton::onMenuClosed);
 
     QPointer<PDFMoreButton> guard(this);
@@ -2077,7 +2080,7 @@ PDFPageThumbnail::PDFPageThumbnail(Size size, QWidget* parent) :
     m_thumbnail.size = PDFComponentPainter::normalized(size);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     setGraphicsEffect(new PDFPageThumbnailShadowEffect(this));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 void PDFPageThumbnail::setThumbnailSize(Size size)

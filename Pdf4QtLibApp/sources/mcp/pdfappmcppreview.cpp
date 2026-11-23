@@ -24,6 +24,7 @@
 #include "pdfappmcpclientnames.h"
 #include "pdfappmcpconfirmdialog.h"
 #include "pdfappdocument.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
@@ -275,7 +276,7 @@ PDFAppMcpFloatingBar::PDFAppMcpFloatingBar(const QString& clientNameRaw, QWidget
     m_watchedParent = parent;
     if (parent)
     {
-        parent->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(parent, this, this);
     }
 }
 
@@ -491,8 +492,8 @@ PDFAppMcpNotificationBar::PDFAppMcpNotificationBar(const PDFAppMcpCommitInfo& in
     // The next change of the document (also Undo) closes the bar
     if (m_info.document)
     {
-        connect(m_info.document, &PDFAppDocument::documentChanged, this, &PDFAppMcpNotificationBar::onDocumentChanged);
-        connect(m_info.document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppMcpNotificationBar::updateUndoState);
+        PDFDeferredDeletion::connect(m_info.document.data(), &PDFAppDocument::documentChanged, this, &PDFAppMcpNotificationBar::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_info.document.data(), &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppMcpNotificationBar::updateUndoState);
     }
     updateTexts();
     updateUndoState();

@@ -171,13 +171,13 @@ PDFAppDocumentSidebar::PDFAppDocumentSidebar(PDFAppDocumentView* view, QWidget* 
     m_stack->setObjectName(QStringLiteral("sidebarPanels"));
     layout->addWidget(m_stack, 1);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentSidebar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentSidebar::update));
 
     PDFAppContext* context = view ? view->getContext() : nullptr;
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSidebar::onSettingChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentSidebar::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSidebar::onSettingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentSidebar::onEverythingChanged);
     }
 
     updateTabTexts();
@@ -233,9 +233,9 @@ void PDFAppDocumentSidebar::setDocument(PDFAppDocument* document)
     m_document = document;
     if (document)
     {
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSidebar::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSidebar::onDocumentContentChanged);
-        connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentSidebar::onDocumentContentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSidebar::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSidebar::onDocumentContentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentSidebar::onDocumentContentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppDocumentSidebar::onDocumentDestroyed);
     }
 
@@ -346,7 +346,9 @@ PDFAppDocumentPanel* PDFAppDocumentSidebar::createPanel(const QString& panelId)
     connect(panel, &PDFAppDocumentPanel::availabilityChanged, this, &PDFAppDocumentSidebar::onPanelAvailabilityChanged);
     connect(panel, &QObject::destroyed, this, &PDFAppDocumentSidebar::onPanelDestroyed);
     panel->setDocument(m_document, m_view);
-    if (!self || !panel)
+
+    // A slot of a signal of the panel (titleChanged) may close the tab: a retired sidebar (step A) builds nothing more
+    if (!self || !panel || PDFDeferredDeletion::isRetired(this))
     {
         return nullptr;
     }

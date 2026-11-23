@@ -39,6 +39,8 @@
 #include <memory>
 #include <vector>
 
+class QTimer;
+
 class QKeyEvent;
 
 namespace pdf
@@ -455,7 +457,6 @@ Q_SIGNALS:
 
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
-    virtual void timerEvent(QTimerEvent* event) override;
 
 private:
     /// Filter of the application installed while the popup is open: it reacts
@@ -494,7 +495,7 @@ private:
     PDFAppSearchEngine m_engine;
     std::unique_ptr<PDFAppSearchData> m_data;
     QDateTime m_now;
-    int m_timerId = 0;
+    QTimer* m_searchTimer = nullptr;    ///< The delay of the search (a child)
     int m_searchCount = 0;
     int m_dataLoadCount = 0;
     bool m_isApplicationFiltered = false;

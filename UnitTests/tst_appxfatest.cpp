@@ -601,12 +601,12 @@ void AppXfaTest::deletedWhileReading()
         QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::Loading);
         if (deleteWindow)
         {
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             QVERIFY(!fixture.window);
             QVERIFY(!tab);
             break;
         }
-        delete tab.data();
+        pdftest::AppDocumentFixture::deleteNow(tab.data());
         QTest::qWait(i * 20);
         fixture.settle();
     }

@@ -28,6 +28,7 @@
 #include "pdfappdocument.h"
 #include "pdfappmainwindow.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfreferencepointpicker.h"
 #include "pdfthemefonts.h"
@@ -155,15 +156,18 @@ PDFAppAnnotationGeometryDialog::PDFAppAnnotationGeometryDialog(PDFAppAnnotationC
     {
         // The tab (with its controller) deleted: the dialog closes
         connect(controller, &QObject::destroyed, this, &PDFAppAnnotationGeometryDialog::onControllerDestroyed);
+
+        // Parented to the window, the dialog belongs to the controller (it closes with the tab)
+        PDFDeferredDeletion::setOwner(this, controller);
     }
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
     }
     if (controller)
     {
-        connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationGeometryDialog::onDocumentChanged);
     }
 }
 

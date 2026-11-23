@@ -28,6 +28,7 @@
 #include "pdfappdocumentsave.h"
 #include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfmcpcatalog.h"
 #include "pdfmcpjson.h"
@@ -50,6 +51,13 @@ public:
 
     /// Number of the items, from which a change is a heavy job
     static constexpr int HEAVY_CHANGE_COUNT = 50;
+
+    /// The tab of the document was closed: the document is deleted, or retired with its tab (inert, deleted
+    /// later - a slot of the activation, of the question or of the commit may close the tab)
+    static bool isClosed(const PDFAppDocument* document)
+    {
+        return !document || PDFDeferredDeletion::isRetired(document);
+    }
 
     static QJsonArray pointsToJson(const QPolygonF& points)
     {
@@ -490,7 +498,7 @@ void PDFAppMcpChangeJob::finish(PDFAppMcpHost* host)
     }
 
     PDFAppDocument* document = m_context.document;
-    if (!document)
+    if (PDFAppMcpChangeHelper::isClosed(document))
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;
@@ -688,7 +696,7 @@ void PDFAppMcpChangeJob::proceed()
     }
 
     PDFAppDocument* document = m_context.document;
-    if (!document)
+    if (PDFAppMcpChangeHelper::isClosed(document))
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;
@@ -737,7 +745,7 @@ void PDFAppMcpChangeJob::commitChange()
 {
     PDFAppMcpHost* host = m_host;
     PDFAppDocument* document = m_context.document;
-    if (!host || !document || !m_change.modified)
+    if (!host || PDFAppMcpChangeHelper::isClosed(document) || !m_change.modified)
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;
@@ -756,7 +764,7 @@ void PDFAppMcpChangeJob::commitChange()
     // the host with its controller (UnitTestsAppMcpLifetime)
     document = m_context.document;
     host = m_host;
-    if (!host || !document)
+    if (!host || PDFAppMcpChangeHelper::isClosed(document))
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;

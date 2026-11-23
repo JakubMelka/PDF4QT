@@ -33,6 +33,7 @@
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolguiregistry.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentsizebreakdown.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -186,7 +187,7 @@ PDFAppSettingControl* PDFAppToolCompressCustomPanel::addControl(PDFAppSettingCon
     if (m_gui && m_gui->getModel())
     {
         // A change of the user, Undo and Redo
-        connect(m_gui->getModel(), &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+        PDFDeferredDeletion::connect(m_gui->getModel(), &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
     }
     return control;
 }
@@ -410,7 +411,7 @@ QWidget* PDFAppToolGUICompress::createOverlay(QWidget* canvasArea)
     m_overlay = new PDFAppToolBeforeAfterOverlay(pdfWidget, canvasArea);
     if (PDFDocumentToolShell* shell = getShell())
     {
-        connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUICompress::onShellStateChanged);
+        PDFDeferredDeletion::connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolGUICompress::onShellStateChanged);
     }
     updateOverlay();
     return m_overlay.data();

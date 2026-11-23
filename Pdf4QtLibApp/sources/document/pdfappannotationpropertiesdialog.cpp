@@ -35,6 +35,7 @@
 #include "pdfwidgetsnapshot.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
@@ -349,15 +350,18 @@ PDFAppAnnotationPropertiesDialog::PDFAppAnnotationPropertiesDialog(PDFAppAnnotat
     {
         // The tab (with its controller) deleted: the dialog closes
         connect(controller, &QObject::destroyed, this, &PDFAppAnnotationPropertiesDialog::onControllerDestroyed);
+
+        // Parented to the window, the dialog belongs to the controller (it closes with the tab)
+        PDFDeferredDeletion::setOwner(this, controller);
     }
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationPropertiesDialog::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationPropertiesDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationPropertiesDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationPropertiesDialog::onDocumentChanged);
     }
     if (controller)
     {
-        connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationPropertiesDialog::onEditingAllowedChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationPropertiesDialog::onEditingAllowedChanged);
     }
 }
 

@@ -442,6 +442,7 @@ private slots:
     void rightToLeft();
     void minimalWindow();
     void languageChange();
+    void leftPanelLeavesSplitterLater();
     void refusedWithoutDocument();
     void userChangesRefusedByTheModel();
     void markResultsOfWorkerRefused();
@@ -1913,11 +1914,11 @@ void AppToolViewTest::tabOrWindowDeleted()
 
     if (deleteWindow)
     {
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     }
     else
     {
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
     }
     fixture.settle();
 
@@ -2022,11 +2023,11 @@ void AppToolViewTest::deleteFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            pdftest::AppDocumentFixture::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
         }
     };
 
@@ -2290,12 +2291,136 @@ void AppToolViewTest::languageChange()
     QCOMPARE(statusBar->getMessage(), QStringLiteral("Ready"));
 }
 
+void AppToolViewTest::leftPanelLeavesSplitterLater()
+{
+    using H = AppToolViewTestHelper;
+
+    // QWidget::event sends LanguageChange to the children by a copied list of raw pointers, and QSplitter deletes the
+    // handle of a widget, which leaves it, at once (QSplitter::childEvent). A child of the splitter before the left
+    // panel ends the mode from its LanguageChange - as a panel of the sidebar, whose changeEvent emits a signal,
+    // whose slot closes the tool (the crash of the lifetime sweep parameters-{tab,page,shell}-1, step A): no child of
+    // the splitter may die before the loop reaches it.
+    class LeaveOnLanguageChange : public QObject
+    {
+    public:
+        LeaveOnLanguageChange(pdf::PDFAppDocumentView* view, QSplitter* splitter) :
+            QObject(splitter),
+            m_view(view),
+            m_splitter(splitter)
+        {
+
+        }
+
+        virtual bool event(QEvent* event) override
+        {
+            if (event->type() == QEvent::LanguageChange && m_view && m_view->isToolModeActive())
+            {
+                QList<QPointer<QObject>> children;
+                for (QObject* child : m_splitter->children())
+                {
+                    children << QPointer<QObject>(child);
+                }
+                m_view->leaveToolMode();
+                ++m_leaveCount;
+                for (const QPointer<QObject>& child : children)
+                {
+                    m_deletedCount += child ? 0 : 1;
+                }
+            }
+            return QObject::event(event);
+        }
+
+        int getLeaveCount() const { return m_leaveCount; }
+        int getDeletedCount() const { return m_deletedCount; }
+
+    private:
+        QPointer<pdf::PDFAppDocumentView> m_view;
+        QPointer<QSplitter> m_splitter;
+        int m_leaveCount = 0;
+        int m_deletedCount = 0;
+    };
+
+    class Translator : public QTranslator
+    {
+    public:
+        virtual QString translate(const char*, const char*, const char*, int) const override { return QString(); }
+        virtual bool isEmpty() const override { return false; }
+    };
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::open(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("a.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QSplitter* splitter = view->getSplitter();
+    QVERIFY(splitter);
+
+    // A direct leave: the left panel is hidden at once, the splitter keeps every child until the event loop runs
+    ToolTestParts parts;
+    QVERIFY(view->enterToolMode(parts.get()));
+    fixture.settle();
+    QCOMPARE(splitter->count(), 3);
+    QPointer<QSplitterHandle> leftHandle = splitter->handle(splitter->indexOf(parts.leftPanel));
+    QVERIFY(leftHandle);
+    QList<QPointer<QObject>> children;
+    for (QObject* child : splitter->children())
+    {
+        children << QPointer<QObject>(child);
+    }
+    view->leaveToolMode();
+    for (const QPointer<QObject>& child : children)
+    {
+        QVERIFY2(child, "leaving the tool mode deleted a child of the splitter synchronously");
+    }
+    QVERIFY(parts.leftPanel->isHidden());
+    QVERIFY(view->getSidebar()->isVisibleTo(view));
+
+    // From the event loop the part goes back to its owner and the splitter drops its handle (Qt deletes it)
+    fixture.settle();
+    QCOMPARE(parts.leftPanel->parentWidget(), parts.owner.get());
+    QVERIFY(parts.leftPanel->isHidden());
+    QVERIFY(!leftHandle);
+    QCOMPARE(splitter->count(), 2);
+
+    // Leave and enter again before the event loop: the part keeps its owner as the parent to go back to
+    QVERIFY(view->enterToolMode(parts.get()));
+    view->leaveToolMode();
+    QVERIFY(view->enterToolMode(parts.get()));
+    fixture.settle();
+    QCOMPARE(parts.leftPanel->parentWidget(), splitter);
+    QVERIFY(parts.leftPanel->isVisible());
+    QCOMPARE(splitter->count(), 3);
+    view->leaveToolMode();
+    fixture.settle();
+    QCOMPARE(parts.leftPanel->parentWidget(), parts.owner.get());
+    QCOMPARE(splitter->count(), 2);
+
+    // The leave from the LanguageChange of a child of the splitter, which Qt reaches before the handle of the left
+    // panel (the handle is created by the entry, after the trigger)
+    LeaveOnLanguageChange* trigger = new LeaveOnLanguageChange(view, splitter);
+    QVERIFY(view->enterToolMode(parts.get()));
+    fixture.settle();
+    QVERIFY(splitter->children().indexOf(trigger) < splitter->children().indexOf(splitter->handle(splitter->indexOf(parts.leftPanel))));
+    Translator translator;
+    QCoreApplication::installTranslator(&translator);
+    fixture.settle();
+    QCOMPARE(trigger->getLeaveCount(), 1);
+    QCOMPARE(trigger->getDeletedCount(), 0);
+    QVERIFY(!view->isToolModeActive());
+    QCOMPARE(parts.leftPanel->parentWidget(), parts.owner.get());
+    QCOMPARE(splitter->count(), 2);
+    QCoreApplication::removeTranslator(&translator);
+    fixture.settle();
+    delete trigger;
+}
+
 void AppToolViewTest::refusedWithoutDocument()
 {
     pdftest::AppDocumentFixture fixture;
 
-    // A view without a document has no mode
-    pdf::PDFAppDocumentView view(fixture.context.get());
+    // A view without a document has no mode (a standalone view, deleted at the end of the function on purpose - a
+    // deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> viewOwner(new pdf::PDFAppDocumentView(fixture.context.get()));
+    pdf::PDFAppDocumentView& view = *viewOwner;
     ToolTestParts parts;
     QVERIFY(!view.enterToolMode(parts.get()));
     QVERIFY(!view.isToolModeActive());
@@ -2305,8 +2430,9 @@ void AppToolViewTest::refusedWithoutDocument()
     QVERIFY(view.getToolMessage().isEmpty());
     view.leaveToolMode();
 
-    // A document, which is not shown yet (Loading)
-    pdf::PDFAppDocument document(fixture.context.get(), nullptr);
+    // A document, which is not shown yet (Loading; a standalone document, deleted at the end on purpose)
+    std::unique_ptr<pdf::PDFAppDocument, pdftest::AppDocumentFixture::DeleteNow> documentOwner(new pdf::PDFAppDocument(fixture.context.get(), nullptr));
+    pdf::PDFAppDocument& document = *documentOwner;
     view.setDocument(&document);
     QVERIFY(!view.enterToolMode(parts.get()));
     QVERIFY(document.isEditable() == false);
@@ -2455,7 +2581,7 @@ void AppToolViewTest::viewStateNotOfTheMode()
     QVERIFY(parts.leftPanel->isVisible());
 
     // The tab closed during the mode writes the layout of the user into Recent
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     const std::optional<pdf::PDFRecentFile> recent = fixture.context->getRecent().getFile(QFileInfo(file).canonicalFilePath());
     QVERIFY(recent.has_value());
@@ -2533,7 +2659,7 @@ void AppToolViewTest::viewDeletedFlagCleared()
     pdf::PDFAppDocument* document = tab->getDocument();
 
     // A view dying during the mode leaves no suspended document behind, whatever outlives it
-    auto view = std::make_unique<pdf::PDFAppDocumentView>(fixture.context.get());
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
     view->setDocument(document);
     ToolTestParts parts;
     QVERIFY(view->enterToolMode(parts.get(ToolTestParts::Target | ToolTestParts::RightPanel)));

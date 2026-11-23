@@ -467,6 +467,10 @@ public:
     void commitEditedText();
 
 protected:
+    /// Hook of PDFDeferredDeletion::retire: the job of the stream is canceled and the sample of a voice stops at
+    /// once (the edited text is written by the flushed commit timer)
+    virtual void retire() override;
+
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
     virtual void describeRightPanel(PDFAppToolPanelBuilder& builder) override;
     virtual void describeLeftPanel(PDFAppToolPanelBuilder& builder) override;

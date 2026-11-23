@@ -284,8 +284,8 @@ void PDFAppInterleaveToolGUI::connectList()
         // K41: the list takes two PDF files (the tab may come without the start page)
         const PDFAppToolInputRules rules = getInputRules();
         m_list->setAcceptedInputs(rules.maximum, rules.acceptsPdf, rules.acceptsImages, tr("Interleave needs PDF files"));
-        connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppInterleaveToolGUI::onListChanged);
-        connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppInterleaveToolGUI::onListInputChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppInterleaveToolGUI::onListChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppInterleaveToolGUI::onListInputChanged);
         connect(m_list.data(), &QObject::destroyed, this, &PDFAppInterleaveToolGUI::onListDestroyed);
     }
     initializeValues();

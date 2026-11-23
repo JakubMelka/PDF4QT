@@ -43,6 +43,7 @@
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_geometry.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdffluentwidgets.h"
@@ -153,7 +154,7 @@ public:
         setAttribute(Qt::WA_TransparentForMouseEvents, true);
         setFocusPolicy(Qt::NoFocus);
         row->installEventFilter(this);
-        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+        PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
         place();
         show();
     }
@@ -325,7 +326,7 @@ PDFAppToolMarginFields::PDFAppToolMarginFields(PDFDocumentToolGUI* gui, const QS
         }
 
         PDFAppSettingControl* control = new PDFAppSettingControl(gui->getContext(), *setting, this, model->createValueStore());
-        connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
         Row item;
         item.control = control;
         if (definition->getType() == PDFDocumentToolParameterType::Bool)
@@ -489,7 +490,7 @@ PDFAppToolAnchorPanel::PDFAppToolAnchorPanel(PDFAppDocumentView* view, PDFAppToo
     connect(m_grid.data(), &PDFAnchorGrid::anchorChosen, this, &PDFAppToolAnchorPanel::onAnchorChosen);
     if (model)
     {
-        connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolAnchorPanel::onParameterChanged);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolAnchorPanel::onParameterChanged);
     }
     refresh();
 }
@@ -579,7 +580,7 @@ PDFAppToolAnchorComboBox::PDFAppToolAnchorComboBox(PDFDocumentToolGUI* gui, cons
     connect(this, &QComboBox::activated, this, &PDFAppToolAnchorComboBox::onActivated);
     if (m_model)
     {
-        connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolAnchorComboBox::onParameterChanged);
+        PDFDeferredDeletion::connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFAppToolAnchorComboBox::onParameterChanged);
     }
     refresh();
 }
@@ -905,7 +906,7 @@ QWidget* PDFAppPageGeometryToolGUI::createCanvasPage(QWidget* parent)
     if (PDFDocumentToolShell* shell = getShell(); shell && !m_isShellConnected)
     {
         m_isShellConnected = true;
-        connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppPageGeometryToolGUI::onShellStateChangedSlot);
+        PDFDeferredDeletion::connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppPageGeometryToolGUI::onShellStateChangedSlot);
     }
 
     onCanvasCreated();

@@ -402,24 +402,25 @@ void PDFAppQtSpeechEngine::onSayingWord(const QString& word, qsizetype id, qsize
 
 PDFAppDocumentSpeechController::PDFAppDocumentSpeechController(PDFAppDocument* document, PDFAppDocumentView* view, PDFAppDocumentTextIndexer* indexer, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_document(document),
     m_view(view),
     m_indexer(indexer)
 {
     if (indexer)
     {
-        connect(indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppDocumentSpeechController::onIndexReady);
-        connect(indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppDocumentSpeechController::onIndexBuildingChanged);
+        PDFDeferredDeletion::connect(indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppDocumentSpeechController::onIndexReady);
+        PDFDeferredDeletion::connect(indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppDocumentSpeechController::onIndexBuildingChanged);
     }
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSpeechController::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSpeechController::onDocumentChanged);
     }
     if (PDFAppContext* context = getContext())
     {
         if (context->getNotifier())
         {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSpeechController::onSettingChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSpeechController::onSettingChanged);
         }
     }
 
@@ -428,6 +429,16 @@ PDFAppDocumentSpeechController::PDFAppDocumentSpeechController(PDFAppDocument* d
 
 PDFAppDocumentSpeechController::~PDFAppDocumentSpeechController()
 {
+    if (m_engine)
+    {
+        m_engine->disconnect(this);
+        m_engine->stop();
+    }
+}
+
+void PDFAppDocumentSpeechController::retire()
+{
+    // As the destructor, now: the engine reports nothing more to the controller (its state stays, nobody reads it)
     if (m_engine)
     {
         m_engine->disconnect(this);
@@ -1018,7 +1029,7 @@ PDFAppDocumentSpeechPanel::PDFAppDocumentSpeechPanel(QWidget* parent) :
     layout->addWidget(m_nowReadingCard);
     layout->addStretch(1);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentSpeechPanel::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentSpeechPanel::onThemeChanged);
 
     retranslate();
     updateControls();
@@ -1060,15 +1071,15 @@ void PDFAppDocumentSpeechPanel::setDocument(PDFAppDocument* document, PDFAppDocu
     m_controller = (handler && document) ? handler->getSpeechController(true) : nullptr;
     if (m_controller)
     {
-        connect(m_controller, &PDFAppDocumentSpeechController::stateChanged, this, &PDFAppDocumentSpeechPanel::updateControls);
-        connect(m_controller, &PDFAppDocumentSpeechController::textChanged, this, &PDFAppDocumentSpeechPanel::updateText);
-        connect(m_controller, &PDFAppDocumentSpeechController::voicesChanged, this, &PDFAppDocumentSpeechPanel::updateVoices);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppDocumentSpeechController::stateChanged, this, &PDFAppDocumentSpeechPanel::updateControls);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppDocumentSpeechController::textChanged, this, &PDFAppDocumentSpeechPanel::updateText);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppDocumentSpeechController::voicesChanged, this, &PDFAppDocumentSpeechPanel::updateVoices);
     }
 
     PDFAppContext* context = document ? document->getContext() : nullptr;
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSpeechPanel::onSettingChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentSpeechPanel::onSettingChanged, Qt::UniqueConnection);
     }
 
     updateVoices();

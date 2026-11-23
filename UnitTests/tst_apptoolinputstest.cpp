@@ -1030,7 +1030,7 @@ void AppToolInputsTest::passwordDialogRemoveAndLifetime()
     QTest::keyClicks(dialog->getPasswordField(), AppDocumentSamples::getUserPassword());
     QTest::mouseClick(dialog->getUnlockButton(), Qt::LeftButton);
     QVERIFY(dialog->isBusy());
-    delete list;
+    AppDocumentFixture::deleteNow(list);
     AppDocumentFixture::settle();
     QVERIFY(!dialog);
 
@@ -1040,7 +1040,7 @@ void AppToolInputsTest::passwordDialogRemoveAndLifetime()
     QVERIFY(AppToolInputsHelper::waitForState(&list2, id2, PDFAppToolInputState::PasswordRequired));
     dialog = pdf::PDFAppPasswordDialog::openDialog(&list2, id2, fixture.window);
     QVERIFY(dialog);
-    delete fixture.window.data();
+    AppDocumentFixture::deleteNow(fixture.window.data());
     AppDocumentFixture::settle();
     QVERIFY(!dialog);
     QCOMPARE(list2.findInput(id2)->state, PDFAppToolInputState::PasswordRequired);
@@ -1304,7 +1304,7 @@ void AppToolInputsTest::startPageMultiple()
 
     // The page deleted with a reading running
     page->getInputChooser()->addFiles({ AppDocumentSamples::large(fixture.folder(), 200) });
-    delete page;
+    AppDocumentFixture::deleteNow(page);
     AppDocumentFixture::settle();
     QVERIFY(!list);
 }

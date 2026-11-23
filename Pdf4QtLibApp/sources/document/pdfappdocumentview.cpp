@@ -241,7 +241,7 @@ public:
 PDFAppDocumentSplitterHandle::PDFAppDocumentSplitterHandle(Qt::Orientation orientation, QSplitter* parent) :
     BaseClass(orientation, parent)
 {
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentSplitterHandle::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentSplitterHandle::update));
 }
 
 PDFAppDocumentSplitterHandle::~PDFAppDocumentSplitterHandle() = default;
@@ -308,6 +308,7 @@ void PDFAppDocumentSplitter::paintEvent(QPaintEvent* event)
 
 PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_context(context)
 {
     setObjectName(QStringLiteral("documentView"));
@@ -378,7 +379,7 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     m_annotationController = new PDFAppAnnotationController(this);
     m_formController = new PDFAppFormController(this);
     m_outlineEditor = new PDFAppOutlineEditor(this, this);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentView::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentView::onThemeChanged);
 
     m_statusBar = m_modeLayout->createStatusBar(layout);
     connect(m_statusBar, &PDFAppDocumentStatusBar::pageItemClicked, this, &PDFAppDocumentView::openGoToPage);
@@ -396,8 +397,8 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
 
     if (m_context && m_context->getNotifier())
     {
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentView::onDatabaseChanged);
-        connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentView::onEverythingChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentView::onDatabaseChanged);
+        PDFDeferredDeletion::connect(m_context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentView::onEverythingChanged);
     }
 
     m_isSidebarVisible = m_context ? m_context->getSettings().getBool(PDFSettingKeys::viewingShowSidebar()) : true;
@@ -465,6 +466,7 @@ PDFAppDocumentView::~PDFAppDocumentView()
     {
         m_document->disconnect(this);
     }
+    QObject::disconnect(m_documentRetiredConnection);
     if (m_tab)
     {
         m_tab->disconnect(this);
@@ -556,7 +558,7 @@ void PDFAppDocumentView::connectTab()
     m_tab = tab;
     if (tab)
     {
-        connect(tab, &PDFAppTab::commandStatesChanged, this, &PDFAppDocumentView::onTabCommandStatesChanged);
+        PDFDeferredDeletion::connect(tab, &PDFAppTab::commandStatesChanged, this, &PDFAppDocumentView::onTabCommandStatesChanged);
     }
 }
 
@@ -584,17 +586,22 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
     {
         m_document->disconnect(this);
     }
+    QObject::disconnect(m_documentRetiredConnection);
 
     m_document = document;
     m_isDefaultViewApplied = false;
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentView::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentView::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentView::onDocumentLockChanged);
-        connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentView::onSignatureResultsChanged);
-        connect(document, &PDFAppDocument::aboutToBeDestroyed, this, &PDFAppDocumentView::onDocumentAboutToBeDestroyed);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentView::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentView::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentView::onDocumentLockChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentView::onSignatureResultsChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::aboutToBeDestroyed, this, &PDFAppDocumentView::onDocumentAboutToBeDestroyed);
         connect(document, &QObject::destroyed, this, &PDFAppDocumentView::onDocumentDestroyed);
+
+        // The end of the document by retire (step A, lesson 1): retire cuts the signals of the document, so its
+        // destructor's aboutToBeDestroyed would reach nobody; the notifier says it while the document is whole
+        m_documentRetiredConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDocumentView::onDocumentRetired);
     }
 
     if (m_sidebar)
@@ -824,6 +831,15 @@ void PDFAppDocumentView::onSignatureResultsChanged()
     }
 }
 
+void PDFAppDocumentView::retire()
+{
+    // Nothing of the view itself is outside its subtree: the full screen of the window ends by the hide of retire
+    // (hideEvent, step 7), the search, the speech, the signatures, the print, the auto refresh and the actions end
+    // in the hooks of their own classes (parts of the command handlers of the tab), the dialogs and popups of the
+    // window go with their requesters (setOwner), the parts of a tool with the tool shell. The state of the canvas
+    // stays as it is: the tab writes the reading position after the hooks.
+}
+
 void PDFAppDocumentView::onDocumentAboutToBeDestroyed()
 {
     // The document is still whole: the page compilers stop reading its PDF document
@@ -831,7 +847,20 @@ void PDFAppDocumentView::onDocumentAboutToBeDestroyed()
     {
         m_document->disconnect(this);
     }
+    QObject::disconnect(m_documentRetiredConnection);
     onDocumentDestroyed();
+}
+
+void PDFAppDocumentView::onDocumentRetired()
+{
+    // A view retired with the document (its tab) keeps its state for the end of the tab (the reading position is
+    // written after the hooks); a view which stays forgets the document now, while it is still whole. The fallback
+    // emission from the destructor of the document never comes here (aboutToBeDestroyed has cut it).
+    if (!m_document || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    onDocumentAboutToBeDestroyed();
 }
 
 void PDFAppDocumentView::onDocumentDestroyed()
@@ -1933,13 +1962,20 @@ void PDFAppDocumentView::installToolParts(const PDFAppToolModeParts& parts)
     m_toolUndoTarget = parts.undoTarget;
     if (parts.undoTarget)
     {
-        connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppDocumentView::onToolUndoStateChanged);
+        // The target belongs to the tool shell (outside the view)
+        PDFDeferredDeletion::connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppDocumentView::onToolUndoStateChanged);
         connect(parts.undoTarget, &QObject::destroyed, this, &PDFAppDocumentView::onToolPartDestroyed);
     }
 
     if (m_modeLayout)
     {
         m_modeLayout->installParts(parts);
+    }
+
+    // A shown part emits viewChanged of this view: a slot may close its tab - a retired view has given the parts back
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
     }
     if (m_statusBar)
     {

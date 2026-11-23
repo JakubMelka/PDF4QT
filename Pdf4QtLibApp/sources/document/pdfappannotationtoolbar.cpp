@@ -29,6 +29,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -86,7 +87,7 @@ PDFAppFloatingBarIcon::PDFAppFloatingBarIcon(const QString& iconName, int extent
 {
     setFixedSize(m_extent, m_extent);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarIcon::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarIcon::update));
 }
 
 PDFAppFloatingBarIcon::~PDFAppFloatingBarIcon() = default;
@@ -122,7 +123,7 @@ PDFAppStepBadge::PDFAppStepBadge(QWidget* parent) :
     setObjectName(QStringLiteral("stepBadge"));
     setFocusPolicy(Qt::NoFocus);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStepBadge::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStepBadge::update));
 }
 
 PDFAppStepBadge::~PDFAppStepBadge() = default;

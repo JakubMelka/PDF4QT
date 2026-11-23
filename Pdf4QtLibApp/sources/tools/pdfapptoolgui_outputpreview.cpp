@@ -41,6 +41,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -326,7 +327,7 @@ PDFAppOutputPreviewLimitRows::PDFAppOutputPreviewLimitRows(QWidget* parent) :
 {
     setObjectName(QStringLiteral("outputPreviewLimitRows"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppOutputPreviewLimitRows::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppOutputPreviewLimitRows::update));
 }
 
 PDFAppOutputPreviewLimitRows::~PDFAppOutputPreviewLimitRows() = default;
@@ -537,6 +538,8 @@ void PDFAppPaperColorField::onCustomClicked()
 
     // A popup is new + QPointer, never on the stack, and never exec (CLAUDE.md)
     PDFColorPickerDialog* dialog = new PDFColorPickerDialog(m_color, window());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &PDFColorPickerDialog::colorSelected, this, &PDFAppPaperColorField::onDialogColorSelected);
     m_dialog = dialog;
@@ -867,7 +870,7 @@ QWidget* PDFAppToolGUIOutputPreview::createCanvasPage(QWidget* parent)
     PDFAppDocumentView* view = getView();
     if (view && m_connectedView != view)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIOutputPreview::onDisplayedPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIOutputPreview::onDisplayedPageChanged);
         m_connectedView = view;
     }
 

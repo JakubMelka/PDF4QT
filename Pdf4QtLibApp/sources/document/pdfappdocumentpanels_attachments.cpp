@@ -32,6 +32,7 @@
 
 #include "pdfannotation.h"
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
@@ -702,7 +703,7 @@ void PDFAppAttachmentsPanel::setDocument(PDFAppDocument* document, PDFAppDocumen
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAttachmentsPanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAttachmentsPanel::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppAttachmentsPanel::onDocumentDestroyed);
     }
     m_connectedDocument = document;
@@ -774,6 +775,7 @@ void PDFAppAttachmentsPanel::openUnlockDialog()
 
     // A popup: new + QPointer, deleted on close (CLAUDE.md); it waits for the reading itself
     PDFAppAttachmentsPasswordDialog* dialog = new PDFAppAttachmentsPasswordDialog(document, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose, true);
     dialog->setWindowModality(Qt::WindowModal);
     m_unlockDialog = dialog;
@@ -1167,6 +1169,7 @@ bool PDFAppAttachmentsPanel::eventFilter(QObject* watched, QEvent* event)
 void PDFAppAttachmentsPanel::showError(const QString& title, const QString& text)
 {
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, title, text, QDialogButtonBox::Ok, window());
+    PDFDeferredDeletion::setOwner(box, this);
     PDFAppPanelWidgets::prepareMessageBox(box, this, QStringLiteral("attachmentErrorBox"));
     box->open();
 }

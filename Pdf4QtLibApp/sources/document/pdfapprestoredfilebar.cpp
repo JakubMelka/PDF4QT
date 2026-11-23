@@ -25,6 +25,8 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QEvent>
 
 namespace pdf
@@ -37,17 +39,17 @@ PDFAppRestoredFileBar::PDFAppRestoredFileBar(PDFAppDocumentTab* tab, QObject* pa
 {
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppRestoredFileBar::updateBar);
-        connect(m_document.data(), &PDFAppDocument::originalDataChanged, this, &PDFAppRestoredFileBar::updateBar);
-        connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppRestoredFileBar::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppRestoredFileBar::updateBar);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::originalDataChanged, this, &PDFAppRestoredFileBar::updateBar);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppRestoredFileBar::onDocumentChanged);
     }
 
     if (m_view)
     {
-        connect(m_view.data(), &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppRestoredFileBar::onInfoBarActionTriggered);
+        PDFDeferredDeletion::connect(m_view.data(), &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppRestoredFileBar::onInfoBarActionTriggered);
 
         // The texts of the bar in a new language
-        m_view->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_view.data(), this);
     }
 
     updateBar();

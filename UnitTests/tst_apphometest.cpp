@@ -36,6 +36,7 @@
 // PDF4QT_APP_SCREENSHOTS=<folder> writes pictures of the pages.
 
 #include "appasyncdialogs.h"
+#include "appdocumentfixture.h"
 #include "applocaleguard.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
@@ -149,8 +150,7 @@ public:
 
     ~HomeFixture()
     {
-        delete window.data();
-        settle();
+        deletionCheck.closeWindow(window.data());
         context.reset();
         pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
         QApplication::setLayoutDirection(Qt::LeftToRight);
@@ -301,6 +301,8 @@ public:
     pdf::PDFRecentRepository recent() const { return context->getRecent(); }
     pdf::PDFWorkspaceRepository workspaces() const { return context->getWorkspaces(); }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
     QTemporaryDir directory;
@@ -735,13 +737,13 @@ void AppHomeTest::routes()
     const pdf::PDFAppRoute parsed = pdf::PDFAppRoute::parse(route);
     if (pageClass == QLatin1String("pdf::PDFAppRecentPage"))
     {
-        pdf::PDFAppRecentPage recent(fixture.context.get());
-        QVERIFY(recent.setRoute(parsed));
+        std::unique_ptr<pdf::PDFAppRecentPage, pdftest::AppDocumentFixture::DeleteNow> recent(new pdf::PDFAppRecentPage(fixture.context.get()));
+        QVERIFY(recent->setRoute(parsed));
     }
     if (pageClass == QLatin1String("pdf::PDFAppOpenPage"))
     {
-        pdf::PDFAppOpenPage open(fixture.context.get());
-        QVERIFY(open.setRoute(parsed));
+        std::unique_ptr<pdf::PDFAppOpenPage, pdftest::AppDocumentFixture::DeleteNow> open(new pdf::PDFAppOpenPage(fixture.context.get()));
+        QVERIFY(open->setRoute(parsed));
     }
 }
 
@@ -1930,7 +1932,7 @@ void AppHomeTest::recentPortableBanner()
 
     // The page holding the banner is destroyed: the banner goes back above the page
     QPointer<pdf::PDFAppStorageBanner> bannerGuard(banner);
-    delete fixture.currentPage();
+    pdftest::AppDocumentFixture::deleteNow(fixture.currentPage());
     HomeFixture::settle();
     QVERIFY(bannerGuard);
     QCOMPARE(bannerGuard->parentWidget(), fixture.homeTab()->findChild<QWidget*>(QStringLiteral("pageArea")));
@@ -1939,7 +1941,7 @@ void AppHomeTest::recentPortableBanner()
     // A new page takes it again; the window is deleted with the banner in a page
     fixture.navigate(QStringLiteral("/open"));
     QVERIFY(fixture.page<pdf::PDFAppOpenPage>()->isAncestorOf(bannerGuard));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     QVERIFY(!bannerGuard);
 }
@@ -2978,7 +2980,7 @@ void AppHomeTest::browseFiles()
     fixture.navigate(QStringLiteral("/open"));
     pdf::PDFAppFileDialogs::setOpenFilesHandler([&](QWidget*, const QString&)
     {
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         return QStringList({ sample.presentation });
     });
     fixture.page<pdf::PDFAppOpenPage>()->browseFiles();
@@ -3623,7 +3625,7 @@ void AppHomeTest::thumbnailAfterDeletion()
 
     // The window goes with a pending request of the thumbnailer and of the folder information
     fixture.navigate(QStringLiteral("/recent"));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     fixture.waitIdle(100);
 }
@@ -4300,7 +4302,7 @@ void AppHomeTest::deleteWithOpenMenu()
     menu = page->getFolderCards()[0]->getMenu();
     page->getFolderCards()[0]->getMenuButton()->click();
     HomeFixture::settle();
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     QVERIFY(!menu);
 }
@@ -4355,7 +4357,7 @@ void AppHomeTest::deleteWithOpenDialog()
     page = fixture.page<pdf::PDFAppOpenPage>();
     page->showRenameWorkspaceDialog(sample.thesisId);
     dialog = page->getDialog();
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     QVERIFY(!dialog);
 }
@@ -4430,7 +4432,7 @@ void AppHomeTest::deleteWithNativeDialog()
     fixture.navigate(QStringLiteral("/open"));
     pdf::PDFAppFileDialogs::setOpenFilesHandler([&](QWidget*, const QString&)
     {
-        fixture.window->deleteLater();
+        pdftest::AppDocumentFixture::deleteLater(fixture.window.data());
         HomeFixture::settle();
         return QStringList({ sample.presentation });
     });
@@ -4487,14 +4489,18 @@ void AppHomeTest::deleteWindow()
     Q_EMIT fixture.context->getNotifier()->changed(pdf::PDFRecentRepository::getFileTopic(), sample.invoice);
     QVERIFY(page->isRefreshPending());
     page->restoreViewState(QVariantMap({ { QStringLiteral("listScroll"), 30 } }));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     fixture.waitIdle(200);
 
-    // A page without a context (and without a window) does nothing
-    pdf::PDFAppHomePage home(nullptr);
-    pdf::PDFAppOpenPage open(nullptr);
-    pdf::PDFAppRecentPage recent(nullptr);
+    // A page without a context (and without a window) does nothing (standalone pages, deleted at the end on
+    // purpose - deliberate synchronous deletions)
+    std::unique_ptr<pdf::PDFAppHomePage, pdftest::AppDocumentFixture::DeleteNow> homeOwner(new pdf::PDFAppHomePage(nullptr));
+    std::unique_ptr<pdf::PDFAppOpenPage, pdftest::AppDocumentFixture::DeleteNow> openOwner(new pdf::PDFAppOpenPage(nullptr));
+    std::unique_ptr<pdf::PDFAppRecentPage, pdftest::AppDocumentFixture::DeleteNow> recentOwner(new pdf::PDFAppRecentPage(nullptr));
+    pdf::PDFAppHomePage& home = *homeOwner;
+    pdf::PDFAppOpenPage& open = *openOwner;
+    pdf::PDFAppRecentPage& recent = *recentOwner;
     home.refreshNow();
     open.refreshNow();
     recent.refreshNow();
@@ -4518,15 +4524,19 @@ void AppHomeTest::pageRoutesRefused()
 {
     HomeFixture fixture;
 
-    // The pages refuse a query or an anchor by themselves (created also by other means than the table)
-    pdf::PDFAppHomePage home(fixture.context.get());
+    // The pages refuse a query or an anchor by themselves (created also by other means than the table; standalone
+    // pages, deleted at the end on purpose - deliberate synchronous deletions)
+    std::unique_ptr<pdf::PDFAppHomePage, pdftest::AppDocumentFixture::DeleteNow> homeOwner(new pdf::PDFAppHomePage(fixture.context.get()));
+    pdf::PDFAppHomePage& home = *homeOwner;
     QVERIFY(home.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/home"))));
     QVERIFY(!home.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/home?x=1"))));
     QVERIFY(!home.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/home#a"))));
-    pdf::PDFAppOpenPage open(fixture.context.get());
+    std::unique_ptr<pdf::PDFAppOpenPage, pdftest::AppDocumentFixture::DeleteNow> openOwner(new pdf::PDFAppOpenPage(fixture.context.get()));
+    pdf::PDFAppOpenPage& open = *openOwner;
     QVERIFY(!open.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/open?x=1"))));
     QVERIFY(!open.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/open#a"))));
-    pdf::PDFAppRecentPage recent(fixture.context.get());
+    std::unique_ptr<pdf::PDFAppRecentPage, pdftest::AppDocumentFixture::DeleteNow> recentOwner(new pdf::PDFAppRecentPage(fixture.context.get()));
+    pdf::PDFAppRecentPage& recent = *recentOwner;
     QVERIFY(!recent.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/recent?filter=bogus"))));
     QVERIFY(!recent.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/recent?sort=bogus"))));
     QVERIFY(!recent.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/recent#a"))));
@@ -4918,7 +4928,9 @@ void AppHomeTest::thumbnailCacheLru()
         }
     }
 
-    ThumbnailTestPage page(fixture.context.get());
+    // A standalone page of the test, deleted at the end on purpose (a deliberate synchronous deletion)
+    std::unique_ptr<ThumbnailTestPage, pdftest::AppDocumentFixture::DeleteNow> pageOwner(new ThumbnailTestPage(fixture.context.get()));
+    ThumbnailTestPage& page = *pageOwner;
     auto file = [&](int i) { return *fixture.recent().getFile(QStringLiteral("/lru/%1.pdf").arg(i)); };
     const pdf::PDFRecentFile first = file(0);
     const QPixmap firstPixmap = page.getThumbnail(first);
@@ -5271,7 +5283,7 @@ void AppHomeTest::recentTimesFollowClock()
              QStringLiteral("Yesterday 10:24"));
 
     // The window gone: no subscription is left, the ticker stops
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     HomeFixture::settle();
     QCOMPARE(ticker->getSubscriptionCount(), 0);
     QTRY_VERIFY(!ticker->isRunning());
@@ -5294,7 +5306,7 @@ void AppHomeTest::recentTimesDeletion()
         QPointer<pdf::PDFAppHomePage> page = home;
         if (variant == 0)
         {
-            QObject::connect(home->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, home, [window]() { delete window.data(); });
+            QObject::connect(home->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, home, [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         }
         else
         {

@@ -57,6 +57,7 @@
 #include "pdfappmcptoolset.h"
 #include "pdfbookmarkrepository.h"
 #include "pdfdatabase.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdatabasestatement.h"
 
 #include "pdfdocumentbuilder.h"
@@ -895,7 +896,7 @@ public:
         QVERIFY(other);
         pdf::PDFAppDocumentSearchCommandHandler* handler = pdf::PDFAppDocumentSearchCommandHandler::findHandler(other);
         QVERIFY(handler && handler->getIndexer());
-        delete handler->getIndexer();
+        pdftest::AppDocumentFixture::deleteNow(handler->getIndexer());
         QVERIFY(!pdf::PDFAppMcpTextService::findIndexer(fixture.host(), other->getDocument()));
         const Result third = call_(fixture, other->getDocument()->getId());
         QVERIFY2(isSuccess(third), qPrintable(describe(third)));
@@ -2779,7 +2780,7 @@ public:
             const QString id = tab->getDocument()->getId();
             std::shared_ptr<pdf::PDFMcpCall> search = fixture.startCall(QStringLiteral("text"), json(args(QStringLiteral("search"), id, QStringLiteral(R"({"query":"dog"})"))));
             std::shared_ptr<pdf::PDFMcpCall> render = fixture.startCall(QStringLiteral("render"), json(args(QStringLiteral("overview"), id, QStringLiteral(R"({"pages":"1-24"})"))));
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             QVERIFY(pdftest::AppMcpFixture::waitResult(search, 60000));
             fixture.controller()->shutdown();
             QVERIFY(pdftest::AppMcpFixture::waitResult(render, 60000));
@@ -2818,16 +2819,105 @@ public:
                 calls.push_back(fixture.startCall(QStringLiteral("application"), json(QStringLiteral(R"({"action":"get_state"})"))));
                 calls.push_back(fixture.startCall(QStringLiteral("document"), json(args(QStringLiteral("get_info"), id))));
             });
-            QObject::connect(tab->getDocument(), &pdf::PDFAppDocument::aboutToBeDestroyed, &context, [&]()
+            // The end of the document: aboutToBeDestroyed of its destructor, or aboutToBeDeleted, when its
+            // tab is retired (step A cuts the signals of a retired subtree, the destructor's signal reaches
+            // nobody then) - one search from whichever comes first
+            bool isSearchStarted = false;
+            auto startSearch = [&]()
             {
-                calls.push_back(fixture.startCall(QStringLiteral("text"), json(args(QStringLiteral("search"), id, QStringLiteral(R"({"query":"alpha"})")))));
-            });
+                if (!isSearchStarted)
+                {
+                    isSearchStarted = true;
+                    calls.push_back(fixture.startCall(QStringLiteral("text"), json(args(QStringLiteral("search"), id, QStringLiteral(R"({"query":"alpha"})")))));
+                }
+            };
+            QObject::connect(tab->getDocument(), &pdf::PDFAppDocument::aboutToBeDestroyed, &context, startSearch);
+            QObject::connect(pdf::PDFDeferredDeletion::getNotifier(tab->getDocument()), &pdf::PDFLifetimeNotifier::aboutToBeDeleted, &context, startSearch);
             QVERIFY(fixture.window->closeTab(tab));
             QTRY_VERIFY(calls.size() >= 3);
             for (const std::shared_ptr<pdf::PDFMcpCall>& started : calls)
             {
                 QVERIFY(pdftest::AppMcpFixture::waitResult(started, 30000));
             }
+        }
+    }
+
+    static void retiredTabEndsWaiters()
+    {
+        // Step A, lesson 1: a closed tab is retired (PDFDeferredDeletion::retire), its signals reach
+        // nobody from that moment and it is deleted only later by the event loop. The waiters of MCP end
+        // at the retire (aboutToBeDeleted), while the objects still exist - not at their deletion, and
+        // not by a timeout. The answers are those of a closed tab (newapp_mcp.md: files.open of a file,
+        // which cannot be read, answers "state failed"; a search of a closed document is a tool error).
+
+        // files.open of an encrypted document waits for the password typed in PDF4QT (2 minutes); its tab
+        // is retired meanwhile: the call ends at the retire as for a closed tab, not by the timeout
+        {
+            pdftest::AppMcpFixture fixture;
+            QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+            const QString path = pdftest::AppDocumentSamples::userPassword(fixture.folder());
+            QJsonObject arguments;
+            arguments.insert(QStringLiteral("action"), QStringLiteral("open"));
+            arguments.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), path } }));
+            std::shared_ptr<pdf::PDFMcpCall> open = fixture.startCall(QStringLiteral("files"), arguments);
+
+            pdf::PDFAppDocumentTab* tab = nullptr;
+            QTRY_VERIFY_WITH_TIMEOUT((tab = fixture.currentDocumentTab()) && tab->getDocument() &&
+                                     tab->getDocument()->getState() == pdf::PDFAppDocumentState::PasswordRequired, 20000 * fixture.getTimeoutFactor());
+            QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+            pdftest::AppDocumentFixture::settle();
+            QVERIFY(!open->isFinished());
+
+            // The real close of the window (RB-M6): the tab is retired at once
+            QVERIFY(fixture.retire(tab));
+            QVERIFY(pdf::PDFDeferredDeletion::isRetired(document));
+            QElapsedTimer timer;
+            timer.start();
+            while (!open->isFinished() && timer.elapsed() < 10000 * fixture.getTimeoutFactor())
+            {
+                // Only posted events: the deferred deletion of the tab is not sent at the loop level 0
+                QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 10);
+            }
+            QVERIFY(open->isFinished());
+            QVERIFY(document);
+            const Result result = open->getResult();
+            QVERIFY2(isToolError(result), qPrintable(describe(result)));
+            QVERIFY2(result->getFirstText().contains(QStringLiteral("the tab was closed")), qPrintable(describe(result)));
+            pdftest::AppDocumentFixture::settle();
+            QVERIFY(!document);
+        }
+
+        // text.search waiting for the index of a large document, whose tab is retired: the call ends
+        // before the tab is deleted
+        {
+            pdftest::AppMcpFixture fixture;
+            QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+            pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::large(fixture.folder(), 400));
+            QVERIFY(tab);
+            QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+            const QString id = document->getId();
+            std::shared_ptr<pdf::PDFMcpCall> search = fixture.startCall(QStringLiteral("text"), json(args(QStringLiteral("search"), id, QStringLiteral(R"({"query":"dog"})"))));
+            QVERIFY(!search->isFinished());
+            QVERIFY(fixture.host()->findChild<pdf::PDFAppMcpTextIndexWaiter*>());
+
+            // The real close of the window (RB-M6): the tab is retired at once
+            QVERIFY(fixture.retire(tab));
+            QVERIFY(pdf::PDFDeferredDeletion::isRetired(document));
+            QVERIFY(document);
+            QElapsedTimer timer;
+            timer.start();
+            while (!search->isFinished() && timer.elapsed() < 10000 * fixture.getTimeoutFactor())
+            {
+                // Only posted events: the deferred deletion of the tab is not sent at the loop level 0
+                QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 10);
+            }
+            QVERIFY(search->isFinished());
+            QVERIFY(document);
+            const Result result = search->getResult();
+            QVERIFY2(isToolError(result), qPrintable(describe(result)));
+            QVERIFY2(result->getFirstText().contains(QStringLiteral("closed")), qPrintable(describe(result)));
+            pdftest::AppDocumentFixture::settle();
+            QVERIFY(!document);
         }
     }
 

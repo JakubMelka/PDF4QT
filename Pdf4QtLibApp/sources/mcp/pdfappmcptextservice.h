@@ -146,7 +146,8 @@ private:
 /// Waits for the text index of a document (the indexer of its tab), reports
 /// the progress of its build and starts the job, when it is ready. It ends with
 /// the call (canceled: PDFAppMcpHost::callCancelReceived), the document or the
-/// indexer (their destroyed only forgets them, the call ends from the event loop).
+/// indexer (their aboutToBeDeleted - a retired tab - or destroyed only forgets them, the
+/// call ends from the event loop).
 /// A child of the host; nothing is asked in intervals.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpTextIndexWaiter : public QObject
 {

@@ -48,6 +48,7 @@
 #include "pdfcertificatemanager.h"
 #include "pdfcertificatestore.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_encryption.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdffluentwidgets.h"
@@ -632,8 +633,8 @@ void PDFAppToolGUICertificates::describeToolbar(PDFAppToolPanelBuilder& builder)
         reloadSystemTrusted();
         if (PDFDatabaseNotifier* notifier = getContext() ? getContext()->getNotifier() : nullptr)
         {
-            connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppToolGUICertificates::onDatabaseChanged, Qt::UniqueConnection);
-            connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolGUICertificates::onEverythingChanged, Qt::UniqueConnection);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppToolGUICertificates::onDatabaseChanged, Qt::UniqueConnection);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppToolGUICertificates::onEverythingChanged, Qt::UniqueConnection);
         }
     }
 
@@ -1460,6 +1461,8 @@ void PDFAppToolGUICertificates::openCreateDialog()
 
     // new + QPointer: the dialog deletes itself, when it closes
     PDFAppCertificateCreateDialog* dialog = new PDFAppCertificateCreateDialog(getContext(), getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_createDialog = dialog;
     connect(dialog, &PDFAppCertificateCreateDialog::certificateCreated, this, &PDFAppToolGUICertificates::onCertificateCreated);
     dialog->open();
@@ -1498,6 +1501,8 @@ void PDFAppToolGUICertificates::onImportFileChosen(const QString& filePath)
     }
 
     PDFAppCertificateImportDialog* dialog = new PDFAppCertificateImportDialog(getContext(), filePath, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     m_importDialog = dialog;
     connect(dialog, &PDFAppCertificateImportDialog::certificateImported, this, &PDFAppToolGUICertificates::onCertificateImported);
 
@@ -1520,6 +1525,8 @@ void PDFAppToolGUICertificates::openDeleteDialog()
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Critical, tr("Delete certificate “%1”?").arg(Helper::getName(*item)),
                                               tr("The file %1 is deleted from your certificate folder. Documents encrypted for this certificate can no longer be opened with it. This cannot be undone.").arg(fileName),
                                               QDialogButtonBox::NoButton, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("certificatesDeleteDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     PDFAppMainWindow::prepareDialog(dialog, getDialogParent());
@@ -1657,6 +1664,8 @@ void PDFAppToolGUICertificates::openRemoveTrustedDialog()
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("Stop trusting “%1”?").arg(name),
                                               tr("Signatures made with certificates issued by it will no longer be shown as valid. You can add it again later."),
                                               QDialogButtonBox::NoButton, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("certificatesRemoveTrustedDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     PDFAppMainWindow::prepareDialog(dialog, getDialogParent());
@@ -1687,6 +1696,8 @@ void PDFAppToolGUICertificates::showAddTrustedProblem(const QString& title, cons
 
     // 2.6: as the collision of the import 436:11538 - Cancel, Choose Another File… (Primary)
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, title, text, QDialogButtonBox::NoButton, getDialogParent());
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("certificatesAddTrustedDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setCardWidth(480);

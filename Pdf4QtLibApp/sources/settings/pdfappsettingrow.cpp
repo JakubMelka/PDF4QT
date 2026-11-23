@@ -30,6 +30,8 @@
 #include "pdfdocumenttoolsearch.h"
 #include "pdfpainterutils.h"
 
+#include "pdfappinfowidgets.h"
+
 #include "pdfcomponentbuttons.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
@@ -105,6 +107,8 @@ void PDFAppSettingRow::init(const QString& title, const QString& description, co
     setObjectName(QStringLiteral("row-%1").arg(m_anchor));
     setMinimumHeight(MINIMUM_HEIGHT);
 
+    // A member, made a child: retire (step A) stops it with the row
+    m_highlightTimer.setParent(this);
     m_highlightTimer.setSingleShot(true);
     m_highlightTimer.setInterval(HIGHLIGHT_DURATION);
     connect(&m_highlightTimer, &QTimer::timeout, this, &PDFAppSettingRow::onHighlightTimeout);
@@ -166,9 +170,10 @@ void PDFAppSettingRow::setControlWidget(QWidget* widget)
     }
 
     // A previous widget of a custom row goes (the widget of the binder stays its own)
+    // (retired, step A, A2: its slot may be on the stack; it leaves the row now, deleted later)
     if (m_controlWidget && (!m_control || m_controlWidget.data() != m_control->getWidget()))
     {
-        delete m_controlWidget.data();
+        PDFAppPageRebuild::retireWidget(m_controlWidget.data());
     }
 
     m_controlWidget = widget;
@@ -188,8 +193,9 @@ void PDFAppSettingRow::setBlockWidget(QWidget* widget, const QMargins& margins)
     }
 
     // A previous block widget goes; the texts and the control wrap are hidden (the
-    // texts stay for the search)
-    delete m_blockWidget.data();
+    // texts stay for the search); it is retired (step A, A2): it leaves the row now
+    // and is deleted later
+    PDFAppPageRebuild::retireWidget(m_blockWidget.data());
     m_blockWidget = widget;
     if (m_textColumn)
     {

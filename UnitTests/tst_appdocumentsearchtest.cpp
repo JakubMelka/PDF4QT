@@ -37,6 +37,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfapphomewidgets.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfappnavigator.h"
 #include "pdfappviewstate.h"
 #include "pdfdatabasestatement.h"
@@ -226,6 +227,7 @@ private slots:
     void closeTabDuringIndexing();
     void closeTabDuringSearch();
     void deleteWindowDuringSearch();
+    void searchCanceledOnRetire();
     void deleteFromOwnSignals_data();
     void deleteFromOwnSignals();
     void closeSearch();
@@ -254,6 +256,7 @@ private slots:
     void speechCommand();
     void speechError();
     void speechLifetime();
+    void speechStopsOnRetire();
     void qtSpeechEngine();
 
     void reviewNewQueryDropsResults();
@@ -975,7 +978,7 @@ void AppDocumentSearchTest::closeTabDuringIndexing()
     // The tab goes at once, the worker ends by itself
     QElapsedTimer timer;
     timer.start();
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     // valgrind runs the threads one after another: the worker delays the GUI thread
     QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000 * getTimeoutFactor()), qPrintable(QString::number(timer.elapsed())));
@@ -1006,7 +1009,7 @@ void AppDocumentSearchTest::closeTabDuringSearch()
 
     QElapsedTimer timer;
     timer.start();
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     // valgrind runs the threads one after another: the worker delays the GUI thread
     QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000 * getTimeoutFactor()), qPrintable(QString::number(timer.elapsed())));
@@ -1023,9 +1026,55 @@ void AppDocumentSearchTest::deleteWindowDuringSearch()
     QVERIFY(handler(tab)->getIndexer()->isBuilding());
 
     // The window with the tab, the view and the panels goes first, the context after it
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
     QVERIFY(!fixture.window);
+}
+
+void AppDocumentSearchTest::searchCanceledOnRetire()
+{
+    // Step A: a retired tab is inert at once and deleted later by the event loop. Its search
+    // is canceled by retire itself (the hook of the controller), not by the later deletion:
+    // the worker ends with a canceled result while the tab still exists, and the highlights
+    // leave the canvas (their registration is a token of the controller)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::large(fixture.folder(), 2000));
+    QVERIFY(tab);
+    QVERIFY(!handler(tab)->getIndexer()->requestIndex());
+    QTRY_VERIFY_WITH_TIMEOUT(handler(tab)->getIndexer()->getIndex() != nullptr, 120000 * getTimeoutFactor());
+
+    // A search, which takes long (every character, regular expression)
+    pdf::PDFAppDocumentSearchController* controller = handler(tab)->getSearchController();
+    pdf::PDFDocumentTextSearchOptions options;
+    options.regularExpression = true;
+    controller->setOptions(options);
+    handler(tab)->startSearch(QStringLiteral("(.)"));
+    QCOMPARE(controller->getState(), pdf::PDFAppDocumentSearchController::State::Searching);
+    const QList<QFutureWatcherBase*> watchers = controller->findChildren<QFutureWatcherBase*>();
+    QCOMPARE(watchers.size(), 1);
+    pdf::PDFAppDocumentSearchController::Watcher* watcher = dynamic_cast<pdf::PDFAppDocumentSearchController::Watcher*>(watchers.front());
+    QVERIFY(watcher);
+    QFuture<pdf::PDFAppDocumentSearchResultsPointer> future = watcher->future();
+    pdf::PDFAppCanvasDrawToken* highlights = dynamic_cast<pdf::PDFAppCanvasDrawToken*>(controller->findChild<pdf::PDFLifetimeToken*>());
+    QVERIFY(highlights);
+    QVERIFY(!highlights->isReleased());
+    QCOMPARE(highlights->getProxy(), tab->getView()->getProxy());
+
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    pdf::PDFDeferredDeletion::retire(tab);
+    QVERIFY(guard);
+    QVERIFY(highlights->isReleased());
+
+    // The worker sees the cancellation (the result says canceled, no results)
+    future.waitForFinished();
+    const pdf::PDFAppDocumentSearchResultsPointer results = future.result();
+    QVERIFY(results);
+    QVERIFY(results->result.isCanceled);
+    QVERIFY(results->result.results.empty());
+    QVERIFY(guard);
+
+    fixture.settle();
+    QVERIFY(!guard);
 }
 
 void AppDocumentSearchTest::deleteFromOwnSignals_data()
@@ -1074,11 +1123,11 @@ void AppDocumentSearchTest::deleteFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            pdftest::AppDocumentFixture::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
         }
     };
     auto trigger = [&window](const QString& commandId)
@@ -2157,7 +2206,7 @@ void AppDocumentSearchTest::closeTabDuringVerification()
     QVERIFY(tab);
 
     // The tab goes, whether the verification runs or not
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QTest::qWait(100);
     fixture.settle();
@@ -2166,7 +2215,7 @@ void AppDocumentSearchTest::closeTabDuringVerification()
     QVERIFY(tab);
     handler(tab)->getSignatureVerifier()->verify();
     QVERIFY(handler(tab)->getSignatureVerifier()->isVerifying());
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
 }
 
@@ -2186,7 +2235,7 @@ void AppDocumentSearchTest::trustDialogLifetime()
     Q_EMIT card->certificateLinkActivated(card->getCertificates().size() - 1);
     QPointer<pdf::PDFMessageBox> dialog = panel->getTrustDialog();
     QVERIFY(dialog);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QVERIFY(!dialog);
 
@@ -2214,7 +2263,7 @@ void AppDocumentSearchTest::trustDialogLifetime()
     // The window goes while a dialog is open
     QVERIFY(!panel->getCards().empty());
     card = panel->getCards().front();
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
 }
 
@@ -2484,7 +2533,7 @@ void AppDocumentSearchTest::speechLifetime()
     // The tab goes while reading
     tab->executeCommand(pdf::PDFAppCommands::readAloud());
     QTRY_VERIFY_WITH_TIMEOUT(FakeSpeechEngine::s_last && !FakeSpeechEngine::s_last->said.isEmpty(), 30000);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QVERIFY(!FakeSpeechEngine::s_last);
 
@@ -2492,7 +2541,7 @@ void AppDocumentSearchTest::speechLifetime()
     tab = openReady(fixture, file);
     QVERIFY(tab);
     tab->executeCommand(pdf::PDFAppCommands::readAloud());
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
 
     // The engine is deleted by its owner while the panel shows it (an engine
@@ -2512,8 +2561,38 @@ void AppDocumentSearchTest::speechLifetime()
     QVERIFY(tab);
     tab->executeCommand(pdf::PDFAppCommands::readAloud());
     QTRY_VERIFY_WITH_TIMEOUT(FakeSpeechEngine::s_last && !FakeSpeechEngine::s_last->said.isEmpty(), 30000);
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
+}
+
+void AppDocumentSearchTest::speechStopsOnRetire()
+{
+    // Step A: the voice of the system is outside the tab. A retired tab (inert at once,
+    // deleted later by the event loop) stops saying at once - the hook of the speech - not
+    // with its later deletion; the end of the said text starts no next block
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("RetiredSpeech.pdf"), 3));
+    QVERIFY(tab);
+    tab->executeCommand(pdf::PDFAppCommands::readAloud());
+    QTRY_VERIFY_WITH_TIMEOUT(FakeSpeechEngine::s_last && !FakeSpeechEngine::s_last->said.isEmpty(), 30000 * getTimeoutFactor());
+    QPointer<FakeSpeechEngine> engine = FakeSpeechEngine::s_last;
+    QCOMPARE(engine->state, pdf::PDFAppSpeechEngine::State::Speaking);
+    const qsizetype saidCount = engine->said.size();
+
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    pdf::PDFDeferredDeletion::retire(tab);
+    QVERIFY(guard);
+    QVERIFY(engine);
+    QCOMPARE(engine->state, pdf::PDFAppSpeechEngine::State::Ready);
+
+    // A late end of a text, reported by the engine, reads nothing more
+    engine->setEngineState(pdf::PDFAppSpeechEngine::State::Speaking);
+    engine->finish();
+    QCOMPARE(engine->said.size(), saidCount);
+
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!engine);
 }
 
 void AppDocumentSearchTest::qtSpeechEngine()

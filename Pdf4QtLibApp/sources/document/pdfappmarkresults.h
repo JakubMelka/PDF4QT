@@ -28,6 +28,8 @@
 
 #include "pdfoperationcontrol.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QFutureWatcher>
 #include <QPointer>
 #include <QWidget>
@@ -157,7 +159,9 @@ private:
 /// (the close-running dialog may stop it); the result is committed with the
 /// version of the snapshot (refused, when the document has changed meanwhile).
 /// The status bar says what has been marked and that Ctrl+Z undoes it.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppMarkResults : public QObject
+/// Retire (step A): the hook stops the worker and ends the operation of the
+/// document at once (cancel); the menu parented to the window is owned logically.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppMarkResults : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -198,6 +202,12 @@ public:
 
     /// Stops the worker (nothing is committed)
     void cancel();
+
+protected:
+    /// Step A hook: cancel (no own signal)
+    virtual void retire() override;
+
+public:
 
     /// Opens the menu at the footer of the search panel (or at the search field)
     void openMenu();

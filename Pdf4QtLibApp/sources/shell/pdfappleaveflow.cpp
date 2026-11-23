@@ -43,8 +43,12 @@ PDFAppDialogAnswer::PDFAppDialogAnswer(QDialog* dialog, QObject* receiver) :
         return;
     }
 
-    connect(dialog, &QDialog::finished, this, &PDFAppDialogAnswer::onDialogFinished);
-    connect(dialog, &QObject::destroyed, this, &PDFAppDialogAnswer::onDialogDestroyed);
+    // The dialog belongs to the window (outside the subtree of the receiver): the connections are cut, when the
+    // receiver is retired (step A). The dialog retired without finished (its owner closed) ends the answer as its
+    // deletion does (Rejected from the event loop); destroyed stays for a dialog deleted without retire.
+    PDFDeferredDeletion::connect(dialog, &QDialog::finished, this, &PDFAppDialogAnswer::onDialogFinished);
+    PDFDeferredDeletion::connect(dialog, &QObject::destroyed, this, &PDFAppDialogAnswer::onDialogDestroyed);
+    PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(dialog), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDialogAnswer::onDialogDestroyed);
 }
 
 PDFAppDialogAnswer::~PDFAppDialogAnswer() = default;
@@ -123,7 +127,10 @@ PDFAppLeaveFlowStep::PDFAppLeaveFlowStep(QObject* reporter, PDFAppLeaveFlow* flo
 {
     if (reporter)
     {
-        connect(reporter, &QObject::destroyed, this, &PDFAppLeaveFlowStep::onReporterDestroyed);
+        // The reporter (a page, a shell, a GUI) is outside the subtree of the flow; its retire ends the step as its
+        // deletion does (Refused from the event loop); destroyed stays for a reporter deleted without retire
+        PDFDeferredDeletion::connect(reporter, &QObject::destroyed, this, &PDFAppLeaveFlowStep::onReporterDestroyed);
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(reporter), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppLeaveFlowStep::onReporterDestroyed);
     }
 }
 
@@ -401,9 +408,23 @@ void PDFAppLeaveFlow::onPageFinished(PDFAppLeaveResult result)
 
 void PDFAppLeaveFlow::setQuestion(QDialog* question)
 {
-    if (isRunning())
+    if (!isRunning())
     {
-        m_question = question;
+        return;
+    }
+    m_question = question;
+
+    // A question outside the subtree of the owner of the flow (parented to the window) without its own logical
+    // owner belongs to the flow (step A): the retire of the tab closes its open question with it
+    QObject* flowOwner = parent();
+    bool isInsideOwner = false;
+    for (QObject* object = question; object && flowOwner && !isInsideOwner; object = object->parent())
+    {
+        isInsideOwner = object == flowOwner;
+    }
+    if (question && !isInsideOwner && !PDFDeferredDeletion::getOwner(question))
+    {
+        PDFDeferredDeletion::setOwner(question, this);
     }
 }
 

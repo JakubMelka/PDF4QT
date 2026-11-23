@@ -35,7 +35,10 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
+#include "pdfapplifetimetokens.h"
+#include "pdfappinfowidgets.h"
 #include "pdfapptab.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
@@ -150,8 +153,8 @@ void PDFAppMcpWaitingBanner::setConfirmation(const std::shared_ptr<PDFAppMcpConf
 
     if (isNewClient)
     {
-        // The monogram 36 of the assistant (no CLI badge, 967:12874)
-        delete m_monogram.data();
+        // The monogram 36 of the assistant (no CLI badge, 967:12874); the old one is retired (step A, A2)
+        PDFAppPageRebuild::retireWidget(m_monogram.data());
         const PDFAppMcpClientInfo client = PDFAppMcpClientNames::describe(m_clientNameRaw);
         // (accent/<hue>/bg without a border; the mcp icon in teal of an unknown client)
         PDFComponentPainter::AssistantAvatar avatarData;
@@ -266,7 +269,7 @@ PDFAppMcpConfirmationUi::PDFAppMcpConfirmationUi(PDFAppMcpHost* host) :
     // dialog at once (the tick checks it too, plan 2.5)
     if (QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
     {
-        connect(application, &QGuiApplication::focusWindowChanged, this, &PDFAppMcpConfirmationUi::onFocusWindowChanged);
+        PDFDeferredDeletion::connect(application, &QGuiApplication::focusWindowChanged, this, &PDFAppMcpConfirmationUi::onFocusWindowChanged);
     }
 
     if (m_host)
@@ -276,7 +279,7 @@ PDFAppMcpConfirmationUi::PDFAppMcpConfirmationUi(PDFAppMcpHost* host) :
         {
             if (PDFAppDocumentRegistry* registry = context->getDocumentRegistry())
             {
-                connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMcpConfirmationUi::scheduleRefresh);
+                PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMcpConfirmationUi::scheduleRefresh);
             }
         }
     }
@@ -626,7 +629,7 @@ void PDFAppMcpConfirmationUi::watchWindow(PDFAppMainWindow* window)
     m_watchedTabBar = tabBar;
     if (tabBar)
     {
-        connect(tabBar, &QTabBar::currentChanged, this, &PDFAppMcpConfirmationUi::scheduleRefresh);
+        PDFDeferredDeletion::connect(tabBar, &QTabBar::currentChanged, this, &PDFAppMcpConfirmationUi::scheduleRefresh);
     }
 
     // The keys of the commands of the documents (window shortcuts dispatched to
@@ -649,7 +652,7 @@ void PDFAppMcpConfirmationUi::watchWindow(PDFAppMainWindow* window)
             QAction* action = command && command->scope == PDFAppCommandScope::Document ? window->getCommandAction(command->id) : nullptr;
             if (action)
             {
-                action->installEventFilter(this);
+                PDFDeferredDeletion::installEventFilter(action, this, this);
                 m_watchedActions.emplace_back(action);
             }
         }
@@ -804,14 +807,35 @@ void PDFAppMcpConfirmationUi::closeDialog()
         QWidget* focusWidget = QApplication::focusWidget();
         const bool hadFocus = focusWidget && (focusWidget == scrim || scrim->isAncestorOf(focusWidget));
         QPointer<QWidget> tab = scrim->parentWidget();
-        scrim->hide();
-        scrim->deleteLater();
+
+        // Retired: hidden, disconnected and closed now (from the event loop, when the dialog emits its answer), deleted
+        // later (step A)
+        retireWidget(scrim, m_ownSignalDepth > 0);
         if (hadFocus && tab)
         {
             restoreFocus(tab);
         }
     }
     m_dialog = nullptr;
+}
+
+void PDFAppMcpConfirmationUi::retireWidget(QWidget* widget, bool isInOwnSignal)
+{
+    if (!widget)
+    {
+        return;
+    }
+
+    if (isInOwnSignal)
+    {
+        // Inside the emission of its subtree: hidden now (it is disconnected from this), retired from the event loop,
+        // after the emission has reached its other receivers
+        PDFDeferredDeletion::retireLater(widget);
+    }
+    else
+    {
+        PDFDeferredDeletion::retire(widget);
+    }
 }
 
 void PDFAppMcpConfirmationUi::restoreFocus(QWidget* tab)
@@ -842,7 +866,7 @@ void PDFAppMcpConfirmationUi::showPreview(Entry& entry, PDFAppDocumentTab* tab)
     // A tool opened from the preview may replace the canvas under the ghosts
     if (PDFAppDocumentView* toolView = tab ? tab->getView() : nullptr)
     {
-        connect(toolView, &PDFAppDocumentView::toolModeChanged, this, &PDFAppMcpConfirmationUi::scheduleRefresh, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(toolView, &PDFAppDocumentView::toolModeChanged, this, &PDFAppMcpConfirmationUi::scheduleRefresh, Qt::UniqueConnection);
     }
 
     PDFAppDocumentView* view = tab ? tab->getView() : nullptr;
@@ -876,18 +900,21 @@ void PDFAppMcpConfirmationUi::showPreview(Entry& entry, PDFAppDocumentTab* tab)
     m_ghostOverlay->setGhosts(std::move(ghosts));
     m_previewId = entry.confirmation->id;
     m_previewView = view;
-    m_previewProxy = view->getProxy();
-    if (m_previewProxy)
-    {
-        m_previewProxy->registerDrawInterface(m_ghostOverlay.get());
-        Q_EMIT m_previewProxy->repaintNeeded();
-    }
 
     PDFAppMcpPreviewBar* bar = new PDFAppMcpPreviewBar(entry.confirmation->id, entry.confirmation->clientName, entry.confirmation->clientNameRaw,
                                                        entry.confirmation->details.value(QStringLiteral("summary")).toString(), view->getCanvasArea());
     connect(bar, &PDFAppMcpPreviewBar::allowed, this, &PDFAppMcpConfirmationUi::onDialogAllowed);
     connect(bar, &PDFAppMcpPreviewBar::denied, this, &PDFAppMcpConfirmationUi::onDialogDenied);
     m_previewBar = bar;
+
+    // The ghosts on the canvas are a token of the bar (step A): the bar lives in the view, so a
+    // retired view (its tab closed) ends the registration at once with the bar
+    if (PDFDrawWidgetProxy* proxy = view->getProxy())
+    {
+        m_ghostToken = new PDFAppCanvasDrawToken(bar, proxy, m_ghostOverlay.get());
+        Q_EMIT proxy->repaintNeeded();
+    }
+
     bar->placeAtTop();
     bar->show();
     bar->raise();
@@ -924,12 +951,12 @@ void PDFAppMcpConfirmationUi::closePreview()
         }
     }
 
-    if (m_previewProxy)
+    // The ghosts leave the canvas (the token unregisters them and repaints the canvas)
+    if (PDFAppCanvasDrawToken* token = m_ghostToken.data())
     {
-        m_previewProxy->unregisterDrawInterface(m_ghostOverlay.get());
-        Q_EMIT m_previewProxy->repaintNeeded();
+        m_ghostToken = nullptr;
+        token->releaseToken();
     }
-    m_previewProxy = nullptr;
     m_previewView = nullptr;
     m_previewId = 0;
     if (m_ghostOverlay)
@@ -937,12 +964,13 @@ void PDFAppMcpConfirmationUi::closePreview()
         m_ghostOverlay->setGhosts(std::vector<PDFAppMcpGhost>());
     }
 
+    // The bar is retired: hidden and disconnected now, deleted later (its button may be on the stack); from the event
+    // loop, when the bar emits its answer (retireWidget)
     if (PDFAppMcpPreviewBar* bar = m_previewBar.data())
     {
         m_previewBar = nullptr;
         bar->disconnect(this);
-        bar->hide();
-        bar->deleteLater();
+        retireWidget(bar, m_ownSignalDepth > 0);
     }
 }
 
@@ -1015,8 +1043,9 @@ void PDFAppMcpConfirmationUi::updateStatusItems(PDFAppMainWindow* window, PDFApp
             item->setIconSize(QSize(14, 14));
             item->setCursor(Qt::PointingHandCursor);
             item->setFocusPolicy(Qt::TabFocus);
-            item->installEventFilter(this);
-            connect(item, &QToolButton::clicked, this, &PDFAppMcpConfirmationUi::onStatusItemClicked);
+            // The item lives in the status bar of the view (not in this subtree)
+            PDFDeferredDeletion::installEventFilter(item, this, this);
+            PDFDeferredDeletion::connect(item, &QToolButton::clicked, this, &PDFAppMcpConfirmationUi::onStatusItemClicked);
             // The first trailing item, the message keeps the free space (955:151949)
             view->addStatusItem(item, PDFAppDocumentStatusBar::Area::TrailingFirst);
             m_statusItems.emplace_back(view, item);
@@ -1168,12 +1197,26 @@ PDFAppMcpWaitingBanner* PDFAppMcpConfirmationUi::findBanner(const PDFAppTab* tab
 
 void PDFAppMcpConfirmationUi::onDialogAllowed(quint64 confirmationId)
 {
+    // The dialog / preview bar emits: what closes it retires it from the event loop (retireWidget)
+    QPointer<PDFAppMcpConfirmationUi> guard(this);
+    ++m_ownSignalDepth;
     answer(confirmationId, PDFAppMcpDecision::Allowed);
+    if (guard)
+    {
+        --m_ownSignalDepth;
+    }
 }
 
 void PDFAppMcpConfirmationUi::onDialogDenied(quint64 confirmationId)
 {
+    // As onDialogAllowed
+    QPointer<PDFAppMcpConfirmationUi> guard(this);
+    ++m_ownSignalDepth;
     answer(confirmationId, PDFAppMcpDecision::DeniedUser);
+    if (guard)
+    {
+        --m_ownSignalDepth;
+    }
 }
 
 void PDFAppMcpConfirmationUi::onShowOnPageRequested(quint64 confirmationId)
@@ -1221,8 +1264,7 @@ void PDFAppMcpConfirmationUi::showNotification(const PDFAppMcpCommitInfo& info)
         if (bar->getInfo().document == info.document || !bar->getInfo().document)
         {
             bar->disconnect(this);
-            bar->hide();
-            bar->deleteLater();
+            PDFDeferredDeletion::retire(bar.data());
             continue;
         }
         kept.push_back(bar);
@@ -1296,9 +1338,10 @@ void PDFAppMcpConfirmationUi::onNotificationClose()
 {
     if (PDFAppMcpNotificationBar* bar = getNotificationBarOfSender())
     {
+        // The bar emits the signal: hidden now, retired from the event loop (the rest of its emission reaches its other
+        // receivers), deleted later (step A)
         bar->disconnect(this);
-        bar->hide();
-        bar->deleteLater();
+        retireWidget(bar, true);
     }
 }
 

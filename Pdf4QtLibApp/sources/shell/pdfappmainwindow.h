@@ -384,6 +384,10 @@ private:
     /// what they must (prepareTabsClose)
     void prepareTabClose(PDFAppTab* tab);
 
+    /// The tab leaves the lists, the tab bar and the stack of the window (before it is retired, step A); the focus
+    /// left in it goes to the new current tab. Code of the window and of the tabs runs (the window may be deleted).
+    void detachTab(PDFAppTab* tab);
+
     PDFAppTab* addTab(PDFAppTab* tab, int index);
     PDFAppTab* findTab(quint64 id) const;
     int findTabIndex(quint64 id) const;
@@ -452,6 +456,10 @@ private:
     void onFailedTabFlowFinished();
     void closeFailedTabs();
 
+    /// The failed \p tab is leaving: it is remembered and closes after the end of its flow (once connected, also
+    /// for a flow started after the failure, before the queued close - RA-L2)
+    void closeFailedTabAfterFlow(PDFAppDocumentTab* tab);
+
     /// The close of a tab by the user (its button, the command): refused while the flow of the window runs
     void closeTabByUser(PDFAppTab* tab);
     void onEditCopyRequested();
@@ -498,6 +506,9 @@ private:
     void onCurrentTabChanged(int index);
     void onTabCloseRequested(int index);
     void onTabDestroyed(QObject* object);
+
+    /// PDFLifetimeNotifier::aboutToBeDeleted of a tab: a tab retired by somebody else leaves the window at once
+    void onTabAboutToBeDeleted(QObject* object);
     void synchronizeCurrentTab();
     void onNewTabRequested();
     void onMaximizeRestoreRequested();

@@ -100,7 +100,8 @@ public:
 PDFAppSpeechSettingsSection::EngineListProvider PDFAppSpeechSettingsSection::s_engineListProvider = nullptr;
 
 PDFAppSpeechSettingsSection::PDFAppSpeechSettingsSection(PDFAppContext* context, const QString& sectionId, QWidget* parent) :
-    BaseClass(context, sectionId, parent)
+    BaseClass(context, sectionId, parent),
+    PDFRetirable(this)
 {
 
 }
@@ -750,6 +751,25 @@ void PDFAppSpeechSettingsSection::finishActivity()
     // The page goes: the sample is stopped now, not by the destructor (the engine
     // announces its state)
     stopSample();
+}
+
+void PDFAppSpeechSettingsSection::retire()
+{
+    // The section is closed (alone, or with its page, whose hook has committed the
+    // values already): the engine stops now, not from the destructor later. The hook
+    // emits none of the section's signals, so a refused write is not announced (the
+    // status bar of a going page); the incoming notifications are cut already.
+    stopSample();
+
+    m_isWriteQueued = false;
+    const std::vector<std::pair<QString, QVariant>> values = std::move(m_pendingValues);
+    m_pendingValues.clear();
+    PDFAppContext* context = getContext();
+    if (!values.empty() && context && context->getDatabase())
+    {
+        const PDFDatabaseError error = context->getSettings().setValues(values);
+        Q_UNUSED(error);
+    }
 }
 
 void PDFAppSpeechSettingsSection::stopSampleWhenHidden()

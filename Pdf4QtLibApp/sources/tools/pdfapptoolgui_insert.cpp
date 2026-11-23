@@ -450,7 +450,7 @@ void PDFAppToolChoiceSwitch::bindParameter(PDFAppToolParameterModel* model, cons
             addOption(option.id, option.getTitle());
         }
     }
-    connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolChoiceSwitch::onParameterChanged);
+    PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, this, &PDFAppToolChoiceSwitch::onParameterChanged);
     setChoice(model->getValue(parameter).toString());
 }
 
@@ -538,6 +538,8 @@ PDFAppToolPageRangeField::PDFAppToolPageRangeField(QWidget* parent) :
     m_timer->setSingleShot(true);
     m_timer->setInterval(WRITE_DELAY);
     connect(m_timer.data(), &QTimer::timeout, this, &PDFAppToolPageRangeField::onWriteTimer);
+    // The typed range is not lost when the tool closes before the rest ends (retire fires the timer)
+    PDFDeferredDeletion::setFlushOnRetire(m_timer.data());
     connect(m_field.data(), &QLineEdit::textEdited, this, &PDFAppToolPageRangeField::onTextEdited);
     connect(m_field.data(), &QLineEdit::editingFinished, this, &PDFAppToolPageRangeField::onEditingFinished);
     validate();
@@ -1586,22 +1588,22 @@ void PDFAppInsertToolGUIBase::connectList()
     if (!m_isShellConnected && getShell())
     {
         m_isShellConnected = true;
-        connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppInsertToolGUIBase::onShellStateChanged);
+        PDFDeferredDeletion::connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppInsertToolGUIBase::onShellStateChanged);
     }
     if (!m_isHostConnected && getHost())
     {
         // Replace selected pages and the current page of the menu Position follow the thumbnails
         m_isHostConnected = true;
-        connect(getHost(), &PDFAppToolHost::pagesChanged, this, &PDFAppInsertToolGUIBase::onHostPagesChanged);
+        PDFDeferredDeletion::connect(getHost(), &PDFAppToolHost::pagesChanged, this, &PDFAppInsertToolGUIBase::onHostPagesChanged);
     }
     if (!m_isRegistryConnected && getContext() && getContext()->getDocumentRegistry())
     {
         // The open documents of Add and of the empty state follow the registry
         m_isRegistryConnected = true;
         PDFAppDocumentRegistry* registry = getContext()->getDocumentRegistry();
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppInsertToolGUIBase::onRegistryChanged);
     }
 
     initializeValues();
@@ -2329,6 +2331,8 @@ void PDFAppInsertToolGUIBase::openPasswordDialog(const QString& inputId)
     m_passwordDialog = PDFAppPasswordDialog::openDialog(m_list, inputId, area ? area->window() : nullptr);
     if (m_passwordDialog)
     {
+        // A dialog of the window owned by the GUI (step A): retire of the tool closes it
+        PDFDeferredDeletion::setOwner(m_passwordDialog.data(), this);
         connect(m_passwordDialog.data(), &PDFAppPasswordDialog::removeRequested, this, &PDFAppInsertToolGUIBase::onPasswordRemoveRequested);
     }
 }
@@ -2378,10 +2382,13 @@ void PDFAppInsertToolGUIBase::installKeys()
         connect(action, &QAction::triggered, this, keyAction.slot);
         m_keyWidget->addAction(action);
         m_keyActions.push_back(action);
+
+        // A child of the key widget owned by the GUI (step A): retire disables it at once
+        PDFDeferredDeletion::setOwner(action, this);
     }
     m_wasDropAccepted = m_keyWidget->acceptDrops();
     m_keyWidget->setAcceptDrops(true);
-    m_keyWidget->installEventFilter(this);
+    PDFDeferredDeletion::installEventFilter(m_keyWidget.data(), this);
 }
 
 void PDFAppInsertToolGUIBase::describeToolbar(PDFAppToolPanelBuilder& builder)
@@ -3220,7 +3227,7 @@ void PDFAppInsertToolGUI::describeRightPanel(PDFAppToolPanelBuilder& builder)
     if (countDefinition)
     {
         PDFAppSettingControl* control = new PDFAppSettingControl(getContext(), *countDefinition, blankCard, model->createValueStore());
-        connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
         QWidget* editor = control->getSpinBox() ? static_cast<QWidget*>(control->getSpinBox()) : control->getWidget();
         editor->setObjectName(QStringLiteral("insertBlankCount"));
         Helper::addFieldRow(grid, 0, tr("Count"), editor, blankCard);
@@ -3233,7 +3240,7 @@ void PDFAppInsertToolGUI::describeRightPanel(PDFAppToolPanelBuilder& builder)
     if (orientationDefinition)
     {
         PDFAppSettingControl* control = new PDFAppSettingControl(getContext(), *orientationDefinition, blankCard, model->createValueStore());
-        connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
         QWidget* editor = control->getComboBox() ? static_cast<QWidget*>(control->getComboBox()) : control->getWidget();
         editor->setObjectName(QStringLiteral("insertBlankOrientation"));
         m_blankOrientationControl = editor;
@@ -4314,7 +4321,7 @@ void PDFAppAddImageToolGUI::describeRightPanel(PDFAppToolPanelBuilder& builder)
             continue;
         }
         PDFAppSettingControl* control = new PDFAppSettingControl(getContext(), *definition, card, model->createValueStore());
-        connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
+        PDFDeferredDeletion::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
         QWidget* editor = control->getWidget();
         if (PDFDoubleSpinBox* spinBox = control->getDoubleSpinBox())
         {

@@ -111,6 +111,10 @@ public:
 
     static QString name(const char* parameter) { return QString::fromLatin1(parameter); }
 
+    /// The GUI goes on after foreign code (a slot of its signal may close the tool): it lives and its tool is not
+    /// closed - a retired GUI (step A) changes and creates nothing, it waits for its deletion
+    static bool isLive(const QPointer<PDFAppManageToolGUI>& gui) { return gui && !PDFDeferredDeletion::isRetired(gui.data()); }
+
     static int toInt(qint64 value)
     {
         return int(qBound(qint64(0), value, qint64(std::numeric_limits<int>::max())));
@@ -613,8 +617,9 @@ void PDFAppManageToolGUI::connectParts()
         }
         m_list = list;
         m_list->setAcceptedInputs(PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT, true, true, QString());
-        connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppManageToolGUI::onListInputsChanged);
-        connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppManageToolGUI::onListInputChanged);
+        // The list of the tab (or the own list): the connections from outside go through PDFDeferredDeletion
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppManageToolGUI::onListInputsChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppManageToolGUI::onListInputChanged);
         connect(m_list.data(), &QObject::destroyed, this, &PDFAppManageToolGUI::onListDestroyed);
     }
 
@@ -627,15 +632,15 @@ void PDFAppManageToolGUI::connectParts()
     if (!m_isShellConnected && getShell())
     {
         m_isShellConnected = true;
-        connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppManageToolGUI::onShellStateChanged);
+        PDFDeferredDeletion::connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppManageToolGUI::onShellStateChanged);
     }
     if (!m_isRegistryConnected && getContext() && getContext()->getDocumentRegistry())
     {
         m_isRegistryConnected = true;
         PDFAppDocumentRegistry* registry = getContext()->getDocumentRegistry();
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppManageToolGUI::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppManageToolGUI::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppManageToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppManageToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppManageToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppManageToolGUI::onRegistryChanged);
     }
     if (!m_loader && !isDocumentHost())
     {
@@ -1628,6 +1633,8 @@ void PDFAppManageToolGUI::openPasswordDialog(const QString& inputId)
     m_passwordDialog = PDFAppPasswordDialog::openDialog(m_list, inputId, getWindow());
     if (m_passwordDialog)
     {
+        // A dialog of the window owned by the GUI (step A): retire of the tool closes it
+        PDFDeferredDeletion::setOwner(m_passwordDialog.data(), this);
         connect(m_passwordDialog.data(), &PDFAppPasswordDialog::removeRequested, this, &PDFAppManageToolGUI::onPasswordRemoveRequested);
     }
 }
@@ -2497,6 +2504,9 @@ bool PDFAppManageToolGUI::askSaveQuestion(SaveIntent intent)
     dialog->addChoice(tr("Save Assembly"), PDFAppDocumentChoice::Save, true, false, QStringLiteral("manageCloseSave"));
     m_closeDialog = dialog;
     m_closeIntent = intent;
+
+    // A dialog of the window owned by the GUI (step A; the question of a leave flow is owned by the flow)
+    PDFDeferredDeletion::setOwner(dialog, this);
     if (intent == SaveIntent::CloseTab && m_closeFlow)
     {
         m_closeFlow->setQuestion(dialog);
@@ -2775,6 +2785,7 @@ void PDFAppManageToolGUI::openSourcesDialog(const PDFAppAssemblyLoadResult& resu
     connect(m_sourcesDialog.data(), &PDFAppManageSourcesDialog::openFromThereRequested, this, &PDFAppManageToolGUI::onSourcesDialogOpenFromThere);
     connect(m_sourcesDialog.data(), &PDFAppManageSourcesDialog::openRequested, this, &PDFAppManageToolGUI::applyLoadedContent);
     connect(m_sourcesDialog.data(), &QDialog::finished, this, &PDFAppManageToolGUI::onSourcesDialogFinished);
+    PDFDeferredDeletion::setOwner(m_sourcesDialog.data(), this);
 
     // Last: the dialog runs from the event loop (open, never exec)
     m_sourcesDialog->open();
@@ -3426,12 +3437,15 @@ void PDFAppManageToolGUI::installKeys()
         connect(action, &QAction::triggered, this, &PDFAppManageToolGUI::onKeyAction);
         m_keyWidget->addAction(action);
         m_keyActions[name] = action;
+
+        // A child of the key widget owned by the GUI (step A): retire disables it at once
+        PDFDeferredDeletion::setOwner(action, this);
     }
 
     // A drop of files anywhere in the tab adds them (409:32739 "Drop files anywhere in this window")
     m_wasDropAccepted = m_keyWidget->acceptDrops();
     m_keyWidget->setAcceptDrops(true);
-    m_keyWidget->installEventFilter(this);
+    PDFDeferredDeletion::installEventFilter(m_keyWidget.data(), this);
 }
 
 // ------------------------------------------------------------- actions
@@ -3795,6 +3809,9 @@ void PDFAppManageToolGUI::showDialog(PDFAppManageDialog* dialog)
         return;
     }
     m_dialog = dialog;
+
+    // A dialog of the window owned by the GUI (step A): retire of the tool closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
 
     // Last: the dialog is shown from the event loop (open, never exec)
     dialog->open();
@@ -4472,35 +4489,40 @@ bool PDFAppManageToolGUI::isEditable() const
 
 void PDFAppManageToolGUI::updateAll()
 {
-    // The parts announce their changes, whose slots may delete this GUI: each part only by a
-    // living GUI
+    // The parts announce their changes, whose slots may delete this GUI or close its tool: each part only by a
+    // living GUI of an open tool (a caller may go on after a slot, which has closed the tool - step A)
+    using Helper = PDFAppManageToolGUIHelper;
     QPointer<PDFAppManageToolGUI> guard(this);
+    if (!Helper::isLive(guard))
+    {
+        return;
+    }
     updateOpenDocumentRows();
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateRecentRows();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateSources();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateCanvas();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateRightPanel();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateToolbar();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateEditable();
     }
-    if (!guard)
+    if (!Helper::isLive(guard))
     {
         return;
     }
@@ -4511,11 +4533,11 @@ void PDFAppManageToolGUI::updateAll()
 
     // The slots of the Primary button, the status and the tab may delete this GUI: the last things
     updateConfirmState();
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateStatusText();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateOwnTabState();
     }

@@ -23,6 +23,7 @@
 #include "pdfappwhatsnewpage.h"
 #include "pdfapptoolpresentation.h"
 #include "pdfappcontext.h"
+#include "pdfappinfowidgets.h"
 #include "pdfapplocale.h"
 #include "pdfapproute.h"
 #include "pdfappworkspace.h"
@@ -390,9 +391,11 @@ void PDFAppVersionHistory::fill()
         return;
     }
 
-    for (const QPointer<PDFVersionRow>& row : m_rows)
+    // The old rows are retired (step A, A2): the slot of a clicked row may be on the
+    // stack; they leave the layout of the card now and are deleted later
+    for (const QPointer<PDFVersionRow>& row : std::as_const(m_rows))
     {
-        delete row.data();
+        PDFAppPageRebuild::retireWidget(row.data());
     }
     m_rows.clear();
     m_rowVersions.clear();
@@ -477,13 +480,13 @@ PDFAppWhatsNewPage::PDFAppWhatsNewPage(PDFAppContext* context, QWidget* parent) 
     if (m_checker)
     {
         m_runningVersion = m_checker->getRunningVersion();
-        connect(m_checker, &PDFUpdateChecker::statusChanged, this, &PDFAppWhatsNewPage::onCheckerStatusChanged);
+        PDFDeferredDeletion::connect(m_checker.data(), &PDFUpdateChecker::statusChanged, this, &PDFAppWhatsNewPage::onCheckerStatusChanged);
     }
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppWhatsNewPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppWhatsNewPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppWhatsNewPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppWhatsNewPage::onEverythingChanged);
     }
 }
 
@@ -603,10 +606,10 @@ void PDFAppWhatsNewPage::restoreViewState(const QVariantMap& state)
 
 void PDFAppWhatsNewPage::clear()
 {
-    if (m_content)
-    {
-        delete m_content.data();
-    }
+    // The old content is retired (step A, A2): a slot of one of its widgets may be on
+    // the stack (a link, the version history); it leaves the layout now, deleted later
+    PDFAppPageRebuild::retireWidget(m_content.data());
+    m_content = nullptr;
 }
 
 void PDFAppWhatsNewPage::build()
@@ -1189,10 +1192,11 @@ void PDFAppReleaseNotesPage::restoreViewState(const QVariantMap& state)
 void PDFAppReleaseNotesPage::build()
 {
     const bool isAllShown = m_versionHistory && m_versionHistory->isAllShown();
-    if (m_content)
-    {
-        delete m_content.data();
-    }
+
+    // The old content is retired (step A, A2): a slot of one of its widgets may be on
+    // the stack (a link, the version history); it leaves the layout now, deleted later
+    PDFAppPageRebuild::retireWidget(m_content.data());
+    m_content = nullptr;
 
     m_content = new QWidget(this);
     m_content->setObjectName(QStringLiteral("releaseNotesContent"));

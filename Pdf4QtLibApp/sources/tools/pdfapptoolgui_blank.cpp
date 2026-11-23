@@ -400,7 +400,8 @@ void PDFAppBlankSizePanel::clearDocumentRows()
     // The rows of the last opening: the panel is closed, no row is a sender now
     for (const QPointer<PDFTileRow>& row : m_documentRows)
     {
-        delete row.data();
+        // A rebuilt row is closed by retire (step A): hidden at once, deleted later
+        PDFDeferredDeletion::retire(row.data());
     }
     m_documentRows.clear();
 }

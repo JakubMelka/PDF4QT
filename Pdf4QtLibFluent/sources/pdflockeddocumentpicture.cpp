@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdflockeddocumentpicture.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QAccessible>
@@ -137,7 +138,7 @@ PDFLockedDocumentPicture::PDFLockedDocumentPicture(State state, QWidget* parent)
 
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     setGraphicsEffect(new PDFLockedDocumentShadowEffect(this));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
     updateAccessibleName();
 }
 

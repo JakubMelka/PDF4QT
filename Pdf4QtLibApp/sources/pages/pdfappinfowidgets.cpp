@@ -25,6 +25,7 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfcomponentpainter.h"
 #include "pdfpreviewpainter.h"
 #include "pdfstylepainter.h"
@@ -37,6 +38,7 @@
 #include <QApplication>
 #include <QBoxLayout>
 #include <QEvent>
+#include <QLayout>
 #include <QPainter>
 #include <QResizeEvent>
 #include <QScrollArea>
@@ -55,6 +57,26 @@ public:
     PDFAppInfoWidgetsHelper() = delete;
 
     static QUrl url(const char* text) { return QUrl(QString::fromLatin1(text), QUrl::StrictMode); }
+
+    /// Takes the item of \p widget out of \p layout or of a nested layout of it. \returns true, when found.
+    static bool removeFromLayout(QLayout* layout, QWidget* widget)
+    {
+        for (int i = 0; i < layout->count(); ++i)
+        {
+            QLayoutItem* item = layout->itemAt(i);
+            if (item && item->widget() == widget)
+            {
+                delete layout->takeAt(i);
+                layout->invalidate();
+                return true;
+            }
+            if (QLayout* nested = item ? item->layout() : nullptr; nested && removeFromLayout(nested, widget))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 QString PDFAppPageRebuild::getFocusedName(const QWidget* page)
@@ -74,12 +96,40 @@ void PDFAppPageRebuild::restoreFocus(QWidget* page, const QString& name)
         return;
     }
 
-    if (QWidget* widget = page->findChild<QWidget*>(name))
+    for (QWidget* widget : page->findChildren<QWidget*>(name))
     {
+        // The old content of a rebuild waits for its deletion (retired, hidden)
+        if (PDFDeferredDeletion::isRetired(widget))
+        {
+            continue;
+        }
         if (widget->isVisibleTo(page) && widget->focusPolicy() != Qt::NoFocus)
         {
             widget->setFocus(Qt::OtherFocusReason);
         }
+        return;
+    }
+}
+
+void PDFAppPageRebuild::retireWidget(QWidget* widget)
+{
+    if (!widget)
+    {
+        return;
+    }
+
+    PDFDeferredDeletion::retire(widget);
+    QWidget* parent = widget->parentWidget();
+    if (QLayout* layout = parent ? parent->layout() : nullptr)
+    {
+        PDFAppInfoWidgetsHelper::removeFromLayout(layout, widget);
+    }
+
+    // The old part leaves the page: a lookup of the page by name or by type finds only
+    // the new content (the retired widget stays hidden and is deleted later)
+    if (parent)
+    {
+        widget->setParent(nullptr);
     }
 }
 

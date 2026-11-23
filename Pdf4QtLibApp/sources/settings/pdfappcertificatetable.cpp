@@ -22,6 +22,7 @@
 
 #include "pdfappcertificatetable.h"
 #include "pdfappcontext.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfapphomedialogs.h"
 #include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
@@ -834,6 +835,7 @@ bool PDFAppCertificateTable::openRemoveDialog()
     const QString title = count == 1 ? tr("Remove the certificate “%1”?").arg(selected.front().name) : tr("Remove %n certificates?", nullptr, count);
     const QString text = tr("Signatures made by certificates issued by them are no longer shown as valid, unless the system or the Adobe Approved Trust List trusts them. This cannot be undone.");
     PDFAppCardDialog* dialog = new PDFAppCardDialog(PDFThemeIcons::Badge::Warning, true, title, text, 520, window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("removeCertificatesDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
 

@@ -32,6 +32,8 @@
 #include <QVBoxLayout>
 #include <QPointer>
 #include <QStringList>
+#include "pdfdeferreddeletion.h"
+
 #include <QWidget>
 
 #include <memory>

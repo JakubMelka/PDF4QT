@@ -24,6 +24,7 @@
 
 #include "pdfcomponentcards.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
@@ -402,7 +403,7 @@ void PDFAppToolFocusGroup::addWidget(QWidget* widget)
         }
     }
     m_widgets.append(widget);
-    widget->installEventFilter(this);
+    PDFDeferredDeletion::installEventFilter(widget, this, this);
 }
 
 void PDFAppToolFocusGroup::removeWidget(QWidget* widget)

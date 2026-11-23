@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfapptoolresultdialog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolrunner.h"
 #include "pdfsecurityhandler.h"
 
@@ -146,7 +147,9 @@ public:
 /// The parts are created once and again after a change of the language; their values
 /// live in the parameter model, so a new part shows the same state. The functions run
 /// in the thread of the user interface. A hook may not delete the shell.
-class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolGUI : public QObject
+/// Deferred deletion (step A): the GUI is retired with its shell; its hook retire() (PDFRetirable) ends what the
+/// GUI has outside its subtree.
+class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolGUI : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -619,6 +622,13 @@ Q_SIGNALS:
     /// The title, the icon or the loss text of the own tab may have changed (the tab
     /// updates its title and its dot); a slot may not delete the shell
     void ownTabStateChanged();
+
+protected:
+    /// The default hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the pure computations of the GUI are
+    /// canceled (watchers, previews), its questions and dialogs parented to the window close without an answer
+    /// (setOwner), its overlays and parts leave the view. Emits none of the GUI's signals, opens no dialog and
+    /// waits for nothing. A tool overrides it for its own outside work and calls BaseClass::retire() first.
+    virtual void retire() override;
 
 private:
     /// The buttons of the generic question of askClose: the answer is the last call (the shell and this GUI go)

@@ -38,6 +38,7 @@
 #include "pdfsecurityhandler.h"
 #include "pdfwidgettool.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 
@@ -145,13 +146,13 @@ void PDFAppOutlineEditor::setDocument(PDFAppDocument* document)
     m_editableDocument = nullptr;
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlineEditor::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppOutlineEditor::stateChanged);
-        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::stateChanged);
-        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::onLockChanged);
-        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::stateChanged);
-        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::onLockChanged);
-        connect(document, &PDFAppDocument::operationsChanged, this, &PDFAppOutlineEditor::stateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlineEditor::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppOutlineEditor::stateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::stateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::onLockChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::stateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::onLockChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::operationsChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &QObject::destroyed, this, &PDFAppOutlineEditor::onDocumentDestroyed);
     }
     Q_EMIT stateChanged();
@@ -1121,6 +1122,7 @@ bool PDFAppOutlineEditor::chooseCurrentItemNamedDestination()
 
     // Not exec(): the tab or the window may be closed meanwhile
     PDFAppNamedDestinationDialog* dialog = new PDFAppNamedDestinationDialog(document->getDocument().data(), item->getTitle(), parent);
+    PDFDeferredDeletion::setOwner(dialog, this);
     PDFAppMainWindow::prepareDialog(dialog, m_view);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -1291,6 +1293,7 @@ bool PDFAppOutlineEditor::keepZoomForAllItems()
                                                                : tr("%Ln outline items will open their page at the zoom of the reader instead of their own zoom.", nullptr, count),
                                                     QDialogButtonBox::Ok | QDialogButtonBox::Cancel, parent);
     confirmation->setObjectName(QStringLiteral("keepZoomConfirmation"));
+    PDFDeferredDeletion::setOwner(confirmation, this);
     confirmation->setAttribute(Qt::WA_DeleteOnClose);
     PDFAppMainWindow::prepareDialog(confirmation, m_view);
     if (QAbstractButton* button = confirmation->getButtonBox()->button(QDialogButtonBox::Ok))

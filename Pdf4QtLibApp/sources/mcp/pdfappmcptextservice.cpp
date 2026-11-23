@@ -32,6 +32,7 @@
 #include "pdfappdocumentsearch.h"
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumenttab.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcms.h"
 #include "pdfcolorspaces.h"
@@ -591,23 +592,28 @@ PDFAppMcpTextIndexWaiter::PDFAppMcpTextIndexWaiter(PDFAppMcpHost* host, std::sha
     m_indexer(indexer),
     m_request(std::move(request))
 {
+    // The document and the indexer belong to the tab: a closed tab is retired, its signals reach
+    // nobody, so its end is aboutToBeDeleted (step A, lesson 1), destroyed stays for a deletion
+    // without retire
     if (m_indexer)
     {
-        connect(m_indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppMcpTextIndexWaiter::onIndexReady);
-        connect(m_indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppMcpTextIndexWaiter::onBuildingChanged);
-        connect(m_indexer, &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppMcpTextIndexWaiter::onProgressChanged);
-        connect(m_indexer, &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
+        PDFDeferredDeletion::connect(m_indexer.data(), &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppMcpTextIndexWaiter::onIndexReady);
+        PDFDeferredDeletion::connect(m_indexer.data(), &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppMcpTextIndexWaiter::onBuildingChanged);
+        PDFDeferredDeletion::connect(m_indexer.data(), &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppMcpTextIndexWaiter::onProgressChanged);
+        PDFDeferredDeletion::connect(m_indexer.data(), &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_indexer), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
     }
 
     // The call may be canceled (the host reports it), the document or the indexer may go away
-    // (destroyed): nothing is asked in intervals
+    // (aboutToBeDeleted, destroyed): nothing is asked in intervals
     if (m_document)
     {
-        connect(m_document, &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
+        PDFDeferredDeletion::connect(m_document.data(), &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
     }
     if (host)
     {
-        connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpTextIndexWaiter::onCallCanceled);
+        PDFDeferredDeletion::connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpTextIndexWaiter::onCallCanceled);
     }
 }
 
@@ -622,7 +628,7 @@ PDFAppMcpTextIndexWaiter::~PDFAppMcpTextIndexWaiter()
 
 void PDFAppMcpTextIndexWaiter::start()
 {
-    if (!m_indexer || !m_document)
+    if (!m_indexer || !m_document || PDFDeferredDeletion::isRetired(m_document) || PDFDeferredDeletion::isRetired(m_indexer))
     {
         fail(QStringLiteral("The document was closed in PDF4QT."));
         return;
@@ -735,8 +741,8 @@ void PDFAppMcpTextIndexWaiter::endCanceled()
 
 void PDFAppMcpTextIndexWaiter::onSourceDestroyed()
 {
-    // A slot of destroyed only forgets (the QPointers are cleared already): the call ends from the
-    // event loop, never inside of the destructor of the document or the indexer
+    // A slot of destroyed / aboutToBeDeleted only forgets: the call ends from the event loop, never
+    // inside of the destructor or of the retire of the document or the indexer
     if (!m_isDone && !m_isClosedEndQueued)
     {
         m_isClosedEndQueued = true;

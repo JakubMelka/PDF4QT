@@ -53,6 +53,7 @@
 #include "pdfwidgettool.h"
 
 #include "pdfcolorpickerdialog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
@@ -256,6 +257,7 @@ private slots:
     void editCommandsWaveZero();
     void commentPopupCompose();
     void commentPopupThread();
+    void replyRowRemovesItself();
     void commentPopupAnnotationRemoved();
     void selectionWithTextTool();
     void rubberBand();
@@ -267,6 +269,7 @@ private slots:
     void mergeSessionClosed();
     void contextMenuSingle();
     void contextMenuMulti();
+    void viewPopupsCloseWithTab();
     void contextMenuHiddenAndReplies();
     void pointAndPartMenu();
     void propertiesDialogVariants();
@@ -595,13 +598,16 @@ void AppAnnotationEditTest::queuedRequestsSurviveTabDeletion()
     fixture.settle();
     QCOMPARE(*emitted, 9);
 
-    // A slot deleting the tab from the request (the controller dies inside of its signal)
-    auto deleteTab = [tab]() { delete tab.data(); };
+    // A slot closing the tab from the request (the real close of the window, retire inside: the controller goes
+    // inside of its signal, RB-M6)
+    auto deleteTab = [&fixture, tab]() { fixture.retire(tab.data()); };
     connect(controller.data(), &pdf::PDFAppAnnotationController::propertiesRequested, &receiver, deleteTab);
     controller->requestProperties(square);
     fixture.settle();
+    fixture.answerCloseQuestions();
     QVERIFY(!tab);
     QVERIFY(!controller);
+    QVERIFY(fixture.window->getDocumentTabs().isEmpty());
 
     // Pending requests of a tab deleted before the event loop are dropped
     QPointer<pdf::PDFAppDocumentTab> second = H::openAnnotations(fixture);
@@ -612,7 +618,7 @@ void AppAnnotationEditTest::queuedRequestsSurviveTabDeletion()
     const int before = *emitted;
     secondController->requestProperties(square);
     Q_EMIT secondController->getAnnotationManager()->menuRequested(pdf::PDFAnnotationMenuRequest());
-    delete second.data();
+    QVERIFY(fixture.retire(second.data()));
     fixture.settle();
     QVERIFY(!secondController);
     QCOMPARE(*emitted, before);
@@ -862,6 +868,73 @@ void AppAnnotationEditTest::commentPopupThread()
     QCOMPARE(popup->getMode(), pdf::PDFAppCommentPopup::Mode::None);
 }
 
+void AppAnnotationEditTest::replyRowRemovesItself()
+{
+    using H = AppAnnotationEditTestHelper;
+
+    // Plan 7.5 PA4 (newapp_robustness.md, map: the menu of a reply row deletes the reply, the change of the
+    // document rebuilds the rows): a slot of a signal of a reply row removes the reply, so the popup replaces
+    // its rows inside of that emission. Step A, conventions Lifetime: a rebuilt row is closed only by retire -
+    // the row survives its own emission inert (retired, hidden, out of the layout) and is deleted by the event
+    // loop; the new rows show the thread without the reply
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const pdf::PDFObjectReference note = H::find(document, 0, QStringLiteral("text"));
+    QVERIFY(note.isValid());
+    pdf::PDFAppCommentPopup* popup = view->getCommentPopup();
+    popup->showThread(note, true);
+    fixture.settle();
+    QCOMPARE(popup->getReplyCount(), 2);
+
+    // A third reply (one undo step), the row of the thread
+    popup->setReplyText(QStringLiteral("Removed reply"));
+    QVERIFY(popup->sendReply());
+    QCOMPARE(popup->getReplyCount(), 3);
+    const auto shownRows = [popup]()
+    {
+        QList<QWidget*> rows;
+        for (QWidget* row : popup->findChildren<QWidget*>(QStringLiteral("commentPopupReplyRow")))
+        {
+            if (!pdf::PDFDeferredDeletion::isRetired(row))
+            {
+                rows << row;
+            }
+        }
+        return rows;
+    };
+    const QList<QWidget*> rows = shownRows();
+    QCOMPARE(rows.size(), qsizetype(3));
+    QPointer<QWidget> row = rows.front();
+
+    // The slot of the row's own signal (its context menu) removes the reply: undo of the reply
+    int removals = 0;
+    QObject receiver;
+    QObject::connect(row.data(), &QWidget::customContextMenuRequested, &receiver, [&removals, document]()
+    {
+        ++removals;
+        QVERIFY(document->getUndoStack()->undo());
+    });
+    Q_EMIT row->customContextMenuRequested(QPoint(1, 1));
+
+    // After its own emission: the row exists, retired and hidden, the popup shows two new rows
+    QCOMPARE(removals, 1);
+    QVERIFY2(row, "a reply row was deleted inside of its own signal");
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(row));
+    QVERIFY(!row->isVisible());
+    QCOMPARE(popup->getReplyCount(), 2);
+    QCOMPARE(shownRows().size(), qsizetype(2));
+    QVERIFY(!shownRows().contains(row.data()));
+    QCOMPARE(popup->getMode(), pdf::PDFAppCommentPopup::Mode::Thread);
+
+    // The event loop deletes it
+    fixture.settle();
+    QVERIFY(!row);
+    QCOMPARE(shownRows().size(), qsizetype(2));
+}
+
 void AppAnnotationEditTest::commentPopupAnnotationRemoved()
 {
     using H = AppAnnotationEditTestHelper;
@@ -907,11 +980,13 @@ void AppAnnotationEditTest::commentPopupAnnotationRemoved()
     QVERIFY(!popup->getMoreMenu()->findChild<QAction*>(QStringLiteral("commentPopupDelete"))->isEnabled());
     popup->getMoreMenu()->hide();
 
-    // The tab deleted with the popup and its menu open
+    // The tab closed by the window (the real close, its question answered, RB-M6) with the popup and its menu open
     popup->showMoreMenu();
     QPointer<pdf::PDFAppCommentPopup> guard(popup);
-    delete tab.data();
+    fixture.retire(tab.data());
     fixture.settle();
+    fixture.answerCloseQuestions();
+    QVERIFY(!tab);
     QVERIFY(!guard);
 }
 
@@ -1442,6 +1517,60 @@ void AppAnnotationEditTest::contextMenuMulti()
     fixture.settle();
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
     QCOMPARE(document->getUndoStack()->getUndoDescription(), QObject::tr("Distribute annotations"));
+}
+
+void AppAnnotationEditTest::viewPopupsCloseWithTab()
+{
+    // Step A (newapp_robustness.md 12, conventions Lifetime): a popup of the tab parented to the
+    // window (the menu of the annotations, the properties dialog) belongs logically to the tab;
+    // retire of the tab - the single place, where the close of the window ends - closes it at
+    // once (not visible, retired) and it is deleted with the tab after the event loop
+    using H = AppAnnotationEditTestHelper;
+
+    {
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+        QVERIFY(tab);
+        pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
+        controller->selectAnnotations({ H::find(tab->getDocument(), 0, QStringLiteral("square")) });
+        fixture.settle();
+
+        QPointer<QMenu> menu = H::handler(tab)->getMenus()->showMenu(H::selectionRequest(controller));
+        QVERIFY(menu);
+        QCOMPARE(menu->parentWidget(), static_cast<QWidget*>(fixture.window.data()));
+        fixture.settle();
+        QVERIFY(menu && menu->isVisible());
+
+        QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+        pdf::PDFDeferredDeletion::retire(tab);
+        QVERIFY(menu);
+        QVERIFY(pdf::PDFDeferredDeletion::isRetired(menu.data()));
+        QVERIFY(!menu->isVisible());
+
+        fixture.settle();
+        QVERIFY(!tabGuard);
+        QVERIFY(!menu);
+    }
+
+    {
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+        QVERIFY(tab);
+        pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
+        QPointer<pdf::PDFAppAnnotationPropertiesDialog> dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, H::find(tab->getDocument(), 0, QStringLiteral("square")), fixture.window);
+        QVERIFY(dialog);
+        QCOMPARE(dialog->parentWidget(), static_cast<QWidget*>(fixture.window.data()));
+        fixture.settle();
+        QVERIFY(dialog && dialog->isVisible());
+
+        pdf::PDFDeferredDeletion::retire(tab);
+        QVERIFY(dialog);
+        QVERIFY(pdf::PDFDeferredDeletion::isRetired(dialog.data()));
+        QVERIFY(!dialog->isVisible());
+
+        fixture.settle();
+        QVERIFY(!dialog);
+    }
 }
 
 void AppAnnotationEditTest::contextMenuHiddenAndReplies()
@@ -2705,7 +2834,8 @@ void AppAnnotationEditTest::deletionMatrix()
     using H = AppAnnotationEditTestHelper;
 
     // Each dialog, the popup and a menu open; the tab, the window or the document
-    // (a reload by another state) goes away - nothing crashes, nothing stays
+    // (a reload by another state) goes away - nothing crashes, nothing stays (the order of the destructors: a
+    // deliberate synchronous deletion of the victim only, step A)
     enum class Open { Properties, Geometry, CopyToPages, Popup, Menu, Bar };
     enum class Victim { Tab, Window, DocumentFailed };
     for (const Open open : { Open::Properties, Open::Geometry, Open::CopyToPages, Open::Popup, Open::Menu, Open::Bar })
@@ -2750,10 +2880,10 @@ void AppAnnotationEditTest::deletionMatrix()
             switch (victim)
             {
                 case Victim::Tab:
-                    delete tab.data();
+                    pdftest::AppDocumentFixture::deleteNow(tab.data());
                     break;
                 case Victim::Window:
-                    delete fixture.window.data();
+                    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                     break;
                 case Victim::DocumentFailed:
                     tab->getDocument()->setFailed(QStringLiteral("x.pdf"), QStringLiteral("Damaged"));
@@ -2773,8 +2903,8 @@ void AppAnnotationEditTest::deletionMatrix()
     pdftest::AppDocumentFixture fixture;
     pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
     QVERIFY(tab);
-    delete H::handler(tab)->getAnnotationBar();
-    delete H::handler(tab)->getMenus();
+    pdftest::AppDocumentFixture::deleteNow(H::handler(tab)->getAnnotationBar());
+    pdftest::AppDocumentFixture::deleteNow(H::handler(tab)->getMenus());
     pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
     controller->selectAnnotations({ H::find(tab->getDocument(), 0, QStringLiteral("square")) });
     controller->requestMenu(H::selectionRequest(controller));
@@ -2797,7 +2927,13 @@ void AppAnnotationEditTest::deleteFromOwnSignals()
         controller->selectAnnotations({ square });
         fixture.settle();
         QObject receiver;
-        auto deleteTab = [tab]() { delete tab.data(); };
+        // The real close of the window (RB-M6); a question about the change is answered from the body
+        bool wasModified = false;
+        auto deleteTab = [&fixture, &wasModified, tab]()
+        {
+            wasModified = tab && tab->getDocument() && tab->getDocument()->isModified();
+            fixture.retire(tab.data());
+        };
 
         switch (scenario)
         {
@@ -2844,8 +2980,17 @@ void AppAnnotationEditTest::deleteFromOwnSignals()
             }
         }
         fixture.settle();
+
+        // The close of a tab with unsaved changes asks once (Don't Save answered), without changes it closes at once;
+        // the applied properties are an unsaved change
+        if (scenario == 0)
+        {
+            QVERIFY(wasModified);
+        }
+        QCOMPARE(fixture.answerCloseQuestions(), wasModified ? 1 : 0);
         QVERIFY2(!tab, qPrintable(QString::number(scenario)));
         QVERIFY(fixture.window);
+        QVERIFY2(fixture.window->getDocumentTabs().isEmpty(), qPrintable(QString::number(scenario)));
     }
 
     // The controller signal of the commit deletes the tab while the bar applies a color
@@ -2856,11 +3001,13 @@ void AppAnnotationEditTest::deleteFromOwnSignals()
     fixture.settle();
     QPointer<pdf::PDFAppAnnotationBar> bar = H::handler(tab)->getAnnotationBar();
     QObject receiver;
-    connect(controller, &pdf::PDFAppAnnotationController::changeCommitted, &receiver, [tab]() { tab->deleteLater(); });
+    connect(controller, &pdf::PDFAppAnnotationController::changeCommitted, &receiver, [&fixture, tab]() { fixture.retire(tab.data()); });
     bar->applyColor(QColor(Qt::green));
     fixture.settle();
+    fixture.answerCloseQuestions();
     QVERIFY(!tab);
     QVERIFY(!bar);
+    QVERIFY(fixture.window->getDocumentTabs().isEmpty());
 }
 
 void AppAnnotationEditTest::themesAndScales()
@@ -4119,7 +4266,10 @@ void AppAnnotationEditTest::moreColorsDialog()
     QVERIFY(propertiesGuard);
     dialog = MoreColors::open(propertiesGuard->findChild<pdf::PDFColorSwatchRow*>(QStringLiteral("propertiesColor")));
     QVERIFY(dialog);
-    delete propertiesGuard.data();
+    {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete propertiesGuard.data();
+    }
     fixture.settle();
     QTRY_VERIFY(!dialog);
     QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x0A, 0x84, 0xFF));
@@ -4130,7 +4280,10 @@ void AppAnnotationEditTest::moreColorsDialog()
     dialog = MoreColors::open(bar->getSwatchRow());
     QVERIFY(dialog);
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
-    delete tab;
+    {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete tab;
+    }
     fixture.settle();
     QVERIFY(!tabGuard);
     QTRY_VERIFY(!dialog);

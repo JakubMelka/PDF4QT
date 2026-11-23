@@ -26,6 +26,7 @@
 #include "pdfdatabasenotifier.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfwidgetstyleproperties.h"
 
 #include <QFrame>
@@ -66,8 +67,8 @@ PDFAppRestoreDefaultsDialog::PDFAppRestoreDefaultsDialog(PDFAppSettingsSection* 
         connect(section, &QObject::destroyed, this, &PDFAppRestoreDefaultsDialog::onSectionDestroyed);
         if (PDFAppContext* context = section->getContext(); context && context->getNotifier())
         {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppRestoreDefaultsDialog::onDatabaseChanged);
-            connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppRestoreDefaultsDialog::updateRows);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppRestoreDefaultsDialog::onDatabaseChanged);
+            PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppRestoreDefaultsDialog::updateRows);
         }
     }
 

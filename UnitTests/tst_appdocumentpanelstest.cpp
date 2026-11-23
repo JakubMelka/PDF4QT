@@ -811,10 +811,11 @@ void AppDocumentPanelsTest::sidebarFrame()
 void AppDocumentPanelsTest::sidebarHeaderApi()
 {
     pdftest::AppDocumentFixture fixture;
-    pdf::PDFAppDocumentView view(fixture.context.get());
-    view.resize(1000, 700);
-    view.show();
-    pdf::PDFAppDocumentSidebar* sidebar = view.getSidebar();
+    // A standalone view, deleted at the end of the function on purpose (a deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
+    view->resize(1000, 700);
+    view->show();
+    pdf::PDFAppDocumentSidebar* sidebar = view->getSidebar();
 
     // The registry of the sidebar is the default one; a panel of another package
     // (the search results) is tested by its own test. Here the frame: a panel with
@@ -834,8 +835,8 @@ void AppDocumentPanelsTest::sidebarHeaderApi()
     QPointer<QWidget> header = sidebar->getHeaderWidget(QStringLiteral("bookmarks"));
     QVERIFY(header);
 
-    // A deleted panel deletes its header widget
-    delete sidebar->findPanel(QStringLiteral("bookmarks"));
+    // A deleted panel deletes its header widget (a deliberate synchronous deletion)
+    pdftest::AppDocumentFixture::deleteNow(sidebar->findPanel(QStringLiteral("bookmarks")));
     pdftest::AppDocumentFixture::settle();
     QVERIFY(!header);
     QVERIFY(!sidebar->findPanel(QStringLiteral("bookmarks")));
@@ -868,34 +869,36 @@ void AppDocumentPanelsTest::sidebarRequestedBeforeReady()
     pdftest::AppDocumentFixture fixture;
     const QString path = pdftest::AppDocumentSamples::outline(fixture.folder());
 
-    pdf::PDFAppDocumentView view(fixture.context.get());
-    pdf::PDFAppDocument* document = new pdf::PDFAppDocument(fixture.context.get(), &view);
-    view.setDocument(document);
-    view.resize(1000, 700);
-    view.show();
+    // Standalone views, deleted at the end of the function on purpose (deliberate synchronous deletions; the
+    // document loads under the view outside of any scope)
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
+    pdf::PDFAppDocument* document = new pdf::PDFAppDocument(fixture.context.get(), view.get());
+    view->setDocument(document);
+    view->resize(1000, 700);
+    view->show();
 
     // Before the document is ready, every panel may be requested (?panel= of the route)
-    QVERIFY(view.showPanel(QStringLiteral("outline")));
-    QVERIFY(!view.getSidebar()->isTabVisible(QStringLiteral("outline")));
+    QVERIFY(view->showPanel(QStringLiteral("outline")));
+    QVERIFY(!view->getSidebar()->isTabVisible(QStringLiteral("outline")));
 
     QVERIFY(PanelsTestHelper::load(document, path));
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(view.getCurrentPanelId(), QStringLiteral("outline"));
-    QVERIFY(view.getSidebar()->isTabVisible(QStringLiteral("outline")));
+    QCOMPARE(view->getCurrentPanelId(), QStringLiteral("outline"));
+    QVERIFY(view->getSidebar()->isTabVisible(QStringLiteral("outline")));
 
     // A requested panel without content falls back to the thumbnails
-    pdf::PDFAppDocumentView view2(fixture.context.get());
-    pdf::PDFAppDocument* document2 = new pdf::PDFAppDocument(fixture.context.get(), &view2);
-    view2.setDocument(document2);
-    QVERIFY(view2.showPanel(QStringLiteral("layers")));
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view2(new pdf::PDFAppDocumentView(fixture.context.get()));
+    pdf::PDFAppDocument* document2 = new pdf::PDFAppDocument(fixture.context.get(), view2.get());
+    view2->setDocument(document2);
+    QVERIFY(view2->showPanel(QStringLiteral("layers")));
     QVERIFY(PanelsTestHelper::load(document2, path));
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(view2.getCurrentPanelId(), QStringLiteral("thumbnails"));
+    QCOMPARE(view2->getCurrentPanelId(), QStringLiteral("thumbnails"));
 
-    // The document destroyed before the view
-    delete document2;
+    // The document destroyed before the view (a deliberate synchronous deletion)
+    pdftest::AppDocumentFixture::deleteNow(document2);
     pdftest::AppDocumentFixture::settle();
-    QVERIFY(!view2.getSidebar()->isTabVisible(QStringLiteral("thumbnails")));
+    QVERIFY(!view2->getSidebar()->isTabVisible(QStringLiteral("thumbnails")));
 }
 
 void AppDocumentPanelsTest::sidebarThemeAndDirection()
@@ -2505,12 +2508,13 @@ void AppDocumentPanelsTest::attachmentsOpenEncrypted()
     QCOMPARE(secretTab->getTabTitle(), QStringLiteral("secret.pdf"));
     QVERIFY(secretTab->isTabPasswordProtected());
 
-    // An empty document from the memory fails (the loader refuses a second start)
-    pdf::PDFAppDocumentTab emptyTab(fixture.context.get(), nullptr);
-    QVERIFY(emptyTab.openFromMemory(QByteArray(), QStringLiteral("empty.pdf"), QString()));
-    QVERIFY(!emptyTab.openFromMemory(QByteArray("x"), QStringLiteral("again.pdf"), QString()));
-    QTRY_COMPARE(emptyTab.getDocument()->getState(), pdf::PDFAppDocumentState::Failed);
-    QCOMPARE(emptyTab.getDocument()->getTitle(), QStringLiteral("empty.pdf"));
+    // An empty document from the memory fails (the loader refuses a second start); a standalone tab, deleted at
+    // the end of the function on purpose (a deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFAppDocumentTab, pdftest::AppDocumentFixture::DeleteNow> emptyTab(new pdf::PDFAppDocumentTab(fixture.context.get(), nullptr));
+    QVERIFY(emptyTab->openFromMemory(QByteArray(), QStringLiteral("empty.pdf"), QString()));
+    QVERIFY(!emptyTab->openFromMemory(QByteArray("x"), QStringLiteral("again.pdf"), QString()));
+    QTRY_COMPARE(emptyTab->getDocument()->getState(), pdf::PDFAppDocumentState::Failed);
+    QCOMPARE(emptyTab->getDocument()->getTitle(), QStringLiteral("empty.pdf"));
 }
 
 void AppDocumentPanelsTest::attachmentsMarkOfTheWeb()
@@ -2694,12 +2698,12 @@ void AppDocumentPanelsTest::attachmentsDeletedDuringWrite()
     else
     {
         // Already read (a fast machine): the copy asks about its changes - Don't Save
-        delete innerTab.data();
+        pdftest::AppDocumentFixture::deleteNow(innerTab.data());
     }
     fixture.settle();
     QVERIFY(attachments->openAttachment(1));
     QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf")));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     QThreadPool::globalInstance()->waitForDone(10000);
     fixture.settle();
 }
@@ -3206,7 +3210,7 @@ void AppDocumentPanelsTest::bookmarksFileDialogs()
     QVERIFY(tab->executeCommand(pdf::PDFAppCommands::exportBookmarks()));
     QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
     QVERIFY(dialog);
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
     QVERIFY(dialog && dialog->isVisible());
@@ -3562,11 +3566,11 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            pdftest::AppDocumentFixture::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
         }
     };
 
@@ -3810,7 +3814,7 @@ void AppDocumentPanelsTest::deletionMatrix()
                 fixture.settle();
                 if (order == 0)
                 {
-                    delete view.data();
+                    pdftest::AppDocumentFixture::deleteNow(view.data());
                     delete document.data();
                 }
                 else
@@ -3818,7 +3822,7 @@ void AppDocumentPanelsTest::deletionMatrix()
                     delete view->getSidebar();
                     fixture.settle();
                     delete document.data();
-                    delete view.data();
+                    pdftest::AppDocumentFixture::deleteNow(view.data());
                 }
             }
             else
@@ -3833,7 +3837,7 @@ void AppDocumentPanelsTest::deletionMatrix()
                 }
                 else
                 {
-                    delete fixture.window.data();
+                    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 }
             }
             fixture.settle();
@@ -3855,7 +3859,7 @@ void AppDocumentPanelsTest::deletionMatrix()
         attachments->saveAttachment(0);
         pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
         thumbnails->createContextMenu()->popup(QPoint(100, 100));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -3886,40 +3890,42 @@ void AppDocumentPanelsTest::deletionMatrix()
         fixture.settle();
     }
 
-    // The document deleted under the panels of a standalone view
+    // The document deleted under the panels of a standalone view (deleted at the end of the block on purpose)
     {
         pdftest::AppDocumentFixture fixture;
-        pdf::PDFAppDocumentView view(fixture.context.get());
+        std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
         pdf::PDFAppDocument* document = new pdf::PDFAppDocument(fixture.context.get(), nullptr);
         QVERIFY(PanelsTestHelper::load(document, pdftest::AppDocumentSamples::attachments(fixture.folder())));
-        view.setDocument(document);
-        view.show();
+        view->setDocument(document);
+        view->show();
         for (const QString& id : { QStringLiteral("thumbnails"), QStringLiteral("attachments"), QStringLiteral("bookmarks"), QStringLiteral("notes"), QStringLiteral("outline"),
                                    QStringLiteral("layers") })
         {
-            view.getSidebar()->showPanel(id);
+            view->getSidebar()->showPanel(id);
             fixture.settle();
         }
-        delete document;
+
+        // The document deleted at once on purpose; the reaction of the panels runs outside of the scope
+        pdftest::AppDocumentFixture::deleteNow(document);
         fixture.settle();
         for (const QString& id : { QStringLiteral("thumbnails"), QStringLiteral("attachments"), QStringLiteral("bookmarks"), QStringLiteral("notes") })
         {
-            QVERIFY(view.getSidebar()->findPanel(id));
+            QVERIFY(view->getSidebar()->findPanel(id));
         }
-        QCOMPARE(qobject_cast<pdf::PDFAppThumbnailsPanel*>(view.getSidebar()->findPanel(QStringLiteral("thumbnails")))->getModel()->rowCount(), 0);
+        QCOMPARE(qobject_cast<pdf::PDFAppThumbnailsPanel*>(view->getSidebar()->findPanel(QStringLiteral("thumbnails")))->getModel()->rowCount(), 0);
     }
 
-    // Layers and outline with the document deleted
+    // Layers and outline with the document deleted (a standalone view, deleted at the end of the block on purpose)
     {
         pdftest::AppDocumentFixture fixture;
-        pdf::PDFAppDocumentView view(fixture.context.get());
+        std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
         pdf::PDFAppDocument* document = new pdf::PDFAppDocument(fixture.context.get(), nullptr);
         QVERIFY(PanelsTestHelper::load(document, pdftest::AppDocumentSamples::layers(fixture.folder())));
-        view.setDocument(document);
-        QVERIFY(view.getSidebar()->showPanel(QStringLiteral("layers")));
-        pdf::PDFAppLayersPanel* layers = qobject_cast<pdf::PDFAppLayersPanel*>(view.getSidebar()->findPanel(QStringLiteral("layers")));
+        view->setDocument(document);
+        QVERIFY(view->getSidebar()->showPanel(QStringLiteral("layers")));
+        pdf::PDFAppLayersPanel* layers = qobject_cast<pdf::PDFAppLayersPanel*>(view->getSidebar()->findPanel(QStringLiteral("layers")));
         QCOMPARE(layers->getLayerCount(), 2);
-        delete document;
+        pdftest::AppDocumentFixture::deleteNow(document);
         fixture.settle();
         QCOMPARE(layers->getLayerCount(), 0);
         QCOMPARE(layers->getModel()->rowCount(QModelIndex()), 0);

@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdfappwindowframe.h"
+#include "pdfapplifetimetokens.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentwindow.h"
 
@@ -220,7 +222,9 @@ void PDFAppWindowFrame::installWindowFilter()
             m_filteredWindow->removeEventFilter(this);
         }
         m_filteredWindow = windowHandle;
-        windowHandle->installEventFilter(this);
+
+        // The QWindow is outside the subtree of the frame: the filter goes through the helper (step A)
+        PDFDeferredDeletion::installEventFilter(windowHandle, this, this);
     }
 }
 
@@ -287,15 +291,28 @@ void PDFAppWindowFrame::updateCursor(const QPoint& windowPosition)
     }
 
     const Qt::CursorShape shape = PDFAppHitTest::getCursorShape(hitTest(windowPosition));
-    if (shape != Qt::ArrowCursor)
+    if (shape == Qt::ArrowCursor)
     {
-        m_window->setCursor(shape);
-        m_isCursorOverridden = true;
+        releaseCursor();
     }
-    else if (m_isCursorOverridden)
+    else if (m_cursorToken)
     {
-        m_window->unsetCursor();
-        m_isCursorOverridden = false;
+        m_cursorToken->setCursor(shape);
+    }
+    else
+    {
+        m_cursorToken = new PDFAppCursorToken(this, m_window, shape);
+    }
+}
+
+void PDFAppWindowFrame::releaseCursor()
+{
+    // The token gives the cursor of the window back (unsetCursor) and goes (a token has no hook)
+    if (PDFAppCursorToken* token = m_cursorToken.data())
+    {
+        m_cursorToken = nullptr;
+        token->releaseToken();
+        delete token;
     }
 }
 
@@ -334,11 +351,7 @@ bool PDFAppWindowFrame::eventFilter(QObject* watched, QEvent* event)
         }
 
         case QEvent::Leave:
-            if (m_isCursorOverridden)
-            {
-                m_window->unsetCursor();
-                m_isCursorOverridden = false;
-            }
+            releaseCursor();
             break;
 
         default:

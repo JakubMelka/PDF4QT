@@ -371,7 +371,7 @@ void AppToolBitonalTest::contextMenuModeMayCloseTheTab()
         }
         ++changesAfterTrigger;
         itemsAtChange = H::items(shell);
-        delete tab.data();
+        pdftest::AppDocumentFixture::deleteNow(tab.data());
     });
     fillWhite->trigger();
     isTriggerReturned = true;

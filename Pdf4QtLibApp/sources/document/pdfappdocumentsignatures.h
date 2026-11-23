@@ -30,6 +30,7 @@
 #include "pdfsignaturehandler.h"
 
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QByteArray>
 #include <QFutureWatcher>
@@ -102,7 +103,7 @@ public:
 /// belong to the bytes of the file: a change of the document in memory keeps them
 /// (they are given to the new version), a running verification of other bytes is
 /// canceled and nobody waits for it.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSignatureVerifier : public QObject
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSignatureVerifier : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -171,6 +172,11 @@ public:
 Q_SIGNALS:
     /// The verification has started or ended, the results have changed
     void verificationChanged();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire: a running verification is canceled at once (no signal; the worker
+    /// ends by itself, nobody waits)
+    virtual void retire() override;
 
 private:
     void startVerification();

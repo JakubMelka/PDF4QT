@@ -29,6 +29,7 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentcards.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthemefonts.h"
 #include "pdfwidgetstyleproperties.h"
 
@@ -72,8 +73,8 @@ PDFAppSupportPage::PDFAppSupportPage(PDFAppContext* context, QWidget* parent) :
 
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSupportPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSupportPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppSupportPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppSupportPage::onEverythingChanged);
     }
 
     refreshUsedTools();
@@ -101,9 +102,18 @@ void PDFAppSupportPage::rebuild()
     m_quickActions.clear();
     m_chips.clear();
     m_videoCards.clear();
-    delete m_quickActionGrid.data();
-    delete m_tutorials.data();
-    delete m_chipGroup.data();
+    // The old content is retired (step A, A2): the slot of a tile, a chip or the search
+    // field may be on the stack; it leaves the layout now and is deleted later
+    PDFAppPageRebuild::retireWidget(m_quickActionGrid.data());
+    PDFAppPageRebuild::retireWidget(m_tutorials.data());
+    PDFDeferredDeletion::retire(m_chipGroup.data());
+    m_quickActionGrid = nullptr;
+    m_tutorials = nullptr;
+    m_chipGroup = nullptr;
+    m_searchField = nullptr;
+    m_channelButton = nullptr;
+    m_videoGrid = nullptr;
+    m_emptyText = nullptr;
     buildContent();
     m_quickActionGrid->show();
     m_tutorials->show();

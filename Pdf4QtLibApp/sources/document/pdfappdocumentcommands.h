@@ -24,6 +24,7 @@
 #define PDFAPPDOCUMENTCOMMANDS_H
 
 #include "pdfappglobal.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QObject>
 #include <QPointer>
@@ -95,7 +96,10 @@ private:
 /// The handler is a child of the tab and lives as long as the tab; the document
 /// and the view of the tab live longer than the handlers (the tab deletes the
 /// handlers first).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentCommandHandler : public QObject
+///
+/// Deferred deletion (step A): a handler is retired with its tab; its hook retire() (PDFRetirable) ends what the
+/// handler has outside the tab (its dialogs and popups parented to the window, a running command).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentCommandHandler : public QObject, public PDFRetirable
 {
     Q_OBJECT
 
@@ -133,6 +137,12 @@ public:
 Q_SIGNALS:
     /// The enabled or checked state of the commands may have changed
     void stateChanged();
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the handler closes its dialogs and popups
+    /// parented to the window without their answers (setOwner) and ends a running command. Emits none of the
+    /// handler's signals, opens no dialog, waits for nothing. An override calls BaseClass::retire() first.
+    virtual void retire() override;
 
 private:
     PDFAppDocumentPackage m_package;

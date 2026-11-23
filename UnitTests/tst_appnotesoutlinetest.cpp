@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "appdocumentfixture.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfappannotationcontroller.h"
 #include "pdfappannotationoperations.h"
@@ -793,12 +794,12 @@ void AppNotesOutlineTest::outlineEditorState()
     editor->cancelCreation();
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 0);
 
-    // A view without a document
-    pdf::PDFAppDocumentView view(fixture.context.get());
-    QVERIFY(!view.getOutlineEditor()->isEditingAllowed());
-    QVERIFY(!view.getOutlineEditor()->getCurrentViewDestination());
-    QVERIFY(!view.getOutlineEditor()->createItemAtCurrentView());
-    QCOMPARE(view.getOutlineEditor()->getEditingRefusalReason(), QStringLiteral("No document is shown."));
+    // A view without a document (never shown: its deletion at the end is a deliberate synchronous deletion, step A)
+    std::unique_ptr<pdf::PDFAppDocumentView, pdftest::AppDocumentFixture::DeleteNow> view(new pdf::PDFAppDocumentView(fixture.context.get()));
+    QVERIFY(!view->getOutlineEditor()->isEditingAllowed());
+    QVERIFY(!view->getOutlineEditor()->getCurrentViewDestination());
+    QVERIFY(!view->getOutlineEditor()->createItemAtCurrentView());
+    QCOMPARE(view->getOutlineEditor()->getEditingRefusalReason(), QStringLiteral("No document is shown."));
 }
 
 void AppNotesOutlineTest::outlineOperations()
@@ -2521,7 +2522,8 @@ void AppNotesOutlineTest::deletionMatrix()
 
     // The tab, the window or the panel deleted while a new item waits for its
     // title, while the inline editor is open, with a context menu, with a queued
-    // drop or a queued end of an edit
+    // drop or a queued end of an edit (the order of the destructors: a deliberate
+    // synchronous deletion of the victim only, step A)
     for (int scenario = 0; scenario < 6; ++scenario)
     {
         for (int target = 0; target < 3; ++target)
@@ -2578,11 +2580,11 @@ void AppNotesOutlineTest::deletionMatrix()
             }
             else if (target == 1)
             {
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             }
             else
             {
-                delete panel.data();
+                pdftest::AppDocumentFixture::deleteNow(panel.data());
             }
             fixture.settle();
             QVERIFY(!panel);
@@ -2614,11 +2616,11 @@ void AppNotesOutlineTest::deletionMatrix()
         }
         else if (target == 1)
         {
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         }
         else
         {
-            delete panel.data();
+            pdftest::AppDocumentFixture::deleteNow(panel.data());
         }
         fixture.settle();
         QVERIFY(!menuGuard);
@@ -2637,10 +2639,10 @@ void AppNotesOutlineTest::deletionMatrix()
         fixture.settle();
         QVERIFY(view->getOutlineEditor()->createItemAtCurrentView());
         fixture.settle();
-        delete document;
+        pdftest::AppDocumentFixture::deleteNow(document);
         fixture.settle();
         QVERIFY(!view->getOutlineEditor()->isCreationPending());
-        delete view;
+        pdftest::AppDocumentFixture::deleteNow(view);
         fixture.settle();
     }
 }
@@ -2663,9 +2665,12 @@ void AppNotesOutlineTest::deleteFromOwnSignals()
 {
     using H = NotesOutlineTestHelper;
 
-    // The application deletes the tab (or the window) synchronously from a signal
-    // of the outline editor, of the document changed by it or by the Notes panel,
-    // and of the selection of the annotations made by the panel
+    // The application closes the tab from a signal of the outline editor, of the
+    // document changed by it or by the Notes panel, and of the selection of the
+    // annotations made by the panel (step A: the real close of the window, retired,
+    // deleted after the event loop; its question is answered from the body, RB-M6);
+    // the window is still deleted synchronously (a deliberate deletion - the
+    // application deletes its window only after its event loop, RR-M7)
     QFETCH(QString, signal);
     QFETCH(bool, deleteWindow);
 
@@ -2676,7 +2681,7 @@ void AppNotesOutlineTest::deleteFromOwnSignals()
     QVERIFY(tab);
     QObject receiver;
     bool isDeleted = false;
-    auto deleteNow = [&isDeleted, &tab, &window, deleteWindow]()
+    auto deleteNow = [&isDeleted, &tab, &window, &fixture, deleteWindow]()
     {
         if (isDeleted)
         {
@@ -2685,11 +2690,11 @@ void AppNotesOutlineTest::deleteFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            pdftest::AppDocumentFixture::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            fixture.retire(tab.data());
         }
     };
 
@@ -2749,10 +2754,15 @@ void AppNotesOutlineTest::deleteFromOwnSignals()
 
     QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 10000);
     fixture.settle();
+    if (!deleteWindow)
+    {
+        fixture.answerCloseQuestions();
+    }
     QVERIFY(deleteWindow ? !window : !tab);
     if (!deleteWindow)
     {
         QVERIFY(window);
+        QVERIFY(fixture.window->getDocumentTabs().isEmpty());
         QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
     }
 }
@@ -3940,6 +3950,8 @@ void AppNotesOutlineTest::outlineTargetLifetime()
             }
             else
             {
+                // A deliberate synchronous deletion of the window (step A)
+                pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
                 delete fixture.window.data();
             }
             fixture.settle();

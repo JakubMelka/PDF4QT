@@ -394,6 +394,8 @@ private slots:
     void panelReopenFocus();
     void inputReceiverRemovedDuringEvent();
     void compilersStoppedBeforeProxyDies();
+    void retiredTabEndsFullScreen();
+    void retiredDocumentLeavesView();
 };
 
 void AppDocumentViewTest::initTestCase()
@@ -1075,7 +1077,7 @@ void AppDocumentViewTest::viewDestroyedSilently()
     QObject receiver;
     QObject::connect(view, &pdf::PDFAppDocumentView::viewStateChanged, &receiver, [&emitted, &isDying]() { emitted += isDying ? 1 : 0; });
     isDying = true;
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     QCOMPARE(emitted, 0);
     pdftest::AppDocumentFixture::settle();
 }
@@ -1150,10 +1152,65 @@ void AppDocumentViewTest::compilersStoppedBeforeProxyDies()
         isDestroyedSeen = true;
         stateWhenProxyDied = compiler->getState();
     });
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     QVERIFY(isDestroyedSeen);
     QCOMPARE(stateWhenProxyDied, pdf::PDFAsynchronousPageCompiler::State::Inactive);
     pdftest::AppDocumentFixture::settle();
+}
+
+void AppDocumentViewTest::retiredTabEndsFullScreen()
+{
+    // Step A: a retired tab is inert at once and deleted later by the event loop; the full
+    // screen of the window (outside the tab) ends at once, not with the later deletion - the
+    // window gets its top bar back while the tab still exists
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("RetiredFull.pdf"), 2));
+    QVERIFY(tab);
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fullScreen());
+    QVERIFY(fixture.window->isFullScreenMode());
+    QVERIFY(fixture.window->getTopBar()->isHidden());
+
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    pdf::PDFDeferredDeletion::retire(tab);
+    QVERIFY(guard);
+    QVERIFY(!fixture.window->isFullScreenMode());
+    QVERIFY(!fixture.window->getTopBar()->isHidden());
+
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!fixture.window->isFullScreenMode());
+}
+
+void AppDocumentViewTest::retiredDocumentLeavesView()
+{
+    // Step A, lesson 1: retire cuts the signals of the document, so the signal of its
+    // destructor (aboutToBeDestroyed) would reach nobody. The view, which stays, forgets the
+    // document at once by the notifier of the document, while the document is still whole:
+    // the canvas shows nothing more, before the document is deleted by the event loop
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("RetiredDocument.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QVERIFY(document);
+    QCOMPARE(view->getDocument(), document.data());
+    QVERIFY(view->getProxy()->getDocument());
+
+    pdf::PDFDeferredDeletion::retire(document.data());
+    QVERIFY(document);
+    QVERIFY(!view->getDocument());
+    QVERIFY(!view->getProxy()->getDocument());
+
+    fixture.settle();
+    QVERIFY(!document);
+    QVERIFY(!view->getDocument());
+    QVERIFY(!tab->getDocument());
+
+    // The tab without its document is closed as before (no question: nothing to save)
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    QVERIFY(fixture.window->closeTab(tab));
+    fixture.settle();
+    QVERIFY(!tabGuard);
 }
 
 void AppDocumentViewTest::selectMenuTools()
@@ -2136,7 +2193,7 @@ void AppDocumentViewTest::fullScreenTabClosed()
     QVERIFY(fixture.window->isFullScreenMode());
 
     // The tab deleted in the full screen gives the window back its top bar
-    delete tab;
+    pdftest::AppDocumentFixture::deleteNow(tab);
     fixture.settle();
     QVERIFY(!fixture.window->isFullScreenMode());
     QVERIFY(!fixture.window->getTopBar()->isHidden());
@@ -2415,7 +2472,7 @@ void AppDocumentViewTest::infoBarsDeletion()
         }
         else if (action == QStringLiteral("close"))
         {
-            delete tab;
+            pdftest::AppDocumentFixture::deleteNow(tab);
         }
     });
 
@@ -2913,7 +2970,7 @@ void AppDocumentViewTest::panelDeletion()
         QVERIFY(tab);
         QPointer<pdf::PDFAppDocumentPanelPopup> panel = tab->getView()->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::View);
         QVERIFY(panel);
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         fixture.settle();
         QVERIFY(!panel);
     }
@@ -2926,7 +2983,7 @@ void AppDocumentViewTest::panelDeletion()
         QPointer<pdf::PDFAppDocumentPanelPopup> panel = tab->getView()->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::GoTo);
         tab->getView()->requestCommand(pdf::PDFAppCommands::nextPage());
         tab->getView()->openSettings(QString());
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!panel);
     }
@@ -2944,7 +3001,7 @@ void AppDocumentViewTest::panelDeletion()
         fixture.settle();
 
         // The tab deleted from the closing signal of its panel
-        connect(toolbar->getOpenPanel(), &pdf::PDFAppDocumentPanelPopup::closed, tab, [tab]() { delete tab; });
+        connect(toolbar->getOpenPanel(), &pdf::PDFAppDocumentPanelPopup::closed, tab, [tab]() { pdftest::AppDocumentFixture::deleteNow(tab); });
         QPointer<pdf::PDFAppDocumentView> view = tab->getView();
         toolbar->getOpenPanel()->close();
         fixture.settle();
@@ -2957,7 +3014,7 @@ void AppDocumentViewTest::panelDeletion()
         pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Deletion4.pdf"), 2));
         QVERIFY(tab);
         QPointer<pdf::PDFAppDocumentSelectMenu> menu = tab->getView()->getToolbar()->getSelectMenu();
-        QTimer::singleShot(0, tab, [tab]() { delete tab; });
+        QTimer::singleShot(0, tab, [tab]() { pdftest::AppDocumentFixture::deleteNow(tab); });
         menu->exec(QPoint(10, 10));
         fixture.settle();
         QVERIFY(!menu);
@@ -3139,7 +3196,7 @@ void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
     H::click(selectButton);
     QCOMPARE(toolbar->getOpenPanelButton(), selectButton);
     H::hover(viewButton);
-    delete tabGuard.data();
+    pdftest::AppDocumentFixture::deleteNow(tabGuard.data());
     fixture.settle();
     QVERIFY(!tabGuard);
 }
@@ -3513,15 +3570,15 @@ void AppDocumentViewTest::panelSwitchDeletion()
         switch (scenario)
         {
             case 0:
-                connect(viewButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (checked) { delete tab.data(); } });
+                connect(viewButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (checked) { pdftest::AppDocumentFixture::deleteNow(tab.data()); } });
                 H::hover(viewButton);
                 break;
             case 1:
-                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { delete tab.data(); } });
+                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { pdftest::AppDocumentFixture::deleteNow(tab.data()); } });
                 H::hover(toolbar->getSelectButton());
                 break;
             default:
-                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { delete tab.data(); } });
+                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { pdftest::AppDocumentFixture::deleteNow(tab.data()); } });
                 QVERIFY(H::focus(filePanel->getCommandButton(C::properties())));
                 QTest::keyClick(filePanel->getCommandButton(C::properties()), Qt::Key_Right);
                 break;
@@ -3543,7 +3600,7 @@ void AppDocumentViewTest::panelSwitchDeletion()
         QVERIFY(filePanel);
         fixture.settle();
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        connect(filePanel, &pdf::PDFAppDocumentPanelPopup::closed, filePanel, [window]() { delete window.data(); });
+        connect(filePanel, &pdf::PDFAppDocumentPanelPopup::closed, filePanel, [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         H::hover(toolbar->getMenuButton(H::Panel::Insert));
         fixture.settle();
         QVERIFY(!window);

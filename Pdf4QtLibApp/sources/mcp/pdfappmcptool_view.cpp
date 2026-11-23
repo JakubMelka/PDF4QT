@@ -39,6 +39,7 @@
 #include "pdfappmcpchange.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QDialog>
 
@@ -70,6 +71,19 @@ public:
         writer.endObject();
         invocation.host->recordActivity(invocation.call, invocation.getActionId(), document, QJsonObject(), PDFMcpActivityStatus::Ok);
         invocation.call->finish(PDFAppMcpReadSupport::createResult(invocation.actionName, writer.take(), false));
+    }
+
+    /// The view of the tab while the tab is open: a slot of the activation or of the navigation may close the tab
+    /// (retired: inert, deleted later) or delete it - nothing is shown in its view any more
+    static PDFAppDocumentView* getOpenView(const QPointer<PDFAppDocumentTab>& tab)
+    {
+        return tab && !PDFDeferredDeletion::isRetired(tab.data()) ? tab->getView() : nullptr;
+    }
+
+    /// The document was closed meanwhile (deleted, or retired with its tab)
+    static bool isClosed(const QPointer<PDFAppDocument>& document)
+    {
+        return !document || PDFDeferredDeletion::isRetired(document.data());
     }
 
     /// The refusal of a request, which would show another tab, while a question of a tool waits for the user
@@ -262,7 +276,7 @@ void PDFAppMcpViewToolHelper::goTo(const PDFAppMcpToolInvocation& invocation, PD
         activate(host, document);
     }
 
-    PDFAppDocumentView* view = tabGuard ? tabGuard->getView() : nullptr;
+    PDFAppDocumentView* view = getOpenView(tabGuard);
     if (view && destination && view->getProxy())
     {
         view->getProxy()->goToDestination(*destination);
@@ -272,7 +286,7 @@ void PDFAppMcpViewToolHelper::goTo(const PDFAppMcpToolInvocation& invocation, PD
         view->goToPage(pageIndex);
     }
 
-    view = tabGuard ? tabGuard->getView() : nullptr;
+    view = getOpenView(tabGuard);
     if (view && !fit.isEmpty())
     {
         view->executeCommand(fit == QLatin1String("width") ? PDFAppCommands::fitWidth() : PDFAppCommands::fitPage());
@@ -282,7 +296,7 @@ void PDFAppMcpViewToolHelper::goTo(const PDFAppMcpToolInvocation& invocation, PD
         view->setZoom(*zoom / 100.0);
     }
 
-    if (!documentGuard)
+    if (isClosed(documentGuard))
     {
         invocation.call->finish(PDFMcpCallResult::createToolError(QStringLiteral("The document was closed in PDF4QT.")));
         return;
@@ -324,19 +338,19 @@ void PDFAppMcpViewToolHelper::showArea(const PDFAppMcpToolInvocation& invocation
         activate(host, document);
     }
 
-    PDFAppDocumentView* view = tabGuard ? tabGuard->getView() : nullptr;
+    PDFAppDocumentView* view = getOpenView(tabGuard);
     if (view && view->getProxy())
     {
         view->getProxy()->goToPageAndEnsureVisible(pageIndex, rect->normalized());
     }
 
-    view = tabGuard ? tabGuard->getView() : nullptr;
+    view = getOpenView(tabGuard);
     if (view)
     {
         PDFAppMcpAreaHighlight::show(view, pageIndex, *rect);
     }
 
-    if (!documentGuard)
+    if (isClosed(documentGuard))
     {
         invocation.call->finish(PDFMcpCallResult::createToolError(QStringLiteral("The document was closed in PDF4QT.")));
         return;
@@ -393,7 +407,7 @@ void PDFAppMcpViewToolHelper::showSearch(const PDFAppMcpToolInvocation& invocati
         handlerGuard->startSearch(query);
     }
 
-    if (!documentGuard)
+    if (isClosed(documentGuard))
     {
         invocation.call->finish(PDFMcpCallResult::createToolError(QStringLiteral("The document was closed in PDF4QT.")));
         return;
@@ -583,7 +597,7 @@ void PDFAppMcpViewTool::handle(const PDFAppMcpToolInvocation& invocation)
     {
         QPointer<PDFAppDocument> documentGuard(document);
         Helper::activate(host, document);
-        if (!documentGuard)
+        if (Helper::isClosed(documentGuard))
         {
             invocation.call->finish(PDFMcpCallResult::createToolError(QStringLiteral("The document was closed in PDF4QT.")));
             return;

@@ -59,16 +59,16 @@ PDFAppDocumentPage::PDFAppDocumentPage(PDFAppContext* context, QWidget* parent) 
     {
         if (PDFAppDocument* document = m_tab->getDocument())
         {
-            connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentPage::onDocumentStateChanged);
+            PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentPage::onDocumentStateChanged);
         }
         if (PDFAppDocumentView* view = m_tab->getView())
         {
-            connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentPage::onViewChanged);
-            connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentPage::onViewChanged);
+            PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentPage::onViewChanged);
+            PDFDeferredDeletion::connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentPage::onViewChanged);
         }
         if (PDFAppDocumentSearchCommandHandler* search = PDFAppDocumentSearchCommandHandler::findHandler(m_tab))
         {
-            connect(search, &PDFAppDocumentSearchCommandHandler::searchTextChanged, this, &PDFAppDocumentPage::onViewChanged);
+            PDFDeferredDeletion::connect(search, &PDFAppDocumentSearchCommandHandler::searchTextChanged, this, &PDFAppDocumentPage::onViewChanged);
         }
     }
 }

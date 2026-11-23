@@ -42,6 +42,8 @@
 #include "pdfappviewstate.h"
 #include "pdfrecentrepository.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -97,10 +99,12 @@ PDFAppDocumentTab::PDFAppDocumentTab(PDFAppContext* context, QWidget* parent) :
     connect(m_stateScreen.data(), &PDFAppDocumentStateScreen::passwordEntered, this, &PDFAppDocumentTab::onPasswordEntered);
     connect(m_stateScreen.data(), &PDFAppDocumentStateScreen::closeRequested, this, &PDFAppDocumentTab::onStateScreenCloseRequested);
 
+    // A pending reading position is written, when the tab is retired (step A: the timer fires first)
     m_readingStateTimer = new QTimer(this);
     m_readingStateTimer->setSingleShot(true);
     m_readingStateTimer->setInterval(READING_STATE_DELAY);
     connect(m_readingStateTimer.data(), &QTimer::timeout, this, &PDFAppDocumentTab::writeReadingState);
+    PDFDeferredDeletion::setFlushOnRetire(m_readingStateTimer.data());
 
     // One command handler of each package (step 3 plan, chapter 2)
     m_handlers.emplace_back(new PDFAppDocumentModelCommandHandler(this));
@@ -663,7 +667,12 @@ void PDFAppDocumentTab::showLockPopover(const QRect& anchor)
         return;
     }
 
-    delete m_lockPopover.data();
+    // The previous popover is retired (step A: it may be inside its own signal), deleted later
+    if (PDFAppLockPopover* previous = m_lockPopover.data())
+    {
+        m_lockPopover = nullptr;
+        PDFDeferredDeletion::retire(previous);
+    }
     m_lockPopover = new PDFAppLockPopover(this);
     connect(m_lockPopover.data(), &PDFAppLockPopover::unlockRequested, this, &PDFAppDocumentTab::onUnlockRequested);
     connect(m_lockPopover.data(), &PDFAppLockPopover::editCopyRequested, this, &PDFAppDocumentTab::onEditCopyRequested);

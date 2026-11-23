@@ -26,7 +26,12 @@
 // copy, the leaving by a navigation (F14), the lock, a plain navigation - run once with a
 // recorder of every signal of every object of the application (classes pdf::PDFApp* and
 // pdf::PDFDocumentTool*), then once more for each signal it has seen, with the tab, the
-// window, the page of the tool or its shell deleted synchronously from that emission.
+// page of the tool or its shell closed from that emission by the real close of the
+// application (PDF4QT_LIFETIME_MODE=deferred, the default: the tab closed, the page left
+// by the navigation, the shell by the close of its page - retired, deleted later,
+// LifetimeVictimCheck checks it), and once per step with the application ended after it
+// (the victim "end"); PDF4QT_LIFETIME_MODE=sync deletes the tab, the window, the page of
+// the tool or its shell synchronously from that emission (diagnostics).
 // Nothing may crash (run it under ASan: freed memory stays readable in a Release build on
 // Windows), the window and the tab work afterwards. A second test keeps each popup of the
 // tool open, while a translator is installed, the document or the theme changes. The
@@ -40,6 +45,7 @@
 #include "apptoolowntabfixture.h"
 #include "apptoolpageslifetime.h"
 #include "apptoolshellfixture.h"
+#include "lifetimevictimcheck.h"
 
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
@@ -865,9 +871,10 @@ protected:
 enum class ToolPagesLifetimeVictim
 {
     Tab,        ///< The tab of the document
-    Window,
+    Window,     ///< PDF4QT_LIFETIME_MODE=sync only
     Page,       ///< The page of the tool
-    Shell       ///< The shell of the tool
+    Shell,      ///< The shell of the tool
+    End         ///< No victim: the application ends after a step (deferred and retire modes)
 };
 
 /// Helpers of the scenarios: every input is sent through guards, the victim may be
@@ -2493,6 +2500,8 @@ private Q_SLOTS:
     void recorderHooksAfterConstruction();
     void waitAfterDeletionLetsDueTimersFire();
     void waitsOfStepEndWithDeletion();
+    void closeApplicationLeavesResultDialog();
+    void refusalWhileToolDecides();
     void deleteFromEverySignal_data();
     void deleteFromEverySignal();
     void openPopupsSurviveChanges_data();
@@ -2518,12 +2527,14 @@ private:
         return scenarios;
     }
 
-    /// Runs the scenario. In the replay mode the victim is deleted at the target
-    /// site. \returns the sites seen (discovery), whether the victim was deleted and
+    /// Runs the scenario. In the replay mode the victim is deleted (sync) or closed (deferred,
+    /// retire) at the target site; the victim End ends the application after the step
+    /// \p endStep. \returns the sites seen (discovery), whether the victim was deleted,
     /// whether the site came without the victim (the page and the shell exist only while
-    /// the tool is open).
+    /// the tool is open) and the number of the steps.
     void runScenario(const QString& name, ToolPagesLifetimeRecorder::Mode mode, const ToolPagesLifetimeRecorder::Site& target, ToolPagesLifetimeVictim victim,
-                     std::vector<ToolPagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred = nullptr, bool* isReached = nullptr);
+                     std::vector<ToolPagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred = nullptr, bool* isReached = nullptr, int endStep = -1,
+                     int* stepCount = nullptr);
 };
 
 void AppToolPagesLifetimeTest::initTestCase()
@@ -2584,6 +2595,10 @@ void AppToolPagesLifetimeTest::recorderHooksAfterConstruction()
     }
     QVERIFY(isRecorded);
     recorder.stop();
+
+    // The view has never been shown: a deliberate synchronous deletion of the test
+    pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+    delete view.data();
 }
 
 void AppToolPagesLifetimeTest::waitAfterDeletionLetsDueTimersFire()
@@ -2715,14 +2730,106 @@ void AppToolPagesLifetimeTest::waitsOfStepEndWithDeletion()
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&isReady]() { return isReady; }));
 }
 
+void AppToolPagesLifetimeTest::closeApplicationLeavesResultDialog()
+{
+    // The end of the application of the sweeps (LifetimeVictimCheck::closeApplication, the victim "end"): the modal
+    // result dialog of a tool in its own tab, open before the quit, decides first - the own tab refuses the quit while
+    // it is open (PDFAppToolTabPage::requestClose in Deciding). The user leaves the dialog without keeping the result
+    // (its Discard), the window is closed again and closes; without that answer the window stays.
+    pdftest::AppToolOwnTabFixture fixture;
+    QVERIFY(fixture.window);
+    ToolPagesLifetimeRun run;
+    run.fixture = &fixture;
+    run.scenario = QStringLiteral("owntabaccept");
+    run.ownTabTool = fixture.registerOwnTabTool(QStringLiteral("pages.merge"));
+    QVERIFY(run.ownTabTool);
+    run.window = fixture.window;
+    run.tab = ToolPagesLifetimeHelper::openScenarioDocument(fixture, run.scenario);
+    QVERIFY(run.tab);
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument() && run.tab->getDocument()->isReady(); }));
+
+    // The own tab of Merge opens over the document, the tool runs to its result dialog
+    std::vector<ToolPagesLifetimeStep> steps;
+    ToolPagesLifetimeHelper::addOwnTabSteps(run.scenario, &steps);
+    QVERIFY(steps.size() >= 2);
+    QVERIFY(steps[0](run));
+    QVERIFY(steps[1](run));
+    pdf::PDFDocumentToolShell* shell = ToolPagesLifetimeHelper::shell(run);
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Deciding);
+    QPointer<pdf::PDFAppToolResultDialog> dialog = shell->getResultDialog();
+    QVERIFY(dialog && dialog->isVisible() && dialog->isModal());
+
+    QVERIFY(pdftest::LifetimeVictimCheck::closeApplication(fixture));
+    QVERIFY(!fixture.window || !fixture.window->isVisible());
+    QVERIFY(!dialog || !dialog->isVisible());
+}
+
+void AppToolPagesLifetimeTest::refusalWhileToolDecides()
+{
+    // Check 10 of the sweeps (LifetimeVictimCheck): the tool page of a document tab, whose tool decides about its
+    // result (Extract Pages, its modal result dialog open), refuses the navigation back - the dialog decides first
+    // (F2): Refusal::RefusedByOpenDialog, no finding. A tool, which still decides without its dialog after settle(),
+    // is stuck - a finding.
+    using Check = pdftest::LifetimeVictimCheck;
+    pdftest::AppToolOwnTabFixture fixture;
+    QVERIFY(fixture.window);
+    ToolPagesLifetimeRun run;
+    run.fixture = &fixture;
+    run.scenario = QStringLiteral("extract");
+    run.toolId = QStringLiteral("pages.extract");
+    run.window = fixture.window;
+    run.tab = ToolPagesLifetimeHelper::openScenarioDocument(fixture, run.scenario);
+    QVERIFY(run.tab);
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument() && run.tab->getDocument()->isReady(); }));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(ToolPagesLifetimeSteps::openTool(run));
+    QPointer<pdf::PDFAppToolResultDialog> dialog = ToolPagesLifetimeSteps::confirmToDialog(run);
+    QVERIFY(dialog && dialog->isVisible() && dialog->isModal());
+    pdf::PDFDocumentToolShell* shell = ToolPagesLifetimeHelper::shell(run);
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Deciding);
+
+    const int refusedBefore = Check::getRefusedByOpenDialogCount();
+    QPointer<pdf::PDFAppPage> page = run.tab->getPage();
+    QVERIFY(page && run.tab->getHistory().canGoBack());
+    {
+        Check check(&fixture);
+        QVERIFY(!check.retire(page.data(), pdftest::LifetimeDeletionMode::Mode::Deferred));
+        QVERIFY(check.getRefusal() == Check::Refusal::RefusedByOpenDialog);
+        QCOMPARE(Check::getRefusedByOpenDialogCount(), refusedBefore + 1);
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(page && run.tab->getPage() == page.data() && dialog && dialog->isVisible());
+        QCOMPARE(check.finish(), QStringList());
+    }
+    {
+        // The dialog hidden without its answer: the tool decides on without it
+        dialog->hide();
+        Check check(&fixture);
+        QVERIFY(!check.retire(page.data(), pdftest::LifetimeDeletionMode::Mode::Deferred));
+        QVERIFY(check.getRefusal() == Check::Refusal::RefusedByOpenDialog);
+        pdftest::AppDocumentFixture::settle();
+        const QStringList findings = check.finish();
+        QVERIFY2(findings.size() == 1 && findings.front().contains(QStringLiteral("still decides without its dialog")), qPrintable(findings.join(QLatin1Char('\n'))));
+    }
+    dialog->show();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(Check::closeApplication(fixture));
+}
+
 void AppToolPagesLifetimeTest::deleteFromEverySignal_data()
 {
     QTest::addColumn<QString>("scenario");
     QTest::addColumn<int>("victim");
     QTest::addColumn<int>("part");
 
-    const std::pair<ToolPagesLifetimeVictim, const char*> victims[] = { { ToolPagesLifetimeVictim::Tab, "tab" }, { ToolPagesLifetimeVictim::Window, "window" },
-                                                                       { ToolPagesLifetimeVictim::Page, "page" }, { ToolPagesLifetimeVictim::Shell, "shell" } };
+    // The deferred modes: the window is deleted only after the event loop (RR-M7) - the victim "end" ends the
+    // application after each step instead
+    std::vector<std::pair<ToolPagesLifetimeVictim, const char*>> victims = { { ToolPagesLifetimeVictim::Tab, "tab" }, { ToolPagesLifetimeVictim::Window, "window" },
+                                                                            { ToolPagesLifetimeVictim::Page, "page" }, { ToolPagesLifetimeVictim::Shell, "shell" } };
+    if (!pdftest::LifetimeDeletionMode::hasWindowVictim())
+    {
+        victims = { { ToolPagesLifetimeVictim::Tab, "tab" }, { ToolPagesLifetimeVictim::Page, "page" }, { ToolPagesLifetimeVictim::Shell, "shell" },
+                    { ToolPagesLifetimeVictim::End, pdftest::LifetimeDeletionMode::END_VICTIM } };
+    }
     for (const QString& name : getScenarios())
     {
         // The sites of a scenario are divided into parts (every PART_COUNT-th site),
@@ -2738,7 +2845,7 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal_data()
 }
 
 void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetimeRecorder::Mode mode, const ToolPagesLifetimeRecorder::Site& target, ToolPagesLifetimeVictim victim,
-                                           std::vector<ToolPagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred, bool* isReached)
+                                           std::vector<ToolPagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred, bool* isReached, int endStep, int* stepCount)
 {
     pdftest::AppToolOwnTabFixture fixture;
     QVERIFY(fixture.window);
@@ -2772,13 +2879,19 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument() && run.tab->getDocument()->isReady(); }));
     const std::vector<ToolPagesLifetimeStep> steps = ToolPagesLifetimeHelper::scenario(name);
     QVERIFY(!steps.empty());
+    if (stepCount)
+    {
+        *stepCount = int(steps.size());
+    }
     pdftest::AppDocumentFixture::settle();
     ToolPagesLifetimeHelper::stopRegistryTimers(fixture.context.get());
 
+    // The close of the victim and the checks of the retired victim (deferred and retire modes)
+    pdftest::LifetimeVictimCheck victimCheck(&fixture);
     ToolPagesLifetimeRecorder recorder(mode);
-    if (mode == ToolPagesLifetimeRecorder::Mode::Replay)
+    if (mode == ToolPagesLifetimeRecorder::Mode::Replay && victim != ToolPagesLifetimeVictim::End)
     {
-        recorder.setTarget(target, [&run, victim](const ToolPagesLifetimeRecorder::Site& site)
+        recorder.setTarget(target, [&run, &victimCheck, victim](const ToolPagesLifetimeRecorder::Site& site)
         {
             QObject* object = nullptr;
 
@@ -2802,12 +2915,46 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
                 case ToolPagesLifetimeVictim::Shell:
                     object = ToolPagesLifetimeHelper::shell(run);
                     break;
+
+                case ToolPagesLifetimeVictim::End:
+                    break;
             }
 
             if (!object)
             {
                 return ToolPagesLifetimeRecorder::Action::None;
             }
+
+            // Deferred: the real close of the application (the victim and the parts of the tool stay alive and inert
+            // until the step returns, no deferred site or state is needed)
+            if (pdftest::LifetimeDeletionMode::isRetiring())
+            {
+                // A tab, whose leave flow runs (a question of its tool page is open - the scenario leave answers it
+                // later), refuses its close and raises the question (A0: one flow of the tab): the site has no
+                // victim, as the user cannot close that tab now (Refusal::RefusedWhileLeaving, counted by the check);
+                // any other refusal is a finding of finish() after the steps (check 10)
+                if (victimCheck.retire(object))
+                {
+                    return ToolPagesLifetimeRecorder::Action::Deferred;
+                }
+                if (qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE"))
+                {
+                    QStringList dialogs;
+                    for (QWidget* widget : QApplication::topLevelWidgets())
+                    {
+                        for (QDialog* dialog : widget->findChildren<QDialog*>())
+                        {
+                            if (dialog->isVisible())
+                            {
+                                dialogs << QString::fromLatin1(dialog->metaObject()->className()) + QLatin1Char(' ') + dialog->objectName();
+                            }
+                        }
+                    }
+                    qInfo().noquote() << QStringLiteral("close refused (%1), visible dialogs [%2]: %3").arg(int(victimCheck.getRefusal())).arg(dialogs.join(QStringLiteral(", ")), site.key);
+                }
+                return ToolPagesLifetimeRecorder::Action::None;
+            }
+
             // The parts of the tool go with the page and the shell, they are no children of them
             bool isDeferred = ToolPagesLifetimeRecorder::isDeferredSite(site) || ToolPagesLifetimeRecorder::isDeferredState(site, object);
             if (victim != ToolPagesLifetimeVictim::Window)
@@ -2830,6 +2977,7 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
                 object->deleteLater();
                 return ToolPagesLifetimeRecorder::Action::Deferred;
             }
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
             delete object;
             return ToolPagesLifetimeRecorder::Action::Deleted;
         });
@@ -2847,6 +2995,10 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     for (size_t i = 0; i < steps.size(); ++i)
     {
+        if (mode == ToolPagesLifetimeRecorder::Mode::Replay && victim == ToolPagesLifetimeVictim::End && int(i) > endStep)
+        {
+            break;
+        }
         recorder.setStep(int(i));
         recorder.hookApplication();
         recorder.hookTree(fixture.context.get());
@@ -2884,8 +3036,28 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
     }
     pdftest::AppDocumentFixture::settle();
 
+    if (mode == ToolPagesLifetimeRecorder::Mode::Replay && victim == ToolPagesLifetimeVictim::End)
+    {
+        // The end of the application after the step: the window closed as the user closes it, then the fixture
+        // ends the application (the window deleted, flush, the context closed)
+        recorder.stop();
+        QVERIFY2(pdftest::LifetimeVictimCheck::closeApplication(fixture), qPrintable(QStringLiteral("%1: the window did not close after step %2").arg(name).arg(endStep)));
+        return;
+    }
+
+    if (mode == ToolPagesLifetimeRecorder::Mode::Replay && !recorder.isFired())
+    {
+        // (10) A refused close is a finding, except a tab, whose leave flow waited for its visible question
+        const QStringList refusals = victimCheck.finish();
+        QVERIFY2(refusals.isEmpty(), qPrintable(refusals.join(QLatin1Char('\n'))));
+    }
+
     if (mode == ToolPagesLifetimeRecorder::Mode::Replay && recorder.isFired())
     {
+        // The retired victim (deferred, retire): checks (2)-(9) of LifetimeVictimCheck
+        const QStringList findings = victimCheck.finish();
+        QVERIFY2(findings.isEmpty(), qPrintable(findings.join(QLatin1Char('\n'))));
+
         // Close a dialog of a question, which nobody answers any more; the deferred work of the deleted
         // objects runs (every timer due within the time of a preview of the runner fires)
         ToolPagesLifetimeTimers::waitForDueTimers(pdf::PDFDocumentToolRunner::PREVIEW_DELAY + 50);
@@ -2938,6 +3110,9 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
                 }
                 break;
             }
+
+            case ToolPagesLifetimeVictim::End:
+                break;
         }
     }
 
@@ -2967,12 +3142,30 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
     QFETCH(int, part);
 
     std::vector<ToolPagesLifetimeRecorder::Site> sites;
-    runScenario(scenario, ToolPagesLifetimeRecorder::Mode::Discover, ToolPagesLifetimeRecorder::Site(), ToolPagesLifetimeVictim(victim), &sites, nullptr);
+    int stepCount = 0;
+    runScenario(scenario, ToolPagesLifetimeRecorder::Mode::Discover, ToolPagesLifetimeRecorder::Site(), ToolPagesLifetimeVictim(victim), &sites, nullptr, nullptr, nullptr, -1,
+                &stepCount);
     if (QTest::currentTestFailed())
     {
         return;
     }
     QVERIFY(!sites.empty());
+
+    if (ToolPagesLifetimeVictim(victim) == ToolPagesLifetimeVictim::End)
+    {
+        // The application ends after each step (its every PART_COUNT-th step)
+        for (int step = part; step < stepCount; step += PART_COUNT)
+        {
+            runScenario(scenario, ToolPagesLifetimeRecorder::Mode::Replay, ToolPagesLifetimeRecorder::Site(), ToolPagesLifetimeVictim::End, nullptr, nullptr, nullptr, nullptr, step);
+            if (QTest::currentTestFailed())
+            {
+                qWarning().noquote() << QStringLiteral("failed at the end after step %1").arg(step);
+                return;
+            }
+        }
+        qInfo().noquote() << QStringLiteral("%1: the application ended after %2 steps in part %3").arg(scenario).arg(stepCount).arg(part);
+        return;
+    }
 
     // PDF4QT_LIFETIME_SITE=<n> replays one site only (debugging)
     // PDF4QT_LIFETIME_SITE=<first>-<last> replays the sites of the range (of the part), one
@@ -2986,6 +3179,7 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
     int replayed = 0;
     int deferred = 0;
     int withoutVictim = 0;
+    int refusedWhileLeaving = 0;
     for (size_t i = 0; i < sites.size(); ++i)
     {
         if (onlySite >= 0 ? int(i) != onlySite : (int(i) % PART_COUNT != part || int(i) < firstSite || int(i) > lastSite))
@@ -3000,6 +3194,7 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
         bool isFired = false;
         bool isDeferred = false;
         bool isReached = false;
+        const int refusedBefore = pdftest::LifetimeVictimCheck::getAcceptedRefusalCount();
         runScenario(scenario, ToolPagesLifetimeRecorder::Mode::Replay, sites[i], ToolPagesLifetimeVictim(victim), nullptr, &isFired, &isDeferred, &isReached);
         if (QTest::currentTestFailed())
         {
@@ -3010,6 +3205,12 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
         {
             ++replayed;
             deferred += isDeferred ? 1 : 0;
+        }
+        else if (pdftest::LifetimeVictimCheck::getAcceptedRefusalCount() > refusedBefore)
+        {
+            // The tab refused its close: its leave flow waited for its visible question before the close (deferred
+            // mode, the real close; check 10 failed the row for any other refusal)
+            ++refusedWhileLeaving;
         }
         else if (isReached)
         {
@@ -3022,7 +3223,11 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
         }
     }
 
-    qInfo().noquote() << QStringLiteral("%1: %2 sites, %3 deletions (%4 deferred), %5 without the victim in part %6").arg(scenario).arg(sites.size()).arg(replayed).arg(deferred).arg(withoutVictim).arg(part);
+    qInfo().noquote() << QStringLiteral("%1: %2 sites, %3 deletions (%4 deferred), %5 without the victim in part %6, mode %7, pages closed by setPage(nullptr) %8, "
+                                        "closes refused while a question or a modal dialog of the tab decided %9")
+                             .arg(scenario).arg(sites.size()).arg(replayed).arg(deferred).arg(withoutVictim).arg(part)
+                             .arg(QLatin1String(pdftest::LifetimeDeletionMode::getModeName(pdftest::LifetimeDeletionMode::getMode())))
+                             .arg(pdftest::LifetimeVictimCheck::getPageFallbackCount()).arg(refusedWhileLeaving);
     for (const QString& site : notReproduced)
     {
         qInfo().noquote() << QStringLiteral("not reproduced (the emission differs in the run): ") + site;

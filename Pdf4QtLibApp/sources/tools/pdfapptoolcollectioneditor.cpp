@@ -33,6 +33,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolsearch.h"
 #include "pdffluentwidgets.h"
@@ -1051,7 +1052,8 @@ void PDFAppToolCollectionEditor::updateState()
 
 void PDFAppToolCollectionEditor::updateOffers()
 {
-    if (!m_offerLayout || !m_offerContainer)
+    // A retired editor builds no new offers (nothing new in a retired subtree)
+    if (!m_offerLayout || !m_offerContainer || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1202,15 +1204,22 @@ void PDFAppToolCollectionEditor::updateInfoBar()
     {
         if (m_infoBar)
         {
-            // Later: this may run from a signal of the bar
-            m_infoBar->hide();
-            m_infoBar->deleteLater();
+            // This may run from a signal of the bar: hidden now, retired from the event loop (step A, lesson 1b - the
+            // rest of its emission reaches its other receivers)
+            PDFDeferredDeletion::retireLater(m_infoBar.data());
             m_infoBar = nullptr;
         }
         if (m_infoBarSlot)
         {
             m_infoBarSlot->hide();
         }
+        return;
+    }
+
+    // A retired editor (its page closed by the slot of a signal, which this call
+    // follows) creates no bar: nothing new appears in a subtree waiting for deletion
+    if (PDFDeferredDeletion::isRetired(this))
+    {
         return;
     }
 

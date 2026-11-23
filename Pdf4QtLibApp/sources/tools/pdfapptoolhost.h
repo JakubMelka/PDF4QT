@@ -25,6 +25,7 @@
 
 #include "pdfappdocumentview.h"
 #include "pdfappviewstate.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolrunner.h"
 
 #include <QObject>
@@ -183,8 +184,13 @@ Q_SIGNALS:
     void documentNotReady();
 };
 
-/// The document tab as the host of a tool: the tool mode of its persistent view
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentToolHost : public PDFAppToolHost
+/// The document tab as the host of a tool: the tool mode of its persistent view.
+/// Deferred deletion (step A): the host is retired with the page of its tool (its connections from the view and the
+/// document are cut then); its hook retire() (PDFRetirable) makes a later leave of the mode no modeLeft. The view
+/// is given back by the token of the mode of the shell (PDFDocumentToolShell, released after the hooks: the mode
+/// left - the parts, the Undo target, the message and the status items of the tool removed - and the saved view
+/// state restored by this host) before the view could be used by another tool.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentToolHost : public PDFAppToolHost, public PDFRetirable
 {
     Q_OBJECT
 
@@ -228,6 +234,11 @@ public:
 
     /// Longest time of a transient message (ms)
     static constexpr int MESSAGE_TIMEOUT = 8000;
+
+protected:
+    /// The hook of PDFDeferredDeletion::retire (step 4, PDFRetirable, see the class). Emits none of the host's
+    /// signals, opens no dialog, waits for nothing.
+    virtual void retire() override;
 
 private:
     void onToolModeChanged(bool isActive);

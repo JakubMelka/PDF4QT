@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentcards.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
@@ -995,14 +996,15 @@ void PDFVideoCard::rebuildTags()
     // Showing and hiding the tags here is not a change by the application
     QScopedValueRollback<bool> placingGuard(m_isPlacingTags, true);
 
-    // The previous tags are removed later: a slot of a tag may set the tags
+    // A slot of a tag may set the tags (tagClicked): the previous tags are hidden now and retired
+    // from the event loop - a retire now would cut the rest of the click of the tag (its later
+    // receivers never run); the card forgets them at once (onTagClicked finds them no more)
     for (const QPointer<PDFTag>& tag : std::as_const(m_tags))
     {
         if (tag)
         {
             tag->removeEventFilter(this);
-            tag->hide();
-            tag->deleteLater();
+            PDFDeferredDeletion::retireLater(tag.data());
         }
     }
     m_tags.clear();

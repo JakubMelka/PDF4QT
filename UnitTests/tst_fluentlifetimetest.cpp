@@ -55,6 +55,7 @@
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfthememanager.h"
@@ -68,7 +69,9 @@
 
 #include <QtTest>
 
+#include <QAbstractAnimation>
 #include <QAbstractButton>
+#include <QItemSelectionModel>
 #include <QAccessible>
 #include <QProxyStyle>
 #include <QStyleFactory>
@@ -104,6 +107,7 @@
 #include <QTableView>
 #include <QHeaderView>
 #include <QTreeView>
+#include <QVariantAnimation>
 #include <tuple>
 #include <QTimer>
 #include <QToolBar>
@@ -292,6 +296,80 @@ public:
 private:
     bool& m_flag;
     bool m_previous;
+};
+
+/// How the victim of a trial goes (step A of the robustness plan, arch/tests.md): the rows named
+/// by the page delete it at the site (inside of the signal, the callback or the step - an
+/// application of the library may do it), the rows "<page>-deferred" retire it there by
+/// PDFDeferredDeletion::retire (the single place of the application: the victim becomes inert at
+/// once and is deleted later) and the test body settles, when the step has returned to it
+class DeletionMode
+{
+public:
+    DeletionMode() = delete;
+
+    /// Suffix of the data tags of the deferred rows
+    static constexpr const char* DEFERRED_SUFFIX = "-deferred";
+
+    static bool isDeferred() { return s_isDeferred; }
+    static void setDeferred(bool isDeferred) { s_isDeferred = isDeferred; }
+
+    /// The victim action at the site
+    static void act(QObject* victim)
+    {
+        if (!victim)
+        {
+            return;
+        }
+
+        if (s_isDeferred)
+        {
+            pdf::PDFDeferredDeletion::retire(victim);
+            checkRetired(victim);
+        }
+        else
+        {
+            delete victim;
+        }
+    }
+
+    /// Check (9) of the robustness plan for the library (newapp_robustness.md 11 point 8): after
+    /// retire no connection of a sender outside of the subtree of the victim reaches the subtree,
+    /// except QObject::destroyed and the connections made by Qt itself by the name of a slot (the
+    /// connections of the library are member functions - slot objects -, so a missing
+    /// PDFDeferredDeletion::connect of the library is found). Errors of ObjectTracker.
+    static void checkRetired(QObject* victim);
+
+    /// Upper bound of the size of the private part of a QTreeView (QTreeViewPrivate with its value members); the test
+    /// does not link the private headers of QtWidgets, so its exact size is not known here
+    static constexpr std::ptrdiff_t TREE_VIEW_PRIVATE_BOUND = 8192;
+
+    /// The own expand animation of a QTreeView (QTreeViewPrivate::animatedOperation, connected by Qt to the view):
+    /// a QVariantAnimation without a parent, its signal finished, a receiver, which is a QTreeView, and the sender
+    /// lies inside the private part of the receiver (QObjectPrivate::get, within the bound)
+    static bool isTreeViewOwnAnimation(const QObject* sender, const QByteArray& signal, const QObject* receiver)
+    {
+        if (signal != "finished" || sender->parent() || !sender->inherits("QVariantAnimation") || !receiver->inherits("QTreeView"))
+        {
+            return false;
+        }
+        const char* privatePart = reinterpret_cast<const char*>(QObjectPrivate::get(receiver));
+        const char* address = reinterpret_cast<const char*>(sender);
+        return address > privatePart && address - privatePart < TREE_VIEW_PRIVATE_BOUND;
+    }
+
+    /// The test body (the loop level 0): the retired victims are deleted now; nothing in the
+    /// synchronous rows
+    static void settle()
+    {
+        if (s_isDeferred && QThread::currentThread()->loopLevel() == 0)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        }
+    }
+
+private:
+    static inline bool s_isDeferred = false;
 };
 
 /// Description of the current step of the test, a part of the error messages
@@ -493,6 +571,18 @@ public:
             if (singletons.contains(className) && classCounts[className] <= 1)
             {
                 continue;
+            }
+
+            // The bookkeeping of the deferred deletion (the connection scope or the
+            // notifier, a child created on demand) of an object, which outlives the
+            // instance (a singleton, an object from before), lives with that object
+            if (pdf::PDFDeferredDeletion::isHelperObject(object))
+            {
+                const QObject* parent = object->parent();
+                if (parent && (before.count(parent) || singletons.contains(parent->metaObject()->className())))
+                {
+                    continue;
+                }
             }
 
             // A pending single shot timer of Qt deletes itself at its timeout
@@ -736,6 +826,57 @@ ObjectSet ObjectTracker::s_live;
 ObjectSet ObjectTracker::s_destroyed;
 QStringList ObjectTracker::s_errors;
 QSignalSpyCallbackSet ObjectTracker::s_callbacks = { nullptr, nullptr, nullptr, nullptr };
+
+void DeletionMode::checkRetired(QObject* victim)
+{
+    QList<QObject*> subtree = victim->findChildren<QObject*>();
+    subtree.prepend(victim);
+    const QSet<const QObject*> inside(subtree.cbegin(), subtree.cend());
+    for (const QObject* object : std::as_const(subtree))
+    {
+        const QObjectPrivate::ConnectionData* data = QObjectPrivate::get(object)->connections.loadAcquire();
+        for (const QObjectPrivate::Connection* connection = data ? data->senders : nullptr; connection; connection = connection->next)
+        {
+            const QObject* sender = connection->sender;
+            if (!sender || inside.contains(sender) || !connection->receiver.loadRelaxed() || !connection->isSlotObject)
+            {
+                continue;
+            }
+
+            const QMetaMethod signal = QMetaObjectPrivate::signal(sender->metaObject(), connection->signal_index);
+            if (signal.name() == QByteArrayLiteral("destroyed"))
+            {
+                continue;
+            }
+
+            // Named exceptions, connections made by Qt itself (the library makes none of
+            // them): the model and the selection model to their views, headers and
+            // selection models (QAbstractItemView::setModel, QHeaderView, QItemSelectionModel)
+            // or to an object of Qt (the internal view of a QComboBox, a QCompleter) - a model
+            // connected to an object of the library is reported (RB-L5) -, the three signals of a
+            // delegate to its view (QAbstractItemView::setItemDelegate) and the animation of the
+            // expansion of QTreeView (QTreeViewPrivate::animatedOperation, a QVariantAnimation
+            // without a parent in the private part of the view, its signal finished: the sender
+            // lies inside the private part - another animation connected to the view is reported)
+            static const QSet<QByteArray> delegateSignals = { QByteArrayLiteral("commitData"), QByteArrayLiteral("closeEditor"), QByteArrayLiteral("sizeHintChanged") };
+            const bool isModelSender = qobject_cast<const QAbstractItemModel*>(sender) || qobject_cast<const QItemSelectionModel*>(sender);
+            const bool isModelReceiver = qobject_cast<const QAbstractItemView*>(object) || qobject_cast<const QItemSelectionModel*>(object) ||
+                                         qstrncmp(object->metaObject()->className(), "pdf::", 5) != 0;
+            const bool isQtModelView = isModelSender && isModelReceiver;
+            const bool isQtDelegate = qobject_cast<const QAbstractItemDelegate*>(sender) && qobject_cast<const QAbstractItemView*>(object) && delegateSignals.contains(signal.name());
+            const bool isQtAnimation = isTreeViewOwnAnimation(sender, signal.name(), object);
+            if (isQtModelView || isQtDelegate || isQtAnimation)
+            {
+                continue;
+            }
+
+            ObjectTracker::reportError(QStringLiteral("a connection reaches the retired %1 '%2' from %3 '%4', signal %5 (PDFDeferredDeletion::connect missing)")
+                                       .arg(QString::fromLatin1(object->metaObject()->className()), object->objectName(),
+                                            QString::fromLatin1(sender->metaObject()->className()), sender->objectName(),
+                                            QString::fromLatin1(signal.methodSignature())));
+        }
+    }
+}
 
 /// Collects the warnings of Qt; a warning is an error of the test, unless it is
 /// in the short list of the expected ones
@@ -1177,6 +1318,12 @@ public:
     void destroy()
     {
         delete m_window.data();
+    }
+
+    /// The window as a victim (DeletionMode): deleted now or retired
+    void close()
+    {
+        DeletionMode::act(m_window.data());
     }
 
     /// Applies the hints of the samples of the gallery (GalleryLifetimeHints::prepare):
@@ -2121,9 +2268,10 @@ public Q_SLOTS:
         {
             // Synchronous deletion from inside of the signal: an application may do it,
             // unless Qt itself is inside of its own signal of the object (or of
-            // a descendant) and uses the object after it
+            // a descendant) and uses the object after it. A retired victim lives until
+            // the step returns to the test body, Qt may use it.
             QString reason;
-            if (ObjectTracker::isDeletionUnsupported(m_victim, &reason))
+            if (!DeletionMode::isDeferred() && ObjectTracker::isDeletionUnsupported(m_victim, &reason))
             {
                 m_skipReason = reason;
                 return;
@@ -2132,7 +2280,7 @@ public Q_SLOTS:
             m_deleted = true;
             QObject* victim = m_victim.data();
             m_victim = nullptr;
-            delete victim;
+            DeletionMode::act(victim);
         }
     }
 
@@ -2388,22 +2536,22 @@ private Q_SLOTS:
     void librarySamples();
     void detectorSelfTest();
 
-    void pageDeletedWhileActive_data() { addPageRows(); }
+    void pageDeletedWhileActive_data() { addPageModeRows(); }
     void pageDeletedWhileActive();
 
-    void childDeletedFirst_data() { addPageRows(); }
+    void childDeletedFirst_data() { addPageModeRows(); }
     void childDeletedFirst();
 
     void deletionOrders_data() { addPageRows(); }
     void deletionOrders();
 
-    void deletedFromOwnSignal_data() { addPageRows(); }
+    void deletedFromOwnSignal_data() { addPageModeRows(); }
     void deletedFromOwnSignal();
 
-    void popupsOpen_data() { addPageRows(); }
+    void popupsOpen_data() { addPageModeRows(); }
     void popupsOpen();
 
-    void itemViews_data() { addPageRows(); }
+    void itemViews_data() { addPageModeRows(); }
     void itemViews();
 
     // Regressions of the bugs found by the test
@@ -2425,12 +2573,23 @@ private:
     /// function:tag runs as its own process
     static void addPageRows();
 
+    /// The rows of addPageRows (the victim deleted at its site) and for each page the row
+    /// "<page>-deferred" (the victim retired at its site, DeletionMode)
+    static void addPageModeRows();
+
+    /// Reads the mode of the row of addPageModeRows
+    static void fetchDeletionMode();
+
     /// Uses what is left of the page after deletions: repaint, hover, keyboard,
     /// Tab, show / hide, resize, theme, direction of the layout, font and style
     void useRest(PageHost& host, const std::vector<DeletedWidget>& deleted, bool full);
 
     /// Light use after a single deletion: events, repaint and hover around the widget
     static void useAround(const DeletedWidget& deleted);
+
+    /// The deferred rows: the events after the retire of a victim reach the application,
+    /// while the victim is inert, then the victim is deleted; nothing in the other rows
+    static void useRetired();
 
     /// The objects of the application, which are not widgets (groups, actions,
     /// models, delegates, effects, timers, layouts), deleted from a page
@@ -2605,6 +2764,25 @@ void LifetimeTest::addPageRows()
     }
 }
 
+void LifetimeTest::addPageModeRows()
+{
+    QTest::addColumn<int>("page");
+    QTest::addColumn<bool>("deferred");
+    const int count = pdffluentgallery::GalleryPages::getPageCount();
+    for (int i = 0; i < count; ++i)
+    {
+        const QString id = pdffluentgallery::GalleryPages::getPageId(i);
+        QTest::newRow(qPrintable(id)) << i << false;
+        QTest::newRow(qPrintable(id + QLatin1String(DeletionMode::DEFERRED_SUFFIX))) << i << true;
+    }
+}
+
+void LifetimeTest::fetchDeletionMode()
+{
+    QFETCH(bool, deferred);
+    DeletionMode::setDeferred(deferred);
+}
+
 void LifetimeTest::initTestCase()
 {
     MessageCollector::install();
@@ -2638,6 +2816,10 @@ void LifetimeTest::initTestCase()
     pdf::PDFToolTip::hideText();
     QToolTip::showText(QPoint(10, 10), QStringLiteral("Warm-up"));
     QToolTip::hideText();
+
+    // The gate of the deferred deletion (an event filter of the application, created at the
+    // first retire - of a sample of the gallery, of a widget of the library or of a victim)
+    pdf::PDFDeferredDeletion::retire(new QObject());
     Input::flush();
     const QStringList warmUpProblems = ObjectTracker::takeErrors() + MessageCollector::takeMessages();
     QVERIFY2(warmUpProblems.isEmpty(), qPrintable(warmUpProblems.join(QStringLiteral("\n  "))));
@@ -2770,6 +2952,48 @@ void LifetimeTest::detectorSelfTest()
         }
     }
 
+    // Check (9) of the deferred rows (DeletionMode::checkRetired, RB-L5): the connections Qt makes into a retired
+    // tree view (its model and selection model outside, its own expand animation) are no error; a model connected to
+    // an object of the library and an animation outside the private part of a view, connected to it, are
+    {
+        ObjectTracker::takeErrors();
+        QStandardItemModel model(3, 1);
+        QVariantAnimation foreignAnimation;
+        foreignAnimation.setObjectName(QStringLiteral("foreignAnimation"));
+        QWidget* holder = new QWidget();
+        pdf::PDFTreeView* view = new pdf::PDFTreeView(holder);
+        view->setModel(&model);
+        pdf::PDFIconButton* button = new pdf::PDFIconButton(holder);
+        button->setObjectName(QStringLiteral("modelReceiver"));
+        QObject::connect(&model, &QStandardItemModel::dataChanged, button, [button]() { button->update(); });
+
+        // Clean: the tree view alone (a deliberate retire of the self test)
+        pdf::PDFDeferredDeletion::retire(view);
+        DeletionMode::checkRetired(view);
+        const QStringList viewErrors = ObjectTracker::takeErrors();
+        QVERIFY2(viewErrors.isEmpty(), qPrintable(viewErrors.join(QLatin1Char('\n'))));
+
+        // The model into the library button
+        pdf::PDFDeferredDeletion::retire(button);
+        DeletionMode::checkRetired(button);
+        const QStringList buttonErrors = ObjectTracker::takeErrors();
+        QVERIFY2(buttonErrors.size() == 1 && buttonErrors.front().contains(QStringLiteral("modelReceiver")) && buttonErrors.front().contains(QStringLiteral("dataChanged")),
+                 qPrintable(buttonErrors.join(QLatin1Char('\n'))));
+
+        // A foreign animation into the (retired) tree view
+        QObject::connect(&foreignAnimation, &QVariantAnimation::finished, view, [view]() { view->update(); });
+        DeletionMode::checkRetired(view);
+        const QStringList animationErrors = ObjectTracker::takeErrors();
+        QVERIFY2(animationErrors.size() == 1 && animationErrors.front().contains(QStringLiteral("foreignAnimation")), qPrintable(animationErrors.join(QLatin1Char('\n'))));
+
+        QPointer<QWidget> holderGuard(holder);
+        pdf::PDFDeferredDeletion::retire(holder);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(!holderGuard);
+        ObjectTracker::takeErrors();
+        MessageCollector::takeMessages();
+    }
+
     // A problem outside of any instance is reported by the next instance
     {
         qWarning("self test warning outside");
@@ -2804,6 +3028,9 @@ void LifetimeTest::librarySamples()
         { "pdf::PDFShortcutRecorder", "pdf::PDFShortcutDelegate", "editor of the shortcut delegate (popupsOpen, itemViews)" },
         { "pdf::PDFBooleanComboBox", "pdf::PDFItemDelegate", "editor of a boolean of PDFItemEditorFactory (itemViews, popupsOpen)" },
         { "pdf::PDFUIntSpinBox", "pdf::PDFItemDelegate", "editor of an unsigned number of PDFItemEditorFactory (itemViews, popupsOpen)" },
+        { "pdf::PDFLifetimeNotifier", nullptr, "helper child of PDFDeferredDeletion, not a widget (UnitTestsDeferredDeletion)" },
+        { "pdf::PDFLifetimeToken", nullptr, "abstract base of the tokens of PDFDeferredDeletion, not a widget (UnitTestsDeferredDeletion)" },
+        { "pdf::PDFConnectionScope", nullptr, "helper child of PDFDeferredDeletion, not a widget (UnitTestsDeferredDeletion)" },
     };
 
     std::map<QString, int> onPages;
@@ -2815,7 +3042,12 @@ void LifetimeTest::librarySamples()
         QVERIFY(host.getPage());
         for (const QObject* object : host.getPage()->findChildren<QObject*>())
         {
-            ++onPages[QString::fromLatin1(object->metaObject()->className())];
+            // The bookkeeping children of the deferred deletion (a connection scope of
+            // a receiver of the theme, a notifier) are no samples
+            if (!pdf::PDFDeferredDeletion::isHelperObject(object))
+            {
+                ++onPages[QString::fromLatin1(object->metaObject()->className())];
+            }
         }
     }
     const QString problems = check.finish();
@@ -2871,11 +3103,13 @@ void LifetimeTest::librarySamples()
 
 void LifetimeTest::init()
 {
+    DeletionMode::setDeferred(false);
     m_functionClock.start();
 }
 
 void LifetimeTest::cleanup()
 {
+    DeletionMode::setDeferred(false);
     m_counters[QStringLiteral("time [ms] of %1").arg(QString::fromLatin1(QTest::currentTestFunction()))] += int(m_functionClock.elapsed());
 
     // The application still works: a theme change and a repaint of a fresh page
@@ -2920,6 +3154,17 @@ DeletedWidget LifetimeTest::remember(QWidget* widget)
     deleted.parent = widget->parentWidget();
     deleted.geometry = widget->geometry();
     return deleted;
+}
+
+void LifetimeTest::useRetired()
+{
+    if (DeletionMode::isDeferred())
+    {
+        // The events posted by the retire (hide, layout, update) and the pending timers; the
+        // gate drops what is meant for the victim
+        QCoreApplication::processEvents();
+        DeletionMode::settle();
+    }
 }
 
 void LifetimeTest::useAround(const DeletedWidget& deleted)
@@ -3107,6 +3352,7 @@ void LifetimeTest::useRest(PageHost& host, const std::vector<DeletedWidget>& del
 void LifetimeTest::childDeletedFirst()
 {
     QFETCH(int, page);
+    fetchDeletionMode();
 
     const int batchSize = qEnvironmentVariableIsSet("PDF4QT_LIFETIME_BATCH") ? qMax(1, qEnvironmentVariableIntValue("PDF4QT_LIFETIME_BATCH")) : 60;
 
@@ -3200,8 +3446,9 @@ void LifetimeTest::childDeletedFirst()
 
                 LifetimeContext::setStep(QStringLiteral("deleting %1").arg(catalog[index].description));
                 const DeletedWidget item = remember(widget);
-                delete widget;
+                DeletionMode::act(widget);
                 Input::releaseAll();
+                useRetired();
                 deleted.push_back(item);
                 useAround(item);
             }
@@ -3514,6 +3761,7 @@ QString LifetimeTest::checkFocusRing(QWidget* focusWidget)
 void LifetimeTest::pageDeletedWhileActive()
 {
     QFETCH(int, page);
+    fetchDeletionMode();
     const std::vector<WidgetInfo> catalog = buildCatalog(page);
     if (QTest::currentTestFailed())
     {
@@ -3588,14 +3836,18 @@ void LifetimeTest::pageDeletedWhileActive()
             QCoreApplication::processEvents();
 
             LifetimeContext::setStep(QStringLiteral("deleting: %1").arg(description));
+            // The window or the page is the victim (DeletionMode): deleted now, or retired and
+            // deleted after the events, which come while it is inert
             switch (mode)
             {
                 case 0:
-                    host.destroy();
+                    host.close();
+                    useRetired();
                     break;
 
                 case 1:
-                    delete host.getPage();
+                    DeletionMode::act(host.getPage());
+                    useRetired();
                     useRest(host, std::vector<DeletedWidget>(), false);
                     break;
 
@@ -3605,7 +3857,8 @@ void LifetimeTest::pageDeletedWhileActive()
                         host.getWindow()->hide();
                     }
                     Input::flush();
-                    host.destroy();
+                    host.close();
+                    useRetired();
                     break;
 
                 case 3:
@@ -3616,18 +3869,20 @@ void LifetimeTest::pageDeletedWhileActive()
                     {
                         host.getWindow()->grab();
                     }
-                    host.destroy();
+                    host.close();
+                    useRetired();
                     break;
 
                 case 4:
                     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
                     QApplication::setLayoutDirection(Qt::RightToLeft);
                     Input::flush();
-                    delete host.getPage();
+                    DeletionMode::act(host.getPage());
                     QApplication::setLayoutDirection(Qt::LeftToRight);
                     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
                     Input::flush();
-                    host.destroy();
+                    host.close();
+                    useRetired();
                     break;
 
                 case 5:
@@ -3649,7 +3904,8 @@ void LifetimeTest::pageDeletedWhileActive()
                     {
                         host.getWindow()->grab();
                     }
-                    host.destroy();
+                    host.close();
+                    useRetired();
                     break;
                 }
 
@@ -4138,8 +4394,13 @@ void LifetimeTest::runSignalTrials(int page, const std::vector<WidgetInfo>& cata
         // it: a button deleted from the signals of that click is used by Qt (found
         // by valgrind). The test does not delete anything from these signals; the
         // arrows handled by the library are tried.
-        const bool isAllowed = trial.isViewSignal ? (victim == Victim::Delegate || victim == Victim::Model)
-                                                  : (!trial.isQtUnsafe && (victim == Victim::Sender || victim == Victim::Parent || victim == Victim::Host));
+        //
+        // A retired victim (the deferred rows) lives until the step returns to the test
+        // body: Qt may use it after its signals, so these signals are tried for every victim.
+        const bool isWidgetVictim = victim == Victim::Sender || victim == Victim::Parent || victim == Victim::Host;
+        const bool isAllowed = DeletionMode::isDeferred() ? (trial.isViewSignal || isWidgetVictim)
+                                                          : (trial.isViewSignal ? (victim == Victim::Delegate || victim == Victim::Model)
+                                                                                : (!trial.isQtUnsafe && isWidgetVictim));
         if (isAllowed)
         {
             queue.push_back(i);
@@ -4364,6 +4625,9 @@ void LifetimeTest::runSignalTrials(int page, const std::vector<WidgetInfo>& cata
                 PopupCloser::closeAll();
                 EventWatcher::getInstance()->setShownHook(EventWatcher::ShownHook());
 
+                // A retired victim is used further by the closing of the popups above, then deleted
+                DeletionMode::settle();
+
                 if (deleter.hasDeleted())
                 {
                     ++m_counters["deletedFromOwnSignal: deletions from a signal"];
@@ -4416,6 +4680,7 @@ void LifetimeTest::runSignalTrials(int page, const std::vector<WidgetInfo>& cata
 void LifetimeTest::deletedFromOwnSignal()
 {
     QFETCH(int, page);
+    fetchDeletionMode();
     const std::vector<WidgetInfo> catalog = buildCatalog(page);
     if (QTest::currentTestFailed())
     {
@@ -4620,7 +4885,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
                 {
                     EventWatcher::applyPolicy(popup, EventWatcher::Policy::Accept);
                 }
-                delete owner.data();
+                DeletionMode::act(owner.data());
                 break;
 
             case PopupAction::DeletePopup:
@@ -4639,7 +4904,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
                 const bool isNested = QThread::currentThread()->loopLevel() > 0;
                 if (popup && !isInternal && (!isNested || isLibraryPopup) && popup->windowType() != Qt::ToolTip)
                 {
-                    delete popup;
+                    DeletionMode::act(popup);
                 }
                 else if (popup)
                 {
@@ -4649,7 +4914,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
             }
 
             case PopupAction::DeleteHost:
-                host.destroy();
+                host.close();
                 break;
 
             case PopupAction::HideHost:
@@ -4674,7 +4939,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
                 {
                     EventWatcher::applyPolicy(popupGuard.data(), EventWatcher::Policy::Accept);
                 }
-                delete owner.data();
+                DeletionMode::act(owner.data());
                 break;
             }
 
@@ -4687,7 +4952,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
                     QTest::mouseMove(popupGuard->windowHandle(), corner);
                     QTest::mouseClick(popupGuard->windowHandle(), Qt::LeftButton, Qt::NoModifier, corner);
                 }
-                delete owner.data();
+                DeletionMode::act(owner.data());
                 break;
             }
         }
@@ -4800,6 +5065,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
     }
 
     PopupCloser::closeAll();
+    useRetired();
     if (action == PopupAction::HideHost)
     {
         // The window is shown and used again
@@ -4813,6 +5079,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
 void LifetimeTest::popupsOpen()
 {
     QFETCH(int, page);
+    fetchDeletionMode();
     const std::vector<WidgetInfo> catalog = buildCatalog(page);
     if (QTest::currentTestFailed())
     {
@@ -4941,6 +5208,7 @@ void LifetimeTest::popupsOpen()
 void LifetimeTest::itemViews()
 {
     QFETCH(int, page);
+    fetchDeletionMode();
     const std::vector<WidgetInfo> catalog = buildCatalog(page);
     if (QTest::currentTestFailed())
     {
@@ -5332,15 +5600,17 @@ void LifetimeTest::itemViews()
                 // The parts in the order
                 for (Part part : trial.order)
                 {
+                    // Each part is the victim (DeletionMode): deleted now, or retired and deleted
+                    // by the flush below
                     switch (part)
                     {
                         case Part::Model:
-                            delete model.data();
+                            DeletionMode::act(model.data());
                             break;
                         case Part::Delegate:
                             if (isLibraryDelegate)
                             {
-                                delete delegate.data();
+                                DeletionMode::act(delegate.data());
                             }
                             // The delegates of the columns and the rows of the library too;
                             // Qt keeps a deleted delegate of a column or of a row and paints
@@ -5353,17 +5623,17 @@ void LifetimeTest::itemViews()
                                 if (columnDelegate && QByteArrayView(columnDelegate->metaObject()->className()).startsWith("pdf::"))
                                 {
                                     view->setItemDelegateForColumn(section, nullptr);
-                                    delete columnDelegate.data();
+                                    DeletionMode::act(columnDelegate.data());
                                 }
                                 if (view && rowDelegate && QByteArrayView(rowDelegate->metaObject()->className()).startsWith("pdf::"))
                                 {
                                     view->setItemDelegateForRow(section, nullptr);
-                                    delete rowDelegate.data();
+                                    DeletionMode::act(rowDelegate.data());
                                 }
                             }
                             break;
                         case Part::View:
-                            delete view.data();
+                            DeletionMode::act(view.data());
                             break;
                         case Part::Viewport:
                             if (view)

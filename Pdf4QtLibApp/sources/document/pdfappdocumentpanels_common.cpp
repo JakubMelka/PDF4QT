@@ -114,12 +114,13 @@ PDFAppItemViewSignalRelay::PDFAppItemViewSignalRelay(QAbstractItemView* view, QO
         return;
     }
 
-    connect(view, &QAbstractItemView::clicked, this, &PDFAppItemViewSignalRelay::onClicked);
-    connect(view, &QAbstractItemView::activated, this, &PDFAppItemViewSignalRelay::onActivated);
+    // The view is given (it may be outside the relay's subtree)
+    PDFDeferredDeletion::connect(view, &QAbstractItemView::clicked, this, &PDFAppItemViewSignalRelay::onClicked);
+    PDFDeferredDeletion::connect(view, &QAbstractItemView::activated, this, &PDFAppItemViewSignalRelay::onActivated);
     if (QItemSelectionModel* selectionModel = view->selectionModel())
     {
-        connect(selectionModel, &QItemSelectionModel::currentChanged, this, &PDFAppItemViewSignalRelay::onCurrentChanged);
-        connect(selectionModel, &QItemSelectionModel::selectionChanged, this, &PDFAppItemViewSignalRelay::onSelectionChanged);
+        PDFDeferredDeletion::connect(selectionModel, &QItemSelectionModel::currentChanged, this, &PDFAppItemViewSignalRelay::onCurrentChanged);
+        PDFDeferredDeletion::connect(selectionModel, &QItemSelectionModel::selectionChanged, this, &PDFAppItemViewSignalRelay::onSelectionChanged);
     }
 }
 

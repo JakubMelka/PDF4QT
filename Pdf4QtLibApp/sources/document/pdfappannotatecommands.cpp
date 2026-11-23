@@ -30,6 +30,8 @@
 #include "pdfappdocumentview.h"
 #include "pdfappmarkresults.h"
 
+#include "pdfdeferreddeletion.h"
+
 namespace pdf
 {
 
@@ -40,7 +42,7 @@ PDFAppAnnotateCommandHandler::PDFAppAnnotateCommandHandler(PDFAppDocumentTab* ta
     PDFAppDocumentView* view = getView();
     if (PDFAppAnnotationController* controller = view ? view->getAnnotationController() : nullptr)
     {
-        connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotateCommandHandler::stateChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotateCommandHandler::stateChanged);
     }
 
     if (view)

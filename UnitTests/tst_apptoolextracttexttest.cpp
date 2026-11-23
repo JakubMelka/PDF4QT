@@ -733,11 +733,11 @@ void AppToolExtractTextTest::deletionWhilePreviewPending()
         QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
         if (victim == 0)
         {
-            delete tab;
+            pdftest::AppDocumentFixture::deleteNow(tab);
         }
         else if (victim == 1)
         {
-            delete tab->window();
+            pdftest::AppDocumentFixture::deleteNow(tab->window());
         }
         else
         {

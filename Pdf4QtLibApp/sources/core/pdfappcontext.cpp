@@ -32,6 +32,7 @@
 #include "pdfapptranslator.h"
 #include "pdfqtspeechsynthesizer.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfrepositoryhelper.h"
 #include "pdfsettingdefinitions.h"
 
@@ -80,14 +81,15 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
 
     if (QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
     {
-        connect(application->styleHints(), &QStyleHints::colorSchemeChanged, this, &PDFAppContext::onSystemColorSchemeChanged);
+        PDFDeferredDeletion::connect(application->styleHints(), &QStyleHints::colorSchemeChanged, this, &PDFAppContext::onSystemColorSchemeChanged);
     }
 
     // The documents, which the system asks to open (macOS: QFileOpenEvent of the
     // Finder, also at the start before a window exists)
     if (QCoreApplication* application = QCoreApplication::instance())
     {
-        application->installEventFilter(this);
+        // Through the helper: the event gate of the retired objects stays in front of it (step A)
+        PDFDeferredDeletion::installEventFilter(application, this, this);
     }
 }
 

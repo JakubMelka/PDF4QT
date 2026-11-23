@@ -1287,7 +1287,7 @@ void AppToolsPanelTest::deletionMatrix()
         QPointer<pdf::PDFAppDocumentToolsPanel> panel = H::open(tab);
         QVERIFY(panel);
         panel->getSearchField()->setText(QStringLiteral("merge"));
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!panel);
     }
@@ -1301,7 +1301,7 @@ void AppToolsPanelTest::deletionMatrix()
         QVERIFY(panel);
         QVERIFY(!pdf::PDFToolRepository(fixture.context->getDatabase()).setPinned(QStringLiteral("pages.merge"), true).isError());
         Q_EMIT fixture.context->getNotifier()->changed(pdf::PDFToolRepository::getPinTopic(), QStringLiteral("pages.merge"));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!panel);
     }
@@ -1315,7 +1315,7 @@ void AppToolsPanelTest::deletionMatrix()
         pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
         QVERIFY(panel);
         panel->getPinnedShortcuts().front()->click();
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.window);
         QVERIFY(fixture.currentTab());
@@ -1330,7 +1330,7 @@ void AppToolsPanelTest::deletionMatrix()
         pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
         QVERIFY(panel);
         panel->getAllToolsRow()->click();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!fixture.window);
     }
@@ -1346,7 +1346,7 @@ void AppToolsPanelTest::deletionMatrix()
         pdf::PDFAppSearchResultRow* zoomIn = panel->findChild<pdf::PDFAppSearchResultRow*>(QStringLiteral("result:") + pdf::PDFAppCommands::zoomIn());
         QVERIFY(zoomIn);
         zoomIn->click();
-        delete tab;
+        pdftest::AppDocumentFixture::deleteNow(tab);
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.window);
     }
@@ -1360,7 +1360,7 @@ void AppToolsPanelTest::deletionMatrix()
         pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
         QVERIFY(panel);
         panel->getSearchField()->setText(QStringLiteral("sign"));
-        delete panel;
+        pdftest::AppDocumentFixture::deleteNow(panel);
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!toolbar->findPanel(H::Panel::Tools));
         QVERIFY(!toolbar->getToolsButton()->isChecked());
@@ -1383,9 +1383,9 @@ void AppToolsPanelTest::deletionMatrix()
         int toggledCount = 0;
         connect(toolbar->getToolsButton(), &QAbstractButton::toggled, fixture.window, [&tab, &toggledCount]() {
             ++toggledCount;
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
         });
-        delete tab.data();
+        pdftest::AppDocumentFixture::deleteNow(tab.data());
         QCOMPARE(toggledCount, 0);
         QVERIFY(!panel);
         pdftest::AppDocumentFixture::settle();
@@ -1421,7 +1421,7 @@ void AppToolsPanelTest::deleteFromOwnSignals()
         QVERIFY(tab);
         pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
         QVERIFY(panel);
-        connect(panel->getPinnedShortcuts().front(), &QAbstractButton::clicked, fixture.window, [&tab]() { delete tab.data(); });
+        connect(panel->getPinnedShortcuts().front(), &QAbstractButton::clicked, fixture.window, [&tab]() { pdftest::AppDocumentFixture::deleteNow(tab.data()); });
         panel->getPinnedShortcuts().front()->click();
         QVERIFY(!tab);
         pdftest::AppDocumentFixture::settle();
@@ -1436,7 +1436,7 @@ void AppToolsPanelTest::deleteFromOwnSignals()
         QVERIFY(tab);
         pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
         QVERIFY(panel);
-        connect(panel, &pdf::PDFAppDocumentPanelPopup::closed, fixture.window, [&tab]() { delete tab.data(); });
+        connect(panel, &pdf::PDFAppDocumentPanelPopup::closed, fixture.window, [&tab]() { pdftest::AppDocumentFixture::deleteNow(tab.data()); });
         panel->getRecentRows().front()->click();
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!tab);
@@ -1453,7 +1453,7 @@ void AppToolsPanelTest::deleteFromOwnSignals()
         panel->getSearchField()->setText(QStringLiteral("merge"));
         QVERIFY(!panel->getResultRows().empty());
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        connect(panel->getResultRows().front(), &QAbstractButton::clicked, fixture.context.get(), [window]() { delete window.data(); });
+        connect(panel->getResultRows().front(), &QAbstractButton::clicked, fixture.context.get(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         panel->getResultRows().front()->click();
         QVERIFY(!window);
         QVERIFY(!panel);
@@ -1467,7 +1467,7 @@ void AppToolsPanelTest::deleteFromOwnSignals()
         QVERIFY(tab);
         QPointer<pdf::PDFAppDocumentToolsPanel> panel = H::open(tab);
         QVERIFY(panel);
-        connect(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed, fixture.window, [&tab]() { delete tab.data(); });
+        connect(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed, fixture.window, [&tab]() { pdftest::AppDocumentFixture::deleteNow(tab.data()); });
         QVERIFY(fixture.pinFromOtherConnection(QStringLiteral("pages.merge")));
         QVERIFY(!tab);
         QVERIFY(!panel);
@@ -1484,7 +1484,7 @@ void AppToolsPanelTest::deleteFromOwnSignals()
         panel->getSearchField()->setText(QStringLiteral("zoom in"));
         pdf::PDFAppSearchResultRow* zoomIn = panel->findChild<pdf::PDFAppSearchResultRow*>(QStringLiteral("result:") + pdf::PDFAppCommands::zoomIn());
         QVERIFY(zoomIn);
-        connect(panel, &pdf::PDFAppDocumentPanelPopup::closed, fixture.window, [&tab]() { delete tab.data(); });
+        connect(panel, &pdf::PDFAppDocumentPanelPopup::closed, fixture.window, [&tab]() { pdftest::AppDocumentFixture::deleteNow(tab.data()); });
         zoomIn->click();
         pdftest::AppDocumentFixture::settle();
         QVERIFY(!tab);
@@ -1742,7 +1742,7 @@ void AppToolsPanelTest::panelRecentTimesFollowClock()
 
     // The tab deleted from the tick of the panel
     QPointer<pdf::PDFAppDocumentTab> tabGuard = tab;
-    QObject::connect(panel->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, panel.data(), [tabGuard]() { delete tabGuard.data(); });
+    QObject::connect(panel->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, panel.data(), [tabGuard]() { pdftest::AppDocumentFixture::deleteNow(tabGuard.data()); });
     pdf::PDFAppHomeFormat::setCurrentTimeOverride(now + 11 * 60000);
     ticker->tick();
     QVERIFY(!tab);

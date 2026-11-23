@@ -29,6 +29,7 @@
 #include "pdfappworkspace.h"
 
 #include "pdfcomponentbadges.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
 #include "pdfstylepainter.h"
@@ -148,7 +149,7 @@ PDFAppDocumentStateScreen::PDFAppDocumentStateScreen(QWidget* parent) :
     m_loadingTimer->setSingleShot(true);
     m_loadingTimer->setInterval(LOADING_DELAY);
     connect(m_loadingTimer.data(), &QTimer::timeout, this, &PDFAppDocumentStateScreen::onLoadingDelayElapsed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentStateScreen::updateTexts);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentStateScreen::updateTexts);
 
     updateState();
 }
@@ -303,9 +304,9 @@ void PDFAppDocumentStateScreen::setDocument(PDFAppDocument* document)
     m_document = document;
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentStateScreen::updateState);
-        connect(m_document.data(), &PDFAppDocument::fileChanged, this, &PDFAppDocumentStateScreen::updateTexts);
-        connect(m_document.data(), &PDFAppDocument::loadingProgressChanged, this, &PDFAppDocumentStateScreen::onLoadingProgressChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentStateScreen::updateState);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::fileChanged, this, &PDFAppDocumentStateScreen::updateTexts);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::loadingProgressChanged, this, &PDFAppDocumentStateScreen::onLoadingProgressChanged);
     }
     updateState();
 }

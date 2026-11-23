@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -1688,7 +1689,8 @@ PDFPropertyRow::PDFPropertyRow(QWidget* parent) :
     }
 
     m_copiedTimer.setSingleShot(true);
-    connect(&m_copiedTimer, &QTimer::timeout, this, &PDFPropertyRow::onCopiedTimeout);
+    // A member, not a child: retire does not stop it, a retired row gets nothing of it
+    PDFDeferredDeletion::connect(&m_copiedTimer, &QTimer::timeout, this, &PDFPropertyRow::onCopiedTimeout);
     connect(m_copyButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::copy);
     connect(m_editButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::startEditing);
     connect(m_confirmButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::confirmEditing);
@@ -2534,7 +2536,8 @@ PDFNavList::PDFNavList(PDFNavItem::Kind kind, QWidget* parent) :
     m_group.setExclusive(true);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
-    connect(&m_group, &QButtonGroup::idToggled, this, &PDFNavList::onGroupIdToggled);
+    // A member, not a child: outside of the subtree of the list, a retired list gets nothing of it
+    PDFDeferredDeletion::connect(&m_group, &QButtonGroup::idToggled, this, &PDFNavList::onGroupIdToggled);
 }
 
 void PDFNavList::onGroupIdToggled(int id, bool isChecked)

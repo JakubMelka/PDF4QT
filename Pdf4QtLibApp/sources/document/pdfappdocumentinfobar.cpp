@@ -26,6 +26,7 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
@@ -75,7 +76,7 @@ PDFAppInfoBarShadow::PDFAppInfoBarShadow(QWidget* parent) :
     setObjectName(QStringLiteral("infoBarShadow"));
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBarShadow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBarShadow::update));
 }
 
 PDFAppInfoBarShadow::~PDFAppInfoBarShadow() = default;
@@ -170,7 +171,7 @@ PDFAppInfoBar::PDFAppInfoBar(const PDFAppInfoBarRequest& request, QWidget* paren
     connect(m_closeButton.data(), &QAbstractButton::clicked, this, &PDFAppInfoBar::onCloseClicked);
 
     rebuild();
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBar::update));
 
     // The shadow is a sibling below the bar; the bar takes the pointer only over its card
     if (parent)

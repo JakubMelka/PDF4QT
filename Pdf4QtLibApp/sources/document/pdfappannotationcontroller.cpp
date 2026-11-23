@@ -37,6 +37,7 @@
 #include "pdfsecurityhandler.h"
 #include "pdfwidgetformmanager.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QCryptographicHash>
@@ -91,8 +92,8 @@ PDFAppAnnotationController::PDFAppAnnotationController(PDFAppDocumentView* view)
     PDFAppContext* context = view ? view->getContext() : nullptr;
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAnnotationController::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAnnotationController::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAnnotationController::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAnnotationController::onEverythingChanged);
     }
 
     updateReadOnlyState();
@@ -142,9 +143,9 @@ void PDFAppAnnotationController::connectEngine()
 
         // Rectangle = Square, freehand = Ink, as the specification intends (owner, O20)
         m_toolManager->setSpecificationShapeTypes(true);
-        connect(m_toolManager.data(), &PDFToolManager::documentModified, this, &PDFAppAnnotationController::onToolDocumentModified);
-        connect(m_toolManager.data(), &PDFToolManager::annotationCreationRequested, this, &PDFAppAnnotationController::onCreationRequested);
-        connect(m_toolManager.data(), &PDFToolManager::activeToolChanged, this, &PDFAppAnnotationController::onActiveToolChanged);
+        PDFDeferredDeletion::connect(m_toolManager.data(), &PDFToolManager::documentModified, this, &PDFAppAnnotationController::onToolDocumentModified);
+        PDFDeferredDeletion::connect(m_toolManager.data(), &PDFToolManager::annotationCreationRequested, this, &PDFAppAnnotationController::onCreationRequested);
+        PDFDeferredDeletion::connect(m_toolManager.data(), &PDFToolManager::activeToolChanged, this, &PDFAppAnnotationController::onActiveToolChanged);
         if (PDFSelectTextTool* selectTextTool = m_toolManager->getSelectTextTool())
         {
             selectTextTool->setAnnotationsSelectable(true);
@@ -158,18 +159,18 @@ void PDFAppAnnotationController::connectEngine()
 
         // Links are selectable (their properties 1171:28262), a plain click follows them
         m_annotationManager->setLinksSelectable(true);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::documentModified, this, &PDFAppAnnotationController::onAnnotationDocumentModified);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::selectionChanged, this, &PDFAppAnnotationController::onEngineSelectionChanged);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::menuRequested, this, &PDFAppAnnotationController::onMenuRequested);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::popupRequested, this, &PDFAppAnnotationController::onPopupRequested);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::propertiesRequested, this, &PDFAppAnnotationController::onPropertiesRequested);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::geometryRequested, this, &PDFAppAnnotationController::onGeometryRequested);
-        connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::copyToPagesRequested, this, &PDFAppAnnotationController::onCopyToPagesRequested);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::documentModified, this, &PDFAppAnnotationController::onAnnotationDocumentModified);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::selectionChanged, this, &PDFAppAnnotationController::onEngineSelectionChanged);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::menuRequested, this, &PDFAppAnnotationController::onMenuRequested);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::popupRequested, this, &PDFAppAnnotationController::onPopupRequested);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::propertiesRequested, this, &PDFAppAnnotationController::onPropertiesRequested);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::geometryRequested, this, &PDFAppAnnotationController::onGeometryRequested);
+        PDFDeferredDeletion::connect(m_annotationManager.data(), &PDFWidgetAnnotationManager::copyToPagesRequested, this, &PDFAppAnnotationController::onCopyToPagesRequested);
     }
 
     if (m_formManager)
     {
-        connect(m_formManager.data(), &PDFWidgetFormManager::documentModified, this, &PDFAppAnnotationController::onFormDocumentModified);
+        PDFDeferredDeletion::connect(m_formManager.data(), &PDFWidgetFormManager::documentModified, this, &PDFAppAnnotationController::onFormDocumentModified);
     }
 }
 
@@ -218,10 +219,10 @@ void PDFAppAnnotationController::setDocument(PDFAppDocument* document)
 
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationController::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationController::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::lockChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
     }
     updateReadOnlyState();
 }
@@ -246,7 +247,7 @@ void PDFAppAnnotationController::beginMergeSession(const QString& key)
         QWidget* canvas = getCanvasWidget();
         if (!m_mergeKey.isEmpty() && canvas)
         {
-            canvas->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(canvas, this);
             m_mergeSessionCanvas = canvas;
         }
     }

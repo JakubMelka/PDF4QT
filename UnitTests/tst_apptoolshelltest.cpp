@@ -165,6 +165,15 @@ public:
 class ToolShellTestHelper
 {
 public:
+    /// A deliberate synchronous delete of the test (the destructor order, a delete from a signal; step A: the
+    /// detector of the synchronous deletions of retirables is quiet in it)
+    template<typename T>
+    static void deleteNow(T* object)
+    {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete object;
+    }
+
     /// Parameters of Remove Hidden Data, which choose one kind of the hidden data
     static QVariantMap onlyKind(const QString& kind)
     {
@@ -493,6 +502,12 @@ private slots:
     void shellViewStateInEveryExit_data();
     void shellViewStateInEveryExit();
     void shellTabOrder();
+
+    // Step A (deferred deletion): the shell, its runner and its overlay are retired, never deleted under their code
+    void closeToolFromOverlayInput();
+    void cancelDuringRunFreesDocumentAtOnce();
+    void undoStepClosesTool();
+    void retiredDuringEntryEntersNoMode();
 
     void leakDetectorSeesText_data();
     void leakDetectorSeesText();
@@ -1236,18 +1251,18 @@ void AppToolShellTest::runnerDeletedDuringRun()
         if (victim == QLatin1String("runner"))
         {
             // F12: the operation ends with the owner of the runner, not by the worker
-            delete runner;
+            ToolShellTestHelper::deleteNow(runner);
             QVERIFY(document->getOperations().empty());
             QVERIFY(!document->isBlockedByOperation());
         }
         else if (victim == QLatin1String("tab"))
         {
-            delete tab;
+            ToolShellTestHelper::deleteNow(tab);
             QVERIFY(document.isNull());
         }
         else
         {
-            delete fixture.window.data();
+            ToolShellTestHelper::deleteNow(fixture.window.data());
             QVERIFY(document.isNull());
         }
 
@@ -1289,7 +1304,7 @@ void AppToolShellTest::runnerDeletedFromSignals()
         if (runner && !isDeleted)
         {
             isDeleted = true;
-            delete runner.data();
+            ToolShellTestHelper::deleteNow(runner.data());
         }
     };
 
@@ -1970,10 +1985,14 @@ void AppToolShellTest::runnerLostDocumentRefusesRun()
     pdf::PDFAppDocumentTab* tab = fixture.openDocument(2);
     QPointer<pdf::PDFAppDocument> document = tab->getDocument();
     std::shared_ptr<TestDocumentTool> tool = std::make_shared<TestDocumentTool>(TOOL_ROTATE);
-    pdf::PDFDocumentToolRunner runner(document.data(), tool, nullptr);
+
+    // A standalone runner of the test: its deletion at the end is a deliberate synchronous deletion (step A; the
+    // reaction of the runner to the deleted tab runs outside of any scope)
+    std::unique_ptr<pdf::PDFDocumentToolRunner, pdftest::AppDocumentFixture::DeleteNow> runnerOwner(new pdf::PDFDocumentToolRunner(document.data(), tool, nullptr));
+    pdf::PDFDocumentToolRunner& runner = *runnerOwner;
     QSignalSpy lostSpy(&runner, &PDFDocumentToolRunner::documentLost);
 
-    delete tab;
+    ToolShellTestHelper::deleteNow(tab);
     AppToolShellFixture::settle();
     QVERIFY(document.isNull());
     QCOMPARE(lostSpy.size(), 1);
@@ -4318,7 +4337,7 @@ void AppToolShellTest::dialogTemporaryOutput()
         PDFAppToolResultDialog* dialog = openTemporaryDialog(&temporaryPath);
         QVERIFY(dialog);
         QVERIFY(QFile::exists(temporaryPath));
-        delete tab;
+        ToolShellTestHelper::deleteNow(tab);
         QVERIFY(AppToolShellFixture::waitFor([&]() { return !QFile::exists(temporaryPath); }));
     }
 }
@@ -4534,15 +4553,15 @@ void AppToolShellTest::dialogDeletion()
 
     if (victim == QLatin1String("runner"))
     {
-        delete runner;
+        ToolShellTestHelper::deleteNow(runner);
     }
     else if (victim.startsWith(QLatin1String("tab")))
     {
-        delete tab;
+        ToolShellTestHelper::deleteNow(tab);
     }
     else if (victim.startsWith(QLatin1String("window")))
     {
-        delete fixture.window.data();
+        ToolShellTestHelper::deleteNow(fixture.window.data());
     }
     else
     {
@@ -4599,11 +4618,11 @@ void AppToolShellTest::dialogDeletedFromDecided()
         isDeleted = true;
         if (victim.startsWith(QLatin1String("tab")))
         {
-            delete tab;
+            ToolShellTestHelper::deleteNow(tab);
         }
         else
         {
-            delete fixture.window.data();
+            ToolShellTestHelper::deleteNow(fixture.window.data());
         }
     };
     if (victim.endsWith(QLatin1String("-hidden")))
@@ -4654,7 +4673,7 @@ void AppToolShellTest::dialogHostileSuggestedName()
         QCOMPARE(dialog->getFileNameField()->text(), QStringLiteral("Report_copy.pdf"));
         dialog->reject();
         AppToolShellFixture::settle();
-        delete runner;
+        ToolShellTestHelper::deleteNow(runner);
     }
 }
 
@@ -6361,7 +6380,7 @@ void AppToolShellTest::shellLeaveRunningDeleted()
 
             QWidget* deleted = deletedObject == 0 ? static_cast<QWidget*>(tab->getPage()) :
                                                     (deletedObject == 1 ? static_cast<QWidget*>(tab) : static_cast<QWidget*>(fixture.window.data()));
-            delete deleted;
+            ToolShellTestHelper::deleteNow(deleted);
             QCOMPARE(finishedSpy.count(), 0);
             AppToolShellFixture::settle();
             QVERIFY(!shell);
@@ -6821,7 +6840,7 @@ void AppToolShellTest::shellDeletedFromActivation()
         if (!isDeleted)
         {
             isDeleted = true;
-            delete tab.data();
+            ToolShellTestHelper::deleteNow(tab.data());
         }
     });
     tool->setHold(false);
@@ -6902,7 +6921,7 @@ void AppToolShellTest::shellResultWaitsForModalDialog()
 
     if (end == QLatin1String("tab-closed"))
     {
-        delete tab;
+        ToolShellTestHelper::deleteNow(tab);
         AppToolShellFixture::settle();
         QVERIFY(!shell);
         delete modal.data();
@@ -8004,19 +8023,19 @@ void AppToolShellTest::shellDeletion()
     {
         if (victim == QLatin1String("tab"))
         {
-            delete tab.data();
+            ToolShellTestHelper::deleteNow(tab.data());
         }
         else if (victim == QLatin1String("window"))
         {
-            delete fixture.window.data();
+            ToolShellTestHelper::deleteNow(fixture.window.data());
         }
         else if (victim == QLatin1String("page"))
         {
-            delete tab->getPage();
+            ToolShellTestHelper::deleteNow(tab->getPage());
         }
         else
         {
-            delete shell.data();
+            ToolShellTestHelper::deleteNow(shell.data());
         }
     };
 
@@ -9352,7 +9371,7 @@ void AppToolShellTest::shellOwnTabHost()
 
     shell->close();
     QCOMPARE(host->leaveCount, 1);
-    delete shell.data();
+    ToolShellTestHelper::deleteNow(shell.data());
     QVERIFY(window.findChildren<pdf::PDFAppToolToolbar*>().isEmpty());
 }
 
@@ -9517,6 +9536,288 @@ void AppToolShellTest::shellTabOrder()
     QVERIFY2(order.size() < 80, "Tab never came back to the first control");
     shell->cancel();
     AppToolShellFixture::settle();
+}
+
+/// An overlay, which closes its tool from its own input (a button of an overlay, its Esc): the record says what the
+/// code of the overlay finds right after the close, inside its handler
+class ClosingOverlay : public QWidget
+{
+public:
+    struct Record
+    {
+        bool isPressed = false;
+        bool isAliveAfterClose = false;     ///< The overlay is still an object after the close (never deleted under its code)
+        bool isRetiredAfterClose = false;   ///< PDFDeferredDeletion::isRetired of the overlay
+        bool isHiddenAfterClose = false;
+    };
+
+    explicit ClosingOverlay(QWidget* parent) : QWidget(parent) { }
+
+    std::function<void()> onPress;
+    Record* record = nullptr;
+
+protected:
+    virtual void mousePressEvent(QMouseEvent* event) override
+    {
+        // The handler and the record are copied first: under the old synchronous delete they went with the overlay
+        Record* currentRecord = record;
+        const std::function<void()> press = onPress;
+        QPointer<ClosingOverlay> self(this);
+        if (currentRecord)
+        {
+            currentRecord->isPressed = true;
+        }
+        if (press)
+        {
+            press();
+        }
+        if (!self || !currentRecord)
+        {
+            return;
+        }
+        currentRecord->isAliveAfterClose = true;
+        currentRecord->isRetiredAfterClose = pdf::PDFDeferredDeletion::isRetired(this);
+        currentRecord->isHiddenAfterClose = !isVisible();
+        event->accept();
+    }
+};
+
+/// A tool with the closing overlay
+class ClosingOverlayGUI : public pdf::PDFAppDeclarativeToolGUI
+{
+public:
+    QWidget* createOverlay(QWidget* canvasArea) override
+    {
+        ClosingOverlay* overlay = new ClosingOverlay(canvasArea);
+        overlay->setObjectName(QStringLiteral("closingOverlay"));
+        overlay->setGeometry(canvasArea->rect().center().x() - 50, 40, 100, 24);
+        return overlay;
+    }
+};
+
+/// A tool, whose changes of the document are steps of its Undo (as Redact Content)
+class DocumentUndoGUI : public pdf::PDFAppDeclarativeToolGUI
+{
+public:
+    bool hasDocumentUndoSteps() const override { return true; }
+};
+
+void AppToolShellTest::closeToolFromOverlayInput()
+{
+    // Step A (the ASan finding of step 7c): the input of the overlay closes the tool. PDFDocumentToolShell::close
+    // retires the overlay instead of deleting it: the code of the overlay after the close runs on a whole object,
+    // which is hidden and inert at once and deleted from the event loop; the view has left the mode at once
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    QVERIFY(fixture.registerShellTool(TOOL_ROTATE));
+    QVERIFY(pdf::PDFDocumentToolGUIRegistry::registerFactory(TOOL_ROTATE, std::make_shared<pdf::PDFDocumentToolGUIFactoryOf<ClosingOverlayGUI>>()));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+
+    QPointer<ClosingOverlay> overlay = dynamic_cast<ClosingOverlay*>(shell->getOverlay());
+    QVERIFY(overlay);
+    QVERIFY(overlay->isVisible());
+    QVERIFY(view->isToolModeActive());
+
+    ClosingOverlay::Record record;
+    bool isModeLeftInPress = false;
+    overlay->record = &record;
+    overlay->onPress = [&]()
+    {
+        // Cancel of the tool from the input of its overlay (the page closes the tool and leaves the route)
+        shell->cancel();
+        isModeLeftInPress = !view->isToolModeActive();
+    };
+
+    const QPointF position = QPointF(overlay->rect().center());
+    QMouseEvent press(QEvent::MouseButtonPress, position, overlay->mapToGlobal(position), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(overlay.data(), &press);
+
+    QVERIFY(record.isPressed);
+    QVERIFY2(record.isAliveAfterClose, "The overlay was deleted under its own input handler");
+    QVERIFY(record.isRetiredAfterClose);
+    QVERIFY(record.isHiddenAfterClose);
+    QVERIFY(isModeLeftInPress);
+    QVERIFY(overlay);
+
+    // From the event loop: the overlay and the tool are gone, the tab shows its document
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay);
+    QVERIFY(!shell);
+    QVERIFY(!view->isToolModeActive());
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+    QVERIFY(!fixture.currentRoute().contains(QStringLiteral("/tool/")));
+}
+
+void AppToolShellTest::cancelDuringRunFreesDocumentAtOnce()
+{
+    // Step A: the page of a tool retired during its run (the tab closed, the navigator replacing the page) frees the
+    // document at once - the hook of the runner cancels the worker and ends the operation of the document
+    // synchronously, the token of the mode gives the view back - and the shell says nothing (its hook emits none of
+    // its signals). Another tool runs on the document right after the page is gone.
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
+    QVERIFY(tool);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+
+    tool->setHold(true);
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
+    QCOMPARE(shell->getState(), H::State::Running);
+    QVERIFY(document->isBlockedByOperation());
+    QVERIFY(view->isToolModeActive());
+    QVERIFY(document->areUserChangesSuspended());
+
+    QPointer<pdf::PDFDocumentToolRunner> runner = shell->getRunner();
+    QPointer<pdf::PDFAppPage> page = tab->getPage();
+    QVERIFY(runner && page);
+    QSignalSpy stateSpy(shell.data(), &pdf::PDFDocumentToolShell::stateChanged);
+    QSignalSpy closeSpy(shell.data(), &pdf::PDFDocumentToolShell::closeRequested);
+    pdf::PDFDeferredDeletion::retire(page.data());
+
+    // At once, before the event loop: the document is free, the view is the view of the document again
+    QVERIFY(document->getOperations().empty());
+    QVERIFY(!document->isBlockedByOperation());
+    QVERIFY(!document->areUserChangesSuspended());
+    QVERIFY(!view->isToolModeActive());
+    QCOMPARE(view->getToolUndoTarget(), nullptr);
+    QVERIFY(shell && runner);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(shell.data()));
+    QCOMPARE(shell->getState(), H::State::Closed);
+    QCOMPARE(runner->getState(), pdf::PDFDocumentToolRunner::State::Idle);
+    QCOMPARE(stateSpy.count(), 0);
+    QCOMPARE(closeSpy.count(), 0);
+
+    // The worker has seen the cancellation (nobody waited for it); the objects go from the event loop
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
+    tool->setHold(false);
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QVERIFY(!runner);
+    QVERIFY(!page);
+
+    // The next tool finds the document free: its run starts and holds the document
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()));
+    AppToolShellFixture::settle();
+    pdf::PDFDocumentToolShell* nextShell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(nextShell);
+    QCOMPARE(nextShell->getState(), H::State::Editing);
+    tool->setHold(true);
+    nextShell->confirm();
+    QCOMPARE(nextShell->getState(), H::State::Running);
+    QVERIFY(document->isBlockedByOperation());
+    nextShell->stop();
+    tool->setHold(false);
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
+    nextShell->cancel();
+    AppToolShellFixture::settle();
+}
+
+void AppToolShellTest::undoStepClosesTool()
+{
+    // Step A: Undo of a step of the document made by the tool runs the slots of the document, and one of them closes
+    // the tool by the real single place (the navigation back closes it, the page is retired). The token of the mode
+    // has given the view back before Undo returns (no Undo target of the tool, not in the mode, the document takes
+    // changes again); the composite Undo target, whose Undo is still on the stack, is whole until the event loop.
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    QVERIFY(fixture.registerShellTool(TOOL_ROTATE));
+    QVERIFY(pdf::PDFDocumentToolGUIRegistry::registerFactory(TOOL_ROTATE, std::make_shared<pdf::PDFDocumentToolGUIFactoryOf<DocumentUndoGUI>>()));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    const QString originalTitle = document->getDocument()->getInfo()->title;
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+
+    // A change of the document by the tool: one step of the Undo of the tool, which the view acts on
+    QPointer<pdf::PDFAppToolUndoTarget> target = shell->getUndoTarget();
+    QVERIFY(target);
+    QCOMPARE(view->getToolUndoTarget(), target.data());
+    pdf::PDFDocumentBuilder builder(document->getDocument().data());
+    builder.setDocumentTitle(QStringLiteral("Changed by the tool"));
+    const pdf::PDFDocumentPointer changed(new pdf::PDFDocument(builder.build()));
+    QVERIFY(shell->commitDocumentChange(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Change title"), document->getVersion()));
+    AppToolShellFixture::settle();
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Changed by the tool"));
+    QVERIFY(target->canUndo());
+
+    // The slot of the change made by Undo closes the tool
+    bool isCloseRequested = false;
+    QObject::connect(document, &pdf::PDFAppDocument::documentChanged, fixture.window.data(), [&]()
+    {
+        isCloseRequested = fixture.retire(shell.data());
+    }, Qt::SingleShotConnection);
+    target->undo();
+
+    QVERIFY(isCloseRequested);
+    QVERIFY2(target, "The Undo target was deleted under its own Undo");
+    QCOMPARE(document->getDocument()->getInfo()->title, originalTitle);
+    QVERIFY(!view->isToolModeActive());
+    QCOMPARE(view->getToolUndoTarget(), nullptr);
+    QVERIFY(!document->areUserChangesSuspended());
+
+    // From the event loop: the tool is gone, the document keeps the step for its own Redo
+    AppToolShellFixture::settle();
+    QVERIFY(!target);
+    QVERIFY(!shell);
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+    QVERIFY(!fixture.currentRoute().contains(QStringLiteral("/tool/")));
+    QVERIFY(document->getUndoStack()->canRedo());
+}
+
+void AppToolShellTest::retiredDuringEntryEntersNoMode()
+{
+    // Step A (finding of check 7 of the lifetime harness, row parameters-tab-0@9): the shell is retired by a slot of
+    // the entry of the tool mode (its page or tab closed while the view takes the parts). The shell, whose code is
+    // still on the stack of its entry, creates nothing more (no token of the mode, no keys) and gives the mode, which
+    // the view has entered meanwhile, back at once: the view is the view of the document before the event loop.
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    QVERIFY(fixture.registerShellTool(TOOL_ROTATE));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+
+    QPointer<pdf::PDFDocumentToolShell> shell;
+    QObject::connect(view, &pdf::PDFAppDocumentView::toolModeChanged, fixture.window.data(), [&](bool isActive)
+    {
+        if (isActive)
+        {
+            shell = fixture.window->findChild<pdf::PDFDocumentToolShell*>();
+            pdf::PDFDeferredDeletion::retire(shell.data());
+        }
+    }, Qt::SingleShotConnection);
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_ROTATE));
+
+    // Before the event loop: the entry has stopped, nothing of the tool is left in the view
+    QVERIFY(shell);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(shell.data()));
+    QCOMPARE(shell->getState(), H::State::Closed);
+    QVERIFY(!shell->findChild<QObject*>(QStringLiteral("toolModeToken")));
+    QVERIFY(!shell->findChild<QAction*>(QStringLiteral("toolEscape")));
+    QVERIFY(!view->isToolModeActive());
+    QCOMPARE(view->getToolUndoTarget(), nullptr);
+    QVERIFY(!document->areUserChangesSuspended());
+
+    // The page has left the tool for its document (the tool could not be entered)
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QVERIFY(!view->isToolModeActive());
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+    QVERIFY(!fixture.currentRoute().contains(QStringLiteral("/tool/")));
 }
 
 void AppToolShellTest::leakDetectorSeesText_data()

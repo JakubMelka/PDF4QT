@@ -21,10 +21,12 @@
 // SOFTWARE.
 
 #include "pdfappmeasureoverlay.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfapplocale.h"
 #include "pdfapptoolpanelparts.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttool_measure.h"
 #include "pdfdrawspacecontroller.h"
@@ -351,15 +353,15 @@ PDFAppMeasureOverlay::PDFAppMeasureOverlay(PDFWidget* pdfWidget, QWidget* canvas
     }
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(this);
-        connect(m_proxy.data(), &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFAppMeasureOverlay::buildSnapData);
-        connect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppMeasureOverlay::buildSnapData);
+        m_drawToken = new PDFAppCanvasDrawToken(this, m_proxy.data(), this);
+        PDFDeferredDeletion::connect(m_proxy.data(), &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFAppMeasureOverlay::buildSnapData);
+        PDFDeferredDeletion::connect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppMeasureOverlay::buildSnapData);
     }
     if (m_pdfWidget)
     {
-        m_pdfWidget->addInputInterface(this);
+        m_inputToken = new PDFAppCanvasInputToken(this, m_pdfWidget.data(), this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppMeasureOverlay::updateCanvas);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppMeasureOverlay::updateCanvas);
     m_cursor = QCursor(Qt::CrossCursor);
 
     // 471:5490 callout-blue over the canvas: it takes no mouse (the clicks go to the page under it) and no focus
@@ -372,7 +374,8 @@ PDFAppMeasureOverlay::PDFAppMeasureOverlay(PDFWidget* pdfWidget, QWidget* canvas
         callout->setFocusPolicy(Qt::NoFocus);
         callout->hide();
         m_callout = callout;
-        canvasArea->installEventFilter(this);
+        PDFDeferredDeletion::setOwner(callout, this);
+        PDFDeferredDeletion::installEventFilter(canvasArea, this);
     }
 }
 
@@ -385,13 +388,15 @@ PDFAppMeasureOverlay::~PDFAppMeasureOverlay()
     // The callout is a child of the canvas area, which outlives the tool
     delete m_callout.data();
 
-    if (m_pdfWidget)
+    // The interfaces leave the canvas before this object is half destroyed (the tokens are children, deleted only
+    // by ~QObject); after retire they are released already
+    if (PDFAppCanvasInputToken* token = m_inputToken.data())
     {
-        m_pdfWidget->removeInputInterface(this);
+        token->releaseToken();
     }
-    if (m_proxy)
+    if (PDFAppCanvasDrawToken* token = m_drawToken.data())
     {
-        m_proxy->unregisterDrawInterface(this);
+        token->releaseToken();
     }
     if (m_drawWidget)
     {

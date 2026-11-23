@@ -25,6 +25,7 @@
 #include "pdfappleaveflow.h"
 #include "pdfappworkspace.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfwidgetstyleproperties.h"
 
@@ -58,8 +59,19 @@ void PDFAppTab::setPage(PDFAppPage* page)
         return;
     }
 
-    // The previous page may be the sender of the navigation: it is deleted later
-    if (PDFAppPage* oldPage = m_page)
+    // A tab, which is being closed (retired, step A), shows no new page: the page is retired too
+    if (page && PDFDeferredDeletion::isRetired(this))
+    {
+        PDFDeferredDeletion::retire(page);
+        return;
+    }
+
+    // The previous page may be the sender of the navigation: it leaves the layout and is hidden now (the focus moves
+    // on as before), it is retired from the event loop (step A: retire inside its emission would cut the rest of it,
+    // lesson 1) - after the tab has taken back what it lent to it (the banner of the storage, onPageChanged): retire
+    // takes the whole subtree of the page as it is at that moment
+    QPointer<PDFAppPage> oldPage = m_page.data();
+    if (oldPage)
     {
         oldPage->disconnect(this);
         if (QVBoxLayout* layout = getPageLayout())
@@ -67,7 +79,6 @@ void PDFAppTab::setPage(PDFAppPage* page)
             layout->removeWidget(oldPage);
         }
         oldPage->hide();
-        oldPage->deleteLater();
     }
 
     m_page = page;
@@ -84,7 +95,47 @@ void PDFAppTab::setPage(PDFAppPage* page)
         connect(page, &PDFAppPage::titleChanged, this, &PDFAppTab::onPageTitleChanged);
     }
 
+    // (onPageChanged runs code of the tab only: no signal, see PDFAppToolTab::onPageChanged)
     onPageChanged();
+    if (oldPage)
+    {
+        const bool isScheduled = !m_replacedPages.empty();
+        m_replacedPages.push_back(oldPage);
+        if (!isScheduled)
+        {
+            QMetaObject::invokeMethod(this, &PDFAppTab::retireReplacedPages, Qt::QueuedConnection);
+        }
+    }
+}
+
+bool PDFAppTab::isPageReplaced(const PDFAppPage* page) const
+{
+    if (!page)
+    {
+        return false;
+    }
+    for (const QPointer<PDFAppPage>& replacedPage : m_replacedPages)
+    {
+        if (replacedPage.data() == page)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFAppTab::retireReplacedPages()
+{
+    // A page shown again meanwhile (none today: the navigator always creates a new page) is not retired
+    std::vector<QPointer<PDFAppPage>> pages = std::move(m_replacedPages);
+    m_replacedPages.clear();
+    for (const QPointer<PDFAppPage>& page : pages)
+    {
+        if (page && page.data() != m_page.data())
+        {
+            PDFDeferredDeletion::retire(page.data());
+        }
+    }
 }
 
 void PDFAppTab::setNavItem(PDFAppNavItem item)
@@ -248,7 +299,7 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
 
         if (context)
         {
-            connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppWorkspaceTab::onStorageStateChanged);
+            PDFDeferredDeletion::connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppWorkspaceTab::onStorageStateChanged);
         }
         onStorageStateChanged();
     }

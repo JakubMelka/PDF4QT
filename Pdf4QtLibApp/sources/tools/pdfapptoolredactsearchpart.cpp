@@ -35,6 +35,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_redact.h"
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
@@ -135,7 +136,7 @@ void PDFAppToolRedactSearchPart::setDocument(PDFAppDocument* document, PDFAppDoc
     m_view = view;
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppToolRedactSearchPart::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppToolRedactSearchPart::onDocumentChanged);
     }
 
     // The text index of the tab (built lazily, shared with the search of the document)
@@ -143,8 +144,9 @@ void PDFAppToolRedactSearchPart::setDocument(PDFAppDocument* document, PDFAppDoc
     m_indexer = handler ? handler->getIndexer() : nullptr;
     if (m_indexer)
     {
-        connect(m_indexer.data(), &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppToolRedactSearchPart::onIndexReady);
-        connect(m_indexer.data(), &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppToolRedactSearchPart::onIndexProgressChanged);
+        // The indexer belongs to the tab (step A: a foreign sender, retire of the tool cuts the connections)
+        PDFDeferredDeletion::connect(m_indexer.data(), &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppToolRedactSearchPart::onIndexReady);
+        PDFDeferredDeletion::connect(m_indexer.data(), &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppToolRedactSearchPart::onIndexProgressChanged);
     }
 }
 

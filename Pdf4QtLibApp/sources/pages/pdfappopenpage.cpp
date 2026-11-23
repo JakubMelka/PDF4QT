@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappopenpage.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfappcontext.h"
 #include "pdfappfiledrop.h"
 #include "pdfapproute.h"
@@ -74,8 +75,8 @@ public:
 
         if (PDFDatabaseNotifier* notifier = context ? context->getNotifier() : nullptr)
         {
-            connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppOpenPageAssemblies::onDatabaseChanged);
-            connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppOpenPageAssemblies::refresh);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppOpenPageAssemblies::onDatabaseChanged);
+            PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppOpenPageAssemblies::refresh);
         }
         refresh();
     }

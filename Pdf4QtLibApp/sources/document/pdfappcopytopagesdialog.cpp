@@ -29,6 +29,7 @@
 #include "pdfappmainwindow.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QEvent>
 #include <QPushButton>
@@ -132,15 +133,18 @@ PDFAppCopyToPagesDialog::PDFAppCopyToPagesDialog(PDFAppAnnotationController* con
     {
         // The tab (with its controller) deleted: the dialog closes
         connect(controller, &QObject::destroyed, this, &PDFAppCopyToPagesDialog::onControllerDestroyed);
+
+        // Parented to the window, the dialog belongs to the controller (it closes with the tab)
+        PDFDeferredDeletion::setOwner(this, controller);
     }
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
     }
     if (controller)
     {
-        connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppCopyToPagesDialog::onDocumentChanged);
     }
 }
 

@@ -40,6 +40,7 @@
 #include "pdfcms.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolguiregistry.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttoolshell.h"
@@ -209,6 +210,14 @@ std::vector<PDFBitonalDocumentCreator::BlankPageResult> PDFAppToolBitonalJobs::d
 PDFAppToolGUIBitonal::PDFAppToolGUIBitonal(QObject* parent) :
     BaseClass(parent)
 {
+    // The timers and watchers are members, made children: retire (step A) stops the timers and disconnects the
+    // watchers with the GUI
+    m_previewTimer.setParent(this);
+    m_detectionTimer.setParent(this);
+    m_imagesWatcher.setParent(this);
+    m_previewWatcher.setParent(this);
+    m_estimateWatcher.setParent(this);
+    m_detectionWatcher.setParent(this);
     m_previewTimer.setSingleShot(true);
     m_previewTimer.setInterval(PREVIEW_DELAY);
     m_detectionTimer.setInterval(DETECTION_POLL_INTERVAL);
@@ -219,6 +228,19 @@ PDFAppToolGUIBitonal::PDFAppToolGUIBitonal(QObject* parent) :
     connect(&m_previewWatcher, &QFutureWatcherBase::finished, this, &PDFAppToolGUIBitonal::onPreviewFinished);
     connect(&m_estimateWatcher, &QFutureWatcherBase::finished, this, &PDFAppToolGUIBitonal::onEstimateFinished);
     connect(&m_detectionWatcher, &QFutureWatcherBase::finished, this, &PDFAppToolGUIBitonal::onDetectionFinished);
+}
+
+void PDFAppToolGUIBitonal::retire()
+{
+    BaseClass::retire();
+
+    // The workers hold only values and their own flags; the watchers (members) are disconnected here, their late
+    // results go nowhere
+    cancelJobs();
+    for (QFutureWatcherBase* watcher : std::initializer_list<QFutureWatcherBase*>{ &m_imagesWatcher, &m_previewWatcher, &m_estimateWatcher, &m_detectionWatcher })
+    {
+        watcher->disconnect(this);
+    }
 }
 
 PDFAppToolGUIBitonal::~PDFAppToolGUIBitonal()
@@ -1914,6 +1936,8 @@ void PDFAppToolGUIBitonal::onDetectionFinished()
         connect(replaceButton, &QPushButton::clicked, box, &QDialog::accept);
     }
 
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(box, this);
     box->setObjectName(QStringLiteral("bitonalBlankPagesQuestion"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     if (host)
@@ -2265,6 +2289,8 @@ void PDFAppToolGUIBitonal::onRunNotAccepted(const PDFDocumentToolResult& result)
     const PDFAppToolHost* host = getHost();
     QWidget* parent = host && host->getKeyWidget() ? host->getKeyWidget()->window() : nullptr;
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, getTool() ? getTool()->getTitle() : QString(), result.message, QDialogButtonBox::Ok, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(box, this);
     box->setObjectName(QStringLiteral("bitonalFailedMessage"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     if (host)
@@ -2320,6 +2346,8 @@ bool PDFAppToolGUIBitonal::confirmResult(const PDFDocumentToolResult& result)
     const PDFAppToolHost* host = getHost();
     QWidget* parent = host && host->getKeyWidget() ? host->getKeyWidget()->window() : nullptr;
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Question, getTool() ? getTool()->getTitle() : QString(), text, QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(box, this);
     box->setObjectName(QStringLiteral("bitonalPartialResultQuestion"));
     box->setDetailedText(detail);
     QPushButton* discardButton = box->addActionButton(tr("No, discard"), PDFMessageBox::ActionPosition::Trailing, false);

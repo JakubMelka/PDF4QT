@@ -25,6 +25,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -1858,7 +1859,7 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     if (QWidget* closeButton = documentTabs->tabButton(0, QTabBar::RightSide))
     {
         documentTabs->setTabButton(0, QTabBar::RightSide, nullptr);
-        closeButton->deleteLater();
+        pdf::PDFDeferredDeletion::retire(closeButton);
     }
     documentTabs->setCurrentIndex(1);
     topBarLayout->addWidget(documentTabs, 0, Qt::AlignBottom);
@@ -1890,9 +1891,9 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     {
         documentTitle->setText(documentTabs->tabText(documentTabs->currentIndex()));
     };
-    QObject::connect(documentTabs, &QTabBar::currentChanged, documentTitle, showDocument);
+    pdf::PDFDeferredDeletion::connect(documentTabs, &QTabBar::currentChanged, documentTitle, showDocument);
     QObject::connect(documentTabs, &QTabBar::tabCloseRequested, documentTabs, [documentTabs](int index) { documentTabs->removeTab(index); });
-    QObject::connect(newTabButton, &QToolButton::clicked, documentTabs, [documentTabs, counter = 0]() mutable
+    pdf::PDFDeferredDeletion::connect(newTabButton, &QToolButton::clicked, documentTabs, [documentTabs, counter = 0]() mutable
     {
         documentTabs->setCurrentIndex(documentTabs->addTab(GalleryHelper::icon("file-text"), QStringLiteral("Untitled %1.pdf").arg(++counter)));
     });

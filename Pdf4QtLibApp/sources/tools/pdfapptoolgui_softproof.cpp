@@ -39,6 +39,7 @@
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -300,7 +301,7 @@ void PDFAppToolGUISoftProof::ensureSoftProof()
     applyParameters();
     if (m_softProof)
     {
-        connect(m_softProof.data(), &PDFAppDocumentSoftProof::changed, this, &PDFAppToolGUISoftProof::onSoftProofChanged);
+        PDFDeferredDeletion::connect(m_softProof.data(), &PDFAppDocumentSoftProof::changed, this, &PDFAppToolGUISoftProof::onSoftProofChanged);
     }
 }
 
@@ -656,7 +657,7 @@ QWidget* PDFAppToolGUISoftProof::createCanvasPage(QWidget* parent)
     page->getPicture()->setView(view);
     if (view && m_connectedView != view)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUISoftProof::onDisplayedPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUISoftProof::onDisplayedPageChanged);
         m_connectedView = view;
     }
     updateParts();

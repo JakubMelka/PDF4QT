@@ -166,7 +166,8 @@ void PDFAppToolInputRow::updateChildren()
     }
     else if (m_content.tag.isEmpty() && m_tag)
     {
-        delete m_tag.data();
+        PDFDeferredDeletion::retire(m_tag.data());
+        m_tag = nullptr;
     }
     if (m_tag)
     {

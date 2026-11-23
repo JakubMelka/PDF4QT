@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfapppage.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfapproute.h"
 
 #include <QObject>
@@ -47,7 +48,10 @@ class PDFAppLeaveFlow;
 /// - the dialog deleted without finished (deleted with its parent: QDialog::done is the only source of finished)
 ///   -> answered(QDialog::Rejected) from the event loop, never inside the destructor, which deleted the dialog;
 /// - no dialog (nullptr) -> answered(QDialog::Rejected) from the event loop;
-/// - the receiver gone -> nothing: the answer is a child of the receiver and goes with it (the dialog stays as it is).
+/// - the receiver gone -> nothing: the answer is a child of the receiver and goes with it (the dialog stays as it is);
+///   the receiver retired (PDFDeferredDeletion::retire) -> nothing either (the connections from the dialog are cut);
+/// - the dialog retired (its logical owner closed, step A) -> answered(QDialog::Rejected) from the event loop, as for
+///   a dialog deleted without finished (PDFLifetimeNotifier::aboutToBeDeleted; QObject::destroyed stays).
 /// Ownership: the answer belongs to the receiver and deletes itself (deleteLater) when it has delivered. The dialog is
 /// not owned; setDeleteDialog(true) deletes it (deleteLater) after its answer (PDFAppDocumentChoiceDialog::ask). GUI
 /// thread only. A subclass delivers another type of the answer (emitAnswer).
@@ -69,6 +73,8 @@ public:
         PDFAppDialogAnswer* answer = receiver ? new PDFAppDialogAnswer(dialog, receiver) : nullptr;
         if (answer)
         {
+            // A plain connection: the answer is a child of the receiver (retire of the receiver cuts its outgoing
+            // signals); the connections from the dialog (outside) go through PDFDeferredDeletion::connect
             QObject::connect(answer, &PDFAppDialogAnswer::answered, receiver, slot);
         }
         return answer;
@@ -319,7 +325,9 @@ public:
         PDFAppLeaveFlowStep* step = receiver ? createStep(reporter) : nullptr;
         if (step)
         {
-            QObject::connect(step, &PDFAppLeaveFlowStep::finished, receiver, slot);
+            // The step is a child of the flow, the receiver may be outside its subtree (the navigator): the
+            // connection is cut, when the receiver is retired (step A)
+            PDFDeferredDeletion::connect(step, &PDFAppLeaveFlowStep::finished, receiver, slot);
         }
         return step != nullptr;
     }

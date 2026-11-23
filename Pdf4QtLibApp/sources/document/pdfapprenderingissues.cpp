@@ -319,6 +319,8 @@ PDFAppRenderingIssues::PDFAppRenderingIssues(PDFAppDocumentView* view, PDFAppDoc
     m_document(document)
 {
     // The errors come page by page, while the pages are compiled: one update for many of them
+    // A child (a value member has no parent otherwise): retire stops it with the controller (step A)
+    m_updateTimer.setParent(this);
     m_updateTimer.setSingleShot(true);
     m_updateTimer.setInterval(0);
     connect(&m_updateTimer, &QTimer::timeout, this, &PDFAppRenderingIssues::onUpdateTimeout);
@@ -333,13 +335,13 @@ PDFAppRenderingIssues::PDFAppRenderingIssues(PDFAppDocumentView* view, PDFAppDoc
 
         if (PDFWidget* widget = m_view->getPdfWidget())
         {
-            connect(widget, &PDFWidget::pageRenderingErrorsChanged, this, &PDFAppRenderingIssues::onRenderingErrorsChanged);
+            PDFDeferredDeletion::connect(widget, &PDFWidget::pageRenderingErrorsChanged, this, &PDFAppRenderingIssues::onRenderingErrorsChanged);
         }
     }
 
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppRenderingIssues::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppRenderingIssues::onDocumentChanged);
     }
 
     updateItems();
@@ -437,6 +439,7 @@ bool PDFAppRenderingIssues::showPopover()
     // shadow, the closing by Esc and by a click outside
     QMenu* popover = new QMenu(m_statusItem->window());
     popover->setObjectName(QStringLiteral("renderingIssuesPopover"));
+    PDFDeferredDeletion::setOwner(popover, this);
     popover->setProperty(PDFWidgetStyleProperties::POPOVER, true);
     popover->setAccessibleName(tr("Rendering issues"));
 

@@ -256,6 +256,16 @@ public:
     /// Version of the document (+1 on every change, also on undo / redo)
     quint64 getVersion() const { return m_version; }
 
+    /// Message prefix of a refused change of a retired document in the test mode of PDFDeferredDeletion (qWarning)
+    static constexpr const char* RETIRED_CHANGE_MESSAGE = "PDFAppDocument: a change of a retired document was refused";
+
+    /// A retired document (its tab closed, deleted later) changes no more: every entry point, which would change
+    /// the document or its version (commit, commitToolResult, restore, the unlock, the loads), refuses it as a
+    /// closed document. The number of the refusals and the entry point of the last one (nullptr = none) let
+    /// the lifetime sweeps report the caller, which should have stopped after the close.
+    int getRetiredChangeRefusalCount() const { return m_retiredChangeRefusalCount; }
+    const char* getLastRetiredChangeRefusal() const { return m_lastRetiredChangeRefusal; }
+
     /// Version of the last change, which may have changed the outline: every change
     /// except a change of annotations or of form fields (the objects of the outline
     /// are kept by them); data read from the outline are valid while it is the same
@@ -570,6 +580,9 @@ private:
     void setState(PDFAppDocumentState state);
     void onOperationFinished();
 
+    /// The document is retired: the change of \p entryPoint is refused (counted, reported in the test mode)
+    bool isRetiredChangeRefused(const char* entryPoint);
+
     QPointer<PDFAppContext> m_context;
     QString m_id;
     PDFAppDocumentState m_state = PDFAppDocumentState::Loading;
@@ -582,6 +595,8 @@ private:
     PDFDocumentPointer m_document;
     quint64 m_version = 0;
     quint64 m_savedVersion = 0;
+    int m_retiredChangeRefusalCount = 0;
+    const char* m_lastRetiredChangeRefusal = nullptr;
     QByteArray m_originalData;
     QPointer<PDFOptionalContentActivity> m_optionalContentActivity;
     bool m_isLocked = false;

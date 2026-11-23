@@ -23,6 +23,7 @@
 
 #include "pdfappmcpareahighlight.h"
 #include "pdfappdocumentview.h"
+#include "pdfapplifetimetokens.h"
 
 #include "pdfdrawspacecontroller.h"
 #include "pdfpainterutils.h"
@@ -46,10 +47,12 @@ PDFAppMcpAreaHighlight::PDFAppMcpAreaHighlight(PDFAppDocumentView* view, PDFInte
     setObjectName(QStringLiteral("mcpAreaHighlight"));
     m_elapsed.start();
 
+    // The registration on the canvas is a token (step A): retire of the outline or of its view
+    // ends it at once, the destructor otherwise
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(this);
-        connect(m_proxy, &QObject::destroyed, this, &PDFAppMcpAreaHighlight::onProxyDestroyed);
+        m_drawToken = new PDFAppCanvasDrawToken(this, m_proxy, this);
+        PDFDeferredDeletion::connect(m_proxy.data(), &QObject::destroyed, this, &PDFAppMcpAreaHighlight::onProxyDestroyed);
     }
 
     // The pulse is repainted about 16 times per second
@@ -61,22 +64,30 @@ PDFAppMcpAreaHighlight::PDFAppMcpAreaHighlight(PDFAppDocumentView* view, PDFInte
 
 PDFAppMcpAreaHighlight::~PDFAppMcpAreaHighlight()
 {
-    if (m_proxy)
+    // The interface is unregistered while this object is whole (the token, a child, would end it
+    // only in the destructor of QObject)
+    if (m_drawToken)
     {
-        m_proxy->unregisterDrawInterface(this);
-        Q_EMIT m_proxy->repaintNeeded();
+        m_drawToken->releaseToken();
     }
 }
 
 PDFAppMcpAreaHighlight* PDFAppMcpAreaHighlight::show(PDFAppDocumentView* view, PDFInteger pageIndex, const QRectF& area)
 {
-    if (!view || !view->getProxy())
+    // A closed (retired) view shows nothing new
+    if (!view || !view->getProxy() || PDFDeferredDeletion::isRetired(view))
     {
         return nullptr;
     }
 
-    // One outline per view: a new area replaces the old one
-    delete find(view);
+    // One outline per view: a new area replaces the old one (retired: off the canvas now,
+    // deleted later - the old outline may be on the stack of a repaint). It leaves the view at
+    // once (a plain object, no widget), so the view has one outline from now on.
+    if (PDFAppMcpAreaHighlight* oldHighlight = find(view))
+    {
+        PDFDeferredDeletion::retire(oldHighlight);
+        oldHighlight->setParent(nullptr);
+    }
 
     // A receiver of the repaint may delete the view (and the new outline with it)
     QPointer<PDFAppMcpAreaHighlight> highlight = new PDFAppMcpAreaHighlight(view, pageIndex, area);
@@ -86,7 +97,20 @@ PDFAppMcpAreaHighlight* PDFAppMcpAreaHighlight::show(PDFAppDocumentView* view, P
 
 PDFAppMcpAreaHighlight* PDFAppMcpAreaHighlight::find(const PDFAppDocumentView* view)
 {
-    return view ? view->findChild<PDFAppMcpAreaHighlight*>(QStringLiteral("mcpAreaHighlight"), Qt::FindDirectChildrenOnly) : nullptr;
+    if (!view)
+    {
+        return nullptr;
+    }
+
+    // A replaced (retired) outline waits for its deletion: it is not shown any more
+    for (PDFAppMcpAreaHighlight* highlight : view->findChildren<PDFAppMcpAreaHighlight*>(QStringLiteral("mcpAreaHighlight"), Qt::FindDirectChildrenOnly))
+    {
+        if (!PDFDeferredDeletion::isRetired(highlight))
+        {
+            return highlight;
+        }
+    }
+    return nullptr;
 }
 
 qreal PDFAppMcpAreaHighlight::getOpacity() const

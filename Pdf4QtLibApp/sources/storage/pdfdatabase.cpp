@@ -1802,7 +1802,9 @@ PDFDatabase::PDFDatabase(QObject* parent) :
     m_builtinMigrations(PDFDatabaseSchema::getMigrations()),
     m_registry(std::make_shared<PDFDatabaseRegistry>())
 {
-    // Another instance writes: the damage report is written a bit later
+    // Another instance writes: the damage report is written a bit later (the timer is a member, made a child:
+    // retire (step A) stops it with the database)
+    m_damageReportTimer.setParent(this);
     m_damageReportTimer.setSingleShot(true);
     m_damageReportTimer.setInterval(2000);
     connect(&m_damageReportTimer, &QTimer::timeout, this, &PDFDatabase::persistDamageReport);

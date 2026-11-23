@@ -28,6 +28,7 @@
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfapplocale.h"
 #include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
@@ -47,6 +48,7 @@
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumenttextindex.h"
 #include "pdfdocumenttool_redact.h"
@@ -634,27 +636,30 @@ PDFAppToolRedactOverlay::PDFAppToolRedactOverlay(PDFWidget* pdfWidget, QWidget* 
     // mouse through to the canvas); the pages lie below its band (owner 2026-11-18)
     m_caption = new PDFAppToolPageCaption(canvasArea);
     m_caption->getLabel()->setObjectName(QStringLiteral("redactPageCaption"));
+    PDFDeferredDeletion::setOwner(m_caption.data(), this);
 
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(this);
+        m_drawToken = new PDFAppCanvasDrawToken(this, m_proxy.data(), this);
     }
     if (m_pdfWidget)
     {
-        m_pdfWidget->addInputInterface(this);
+        m_inputToken = new PDFAppCanvasInputToken(this, m_pdfWidget.data(), this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolRedactOverlay::updateCanvas);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolRedactOverlay::updateCanvas);
 }
 
 PDFAppToolRedactOverlay::~PDFAppToolRedactOverlay()
 {
-    if (m_pdfWidget)
+    // The interfaces leave the canvas before this object is half destroyed (the tokens are children, deleted only
+    // by ~QObject); after retire they are released already
+    if (PDFAppCanvasInputToken* token = m_inputToken.data())
     {
-        m_pdfWidget->removeInputInterface(this);
+        token->releaseToken();
     }
-    if (m_proxy)
+    if (PDFAppCanvasDrawToken* token = m_drawToken.data())
     {
-        m_proxy->unregisterDrawInterface(this);
+        token->releaseToken();
     }
     if (PDFAppToolPageCaption* caption = m_caption.data())
     {
@@ -2222,7 +2227,8 @@ QWidget* PDFAppToolGUIRedact::createOverlay(QWidget* canvasArea)
     PDFAppDocumentView* view = host->getView();
     if (view && !m_isViewConnected)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIRedact::onDisplayedPageChanged);
+        // The view and its controller are foreign (step A): retire of the tool cuts the connections
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIRedact::onDisplayedPageChanged);
         m_isViewConnected = true;
     }
 
@@ -2248,7 +2254,7 @@ QWidget* PDFAppToolGUIRedact::createOverlay(QWidget* canvasArea)
             }
         }
         m_annotationController = controller;
-        connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppToolGUIRedact::onCanvasSelectionChanged);
+        PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppToolGUIRedact::onCanvasSelectionChanged);
     }
     updateDisplayedPage();
     updateOverlay();
@@ -2535,7 +2541,8 @@ void PDFAppToolGUIRedact::updateRightPanel()
 
 void PDFAppToolGUIRedact::updateOverlay()
 {
-    if (!m_overlay)
+    // A retired overlay (step A: the shell retires it at its close, a later update of this GUI) shows nothing
+    if (!m_overlay || PDFDeferredDeletion::isRetired(m_overlay.data()))
     {
         return;
     }
@@ -2572,7 +2579,7 @@ void PDFAppToolGUIRedact::updateDisplayedPage()
 {
     const PDFAppToolHost* host = getHost();
     const PDFAppDocumentView* view = host ? host->getView() : nullptr;
-    if (m_overlay && view)
+    if (m_overlay && view && !PDFDeferredDeletion::isRetired(m_overlay.data()))
     {
         const PDFInteger page = view->getDisplayedPageIndex();
         m_overlay->setPageText(page >= 0 ? tr("Page %1").arg(PDFAppLocale::formatNumber(page + 1)) : QString());
@@ -2610,6 +2617,8 @@ PDFMessageBox* PDFAppToolGUIRedact::openPagesDialog()
     QWidget* parent = PDFAppToolGUIRedactHelper::getDialogParent(this);
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Information, tr("Redact whole pages"),
                                               tr("Everything on the selected pages is removed. The fill color from the toolbar is used."), QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("redactPagesDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setCardWidth(420);
@@ -2819,6 +2828,8 @@ PDFMessageBox* PDFAppToolGUIRedact::openClosePrompt()
                                               count == 1 ? tr("Keep the new mark in the document?") : tr("Keep the %Ln new marks in the document?", nullptr, count),
                                               tr("No redacted copy was created yet. Marks are redaction annotations – kept marks stay in the document so you can finish later. Nothing is removed from the content either way."),
                                               QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("redactClosePrompt"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setCardWidth(CLOSE_PROMPT_WIDTH);
@@ -2928,6 +2939,8 @@ PDFMessageBox* PDFAppToolGUIRedact::clearAll()
                                               PDFAppToolGUIRedactHelper::plural(count, QT_TR_NOOP("Remove the %Ln mark?"), QT_TR_NOOP("Remove all %Ln marks?")),
                                               tr("The redaction annotations are removed from the document. The content of the pages stays as it is."),
                                               QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setObjectName(QStringLiteral("redactClearDialog"));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QPushButton* cancel = dialog->addActionButton(tr("Cancel"), PDFMessageBox::ActionPosition::Trailing, true);

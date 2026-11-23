@@ -26,6 +26,7 @@
 #include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
+#include "pdfapplifetimetokens.h"
 #include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolhost.h"
@@ -37,6 +38,7 @@
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdrawspacecontroller.h"
@@ -1097,19 +1099,22 @@ PDFAppToolLinkOverlay::PDFAppToolLinkOverlay(PDFWidget* pdfWidget, QWidget* canv
     // area; the pages lie below its band (owner 2026-11-18)
     m_caption = new PDFAppToolPageCaption(canvasArea);
     m_caption->getLabel()->setObjectName(QStringLiteral("toolLinkPageCaption"));
+    PDFDeferredDeletion::setOwner(m_caption.data(), this);
 
     if (m_proxy)
     {
-        m_proxy->registerDrawInterface(this);
+        m_drawToken = new PDFAppCanvasDrawToken(this, m_proxy.data(), this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolLinkOverlay::updateCanvas);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolLinkOverlay::updateCanvas);
 }
 
 PDFAppToolLinkOverlay::~PDFAppToolLinkOverlay()
 {
-    if (m_proxy)
+    // The interface leaves the canvas before this object is half destroyed (the token is a child, deleted only by
+    // ~QObject); after retire it is released already
+    if (PDFAppCanvasDrawToken* token = m_drawToken.data())
     {
-        m_proxy->unregisterDrawInterface(this);
+        token->releaseToken();
     }
     if (PDFAppToolPageCaption* caption = m_caption.data())
     {
@@ -1407,7 +1412,8 @@ QWidget* PDFAppToolGUIRemoveLinks::createOverlay(QWidget* canvasArea)
     m_overlay = new PDFAppToolLinkOverlay(pdfWidget, canvasArea);
     if (PDFAppDocumentView* view = host->getView(); view && !m_isViewConnected)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIRemoveLinks::onDisplayedPageChanged);
+        // The view is foreign (step A): retire of the tool cuts the connection
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIRemoveLinks::onDisplayedPageChanged);
         m_isViewConnected = true;
     }
     onDisplayedPageChanged();
@@ -1419,7 +1425,8 @@ void PDFAppToolGUIRemoveLinks::onDisplayedPageChanged()
 {
     const PDFAppToolHost* host = getHost();
     const PDFAppDocumentView* view = host ? host->getView() : nullptr;
-    if (m_overlay && view)
+    // A retired overlay (step A: the shell retires it at its close, a later update of this GUI) shows nothing
+    if (m_overlay && view && !PDFDeferredDeletion::isRetired(m_overlay.data()))
     {
         const PDFInteger page = view->getDisplayedPageIndex();
         m_overlay->setPageText(page >= 0 ? tr("Page %1").arg(PDFAppLocale::formatNumber(page + 1)) : QString());
@@ -1428,7 +1435,7 @@ void PDFAppToolGUIRemoveLinks::onDisplayedPageChanged()
 
 void PDFAppToolGUIRemoveLinks::updateOverlay()
 {
-    if (m_overlay && m_model)
+    if (m_overlay && m_model && !PDFDeferredDeletion::isRetired(m_overlay.data()))
     {
         m_overlay->setLinks(&m_links, &m_model->getKeptIds(), m_selectedId);
     }

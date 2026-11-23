@@ -326,6 +326,7 @@ private Q_SLOTS:
     void reviewFormatStoredText();
     void generalRowsWriteAndApply();
     void languageSwitchLive();
+    void languageChangeFromLanguageCombo();
     void languageSwitchWithWorkers();
     void languageChangeEverywhere();
     void languageFromOtherInstance();
@@ -697,7 +698,7 @@ void AppSettingsTest::pendingValueWrittenOnLeave()
         edit = control->getSpinBox()->findChild<QLineEdit*>();
         QTest::keyClick(edit, Qt::Key_A, Qt::ControlModifier);
         QTest::keyClicks(edit, QStringLiteral("321"));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QCOMPARE(fixture.settings().getInteger(pdf::PDFSettingKeys::magnifierSize()), qint64(321));
     }
@@ -729,7 +730,7 @@ void AppSettingsTest::pendingValueWrittenOnLeave()
         control->getSlider()->setFocus();
         QTest::keyClick(control->getSlider(), Qt::Key_Right);
         QVERIFY(control->hasPendingValue());
-        delete fixture.settingsPage();
+        pdftest::AppDocumentFixture::deleteNow(fixture.settingsPage());
         QCOMPARE(fixture.settings().getInteger(pdf::PDFSettingKeys::colorModesBitonalThreshold()), qint64(130));
         fixture.settle();
     }
@@ -1085,7 +1086,7 @@ void AppSettingsTest::deletionMatrix()
         pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("viewing"));
         QVERIFY(page->openRestoreDefaultsDialog());
         QPointer<pdf::PDFAppRestoreDefaultsDialog> dialog = page->getRestoreDialog();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!dialog);
     }
@@ -1112,7 +1113,7 @@ void AppSettingsTest::deletionMatrix()
         delete page->getSection();
         fixture.settle();
         QVERIFY(!dialog);
-        delete fixture.settingsPage();
+        pdftest::AppDocumentFixture::deleteNow(fixture.settingsPage());
         fixture.settle();
         QVERIFY(fixture.settings().isChanged(pdf::PDFSettingKeys::magnifierZoom()));
     }
@@ -1123,7 +1124,7 @@ void AppSettingsTest::deletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("general")));
         fixture.findRow(QStringLiteral("color-scheme"))->getControl()->getComboBox()->showPopup();
         fixture.settle();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
     {
@@ -1132,7 +1133,7 @@ void AppSettingsTest::deletionMatrix()
         QVERIFY(fixture.findRow(QStringLiteral("text-color"))->getControl()->getColorButton()->showPalette());
         fixture.settle();
         fixture.navigate(QStringLiteral("/home"));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -1161,7 +1162,7 @@ void AppSettingsTest::deletionMatrix()
         control->getSpinBox()->setFocus();
         QTest::keyClicks(control->getSpinBox()->findChild<QLineEdit*>(), QStringLiteral("7"));
         fixture.context->close();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 }
@@ -1174,7 +1175,7 @@ void AppSettingsTest::deleteFromOwnSignals()
         pdftest::AppSettingsFixture fixture;
         QVERIFY(fixture.openSettings(QStringLiteral("viewing")));
         pdf::PDFAppSettingControl* control = fixture.findRow(QStringLiteral("antialiasing"))->getControl();
-        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QTest::mouseClick(control->getCheckBox(), Qt::LeftButton, Qt::NoModifier, QPoint(9, control->getCheckBox()->height() / 2));
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1184,7 +1185,7 @@ void AppSettingsTest::deleteFromOwnSignals()
         pdftest::AppSettingsFixture fixture;
         QVERIFY(fixture.openSettings(QStringLiteral("viewing")));
         pdf::PDFAppSettingControl* control = fixture.findRow(QStringLiteral("magnifier-size"))->getControl();
-        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QVERIFY(pdftest::AppSettingsFixture::setControlValue(fixture.findRow(QStringLiteral("magnifier-size")), qint64(200)));
         QVERIFY(!fixture.window);
         QCOMPARE(fixture.settings().getInteger(pdf::PDFSettingKeys::magnifierSize()), qint64(200));
@@ -1194,7 +1195,7 @@ void AppSettingsTest::deleteFromOwnSignals()
         pdftest::AppSettingsFixture fixture;
         pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("viewing"));
         pdf::PDFAppSettingControl* control = page->findRow(QStringLiteral("antialiasing"))->getControl();
-        QObject::connect(control, &pdf::PDFAppSettingControl::writeFailed, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(control, &pdf::PDFAppSettingControl::writeFailed, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         pdf::PDFDatabaseStatement block(fixture.context->getDatabase()->getConnection(), "CREATE TRIGGER block_setting BEFORE INSERT ON setting BEGIN SELECT RAISE(ABORT, 'blocked'); END");
         QVERIFY(block.execute());
         QTest::mouseClick(control->getCheckBox(), Qt::LeftButton, Qt::NoModifier, QPoint(9, control->getCheckBox()->height() / 2));
@@ -1222,7 +1223,7 @@ void AppSettingsTest::deleteFromOwnSignals()
         pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("viewing"));
         QVERIFY(page->openRestoreDefaultsDialog());
         pdf::PDFAppRestoreDefaultsDialog* dialog = page->getRestoreDialog();
-        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { fixture.window->deleteLater(); });
+        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteLater(fixture.window.data()); });
         QTest::mouseClick(dialog->getRestoreButton(), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1232,7 +1233,7 @@ void AppSettingsTest::deleteFromOwnSignals()
         // The navigation of a nav item deletes the window
         pdftest::AppSettingsFixture fixture;
         pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("general"));
-        QObject::connect(page, &pdf::PDFAppPage::navigationRequested, fixture.window.data(), [&fixture]() { fixture.window->deleteLater(); });
+        QObject::connect(page, &pdf::PDFAppPage::navigationRequested, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteLater(fixture.window.data()); });
         QTest::mouseClick(page->getNavigationItem(QStringLiteral("speech")), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1585,7 +1586,7 @@ void AppSettingsTest::reviewDocumentViewCoalescing()
     QVERIFY(!settings.setValue(pdf::PDFSettingKeys::renderingAntialiasing(), false).isError());
     view->scheduleApplySettings();
     QVERIFY(view->isApplySettingsQueued());
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
     QVERIFY(!view);
 }
@@ -2225,6 +2226,64 @@ void AppSettingsTest::languageSwitchLive()
     QCOMPARE(translator->getActiveLanguage(), QString());
 }
 
+void AppSettingsTest::languageChangeFromLanguageCombo()
+{
+    // Step A (A2): the language combo box changes the language by its own signal, the page builds
+    // its content again for the new language. The old content (with the combo box, whose code may
+    // still run) is retired: out of the page at once (hidden, no row found), deleted only by the
+    // event loop. The new content shows the new language.
+    if (GeneralTestHelper::realTranslationFile(QStringLiteral("cs")).isEmpty())
+    {
+        QSKIP("PDF4QT_cs.qm is not built (target release_translations)");
+    }
+
+    TranslatorOverrideGuard overrideGuard;
+    pdftest::AppSettingsFixture fixture;
+    QVERIFY(fixture.openSettings(QStringLiteral("general")));
+    pdf::PDFAppSettingRow* oldRow = fixture.findRow(QStringLiteral("language"));
+    QVERIFY(oldRow);
+    QPointer<pdf::PDFComboBox> oldCombo = oldRow->getControl()->getComboBox();
+    QVERIFY(oldCombo);
+
+    // The combo box chooses Czech (activated, as a click of the item of its popup); the write and the
+    // language change come from the event loop - only they are sent now, the deferred deletions are
+    // not (a key click of QTest would process them too)
+    const int czech = oldCombo->findData(QStringLiteral("cs"));
+    QVERIFY(czech >= 0);
+    oldCombo->setCurrentIndex(czech);
+    Q_EMIT oldCombo->activated(czech);
+    for (int round = 0; round < 4; ++round)
+    {
+        // The application posts the change to its windows, a window to its widgets
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::LanguageChange);
+    }
+    QCOMPARE(fixture.context->getTranslator()->getActiveLanguage(), QStringLiteral("cs"));
+
+    // The old combo box exists until the event loop deletes it, retired and hidden
+    QVERIFY(oldCombo);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(oldCombo));
+    QVERIFY(!oldCombo->isVisible());
+
+    // The new row of the language (another one) shows Czech
+    pdf::PDFAppSettingRow* newRow = fixture.findRow(QStringLiteral("language"));
+    QVERIFY(newRow);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(newRow));
+    pdf::PDFComboBox* newCombo = newRow->getControl()->getComboBox();
+    QVERIFY(newCombo && newCombo != oldCombo.data());
+    QCOMPARE(newRow->getControl()->getShownValue().toString(), QStringLiteral("cs"));
+    QCOMPARE(fixture.settingsPage()->getSectionId(), QStringLiteral("general"));
+
+    // The event loop deletes the old content
+    fixture.settle();
+    QVERIFY(!oldCombo);
+    QCOMPARE(fixture.findRow(QStringLiteral("language")), newRow);
+
+    // Back to English for the other tests
+    QVERIFY(GeneralTestHelper::chooseLanguage(fixture, pdf::PDFSettingValues::languageEnglish()));
+    QCOMPARE(fixture.context->getTranslator()->getActiveLanguage(), QString());
+}
+
 void AppSettingsTest::languageSwitchWithWorkers()
 {
     // QLocale::setDefault is not thread safe: worker threads constructing QLocale()
@@ -2795,7 +2854,7 @@ void AppSettingsTest::generalDeletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("general")));
         QVERIFY(GeneralTestHelper::section(fixture)->openClearHistoryDialog());
         QPointer<pdf::PDFAppClearToolHistoryDialog> dialog = GeneralTestHelper::section(fixture)->getClearHistoryDialog();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!dialog);
         QCOMPARE(fixture.context->getTools().getHistoryRuns(), qint64(4));
@@ -2882,7 +2941,7 @@ void AppSettingsTest::generalDeletionMatrix()
         fixture.findRow(QStringLiteral("language"))->getControl()->getComboBox()->showPopup();
         fixture.settle();
         QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::appearanceLanguage(), QStringLiteral("cs")).isError());
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -2911,7 +2970,7 @@ void AppSettingsTest::generalDeleteFromOwnSignals()
         pdftest::AppSettingsFixture fixture;
         QVERIFY(fixture.openSettings(QStringLiteral("general")));
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        QObject::connect(fixture.context->getTranslator(), &pdf::PDFAppTranslator::languageChanged, fixture.context.get(), [window]() { delete window.data(); });
+        QObject::connect(fixture.context->getTranslator(), &pdf::PDFAppTranslator::languageChanged, fixture.context.get(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::appearanceLanguage(), QStringLiteral("fr")).isError());
         fixture.settle();
         QVERIFY(!window);
@@ -2927,7 +2986,7 @@ void AppSettingsTest::generalDeleteFromOwnSignals()
         {
             if (topic == pdf::PDFToolRepository::getPairTopic())
             {
-                delete window.data();
+                pdftest::AppDocumentFixture::deleteNow(window.data());
             }
         });
         QVERIFY(GeneralTestHelper::section(fixture)->openClearHistoryDialog());
@@ -2946,7 +3005,7 @@ void AppSettingsTest::generalDeleteFromOwnSignals()
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
         QVERIFY(GeneralTestHelper::section(fixture)->openClearHistoryDialog());
         pdf::PDFAppClearToolHistoryDialog* dialog = GeneralTestHelper::section(fixture)->getClearHistoryDialog();
-        QObject::connect(dialog, &QDialog::finished, fixture.context.get(), [window]() { if (window) { window->deleteLater(); } });
+        QObject::connect(dialog, &QDialog::finished, fixture.context.get(), [window]() { if (window) { pdftest::AppDocumentFixture::deleteLater(window.data()); } });
         dialog->getClearButton()->click();
         fixture.settle();
         QVERIFY(!window);
@@ -3266,7 +3325,7 @@ void AppSettingsTest::reviewPageDestroyedWritesSilently()
     QVERIFY(control->hasPendingValue());
     QSignalSpy written(control, &pdf::PDFAppSettingControl::valueWritten);
     QSignalSpy failed(control, &pdf::PDFAppSettingControl::writeFailed);
-    delete page.data();
+    pdftest::AppDocumentFixture::deleteNow(page.data());
     QVERIFY(!page);
     QCOMPARE(fixture.settings().getInteger(pdf::PDFSettingKeys::magnifierSize()), qint64(123));
     QCOMPARE(written.size(), 0);

@@ -23,6 +23,7 @@
 #include "pdfappfloatingbar.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthememanager.h"
 
@@ -40,7 +41,7 @@ PDFAppFloatingBarDivider::PDFAppFloatingBarDivider(QWidget* parent) :
     setObjectName(QStringLiteral("floatingBarDivider"));
     setFixedSize(1, LENGTH);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarDivider::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarDivider::update));
 }
 
 PDFAppFloatingBarDivider::~PDFAppFloatingBarDivider() = default;
@@ -65,7 +66,7 @@ PDFAppFloatingBarShadow::PDFAppFloatingBarShadow(int radius, QWidget* parent) :
     setObjectName(QStringLiteral("floatingBarShadow"));
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setFocusPolicy(Qt::NoFocus);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarShadow::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBarShadow::update));
 }
 
 PDFAppFloatingBarShadow::~PDFAppFloatingBarShadow() = default;
@@ -105,15 +106,18 @@ PDFAppFloatingBar::PDFAppFloatingBar(Size size, QWidget* parent) :
     applyContentMargins();
     m_layout->setSpacing(m_size == Size::Compact ? COMPACT_GAP : NORMAL_GAP);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFloatingBar::update));
 
     // The shadow is a sibling below the bar; the bar takes the pointer only over its card
     if (parent)
     {
         m_shadow = new PDFAppFloatingBarShadow(getRadius(), parent);
+
+        // A sibling, a part of the bar: retire of the bar hides and deletes it too
+        PDFDeferredDeletion::setOwner(m_shadow.data(), this);
         m_shadow->hide();
         m_watchedParent = parent;
-        parent->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(parent, this);
     }
     setMask(QRegion(getCardRect()));
 }

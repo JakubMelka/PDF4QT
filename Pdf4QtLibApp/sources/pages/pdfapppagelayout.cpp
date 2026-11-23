@@ -23,6 +23,7 @@
 #include "pdfapppagelayout.h"
 #include "pdfappmarkdown.h"
 
+#include "pdfappinfowidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
@@ -942,10 +943,9 @@ void PDFAppSectionHeader::setTrailingWidget(QWidget* widget)
         return;
     }
 
-    if (m_trailing)
-    {
-        delete m_trailing.data();
-    }
+    // The previous widget is retired (step A, A2): its slot may be on the stack; it
+    // leaves the layout and the header now and is deleted later
+    PDFAppPageRebuild::retireWidget(m_trailing.data());
 
     m_trailing = widget;
     if (widget && m_layout)

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthemeiconengine.h"
 
 #include <QAbstractButton>
@@ -547,7 +548,7 @@ void PDFWidgetStyleImpl::watchToolBar(QToolBar* toolBar)
     }
 
     // A widget can be polished more times, the connection is made once
-    connect(toolBar, &QToolBar::orientationChanged, this, &PDFWidgetStyleImpl::onToolBarOrientationChanged, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(toolBar, &QToolBar::orientationChanged, this, &PDFWidgetStyleImpl::onToolBarOrientationChanged, Qt::UniqueConnection);
 }
 
 void PDFWidgetStyleImpl::unwatchToolBar(QToolBar* toolBar)
@@ -569,7 +570,7 @@ void PDFWidgetStyleImpl::watchTabBar(QTabBar* tabBar)
 {
     if (tabBar)
     {
-        connect(tabBar, &QTabBar::currentChanged, this, &PDFWidgetStyleImpl::onTabBarCurrentChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(tabBar, &QTabBar::currentChanged, this, &PDFWidgetStyleImpl::onTabBarCurrentChanged, Qt::UniqueConnection);
     }
 }
 

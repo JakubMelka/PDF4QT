@@ -38,6 +38,7 @@
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_pdftoimages.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdffluentwidgets.h"
@@ -245,7 +246,7 @@ PDFAppToolImagePlacementOverlay::PDFAppToolImagePlacementOverlay(PDFAppToolPageS
     if (stage)
     {
         stage->addOverlay(this);
-        connect(stage, &PDFAppToolPageStage::pageGeometryChanged, this, qOverload<>(&QWidget::update));
+        PDFDeferredDeletion::connect(stage, &PDFAppToolPageStage::pageGeometryChanged, this, qOverload<>(&QWidget::update));
     }
 }
 
@@ -355,6 +356,17 @@ PDFAppToolGUIExtractImages::PDFAppToolGUIExtractImages(QObject* parent) :
 {
     m_decoder = new PDFAppToolImageDecoder(this);
     connect(m_decoder.data(), &PDFAppToolImageDecoder::imagesDecoded, this, &PDFAppToolGUIExtractImages::onImagesDecoded);
+}
+
+void PDFAppToolGUIExtractImages::retire()
+{
+    BaseClass::retire();
+
+    // The job goes on with its own values and its cancellation; its watcher (a child) is disconnected by retire
+    if (m_control)
+    {
+        m_control->cancel();
+    }
 }
 
 PDFAppToolGUIExtractImages::~PDFAppToolGUIExtractImages()
@@ -858,7 +870,7 @@ void PDFAppToolGUIExtractImages::describeToolbar(PDFAppToolPanelBuilder& builder
 
     // panel-format 341:7936: PNG, JPEG, TIFF, WebP, BMP, More formats (the shared menu of the
     // image exports: ALL FORMATS of 356:11387 after More formats)
-    delete m_formatMenu.data();
+    PDFDeferredDeletion::retire(m_formatMenu.data());
     m_formatMenu = new PDFAppToolImageFormatMenu(builder.addMenu(QStringLiteral("format"), QStringLiteral("image"), QString(), FORMAT_MENU_WIDTH), this);
     connect(m_formatMenu.data(), &PDFAppToolImageFormatMenu::formatChosen, this, &PDFAppToolGUIExtractImages::onFormatChosen);
 

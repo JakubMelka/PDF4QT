@@ -37,6 +37,7 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttool_pages.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -368,7 +369,7 @@ QWidget* PDFAppPageMarkingToolGUI::createCanvasPage(QWidget* parent)
     if (PDFDocumentToolShell* shell = getShell(); shell && !m_isShellConnected)
     {
         m_isShellConnected = true;
-        connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppPageMarkingToolGUI::onShellStateChangedSlot);
+        PDFDeferredDeletion::connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppPageMarkingToolGUI::onShellStateChangedSlot);
     }
 
     // updateAll announces the state (a slot may delete this GUI): the grid is returned by its

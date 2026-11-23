@@ -35,6 +35,7 @@ class QWidget;
 namespace pdf
 {
 
+class PDFAppCursorToken;
 class PDFWindowControls;
 
 /// The window without the frame of the system (decision 9, components.md 4.9).
@@ -122,6 +123,9 @@ protected:
 private:
     void installWindowFilter();
     void updateCursor(const QPoint& windowPosition);
+
+    /// The resize cursor of the window is given back (the token ends)
+    void releaseCursor();
     void clearPress();
 
     PDFWindowControls* getControls() const;
@@ -130,7 +134,9 @@ private:
     QPointer<PDFAppTopBar> m_topBar;
     QPointer<QObject> m_filteredWindow;
     Mode m_mode = Mode::None;
-    bool m_isCursorOverridden = false;
+
+    /// The resize cursor set on the window (a widget outside the subtree of the frame, step A); nullptr = none
+    QPointer<PDFAppCursorToken> m_cursorToken;
 
     /// Native window, whose frame has been changed (a change of the flags of a
     /// widget creates a new native window, its frame is changed again)

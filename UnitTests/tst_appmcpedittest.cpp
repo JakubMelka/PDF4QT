@@ -1780,7 +1780,9 @@ void AppMcpEditTest::toolModeCatalogToolIdle()
     QVERIFY(view->enterToolMode(parts));
 
     std::shared_ptr<pdftest::TestDocumentTool> shellTool = std::make_shared<pdftest::TestDocumentTool>(QStringLiteral("optimize.compress"));
-    pdf::PDFDocumentToolRunner runner(document, shellTool, nullptr);
+    // A standalone runner, deleted at the end of the function on purpose (a deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFDocumentToolRunner, pdftest::AppDocumentFixture::DeleteNow> runnerOwner(new pdf::PDFDocumentToolRunner(document, shellTool, nullptr));
+    pdf::PDFDocumentToolRunner& runner = *runnerOwner;
     QSignalSpy finishedSpy(&runner, &pdf::PDFDocumentToolRunner::previewFinished);
     QSignalSpy droppedSpy(&runner, &pdf::PDFDocumentToolRunner::previewDropped);
     runner.requestPreview(QVariantMap({ { QStringLiteral("mode"), QStringLiteral("count") }, { QStringLiteral("repeat"), 1 } }));
@@ -1826,7 +1828,9 @@ void AppMcpEditTest::toolModeCatalogToolDuringRun()
 
     McpEditCatalogTool catalogTool(fixture.host(), QStringLiteral("pages.rotate"));
     std::shared_ptr<pdftest::TestDocumentTool> shellTool = std::make_shared<pdftest::TestDocumentTool>(QStringLiteral("optimize.compress"));
-    pdf::PDFDocumentToolRunner runner(document, shellTool, nullptr);
+    // A standalone runner, deleted at the end of the function on purpose (a deliberate synchronous deletion)
+    std::unique_ptr<pdf::PDFDocumentToolRunner, pdftest::AppDocumentFixture::DeleteNow> runnerOwner(new pdf::PDFDocumentToolRunner(document, shellTool, nullptr));
+    pdf::PDFDocumentToolRunner& runner = *runnerOwner;
     QSignalSpy runSpy(&runner, &pdf::PDFDocumentToolRunner::runFinished);
 
     const QJsonObject keep = H::json(R"({"action":"rotate","result":"keep","rotate":{"mode":"title","title":"Assistant"}})");
@@ -3352,7 +3356,7 @@ void AppMcpEditTest::deletionMatrix()
         QTRY_VERIFY(!fixture.ui()->getWaitingIds().empty());
         fixture.window->activateTab(fixture.window->getHomeTab());
         QTRY_VERIFY(fixture.ui()->findBanner(fixture.window->getHomeTab()));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         pdftest::AppDocumentFixture::settle();
         QVERIFY(H::isError(fixture.waitResult(call)));
     }
@@ -3400,7 +3404,7 @@ void AppMcpEditTest::deleteFromOwnSignals()
         pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
         QVERIFY(dialog);
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        QObject::connect(dialog, &pdf::PDFAppMcpConfirmDialog::denied, window, [window]() { delete window.data(); });
+        QObject::connect(dialog, &pdf::PDFAppMcpConfirmDialog::denied, window, [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
         QVERIFY(H::isError(fixture.waitResult(call)));
         pdftest::AppDocumentFixture::settle();

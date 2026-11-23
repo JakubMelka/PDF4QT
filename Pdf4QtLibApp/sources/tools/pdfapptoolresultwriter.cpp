@@ -23,6 +23,7 @@
 #include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttoolrunner.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -536,7 +537,7 @@ bool PDFAppToolResultWriter::overwrite(PDFDocumentToolRunner* runner, PDFAppDocu
     m_saver = saver;
     m_undoDescription = undoDescription;
     m_overwriteResult = std::make_shared<PDFDocumentToolResult>(result);
-    connect(saver, &PDFAppDocumentSaver::silentWriteFinished, this, &PDFAppToolResultWriter::onSilentWriteFinished, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(saver, &PDFAppDocumentSaver::silentWriteFinished, this, &PDFAppToolResultWriter::onSilentWriteFinished, Qt::UniqueConnection);
 
     QString error;
     m_isOverwriting = true;

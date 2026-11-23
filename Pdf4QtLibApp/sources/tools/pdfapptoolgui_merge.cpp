@@ -85,6 +85,10 @@ class PDFAppMergeToolGUIHelper
 public:
     PDFAppMergeToolGUIHelper() = delete;
 
+    /// The GUI goes on after foreign code (a slot of its signal may close the tool): it lives and its tool is not
+    /// closed - a retired GUI (step A) changes and creates nothing, it waits for its deletion
+    static bool isLive(const QPointer<PDFAppMergeToolGUI>& gui) { return gui && !PDFDeferredDeletion::isRetired(gui.data()); }
+
     /// Widths of the panels of the toolbar (378:1879)
     static constexpr int ADD_PANEL_WIDTH = 290;
     static constexpr int SORT_PANEL_WIDTH = 250;
@@ -353,8 +357,9 @@ void PDFAppMergeToolGUI::connectList()
     m_list = list;
     if (m_list)
     {
-        connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppMergeToolGUI::onListInputsChanged);
-        connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppMergeToolGUI::onListInputChanged);
+        // The list belongs to the tab (step A: the connections from outside go through PDFDeferredDeletion)
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppMergeToolGUI::onListInputsChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppMergeToolGUI::onListInputChanged);
         connect(m_list.data(), &QObject::destroyed, this, &PDFAppMergeToolGUI::onListDestroyed);
     }
 
@@ -368,7 +373,7 @@ void PDFAppMergeToolGUI::connectList()
     if (!m_isShellConnected && getShell())
     {
         m_isShellConnected = true;
-        connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppMergeToolGUI::onShellStateChanged);
+        PDFDeferredDeletion::connect(getShell(), &PDFDocumentToolShell::stateChanged, this, &PDFAppMergeToolGUI::onShellStateChanged);
     }
 
     if (!m_isRegistryConnected && getContext() && getContext()->getDocumentRegistry())
@@ -376,9 +381,9 @@ void PDFAppMergeToolGUI::connectList()
         // The open documents of Add Files and of the empty state follow the registry
         m_isRegistryConnected = true;
         PDFAppDocumentRegistry* registry = getContext()->getDocumentRegistry();
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMergeToolGUI::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppMergeToolGUI::onRegistryChanged);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMergeToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMergeToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppMergeToolGUI::onRegistryChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMergeToolGUI::onRegistryChanged);
     }
 
     initializeValues();
@@ -1114,6 +1119,8 @@ void PDFAppMergeToolGUI::openPasswordDialog(const QString& inputId)
     m_passwordDialog = PDFAppPasswordDialog::openDialog(m_list, inputId, m_canvas->window());
     if (m_passwordDialog)
     {
+        // A dialog of the window owned by the GUI (step A): retire of the tool closes it
+        PDFDeferredDeletion::setOwner(m_passwordDialog.data(), this);
         connect(m_passwordDialog.data(), &PDFAppPasswordDialog::removeRequested, this, &PDFAppMergeToolGUI::onPasswordRemoveRequested);
     }
 }
@@ -1361,10 +1368,14 @@ QWidget* PDFAppMergeToolGUI::createToolActions(QWidget* parent)
         connect(m_pasteAction.data(), &QAction::triggered, this, &PDFAppMergeToolGUI::pasteImage);
         m_keyWidget->addAction(m_pasteAction);
 
+        // Children of the key widget owned by the GUI (step A): retire disables them at once
+        PDFDeferredDeletion::setOwner(m_addFilesAction.data(), this);
+        PDFDeferredDeletion::setOwner(m_pasteAction.data(), this);
+
         // A drop of files anywhere in the tab adds them (378:1657 "Drop them anywhere in this window")
         m_wasDropAccepted = m_keyWidget->acceptDrops();
         m_keyWidget->setAcceptDrops(true);
-        m_keyWidget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_keyWidget.data(), this);
     }
 
     updateToolbar();
@@ -1895,29 +1906,35 @@ void PDFAppMergeToolGUI::updateAll()
 {
     // The parts announce their changes (the models to their views and observers), whose
     // slots may delete this GUI (the tab closes from them): each part only by a living GUI
+    // (a caller may go on after a slot, which has closed the tool - step A: a closed tool updates nothing)
+    using Helper = PDFAppMergeToolGUIHelper;
     QPointer<PDFAppMergeToolGUI> guard(this);
+    if (!Helper::isLive(guard))
+    {
+        return;
+    }
     updateOpenDocumentsRows();
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateFiles();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateCanvas();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateRightPanel();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateToolbar();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateEditable();
     }
-    if (!guard)
+    if (!Helper::isLive(guard))
     {
         return;
     }
@@ -1930,11 +1947,11 @@ void PDFAppMergeToolGUI::updateAll()
     // The slots of the state of the Primary button and of the status may delete this GUI (the
     // tab closes from them): each is said only by a living GUI, the last things
     updateConfirmState();
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateStatusText();
     }
-    if (guard)
+    if (Helper::isLive(guard))
     {
         updateOwnTabState();
     }

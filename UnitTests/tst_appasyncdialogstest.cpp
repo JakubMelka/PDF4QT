@@ -36,6 +36,7 @@
 #include "pdfappleaveflow.h"
 #include "pdfapppage.h"
 #include "pdfdatabase.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolgui.h"
 
 #include <QDialog>
@@ -222,6 +223,7 @@ private Q_SLOTS:
     void flowReporterDeletedEndsRefused();
     void flowAcceptedPagesFinished();
     void flowEndsSilentlyWithOwner();
+    void flowQuestionOwnedByFlow();
     void pageRequestDefaults();
     void toolOwnTabCloseDefault();
     void nestedLoopGuardCatchesExec();
@@ -890,6 +892,46 @@ void AppAsyncDialogsTest::flowEndsSilentlyWithOwner()
     pdftest::AppAsyncDialogs::settle();
     QCOMPARE(deliveries.stepCount, 0);
     QCOMPARE(finished.count(), 0);
+}
+
+void AppAsyncDialogsTest::flowQuestionOwnedByFlow()
+{
+    // Step A (PA1): a question of a flow, which lies outside the subtree of the owner of the flow (parented to the
+    // window) and has no logical owner, belongs to the flow - the retire of the owner (a closed tab) closes it with it.
+    // A question inside the owner's subtree goes with it anyway; a question with its own logical owner keeps it.
+    QWidget window;
+    QWidget* tab = new QWidget(&window);
+    pdf::PDFAppLeaveFlow* flow = new pdf::PDFAppLeaveFlow(tab);
+    QObject otherOwner;
+    QPointer<QDialog> outside = new QDialog(&window);
+    QPointer<QDialog> inside = new QDialog(tab);
+    QPointer<QDialog> owned = new QDialog(&window);
+    pdf::PDFDeferredDeletion::setOwner(owned, &otherOwner);
+
+    // A flow, which does not run, takes no question
+    flow->setQuestion(outside);
+    QVERIFY(!pdf::PDFDeferredDeletion::getOwner(outside));
+
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+    flow->setQuestion(inside);
+    QVERIFY(!pdf::PDFDeferredDeletion::getOwner(inside));
+    flow->setQuestion(owned);
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(owned), &otherOwner);
+    flow->setQuestion(outside);
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(outside), static_cast<QObject*>(flow));
+    outside->show();
+
+    // The tab is closed (retired) while its question is open: the question is closed and retired with it
+    pdf::PDFDeferredDeletion::retire(tab);
+    QVERIFY(outside);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(outside));
+    QVERIFY(!outside->isVisible());
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(inside));
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(owned));
+    pdftest::AppAsyncDialogs::settle();
+    QVERIFY(!outside);
+    QVERIFY(!inside);
+    QVERIFY(owned);
 }
 
 void AppAsyncDialogsTest::pageRequestDefaults()

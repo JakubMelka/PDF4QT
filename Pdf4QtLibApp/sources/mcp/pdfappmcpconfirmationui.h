@@ -45,6 +45,7 @@ class QToolButton;
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
 class PDFAppDocumentTab;
 class PDFAppDocumentView;
 class PDFAppMainWindow;
@@ -251,6 +252,11 @@ private:
     void showDialogEntry(Entry& entry, PDFAppTab* tab, int index, int count);
     void closeDialog();
 
+    /// Retires \p widget: now, or - inside a slot of a signal of its own subtree (the dialog's / bar's allowed,
+    /// denied, close) - hidden now and retired from the event loop: retire cuts the outgoing signals of the subtree,
+    /// so the later receivers of the running emission would never run (step A, lesson 1b; PDFDeferredDeletion::retireLater)
+    static void retireWidget(QWidget* widget, bool isInOwnSignal);
+
     /// A page of an open tool replaces the canvas: Show on Page has nothing to show
     static bool isCanvasReplaced(const PDFAppDocumentTab* tab);
     void restoreFocus(QWidget* tab);
@@ -285,10 +291,11 @@ private:
     std::vector<QPointer<QAction>> m_watchedActions;
     QPointer<PDFAppMcpConfirmScrim> m_scrim;
     QPointer<PDFAppMcpConfirmDialog> m_dialog;
+    int m_ownSignalDepth = 0;   ///< A slot of a signal of the dialog / preview bar runs (allowed, denied)
 
     quint64 m_previewId = 0;
     std::unique_ptr<PDFAppMcpGhostOverlay> m_ghostOverlay;
-    QPointer<PDFDrawWidgetProxy> m_previewProxy;
+    QPointer<PDFAppCanvasDrawToken> m_ghostToken;   ///< The ghosts on the canvas of the preview (a child of the bar)
     QPointer<PDFAppMcpPreviewBar> m_previewBar;
     QPointer<PDFAppDocumentView> m_previewView;
 

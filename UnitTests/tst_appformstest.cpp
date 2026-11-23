@@ -22,6 +22,7 @@
 
 #include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfappannotationcontroller.h"
 #include "pdfappcommand.h"
@@ -1685,7 +1686,8 @@ void AppFormsTest::deletionMatrix()
 {
     using H = FormsTestHelper;
 
-    // The window deleted with an open editor and a pending update
+    // The window deleted with an open editor and a pending update (the order of the
+    // destructors: a deliberate synchronous deletion, step A)
     {
         pdftest::AppDocumentFixture fixture;
         pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
@@ -1693,7 +1695,10 @@ void AppFormsTest::deletionMatrix()
         QVERIFY(H::click(tab, QStringLiteral("name")));
         H::type(tab, QStringLiteral("Window"));
         QTest::keyClick(H::canvas(tab), Qt::Key_A);
-        delete fixture.window.data();
+        {
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+            delete fixture.window.data();
+        }
         fixture.settle();
     }
 
@@ -1707,7 +1712,10 @@ void AppFormsTest::deletionMatrix()
         QPointer<pdf::PDFAppDocument> document = tab->getDocument();
         tab->getView()->setDocument(nullptr);
         QVERIFY(!document->hasPendingEdits());
-        delete tab;
+        {
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+            delete tab;
+        }
         fixture.settle();
     }
 
@@ -1719,7 +1727,10 @@ void AppFormsTest::deletionMatrix()
         QTRY_VERIFY(H::hasBar(tab, pdf::PDFAppFormController::getCalculatedFieldsBarId()));
         QVERIFY(H::click(tab, QStringLiteral("name")));
         H::type(tab, QStringLiteral("Document"));
-        delete tab->getDocument();
+        {
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+            delete tab->getDocument();
+        }
         fixture.settle();
         QVERIFY(H::controller(tab));
         QVERIFY(!H::controller(tab)->getDocument());
@@ -1728,17 +1739,20 @@ void AppFormsTest::deletionMatrix()
         fixture.settle();
     }
 
-    // The tab closed by the close button of the info bar's slot (deleteLater)
+    // The tab closed by the close button of the info bar's slot (the real close of the window, retire inside,
+    // step A, RB-M6)
     {
         pdftest::AppDocumentFixture fixture;
         pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
         QVERIFY(tab);
         QTRY_VERIFY(H::hasBar(tab, pdf::PDFAppFormController::getCalculatedFieldsBarId()));
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
-        QObject::connect(tab->getView(), &pdf::PDFAppDocumentView::infoBarActionTriggered, tab, [guard]() { delete guard.data(); });
+        QObject::connect(tab->getView(), &pdf::PDFAppDocumentView::infoBarActionTriggered, tab, [&fixture, guard]() { fixture.retire(guard.data()); });
         tab->getView()->findInfoBarWidget(pdf::PDFAppFormController::getCalculatedFieldsBarId())->getCloseButton()->click();
         fixture.settle();
+        fixture.answerCloseQuestions();
         QVERIFY(!guard);
+        QVERIFY(fixture.window->getDocumentTabs().isEmpty());
     }
 }
 
@@ -1746,27 +1760,33 @@ void AppFormsTest::deleteFromSignals()
 {
     using H = FormsTestHelper;
 
-    // The tab deleted by a slot of the command states, which the controller announces
-    // when an editor opens (pending edits)
+    // The tab closed by a slot of the command states, which the controller announces
+    // when an editor opens (pending edits) - the real close of the window (RB-M6), once;
+    // its question is answered from the body
     {
         pdftest::AppDocumentFixture fixture;
         pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
         QVERIFY(tab);
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
-        QObject::connect(tab, &pdf::PDFAppTab::commandStatesChanged, fixture.window.data(), [guard]()
+        bool isCloseRequested = false;
+        QObject::connect(tab, &pdf::PDFAppTab::commandStatesChanged, fixture.window.data(), [&fixture, &isCloseRequested, guard]()
         {
-            if (guard && guard->getDocument() && guard->getDocument()->hasPendingEdits())
+            if (!isCloseRequested && guard && guard->getDocument() && guard->getDocument()->hasPendingEdits())
             {
-                delete guard.data();
+                isCloseRequested = true;
+                fixture.retire(guard.data());
             }
         });
         pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, H::center(tab, QStringLiteral("name")));
         fixture.settle();
+        fixture.answerCloseQuestions();
+        QVERIFY(isCloseRequested);
         QVERIFY(!guard);
+        QVERIFY(fixture.window->getDocumentTabs().isEmpty());
     }
 
-    // The tab deleted (later) by a slot of the change of the document of an undo,
-    // which commits the open editor first
+    // The tab closed (later) by a slot of the change of the document of an undo,
+    // which commits the open editor first (the real close of the window, once)
     {
         pdftest::AppDocumentFixture fixture;
         pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
@@ -1774,16 +1794,21 @@ void AppFormsTest::deleteFromSignals()
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
         QVERIFY(H::click(tab, QStringLiteral("name")));
         H::type(tab, QStringLiteral("Undo"));
-        QObject::connect(tab->getDocument(), &pdf::PDFAppDocument::documentChanged, fixture.window.data(), [guard]()
+        bool isCloseRequested = false;
+        QObject::connect(tab->getDocument(), &pdf::PDFAppDocument::documentChanged, fixture.window.data(), [&fixture, &isCloseRequested, guard]()
         {
-            if (guard)
+            if (!isCloseRequested && guard)
             {
-                guard->deleteLater();
+                isCloseRequested = true;
+                fixture.retire(guard.data());
             }
         });
         tab->executeCommand(pdf::PDFAppCommands::undo());
         fixture.settle();
+        fixture.answerCloseQuestions();
+        QVERIFY(isCloseRequested);
         QVERIFY(!guard);
+        QVERIFY(fixture.window->getDocumentTabs().isEmpty());
     }
 
     // The document deleted by a slot of its request of the pending edits
@@ -1794,7 +1819,12 @@ void AppFormsTest::deleteFromSignals()
         QVERIFY(H::click(tab, QStringLiteral("name")));
         H::type(tab, QStringLiteral("Request"));
         QPointer<pdf::PDFAppDocument> document = tab->getDocument();
-        QObject::connect(document.data(), &pdf::PDFAppDocument::pendingEditsCommitRequested, fixture.window.data(), [document]() { delete document.data(); },
+        QObject::connect(document.data(), &pdf::PDFAppDocument::pendingEditsCommitRequested, fixture.window.data(), [document]()
+                         {
+                             // The test checks the synchronous end (a deliberate deletion, step A)
+                             pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+                             delete document.data();
+                         },
                          Qt::DirectConnection);
 
         // The slot of the test runs after the controller (connected later): the

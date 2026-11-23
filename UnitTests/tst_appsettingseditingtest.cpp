@@ -68,6 +68,7 @@
 #include "pdfwidgetformmanager.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
@@ -562,6 +563,7 @@ private Q_SLOTS:
     void speechEngineError();
     void speechSameAsPanel();
     void playSample();
+    void speechSectionRetiredAlone();
     void hostileStoredValues();
     void otherInstanceChange();
     void restoreDefaults();
@@ -1210,7 +1212,7 @@ void AppSettingsEditingTest::certificateTableWorkerAfterPageGone()
         QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::signaturesUseSystemStore(), true).isError());
         fixture.settle();
         QVERIFY(table->isLoadingSystemCertificates());
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         EditingTestHelper::openSystemStoreGate();
         QTRY_COMPARE_WITH_TIMEOUT(EditingTestHelper::s_systemStoreReadings.load(), 2, timeout);
@@ -1461,7 +1463,7 @@ void AppSettingsEditingTest::playSample()
         QVERIFY(otherSection);
         otherSection->playSample();
         QVERIFY(otherSection->isPlaying());
-        delete other.window.data();
+        pdftest::AppDocumentFixture::deleteNow(other.window.data());
         other.settle();
     }
 
@@ -1496,12 +1498,43 @@ void AppSettingsEditingTest::playSample()
             // The sample is said, when the window goes
             otherSection->playSample();
             QVERIFY(otherSection->isPlaying());
-            delete other.window.data();
+            pdftest::AppDocumentFixture::deleteNow(other.window.data());
         }
         other.settle();
         QCOMPARE(SettingsFakeSpeechEngine::s_alive, baseline);
         SettingsFakeSpeechEngine::s_initialState = pdf::PDFAppSpeechEngine::State::Ready;
     }
+}
+
+void AppSettingsEditingTest::speechSectionRetiredAlone()
+{
+    // The section closed alone (step A, PDFDeferredDeletion::retire): its hook stops
+    // the sample at once and writes the chosen voice, whose write waited for the
+    // event loop (retire drops the queued call)
+    pdftest::AppSettingsFixture fixture;
+    QPointer<pdf::PDFAppSpeechSettingsSection> section = EditingTestHelper::speechSection(fixture.openSettings(QStringLiteral("speech")));
+    QVERIFY(section);
+    QTRY_VERIFY(section->getEngine());
+    QPointer<SettingsFakeSpeechEngine> engine = static_cast<SettingsFakeSpeechEngine*>(section->getEngine());
+    section->playSample();
+    QVERIFY(section->isPlaying());
+    QCOMPARE(engine->state, pdf::PDFAppSpeechEngine::State::Speaking);
+
+    pdf::PDFComboBox* voices = section->getVoiceComboBox();
+    const int index = voices->findData(QStringLiteral("Guy"));
+    QVERIFY(index >= 0);
+    voices->setCurrentIndex(index);
+    Q_EMIT voices->activated(index);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::speechVoice()), QString());
+
+    pdf::PDFDeferredDeletion::retire(section.data());
+    QVERIFY(engine);
+    QCOMPARE(engine->state, pdf::PDFAppSpeechEngine::State::Ready);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::speechVoice()), QStringLiteral("Guy"));
+
+    fixture.settle();
+    QVERIFY(!section);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::speechVoice()), QStringLiteral("Guy"));
 }
 
 void AppSettingsEditingTest::hostileStoredValues()
@@ -1723,7 +1756,7 @@ void AppSettingsEditingTest::deletionMatrix()
         EditingTestHelper::clickRow(table->getView(), 0);
         QVERIFY(table->openRemoveDialog());
         QPointer<pdf::PDFAppCardDialog> dialog = table->getRemoveDialog();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QVERIFY(!dialog);
         QCOMPARE(EditingTestHelper::userRowCount(fixture.context.get()), 1);
@@ -1760,7 +1793,7 @@ void AppSettingsEditingTest::deletionMatrix()
         voices->setFocus();
         QTest::keyClick(voices, Qt::Key_Down);
         QVERIFY(fixture.settings().getString(pdf::PDFSettingKeys::speechVoice()).isEmpty());
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::speechVoice()), QStringLiteral("Guy"));
     }
@@ -1773,7 +1806,7 @@ void AppSettingsEditingTest::deletionMatrix()
         section->playSample();
         section->getEngineComboBox()->showPopup();
         fixture.settle();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -1801,7 +1834,7 @@ void AppSettingsEditingTest::deletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("security")));
         fixture.context->close();
         fixture.navigate(QStringLiteral("/settings/speech"));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 }
@@ -1816,7 +1849,7 @@ void AppSettingsEditingTest::deleteFromOwnSignals()
         QTRY_VERIFY(section->getEngine());
         pdf::PDFDatabaseStatement block(fixture.context->getDatabase()->getConnection(), "CREATE TRIGGER block_setting BEFORE INSERT ON setting BEGIN SELECT RAISE(ABORT, 'blocked'); END");
         QVERIFY(block.execute());
-        QObject::connect(section, &pdf::PDFAppSettingsSection::statusMessageRequested, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(section, &pdf::PDFAppSettingsSection::statusMessageRequested, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QVERIFY(EditingTestHelper::chooseItem(section->getVoiceComboBox(), QStringLiteral("Guy")) || !fixture.window);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1847,7 +1880,7 @@ void AppSettingsEditingTest::deleteFromOwnSignals()
             if (!isDeleted)
             {
                 isDeleted = true;
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             }
         });
         QTest::mouseClick(section->getPlayButton(), Qt::LeftButton);
@@ -1865,7 +1898,7 @@ void AppSettingsEditingTest::deleteFromOwnSignals()
         EditingTestHelper::clickRow(table->getView(), 0);
         QVERIFY(table->openRemoveDialog());
         pdf::PDFAppCardDialog* dialog = table->getRemoveDialog();
-        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { fixture.window->deleteLater(); });
+        QObject::connect(dialog, &QDialog::finished, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteLater(fixture.window.data()); });
         QTest::mouseClick(dialog->findChild<QPushButton*>(QStringLiteral("removeButton")), Qt::LeftButton);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1881,7 +1914,7 @@ void AppSettingsEditingTest::deleteFromOwnSignals()
         QVERIFY(EditingTestHelper::waitForTable(table));
         pdf::PDFDatabaseStatement block(fixture.context->getDatabase()->getConnection(), "CREATE TRIGGER block_certificate BEFORE DELETE ON trusted_certificate BEGIN SELECT RAISE(ABORT, 'blocked'); END");
         QVERIFY(block.execute());
-        QObject::connect(table, &pdf::PDFAppCertificateTable::statusMessageRequested, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(table, &pdf::PDFAppCertificateTable::statusMessageRequested, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         EditingTestHelper::clickRow(table->getView(), 0);
         QVERIFY(table->openRemoveDialog());
         QTest::mouseClick(table->getRemoveDialog()->findChild<QPushButton*>(QStringLiteral("removeButton")), Qt::LeftButton);
@@ -1901,7 +1934,7 @@ void AppSettingsEditingTest::deleteFromOwnSignals()
             if (!isDeleted && topic == pdf::PDFTrustedCertificateRepository::getTopic())
             {
                 isDeleted = true;
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             }
         });
         EditingTestHelper::clickRow(table->getView(), 0);

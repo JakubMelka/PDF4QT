@@ -24,6 +24,7 @@
 #include "restoredsignedfile.h"
 
 #include "pdfappdocument.h"
+#include "pdfappdocumentdialogs.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappundostack.h"
@@ -47,6 +48,12 @@
 #include "pdfmessagebox.h"
 #include "pdfthememanager.h"
 
+#include "lifetimedeletionmode.h"
+#include "pdfapppage.h"
+#include "pdfapptooltab.h"
+#include "pdfdeferreddeletion.h"
+#include "pdfdocumenttoolshell.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
@@ -54,7 +61,9 @@
 #include <QFile>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
 #include <QTest>
+#include <QThread>
 
 namespace pdftest
 {
@@ -875,6 +884,62 @@ int AppDocumentFixture::undoCount(const pdf::PDFAppDocument* document)
     return stack ? int(stack->getUndoCount()) : -1;
 }
 
+int AppDeletionCheck::s_depth = 0;
+
+AppDeletionCheck::AppDeletionCheck(bool isTestFunction) :
+    m_wasReported(pdf::PDFDeferredDeletion::isSynchronousDeletionReported())
+{
+    // The count belongs to the outermost fixture (PDF4QT_SYNCHRONOUS_DELETION_COUNT)
+    if (s_depth++ == 0)
+    {
+        pdf::PDFDeferredDeletion::resetSynchronousDeletionCount();
+    }
+
+    if (isTestFunction)
+    {
+        LifetimeDeletionMode::installSynchronousDeletionCheck();
+    }
+    else if (LifetimeDeletionMode::isSynchronousDeletionCheck())
+    {
+        pdf::PDFDeferredDeletion::setSynchronousDeletionReported(true);
+    }
+}
+
+AppDeletionCheck::~AppDeletionCheck()
+{
+    restore();
+}
+
+void AppDeletionCheck::closeWindow(QWidget* window)
+{
+    {
+        // The deliberate synchronous deletion of the end of the application (main.cpp)
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete window;
+    }
+
+    // The retired objects and the objects, which the deletion left for later (the logically owned objects of a
+    // deleted owner go by deleteLater), go first - as flush in main.cpp
+    pdf::PDFDeferredDeletion::flush();
+
+    // The queued work of the application outside of any scope: a synchronous deletion of a retirable is reported
+    AppDocumentFixture::settle();
+    pdf::PDFDeferredDeletion::flush();
+    restore();
+}
+
+void AppDeletionCheck::restore()
+{
+    if (m_isRestored)
+    {
+        return;
+    }
+
+    m_isRestored = true;
+    --s_depth;
+    pdf::PDFDeferredDeletion::setSynchronousDeletionReported(m_wasReported);
+}
+
 int AppDocumentFixture::s_counter = 0;
 
 AppDocumentFixture::AppDocumentFixture(QSize size)
@@ -890,6 +955,7 @@ AppDocumentFixture::AppDocumentFixture(QSize size)
         context->getNotifier()->setPollInterval(20);
     }
 
+    // The detector of the synchronous deletions of retirables (step A) is on since the member deletionCheck
     window = new pdf::PDFAppMainWindow(context.get());
     window->getNavigator()->setExternalUrlsEnabled(false);
     window->resize(size);
@@ -904,8 +970,15 @@ AppDocumentFixture::AppDocumentFixture(QSize size)
 
 AppDocumentFixture::~AppDocumentFixture()
 {
-    delete window.data();
-    settle();
+    // The synchronous deletions of retirables in the test (PDF4QT_SYNCHRONOUS_DELETION_COUNT=1: the count of the
+    // detector for the packages of step A, nothing is checked)
+    if (qEnvironmentVariableIntValue("PDF4QT_SYNCHRONOUS_DELETION_COUNT") != 0 && pdf::PDFDeferredDeletion::getSynchronousDeletionCount() > 0)
+    {
+        qInfo("PDF4QT synchronous deletions of retirables: %lld", qlonglong(pdf::PDFDeferredDeletion::getSynchronousDeletionCount()));
+    }
+
+    // The end of the test deletes the window at once (as main.cpp at the end of the application)
+    deletionCheck.closeWindow(window.data());
     context.reset();
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     QApplication::setLayoutDirection(Qt::LeftToRight);
@@ -969,11 +1042,94 @@ pdf::PDFAppDocumentTab* AppDocumentFixture::currentDocumentTab() const
 
 void AppDocumentFixture::settle()
 {
+    // Inside an event loop (a drag of Qt, a test's own loop) a deferred deletion sent explicitly could delete an
+    // object whose code is on the stack: the events only
+    const bool isTopLevel = QThread::currentThread()->loopLevel() == 0;
     for (int i = 0; i < 3; ++i)
     {
-        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        if (isTopLevel)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        }
         QCoreApplication::processEvents();
     }
+}
+
+bool AppDocumentFixture::retire(QObject* object)
+{
+    if (!object)
+    {
+        return false;
+    }
+
+    // A tab: the real close (its questions, the lists of the window, retire at its end)
+    if (pdf::PDFAppTab* tab = qobject_cast<pdf::PDFAppTab*>(object))
+    {
+        return window && window->closeTab(tab);
+    }
+
+    // A tool shell: the close of its page (the own tab of a tool closes the tab)
+    if (qobject_cast<pdf::PDFDocumentToolShell*>(object))
+    {
+        for (QObject* parent = object->parent(); parent; parent = parent->parent())
+        {
+            if (pdf::PDFAppPage* page = qobject_cast<pdf::PDFAppPage*>(parent))
+            {
+                return retire(page);
+            }
+        }
+        return false;
+    }
+
+    // A page: the navigation of its tab back (the navigator replaces the shown page); the page of an own tab of
+    // a tool goes with its tab
+    if (pdf::PDFAppPage* page = qobject_cast<pdf::PDFAppPage*>(object))
+    {
+        pdf::PDFAppTab* tab = nullptr;
+        for (QObject* parent = page->parent(); parent && !tab; parent = parent->parent())
+        {
+            tab = qobject_cast<pdf::PDFAppTab*>(parent);
+        }
+        if (!window || !tab || tab->getPage() != page)
+        {
+            return false;
+        }
+        if (qobject_cast<pdf::PDFAppToolTab*>(tab))
+        {
+            return window->closeTab(tab);
+        }
+        return window->getNavigator()->goBack(tab);
+    }
+
+    pdf::PDFDeferredDeletion::retire(object);
+    return true;
+}
+
+int AppDocumentFixture::answerCloseQuestions()
+{
+    int count = 0;
+    while (count < 4)
+    {
+        pdf::PDFAppDocumentChoiceDialog* question = findDialog<pdf::PDFAppDocumentChoiceDialog>();
+        QPushButton* answer = nullptr;
+        for (pdf::PDFAppDocumentChoice choice : { pdf::PDFAppDocumentChoice::Discard, pdf::PDFAppDocumentChoice::Stop })
+        {
+            QPushButton* button = question ? question->getChoiceButton(choice) : nullptr;
+            if (!answer && button && button->isVisible() && button->isEnabled())
+            {
+                answer = button;
+            }
+        }
+        if (!answer)
+        {
+            break;
+        }
+
+        answer->click();
+        ++count;
+        settle();
+    }
+    return count;
 }
 
 int AppDocumentFixture::getTimeoutFactor()

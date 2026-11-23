@@ -29,6 +29,7 @@
 // (285:3026: open / close, keys, pointer, focus, window, notifications, deletion,
 // geometry, pixels). PDF4QT_APP_SCREENSHOTS=<folder> writes pictures.
 
+#include "appdocumentfixture.h"
 #include "applocaleguard.h"
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
@@ -160,7 +161,7 @@ public:
 
     ~SearchFixture()
     {
-        delete window.data();
+        deletionCheck.closeWindow(window.data());
         context.reset();
         pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
         QApplication::setLayoutDirection(Qt::LeftToRight);
@@ -215,6 +216,8 @@ public:
         }
     }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
 
@@ -1496,7 +1499,8 @@ void AppSearchTest::pageActivation_data()
     QTest::addColumn<QString>("key");
 
     QTest::newRow("tool") << "merge" << int(pdf::PDFAppSearchGroup::Tools) << "pages.merge";
-    QTest::newRow("tool without page") << "sign with certificate" << int(pdf::PDFAppSearchGroup::Tools) << "protect.sign";
+    // Sign with Certificate has its pages since step 6 of phase 2; Add Page Numbers has none (owner O32: not started)
+    QTest::newRow("tool without page") << "add page numbers" << int(pdf::PDFAppSearchGroup::Tools) << "edit.page-numbers";
     QTest::newRow("setting") << "color scheme" << int(pdf::PDFAppSearchGroup::Settings) << pdf::PDFSettingKeys::colorScheme();
     QTest::newRow("ai") << "edit documents" << int(pdf::PDFAppSearchGroup::Settings) << "ai.edit-documents";
     QTest::newRow("help") << "portable" << int(pdf::PDFAppSearchGroup::Help) << "/help/portable-mode";
@@ -1896,7 +1900,7 @@ void AppSearchTest::pageDeletion()
         QPointer<pdf::PDFAppSearchPage> page = fixture.searchPage();
         QVERIFY(page);
         Q_EMIT fixture.context->getNotifier()->everythingChanged();
-        delete page.data();
+        pdftest::AppDocumentFixture::deleteNow(page.data());
         SearchFixture::settle();
         QVERIFY(!page);
     }
@@ -1906,7 +1910,7 @@ void AppSearchTest::pageDeletion()
         SearchFixture fixture;
         fixture.navigate(QStringLiteral("/search?q=sign"));
         Q_EMIT fixture.context->getNotifier()->everythingChanged();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         SearchFixture::settle();
     }
 
@@ -1927,7 +1931,7 @@ void AppSearchTest::pageDeletion()
         SearchFixture fixture;
         fixture.navigate(QStringLiteral("/search?q=merge"));
         QPointer<pdf::PDFAppSearchPage> page = fixture.searchPage();
-        QObject::connect(page.data(), &pdf::PDFAppPage::navigationRequested, page.data(), &QObject::deleteLater);
+        QObject::connect(page.data(), &pdf::PDFAppPage::navigationRequested, page.data(), [page]() { pdftest::AppDocumentFixture::deleteLater(page.data()); });
         page->getRows().front()->click();
         SearchFixture::settle();
         QVERIFY(!page);
@@ -2362,15 +2366,15 @@ void AppSearchTest::popupDeletion()
     switch (scenario)
     {
         case 0:
-            delete fixture.window.data();
+            pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
             break;
 
         case 1:
-            delete fixture.homeTab()->getHeader();
+            pdftest::AppDocumentFixture::deleteNow(fixture.homeTab()->getHeader());
             break;
 
         case 2:
-            delete popup.data();
+            pdftest::AppDocumentFixture::deleteNow(popup.data());
             QVERIFY(controller);
             QVERIFY(!controller->isPopupOpen());
             fixture.type(QStringLiteral("merge"));
@@ -2378,13 +2382,13 @@ void AppSearchTest::popupDeletion()
             break;
 
         case 3:
-            delete fixture.field();
+            pdftest::AppDocumentFixture::deleteNow(fixture.field());
             break;
 
         case 4:
         {
             // The window is deleted by the navigation of the result
-            QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), &QObject::deleteLater);
+            QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), [window = fixture.window]() { pdftest::AppDocumentFixture::deleteLater(window.data()); });
             QTest::keyClick(fixture.field(), Qt::Key_Return);
             break;
         }
@@ -2396,7 +2400,7 @@ void AppSearchTest::popupDeletion()
             break;
 
         case 6:
-            QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), &QObject::deleteLater);
+            QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), [window = fixture.window]() { pdftest::AppDocumentFixture::deleteLater(window.data()); });
             QTest::mouseClick(popup, Qt::LeftButton, Qt::NoModifier, popup->getShowAllRect().center());
             break;
 
@@ -2405,7 +2409,7 @@ void AppSearchTest::popupDeletion()
             // A slot of the application deletes the controller, when the activated
             // search clears the field: the activation stops (no navigation)
             const QString routeBefore = fixture.currentTab()->getHistory().getCurrentEntry()->route.toString();
-            QObject::connect(fixture.field(), &QLineEdit::textChanged, controller.data(), [controller]() { delete controller.data(); });
+            QObject::connect(fixture.field(), &QLineEdit::textChanged, controller.data(), [controller]() { pdftest::AppDocumentFixture::deleteNow(controller.data()); });
             popup->setCurrentRow(0);
             QVERIFY(popup->getCurrentResult());
             popup->activateCurrent();
@@ -3985,7 +3989,7 @@ void AppSearchTest::pageDeletedByRouteReplaced()
     QVERIFY(page);
     int titleChanges = 0;
     QObject::connect(page.data(), &pdf::PDFAppPage::titleChanged, page.data(), [&titleChanges]() { ++titleChanges; });
-    QObject::connect(page.data(), &pdf::PDFAppPage::routeReplaced, page.data(), [page]() { delete page.data(); });
+    QObject::connect(page.data(), &pdf::PDFAppPage::routeReplaced, page.data(), [page]() { pdftest::AppDocumentFixture::deleteNow(page.data()); });
     page->setGroupFilter(pdf::PDFAppSearchGroup::Tools);
     QVERIFY(!page);
     QCOMPARE(titleChanges, 0);
@@ -4111,7 +4115,7 @@ void AppSearchTest::popupControlEnter()
     fixture.navigate(QStringLiteral("/home"));
     fixture.type(QStringLiteral("sign"));
     QPointer<pdf::PDFAppSearchController> controller = fixture.controller();
-    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), &QObject::deleteLater);
+    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), [window = fixture.window]() { pdftest::AppDocumentFixture::deleteLater(window.data()); });
     QTest::keyClick(fixture.field(), Qt::Key_Return, Qt::ControlModifier);
     SearchFixture::settle();
     QVERIFY(!fixture.window);

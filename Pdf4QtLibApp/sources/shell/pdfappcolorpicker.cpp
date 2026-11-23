@@ -25,6 +25,7 @@
 
 #include "pdfcolorpickerdialog.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QAbstractButton>
 
@@ -36,7 +37,9 @@ PDFAppColorPicker::PDFAppColorPicker(QWidget* owner) :
     m_owner(owner)
 {
     setObjectName(QStringLiteral("colorPicker"));
-    owner->installEventFilter(this);
+
+    // The owner is the parent (outside the subtree of the helper): the filter goes through the helper (step A)
+    PDFDeferredDeletion::installEventFilter(owner, this, this);
 }
 
 PDFAppColorPicker::~PDFAppColorPicker()
@@ -67,7 +70,7 @@ PDFAppColorPicker* PDFAppColorPicker::attach(PDFColorSwatchRow* row)
 
     PDFAppColorPicker* picker = new PDFAppColorPicker(row);
     picker->m_row = row;
-    connect(row, &PDFColorSwatchRow::moreColorsRequested, picker, &PDFAppColorPicker::onMoreColorsRequested);
+    PDFDeferredDeletion::connect(row, &PDFColorSwatchRow::moreColorsRequested, picker, &PDFAppColorPicker::onMoreColorsRequested);
     return picker;
 }
 
@@ -85,7 +88,7 @@ PDFAppColorPicker* PDFAppColorPicker::attach(PDFColorButton* button)
 
     PDFAppColorPicker* picker = new PDFAppColorPicker(button);
     picker->m_button = button;
-    connect(button, &PDFColorButton::moreColorsRequested, picker, &PDFAppColorPicker::onMoreColorsRequested);
+    PDFDeferredDeletion::connect(button, &PDFColorButton::moreColorsRequested, picker, &PDFAppColorPicker::onMoreColorsRequested);
     return picker;
 }
 
@@ -209,6 +212,10 @@ bool PDFAppColorPicker::openDialog()
         dialog->setScrimTarget(host);
     }
     m_dialog = dialog;
+
+    // The dialog lives in the window, it belongs to the helper (step A): retire of the row closes it too; its
+    // connections to the helper are internal then
+    PDFDeferredDeletion::setOwner(dialog, this);
     connect(dialog, &PDFColorPickerDialog::colorSelected, this, &PDFAppColorPicker::onColorSelected);
     connect(dialog, &QDialog::finished, this, &PDFAppColorPicker::onDialogFinished);
 

@@ -32,6 +32,7 @@
 #include "pdfappfloatingbar.h"
 
 #include "pdfcomponentbuttons.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
@@ -169,15 +170,15 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
     if (m_isActive)
     {
         cancel();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
     }
 
     // The tool of the step 2 of Link to page in its target-only mode. The signals of
-    // the tool (its step, its target) may delete the tab with the picker: every
-    // emission is followed by the check of the guards.
+    // the tool (its step, its target) may close or delete the tab with the picker:
+    // every emission is followed by the check of the guards and of the retire.
     QPointer<PDFToolManager> toolManagerGuard(toolManager);
     if (!m_tool)
     {
@@ -185,7 +186,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         m_tool->setObjectName(QStringLiteral("outlineTargetTool"));
         connect(m_tool.data(), &PDFAppPageLinkTool::targetPicked, this, &PDFAppOutlineTargetPicker::onToolTargetPicked);
         m_tool->setTargetOnly(true);
-        if (!guard || !m_tool || !toolManagerGuard)
+        if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -198,17 +199,17 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         }
         m_toolManager = toolManager;
         toolManager->addTool(m_tool);
-        connect(toolManager, &PDFToolManager::activeToolChanged, this, &PDFAppOutlineTargetPicker::onActiveToolChanged);
+        PDFDeferredDeletion::connect(toolManager, &PDFToolManager::activeToolChanged, this, &PDFAppOutlineTargetPicker::onActiveToolChanged);
     }
 
     // The tool gets the shown document (the later versions come from the tool manager)
     m_tool->setDocument(PDFModifiedDocument(document->getDocument(), nullptr, PDFModifiedDocument::Annotation));
-    if (!guard || !m_tool || !toolManagerGuard)
+    if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
     m_tool->setDestinationType(type);
-    if (!guard || !m_tool || !toolManagerGuard)
+    if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -218,7 +219,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
     m_itemTitle = itemTitle;
     m_isStarting = true;
     toolManager->setActiveTool(m_tool);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -240,13 +241,13 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         m_canvas = canvas;
         if (canvas)
         {
-            canvas->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(canvas, this);
         }
     }
     if (m_canvas)
     {
         m_canvas->setFocus(Qt::OtherFocusReason);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -258,7 +259,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
     {
         m_bar->placeAtTop();
         m_bar->show();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -273,7 +274,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         m_statusHint = PDFAppAnnotationTools::getPageLinkInstruction(type);
         statusBar->showMessage(m_statusHint);
     }
-    return guard && m_isActive;
+    return guard && m_isActive && !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppOutlineTargetPicker::createBar()
@@ -287,6 +288,7 @@ void PDFAppOutlineTargetPicker::createBar()
     // The bar of a tool with a hint (1168:26016): the target 16 + its name Semi
     // Bold 13, the instruction Medium 13 (1170:27204), close 20 (207:6299)
     m_bar = new PDFAppFloatingBar(PDFAppFloatingBar::Size::Normal, canvasArea);
+    PDFDeferredDeletion::setOwner(m_bar.data(), this);
     m_bar->setObjectName(QStringLiteral("outlineTargetBar"));
     m_bar->setCardHeight(PDFAppAnnotationToolBar::HINT_HEIGHT);
     m_bar->installEventFilter(this);

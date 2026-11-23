@@ -37,6 +37,7 @@
 #include "pdfapplocale.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
@@ -209,7 +210,7 @@ PDFAppMarkResultsMenu::PDFAppMarkResultsMenu(QWidget* parent) :
     m_layout->addWidget(actions);
     connect(m_applyButton.data(), &QPushButton::clicked, this, &PDFAppMarkResultsMenu::onApplyClicked);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMarkResultsMenu::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMarkResultsMenu::update));
     retranslate();
 }
 
@@ -476,6 +477,7 @@ void PDFAppMarkResultsMenu::changeEvent(QEvent* event)
 
 PDFAppMarkResults::PDFAppMarkResults(PDFAppDocumentView* view, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_view(view)
 {
     setObjectName(QStringLiteral("markResults"));
@@ -486,6 +488,13 @@ PDFAppMarkResults::~PDFAppMarkResults()
     // A running worker is stopped (its result is dropped with the watcher)
     cancel();
     delete m_menu.data();
+}
+
+void PDFAppMarkResults::retire()
+{
+    // The tab closes: the worker is stopped and the operation of the document ends at
+    // once (another user of the document must not find it busy); no own signal
+    cancel();
 }
 
 PDFAppDocumentView* PDFAppMarkResults::getView() const
@@ -645,7 +654,7 @@ bool PDFAppMarkResults::mark(AnnotationType type, const QColor& color, Scope sco
     m_operation = operation;
     if (m_operation)
     {
-        connect(m_operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFAppMarkResults::onOperationCancelRequested);
+        PDFDeferredDeletion::connect(m_operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFAppMarkResults::onOperationCancelRequested);
     }
 
     m_watcher = new Watcher(this);
@@ -822,6 +831,9 @@ void PDFAppMarkResults::openMenu(QWidget* anchor)
     if (!m_menu)
     {
         m_menu = new PDFAppMarkResultsMenu(anchor->window());
+
+        // Parented to the window, the menu belongs to Mark as annotations (it closes with the tab)
+        PDFDeferredDeletion::setOwner(m_menu.data(), this);
         connect(m_menu.data(), &PDFAppMarkResultsMenu::applyRequested, this, &PDFAppMarkResults::onApplyRequested);
     }
 
@@ -857,7 +869,7 @@ PDFAppMarkResultsFooter::PDFAppMarkResultsFooter(QWidget* parent) :
     m_button->setFixedHeight(H::BUTTON_HEIGHT);
     layout->addWidget(m_button);
     connect(m_button.data(), &QPushButton::clicked, this, &PDFAppMarkResultsFooter::onButtonClicked);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMarkResultsFooter::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMarkResultsFooter::update));
 
     retranslate();
     hide();
@@ -876,15 +888,15 @@ void PDFAppMarkResultsFooter::setView(PDFAppDocumentView* view)
 
     if (PDFAppMarkResults* markResults = getMarkResults())
     {
-        m_connections.push_back(connect(markResults, &PDFAppMarkResults::stateChanged, this, &PDFAppMarkResultsFooter::updateState));
+        m_connections.push_back(PDFDeferredDeletion::connect(markResults, &PDFAppMarkResults::stateChanged, this, &PDFAppMarkResultsFooter::updateState));
         if (PDFAppDocumentSearchController* searchController = markResults->getSearchController())
         {
-            m_connections.push_back(connect(searchController, &PDFAppDocumentSearchController::stateChanged, this, &PDFAppMarkResultsFooter::updateState));
+            m_connections.push_back(PDFDeferredDeletion::connect(searchController, &PDFAppDocumentSearchController::stateChanged, this, &PDFAppMarkResultsFooter::updateState));
         }
     }
     if (PDFAppAnnotationController* controller = view ? view->getAnnotationController() : nullptr)
     {
-        m_connections.push_back(connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppMarkResultsFooter::updateState));
+        m_connections.push_back(PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppMarkResultsFooter::updateState));
     }
 
     // The panel may get its view before the tab has created the handlers of

@@ -438,6 +438,10 @@ private:
     /// titles of the other kinds; review RS7CFIGMA L1): the drawing mode on, no picked point, no measurement
     void updateCanvasCallout();
 
+    /// The overlay to be updated: nullptr once it is retired (step A: the shell retires it at its close, a parameter
+    /// or document change reaching this GUI afterwards shows nothing on it)
+    PDFAppMeasureOverlay* getLiveOverlay() const;
+
     /// The scale of the document at the entry: remembered, of the viewports, the default (473:9500, 473:92070)
     void loadScale();
 

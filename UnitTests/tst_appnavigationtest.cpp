@@ -56,6 +56,7 @@
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
 #include "pdfcomponentwindow.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -502,7 +503,7 @@ public:
 
     ~NavigationFixture()
     {
-        delete window.data();
+        deletionCheck.closeWindow(window.data());
         context.reset();
         pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     }
@@ -527,6 +528,8 @@ public:
         navigator()->navigate(pdf::PDFAppRoute::parse(text), mode);
     }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
     QString memoryName;
@@ -554,7 +557,7 @@ public:
 
     ~GeometryContext()
     {
-        window.reset();
+        deletionCheck.closeWindow(window.release());
         context->close();
     }
 
@@ -574,6 +577,8 @@ public:
 
     QString storedText() const { return context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry()); }
 
+    /// The synchronous deletion detector of step A (the first member: on before the context and the window exist)
+    pdftest::AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     std::unique_ptr<pdf::PDFAppMainWindow> window;
 
@@ -659,6 +664,8 @@ private slots:
     void replaceRoute();
     void replaceRouteToolPages();
     void deletionDuringNavigation();
+    void replacedPageRetiredFromEventLoop();
+    void navigationIntoRetiredTab();
     void deletionInAnyOrder();
     void newTab();
     void helpTab();
@@ -1574,13 +1581,14 @@ void AppNavigationTest::notFoundPage()
     QCoreApplication::sendEvent(page, &languageChange);
     QCOMPARE(page->getDescriptionText(), QStringLiteral("A document, which is not open"));
 
-    // A page without the context (no shortcuts known) still works
-    pdf::PDFPageNotFoundPage standalone(nullptr);
+    // A page without the context (no shortcuts known) still works (standalone pages, deleted at the end on purpose -
+    // deliberate synchronous deletions)
+    std::unique_ptr<pdf::PDFPageNotFoundPage, pdftest::AppDocumentFixture::DeleteNow> standalone(new pdf::PDFPageNotFoundPage(nullptr));
     pdf::PDFAppNotFoundRequest request;
-    standalone.setRequest(request);
-    QCOMPARE(standalone.getDescriptionText(), QStringLiteral("An unknown page"));
-    QVERIFY(standalone.findChildren<pdf::PDFAppKeyCap*>().isEmpty());
-    std::unique_ptr<pdf::PDFAppPage> created(pdf::PDFPageNotFoundFactory().createPage(nullptr, nullptr));
+    standalone->setRequest(request);
+    QCOMPARE(standalone->getDescriptionText(), QStringLiteral("An unknown page"));
+    QVERIFY(standalone->findChildren<pdf::PDFAppKeyCap*>().isEmpty());
+    std::unique_ptr<pdf::PDFAppPage, pdftest::AppDocumentFixture::DeleteNow> created(pdf::PDFPageNotFoundFactory().createPage(nullptr, nullptr));
     QVERIFY(qobject_cast<pdf::PDFPageNotFoundPage*>(created.get()));
 }
 
@@ -1849,9 +1857,10 @@ void AppNavigationTest::replaceRoute()
     // changes only its own route
     QTRY_VERIFY(page.isNull());
     {
-        NavigationTestPage loosePage(fixture.context.get(), nullptr, QStringLiteral("Loose"), true);
-        QVERIFY(loosePage.replaceRouteTo(pdf::PDFAppRoutes::recent("files")));
-        QCOMPARE(loosePage.getRoute(), pdf::PDFAppRoutes::recent("files"));
+        // (a standalone page, deleted at the end of the block on purpose - a deliberate synchronous deletion)
+        std::unique_ptr<NavigationTestPage, pdftest::AppDocumentFixture::DeleteNow> loosePage(new NavigationTestPage(fixture.context.get(), nullptr, QStringLiteral("Loose"), true));
+        QVERIFY(loosePage->replaceRouteTo(pdf::PDFAppRoutes::recent("files")));
+        QCOMPARE(loosePage->getRoute(), pdf::PDFAppRoutes::recent("files"));
     }
     QCOMPARE(replacedSpy.count(), 2);
 
@@ -1866,7 +1875,7 @@ void AppNavigationTest::replaceRoute()
     // The page deleted by a slot of its signal: replaceRoute reports it
     QPointer<NavigationTestPage> deletedPage = qobject_cast<NavigationTestPage*>(fixture.currentPage());
     QVERIFY(deletedPage);
-    QObject::connect(deletedPage.data(), &pdf::PDFAppPage::routeReplaced, fixture.window.data(), [&deletedPage]() { delete deletedPage.data(); });
+    QObject::connect(deletedPage.data(), &pdf::PDFAppPage::routeReplaced, fixture.window.data(), [&deletedPage]() { pdftest::AppDocumentFixture::deleteNow(deletedPage.data()); });
     QVERIFY(!deletedPage->replaceRouteTo(pdf::PDFAppRoutes::recent("workspaces")));
     QVERIFY(deletedPage.isNull());
 
@@ -1874,7 +1883,7 @@ void AppNavigationTest::replaceRoute()
     fixture.navigate("/recent");
     QPointer<NavigationTestPage> lastPage = qobject_cast<NavigationTestPage*>(fixture.currentPage());
     QVERIFY(lastPage);
-    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::routeReplaced, fixture.context.get(), [&fixture]() { delete fixture.window.data(); });
+    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::routeReplaced, fixture.context.get(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
     QVERIFY(!lastPage->replaceRouteTo(pdf::PDFAppRoutes::recent("pinned")));
     QVERIFY(fixture.window.isNull());
 }
@@ -1952,6 +1961,67 @@ void AppNavigationTest::replaceRouteToolPages()
     pdf::PDFAppToolPageRegistry::clear();
 }
 
+void AppNavigationTest::replacedPageRetiredFromEventLoop()
+{
+    // Step A: the page, which the navigation replaces, leaves the tab at once (hidden, out of the layout) and is
+    // retired from the event loop - it is usually the sender of the navigation, and retire inside its emission would
+    // cut the rest of it (a receiver connected after the navigator still gets the signal); then it is deleted later
+    NavigationFixture fixture;
+    auto about = std::make_shared<NavigationTestFactory>("About");
+    auto support = std::make_shared<NavigationTestFactory>("Support");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), about);
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/support"), support);
+    fixture.navigate("/about");
+    QPointer<NavigationTestPage> page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(page);
+
+    QObject context;
+    int lateReceiverCount = 0;
+    connect(page.data(), &pdf::PDFAppPage::navigationRequested, &context, [&lateReceiverCount]() { ++lateReceiverCount; });
+    QVERIFY(page->navigateTo(pdf::PDFAppRoutes::support()));
+    QCOMPARE(lateReceiverCount, 1);
+    QCOMPARE(fixture.currentPage(), support->lastPage.data());
+    QVERIFY(page);
+    QVERIFY(!page->isVisible());
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(page));
+
+    // From the event loop: retired (inert, waits for its deletion), then deleted
+    QCoreApplication::processEvents();
+    QVERIFY(page);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(page));
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(fixture.currentPage()));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!page);
+    QCOMPARE(fixture.currentPage(), support->lastPage.data());
+}
+
+void AppNavigationTest::navigationIntoRetiredTab()
+{
+    // Step A (RR-L6): code of a page closes (retires) its tab while the navigation shows the page - nothing is shown
+    // in the retired tab (no page, so no tool is started in it), the new page is retired too; a later request of the
+    // retired tab is ignored
+    NavigationFixture fixture;
+    auto about = std::make_shared<NavigationTestFactory>("About");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), about);
+    QPointer<pdf::PDFAppTab> tab = fixture.currentTab();
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppPage> previousPage = tab->getPage();
+    about->onSetRoute = [tab](NavigationTestPage*) { pdf::PDFDeferredDeletion::retire(tab.data()); };
+    fixture.navigate("/about");
+    QVERIFY(tab);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(tab));
+    QPointer<NavigationTestPage> page = about->lastPage;
+    QVERIFY(page);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(page));
+    QCOMPARE(tab->getPage(), previousPage.data());
+
+    const int createCount = about->createCount;
+    fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/about")), pdf::PDFAppNavigationMode::Push, tab);
+    QCOMPARE(about->createCount, createCount);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!page);
+}
+
 void AppNavigationTest::deletionDuringNavigation()
 {
     // The window is deleted by the factory of the page
@@ -1959,7 +2029,7 @@ void AppNavigationTest::deletionDuringNavigation()
         NavigationFixture fixture;
         auto factory = std::make_shared<NavigationTestFactory>("About");
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        factory->onCreate = [window]() { delete window.data(); return false; };
+        factory->onCreate = [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); return false; };
         fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), factory);
         fixture.navigate("/about");
         QVERIFY(fixture.window.isNull());
@@ -1970,7 +2040,7 @@ void AppNavigationTest::deletionDuringNavigation()
         NavigationFixture fixture;
         auto factory = std::make_shared<NavigationTestFactory>("About");
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        factory->onSetRoute = [window](NavigationTestPage*) { delete window.data(); };
+        factory->onSetRoute = [window](NavigationTestPage*) { pdftest::AppDocumentFixture::deleteNow(window.data()); };
         fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), factory);
         fixture.navigate("/about");
         QVERIFY(fixture.window.isNull());
@@ -1984,7 +2054,7 @@ void AppNavigationTest::deletionDuringNavigation()
         fixture.navigate("/about");
         NavigationTestPage* page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        connect(page, &pdf::PDFAppPage::navigationRequested, window.data(), [window]() { delete window.data(); });
+        connect(page, &pdf::PDFAppPage::navigationRequested, window.data(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         QVERIFY(!page->navigateTo(pdf::PDFAppRoutes::support()));
         QVERIFY(fixture.window.isNull());
     }
@@ -1993,7 +2063,7 @@ void AppNavigationTest::deletionDuringNavigation()
     {
         NavigationFixture fixture;
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, window.data(), [window]() { delete window.data(); });
+        connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, window.data(), [window]() { pdftest::AppDocumentFixture::deleteNow(window.data()); });
         fixture.navigate("/ai");
         QVERIFY(fixture.window.isNull());
     }
@@ -2003,7 +2073,7 @@ void AppNavigationTest::deletionDuringNavigation()
         NavigationFixture fixture;
         auto factory = std::make_shared<NavigationTestFactory>("Open");
         fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/open"), factory);
-        factory->onSetRoute = [](NavigationTestPage* page) { delete page->parentWidget(); };
+        factory->onSetRoute = [](NavigationTestPage* page) { pdftest::AppDocumentFixture::deleteNow(page->parentWidget()); };
         QVERIFY(!fixture.window->openNewTab());
         QCOMPARE(fixture.window->getTabs().size(), 1);
         factory->onSetRoute = nullptr;
@@ -2012,7 +2082,7 @@ void AppNavigationTest::deletionDuringNavigation()
         QVERIFY(newTab);
         QCOMPARE(fixture.window->getTabs().size(), 2);
         QPointer<pdf::PDFAppTab> tabGuard(newTab);
-        connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, newTab, [tabGuard]() { delete tabGuard.data(); }, Qt::SingleShotConnection);
+        connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, newTab, [tabGuard]() { pdftest::AppDocumentFixture::deleteNow(tabGuard.data()); }, Qt::SingleShotConnection);
         fixture.navigate("/open");
         QVERIFY(tabGuard.isNull());
         QCOMPARE(fixture.window->getTabs().size(), 1);
@@ -2022,7 +2092,7 @@ void AppNavigationTest::deletionDuringNavigation()
     // The Home tab is deleted: it is created again by the next navigation
     {
         NavigationFixture fixture;
-        delete fixture.window->getHomeTab();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window->getHomeTab());
         QCOMPARE(fixture.window->getTabs().size(), 0);
         fixture.navigate("/ai");
         QCOMPARE(fixture.window->getTabs().size(), 1);
@@ -2032,7 +2102,7 @@ void AppNavigationTest::deletionDuringNavigation()
     // The page is deleted by the application: the next navigation works
     {
         NavigationFixture fixture;
-        delete fixture.currentPage();
+        pdftest::AppDocumentFixture::deleteNow(fixture.currentPage());
         QVERIFY(!fixture.currentPage());
         fixture.navigate("/ai");
         QVERIFY(fixture.currentPage());
@@ -2051,7 +2121,7 @@ void AppNavigationTest::deletionInAnyOrder()
         fixture.window->openNewTab();
         QWidget* widget = fixture.window->findChild<QWidget*>(part);
         QVERIFY2(widget, qPrintable(part));
-        delete widget;
+        pdftest::AppDocumentFixture::deleteNow(widget);
 
         fixture.navigate("/ai");
         fixture.navigate("/open", pdf::PDFAppNavigationMode::NewTab);
@@ -2081,8 +2151,8 @@ void AppNavigationTest::deletionInAnyOrder()
     // The navigator and the frame deleted by the application
     {
         NavigationFixture fixture;
-        delete fixture.window->getNavigator();
-        delete fixture.window->getFrame();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window->getNavigator());
+        pdftest::AppDocumentFixture::deleteNow(fixture.window->getFrame());
         fixture.window->openNewTab();
         fixture.window->focusSearch();
         QTest::keyClick(fixture.window.data(), Qt::Key_Left, Qt::AltModifier);
@@ -2115,7 +2185,7 @@ void AppNavigationTest::deletionInAnyOrder()
         }
         for (pdf::PDFAppTab* tab : tabs)
         {
-            delete tab;
+            pdftest::AppDocumentFixture::deleteNow(tab);
             QCoreApplication::processEvents();
         }
         QCOMPARE(fixture.window->getTabBar()->count(), 0);
@@ -2126,13 +2196,14 @@ void AppNavigationTest::deletionInAnyOrder()
     // Widgets created without the window are deleted alone
     {
         NavigationFixture fixture(false);
-        delete new pdf::PDFAppTopBar();
-        delete new pdf::PDFAppWorkspaceTab(pdf::PDFAppTabKind::Home, fixture.context.get());
-        delete new pdf::PDFAppWorkspaceTab(pdf::PDFAppTabKind::Document, nullptr);
-        delete new pdf::PDFAppSidebar(nullptr);
-        delete new pdf::PDFAppFooter();
-        delete new pdf::PDFAppStorageBanner();
-        pdf::PDFAppWorkspaceTab tab(pdf::PDFAppTabKind::NewTab, nullptr);
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppTopBar());
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppWorkspaceTab(pdf::PDFAppTabKind::Home, fixture.context.get()));
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppWorkspaceTab(pdf::PDFAppTabKind::Document, nullptr));
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppSidebar(nullptr));
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppFooter());
+        pdftest::AppDocumentFixture::deleteNow(new pdf::PDFAppStorageBanner());
+        std::unique_ptr<pdf::PDFAppWorkspaceTab, pdftest::AppDocumentFixture::DeleteNow> tabOwner(new pdf::PDFAppWorkspaceTab(pdf::PDFAppTabKind::NewTab, nullptr));
+        pdf::PDFAppWorkspaceTab& tab = *tabOwner;
         QCOMPARE(tab.getKind(), pdf::PDFAppTabKind::NewTab);
         QVERIFY(!tab.getSidebar());
         QVERIFY(!tab.getBanner());
@@ -2240,7 +2311,7 @@ void AppNavigationTest::helpTab()
 
     // The Help tab deleted by the application, then the window (in both orders)
     fixture.navigate("/help/a");
-    delete fixture.window->findHelpTab();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window->findHelpTab());
     QCoreApplication::processEvents();
     QVERIFY(!fixture.window->findHelpTab());
     fixture.navigate("/help/b");
@@ -2538,9 +2609,10 @@ void AppNavigationTest::helpInHelpTab()
     QCOMPARE(fixture.window->getCurrentTab(), helpTab);
     QCOMPARE(qobject_cast<pdf::PDFAppHelpPage*>(helpTab->getPage())->getTopic().id, pdf::PDFAppRoutes::getDefaultHelpTopic());
 
-    // A help page, which has no topic (not in a route yet), has the default topic
-    pdf::PDFAppHelpPage standalone(fixture.context.get());
-    QCOMPARE(standalone.getHelpTopic(), pdf::PDFAppRoutes::getDefaultHelpTopic());
+    // A help page, which has no topic (not in a route yet), has the default topic (a page of the test body, deleted
+    // synchronously on purpose)
+    std::unique_ptr<pdf::PDFAppHelpPage, pdftest::AppDocumentFixture::DeleteNow> standalone(new pdf::PDFAppHelpPage(fixture.context.get()));
+    QCOMPARE(standalone->getHelpTopic(), pdf::PDFAppRoutes::getDefaultHelpTopic());
 }
 
 void AppNavigationTest::helpInHomeTabAtTabLimit()
@@ -2684,7 +2756,7 @@ void AppNavigationTest::helpDeletedFromNavigation()
     fixture.window->activateTab(sourceTab);
     help->onSetRoute = [&sourceTab](NavigationTestPage*)
     {
-        delete sourceTab.data();
+        pdftest::AppDocumentFixture::deleteNow(sourceTab.data());
     };
     helpAction->trigger();
     help->onSetRoute = nullptr;
@@ -2698,7 +2770,7 @@ void AppNavigationTest::helpDeletedFromNavigation()
     fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/help/second")));
     help->onSetRoute = [&fixture](NavigationTestPage*)
     {
-        delete fixture.window->findHelpTab();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window->findHelpTab());
     };
     fixture.window->activateTab(fixture.window->getHomeTab());
     helpAction->trigger();
@@ -2716,7 +2788,7 @@ void AppNavigationTest::helpDeletedFromNavigation()
     fixture.window->activateTab(fixture.window->getHomeTab());
     help->onSetRoute = [&fixture](NavigationTestPage*)
     {
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     };
     helpAction->trigger();
     help->onSetRoute = nullptr;
@@ -3823,7 +3895,7 @@ void AppNavigationTest::nativeWindowsFrame()
         QVERIFY(QTest::qWaitForWindowExposed(&cascaded));
         QTRY_COMPARE(cascaded.geometry(), QRect(fixture.window->geometry().topLeft() + QPoint(32, 32), QSize(1200, 800)));
     }
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
@@ -4328,7 +4400,9 @@ void AppNavigationTest::windowGeometryOtherWindow()
     // A third window of the same context, while the second one is active: next to it
     secondWindow->activateWindow();
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(secondWindow));
-    pdf::PDFAppMainWindow thirdWindow(second.context.get());
+    // (the windows of the test body are deleted at the end on purpose - deliberate synchronous deletions)
+    std::unique_ptr<pdf::PDFAppMainWindow, pdftest::AppDocumentFixture::DeleteNow> thirdWindowOwner(new pdf::PDFAppMainWindow(second.context.get()));
+    pdf::PDFAppMainWindow& thirdWindow = *thirdWindowOwner;
     QVERIFY(thirdWindow.geometry().topLeft() != secondWindow->geometry().topLeft());
     QCOMPARE(thirdWindow.geometry(), pdf::PDFAppWindowGeometry::cascade(secondWindow->geometry(), pdf::PDFAppWindowGeometry::getScreens()));
 
@@ -4337,7 +4411,8 @@ void AppNavigationTest::windowGeometryOtherWindow()
     QTRY_VERIFY(firstWindow->isMaximized());
     firstWindow->activateWindow();
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(firstWindow));
-    pdf::PDFAppMainWindow fourthWindow(first.context.get());
+    std::unique_ptr<pdf::PDFAppMainWindow, pdftest::AppDocumentFixture::DeleteNow> fourthWindowOwner(new pdf::PDFAppMainWindow(first.context.get()));
+    pdf::PDFAppMainWindow& fourthWindow = *fourthWindowOwner;
     QVERIFY(!fourthWindow.windowState().testFlag(Qt::WindowMaximized));
     QCOMPARE(fourthWindow.geometry(), pdf::PDFAppWindowGeometry::cascade(stored, pdf::PDFAppWindowGeometry::getScreens()));
 
@@ -4685,7 +4760,7 @@ void AppNavigationTest::instanceRequests()
     QCOMPARE(fixture.window->getForwardedErrors().size(), pdf::PDFAppMainWindow::MAXIMUM_FORWARDED_ERRORS);
 
     // The window is deleted while the message boxes are open
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     QCoreApplication::processEvents();
     fixture.context->setInstanceServer(nullptr);
     delete server;
@@ -5810,7 +5885,7 @@ void AppNavigationTest::navigationButtonsFilter()
     QCOMPARE(lastPath(), QStringLiteral("/tools/page4.tool"));
 
     // The window is deleted: its QWindow does not call it any more
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     QVERIFY(!windowHandle);
 }
 
@@ -6006,7 +6081,7 @@ void AppNavigationTest::openDocumentsRecent()
     QCOMPARE(window->getRequestedFiles(), QStringList({ files[1] }));
     QVERIFY(context.getRecent().getFiles().empty());
     QTRY_COMPARE(window->findChildren<pdf::PDFMessageBox*>().size(), 1);
-    delete window.data();
+    pdftest::AppDocumentFixture::deleteNow(window.data());
 }
 
 void AppNavigationTest::helpTabLimit()
@@ -6490,7 +6565,7 @@ void AppNavigationTest::messageScrim()
     QTRY_VERIFY(body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size() == body->findChildren<pdf::PDFAppTab*>(Qt::FindDirectChildrenOnly).size());
     dropMissing();
     QTRY_VERIFY(fixture.window->findChild<pdf::PDFMessageBox*>(QStringLiteral("messageBox")));
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     QVERIFY(!fixture.window);
 }
 

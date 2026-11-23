@@ -1370,12 +1370,16 @@ void AppToolPagesTest::deletedWithToolOpen()
         QPointer<pdf::PDFAppToolPageGrid> gridGuard(gui->getGrid());
         pdf::PDFAppToolPageGridView* view = gui->getGrid()->getView();
         QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier, view->visualRect(view->model()->index(2, 0)).center());
+
         if (isWindow)
         {
+            // A deliberate synchronous delete (step A: the detector is quiet in the scope)
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
             delete fixture.window.data();
         }
         else
         {
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
             delete tab;
         }
         AppToolShellFixture::settle();

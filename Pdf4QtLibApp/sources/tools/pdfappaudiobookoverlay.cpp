@@ -26,6 +26,7 @@
 #include "pdfapptoolgui_extracttext.h"
 #include "pdfappworkspace.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 
 #include "pdfpainterutils.h"
@@ -49,7 +50,7 @@ PDFAppAudioBookOverlay::PDFAppAudioBookOverlay(QWidget* picture) :
     if (picture)
     {
         // The overlay covers the whole picture, also after its resize
-        picture->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(picture, this);
         setGeometry(picture->rect());
     }
 }

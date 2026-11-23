@@ -32,6 +32,8 @@
 
 #include "pdfdocumenttoolcatalog.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QAccessible>
 #include <QDesktopServices>
 #include <QDir>
@@ -121,6 +123,19 @@ void PDFAppNavigator::process(const Request& request)
     Request current = request;
     for (int round = 0; round <= MAXIMUM_PENDING_ROUNDS; ++round)
     {
+        // A request of a tab, which is being closed (retired, step A), is ignored - read in every round: a page may
+        // have closed its tab within the previous one (RR-L6)
+        if (current.tab && PDFDeferredDeletion::isRetired(current.tab))
+        {
+            if (m_pendingRequests.isEmpty())
+            {
+                return;
+            }
+            current = m_pendingRequests.takeFirst();
+            m_pendingRequests.clear();
+            continue;
+        }
+
         m_isNavigating = true;
         switch (current.kind)
         {
@@ -475,7 +490,7 @@ void PDFAppNavigator::completeNavigate(PDFAppTab* tabPointer, const PDFAppRoute&
     QPointer<PDFAppNavigator> guard(this);
     QPointer<PDFAppTab> tab(tabPointer);
     saveViewState(tab);
-    if (!guard || !tab)
+    if (!guard || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         return;
     }
@@ -493,7 +508,7 @@ void PDFAppNavigator::completeNavigate(PDFAppTab* tabPointer, const PDFAppRoute&
     }
 
     m_window->activateTab(tab);
-    if (!guard || !tab)
+    if (!guard || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         return;
     }
@@ -557,7 +572,7 @@ bool PDFAppNavigator::completeMoveInHistory(PDFAppTab* tab, bool isBack)
     QPointer<PDFAppNavigator> guard(this);
     QPointer<PDFAppTab> tabGuard(tab);
     saveViewState(tab);
-    if (!guard || !tabGuard)
+    if (!guard || !tabGuard || PDFDeferredDeletion::isRetired(tab))
     {
         return false;
     }
@@ -572,7 +587,7 @@ bool PDFAppNavigator::completeMoveInHistory(PDFAppTab* tab, bool isBack)
     {
         m_window->activateTab(tab);
     }
-    if (!guard || !tabGuard)
+    if (!guard || !tabGuard || PDFDeferredDeletion::isRetired(tab))
     {
         return false;
     }
@@ -583,7 +598,9 @@ bool PDFAppNavigator::completeMoveInHistory(PDFAppTab* tab, bool isBack)
 
 void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
 {
-    const PDFAppHistoryEntry* entry = tab ? tab->getHistory().getCurrentEntry() : nullptr;
+    // A tab, which is being closed (retired, step A), shows nothing new (no page, no tool started in it)
+    const bool isRetired = tab && PDFDeferredDeletion::isRetired(tab);
+    const PDFAppHistoryEntry* entry = tab && !isRetired ? tab->getHistory().getCurrentEntry() : nullptr;
     if (!entry)
     {
         return;
@@ -611,9 +628,10 @@ void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
     {
         std::shared_ptr<const PDFAppPageFactory> factory = match.entry->factory;
         page = factory->createPageForRoute(m_context, tab, resolvedRoute);
-        if (!guard || !tabGuard)
+        if (!guard || !tabGuard || PDFDeferredDeletion::isRetired(tab))
         {
-            delete page.data();
+            // A page never shown: retired, deleted later (step A)
+            PDFDeferredDeletion::retire(page.data());
             return;
         }
 
@@ -622,15 +640,18 @@ void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
             // The page may ask for a route already from setRoute (done after this navigation)
             connectPage(page);
             const bool isAccepted = page->setRoute(resolvedRoute);
-            if (!guard || !tabGuard)
+            if (!guard || !tabGuard || PDFDeferredDeletion::isRetired(tab))
             {
-                delete page.data();
+                // The tab has been closed (retired, step A) by the code of the page: nothing is shown in it
+                PDFDeferredDeletion::retire(page.data());
                 return;
             }
 
             if (!isAccepted)
             {
-                delete page.data();
+                // Page Not Found instead (the refused page is retired, it lives inert until it is deleted later)
+                PDFDeferredDeletion::retire(page.data());
+                page = nullptr;
             }
         }
     }
@@ -693,10 +714,11 @@ void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
 
 void PDFAppNavigator::connectPage(PDFAppPage* page)
 {
-    connect(page, &PDFAppPage::navigationRequested, this, &PDFAppNavigator::onPageNavigationRequested, Qt::UniqueConnection);
-    connect(page, &PDFAppPage::backRequested, this, &PDFAppNavigator::onPageBackRequested, Qt::UniqueConnection);
-    connect(page, &PDFAppPage::externalUrlRequested, this, &PDFAppNavigator::onPageExternalUrlRequested, Qt::UniqueConnection);
-    connect(page, &PDFAppPage::routeReplaced, this, &PDFAppNavigator::onPageRouteReplaced, Qt::UniqueConnection);
+    // The page lives in a tab, outside the subtree of the navigator (step A)
+    PDFDeferredDeletion::connect(page, &PDFAppPage::navigationRequested, this, &PDFAppNavigator::onPageNavigationRequested, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(page, &PDFAppPage::backRequested, this, &PDFAppNavigator::onPageBackRequested, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(page, &PDFAppPage::externalUrlRequested, this, &PDFAppNavigator::onPageExternalUrlRequested, Qt::UniqueConnection);
+    PDFDeferredDeletion::connect(page, &PDFAppPage::routeReplaced, this, &PDFAppNavigator::onPageRouteReplaced, Qt::UniqueConnection);
 }
 
 void PDFAppNavigator::announce(PDFAppTab* tab, PDFAppPage* page)
@@ -773,8 +795,9 @@ void PDFAppNavigator::connectTab(PDFAppTab* tab)
         return;
     }
 
-    connect(tab, &PDFAppTab::navigationRequested, this, &PDFAppNavigator::onTabNavigationRequested);
-    connect(tab, &PDFAppTab::externalUrlRequested, this, &PDFAppNavigator::onTabExternalUrlRequested);
+    // The tab lives in the stack of the window, outside the subtree of the navigator (step A)
+    PDFDeferredDeletion::connect(tab, &PDFAppTab::navigationRequested, this, &PDFAppNavigator::onTabNavigationRequested);
+    PDFDeferredDeletion::connect(tab, &PDFAppTab::externalUrlRequested, this, &PDFAppNavigator::onTabExternalUrlRequested);
 }
 
 PDFAppTab* PDFAppNavigator::findTab(QObject* object)
@@ -791,8 +814,12 @@ PDFAppTab* PDFAppNavigator::findTab(QObject* object)
 
 void PDFAppNavigator::onPageNavigationRequested(const PDFAppRoute& route, PDFAppNavigationMode mode)
 {
-    // The page does not identify itself in the signal
+    // The page does not identify itself in the signal; a retired page (step A) asks for nothing
     PDFAppPage* page = qobject_cast<PDFAppPage*>(sender());
+    if (page && PDFDeferredDeletion::isRetired(page))
+    {
+        return;
+    }
     const PDFAppRoute routeCopy = route;
     navigate(routeCopy, mode, page ? findTab(page) : nullptr);
 }
@@ -800,6 +827,10 @@ void PDFAppNavigator::onPageNavigationRequested(const PDFAppRoute& route, PDFApp
 void PDFAppNavigator::onPageBackRequested()
 {
     PDFAppPage* page = qobject_cast<PDFAppPage*>(sender());
+    if (page && PDFDeferredDeletion::isRetired(page))
+    {
+        return;
+    }
     goBack(page ? findTab(page) : nullptr);
 }
 

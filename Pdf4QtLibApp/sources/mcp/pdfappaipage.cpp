@@ -37,6 +37,7 @@
 #include "pdfappsettingrow.h"
 #include "pdfappworkspace.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 
@@ -275,7 +276,7 @@ public:
         m_radius(radius)
     {
         setAttribute(Qt::WA_NoSystemBackground, true);
-        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+        PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
     }
 
     PDFThemeColors::Color getFill() const { return m_fill; }
@@ -298,7 +299,7 @@ public:
         m_focusWidget = widget;
         if (widget)
         {
-            widget->installEventFilter(this);
+            PDFDeferredDeletion::installEventFilter(widget, this, this);
         }
     }
 
@@ -449,20 +450,20 @@ PDFAppAiPage::PDFAppAiPage(PDFAppContext* context, QWidget* parent) :
 
     if (m_controller)
     {
-        connect(m_controller, &PDFAppMcpController::stateChanged, this, &PDFAppAiPage::onStateChanged);
-        connect(m_controller, &PDFAppMcpController::assistantsChanged, this, &PDFAppAiPage::onAssistantsChanged);
-        connect(m_controller, &PDFAppMcpController::activityChanged, this, &PDFAppAiPage::onActivityChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppMcpController::stateChanged, this, &PDFAppAiPage::onStateChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppMcpController::assistantsChanged, this, &PDFAppAiPage::onAssistantsChanged);
+        PDFDeferredDeletion::connect(m_controller.data(), &PDFAppMcpController::activityChanged, this, &PDFAppAiPage::onActivityChanged);
         if (PDFAppMcpHost* host = m_controller->getHost())
         {
-            connect(host, &PDFAppMcpHost::confirmationsChanged, this, &PDFAppAiPage::onActivityChanged);
+            PDFDeferredDeletion::connect(host, &PDFAppMcpHost::confirmationsChanged, this, &PDFAppAiPage::onActivityChanged);
         }
     }
     if (context && context->getNotifier())
     {
-        connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAiPage::onDatabaseChanged);
-        connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAiPage::onEverythingChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAiPage::onDatabaseChanged);
+        PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAiPage::onEverythingChanged);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppAiPage::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppAiPage::onThemeChanged);
 }
 
 PDFAppAiPage::~PDFAppAiPage()
@@ -527,8 +528,12 @@ void PDFAppAiPage::rebuild()
     m_tiles.clear();
     m_variantChips.clear();
     m_codeBoxes.clear();
-    delete m_columns.data();
-    delete m_connectSection.data();
+
+    // The old content is retired (step A, A2): a button of it may be on the stack
+    PDFAppPageRebuild::retireWidget(m_columns.data());
+    PDFAppPageRebuild::retireWidget(m_connectSection.data());
+    m_columns = nullptr;
+    m_connectSection = nullptr;
     buildContent();
     m_columns->show();
     m_connectSection->show();
@@ -545,7 +550,7 @@ void PDFAppAiPage::rebuild()
 void PDFAppAiPage::changeEvent(QEvent* event)
 {
     BaseClass::changeEvent(event);
-    if (event->type() == QEvent::LanguageChange && m_columns)
+    if (event->type() == QEvent::LanguageChange && m_columns && !PDFDeferredDeletion::isRetired(this))
     {
         rebuild();
     }
@@ -1698,7 +1703,10 @@ void PDFAppAiPage::rebuildSetupCard()
     QPointer<QWidget> oldContent = m_setupContent;
     m_variantChips.clear();
     m_codeBoxes.clear();
-    delete m_variantGroup.data();
+
+    // The group of the old chips: retired with them (its signal may be on the stack)
+    PDFDeferredDeletion::retire(m_variantGroup.data());
+    m_variantGroup = nullptr;
 
     const PDFAppMcpSetup display = PDFAppMcpClientSetup::createForDisplay(m_setupClient, getShownAddress(), getShownToken());
     const PDFAppMcpSetup full = getSetup();
@@ -1709,9 +1717,8 @@ void PDFAppAiPage::rebuildSetupCard()
     m_setupStackLayout->setCurrentWidget(content);
     if (oldContent)
     {
-        oldContent->hide();
         m_setupStackLayout->removeWidget(oldContent);
-        oldContent->deleteLater();
+        PDFDeferredDeletion::retire(oldContent.data());
     }
 
     // In the new content (the old one with the same names is deleted later)
@@ -2263,6 +2270,7 @@ bool PDFAppAiPage::openNewTokenDialog()
     }
 
     PDFAppAiNewTokenDialog* dialog = new PDFAppAiNewTokenDialog(window());
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     PDFAppMainWindow::prepareDialog(dialog, this);
     QStringList names;

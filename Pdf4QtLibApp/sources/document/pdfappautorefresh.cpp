@@ -169,6 +169,7 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
 
 PDFAppAutoRefresh::PDFAppAutoRefresh(PDFAppDocumentTab* tab, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_tab(tab),
     m_document(tab ? tab->getDocument() : nullptr)
 {
@@ -192,8 +193,8 @@ PDFAppAutoRefresh::PDFAppAutoRefresh(PDFAppDocumentTab* tab, QObject* parent) :
 
     if (m_document)
     {
-        connect(m_document, &PDFAppDocument::stateChanged, this, &PDFAppAutoRefresh::onDocumentStateChanged);
-        connect(m_document, &PDFAppDocument::fileChanged, this, &PDFAppAutoRefresh::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppAutoRefresh::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::fileChanged, this, &PDFAppAutoRefresh::onDocumentStateChanged);
     }
 
     updateWatchedPath();
@@ -207,6 +208,20 @@ PDFAppAutoRefresh::~PDFAppAutoRefresh()
         m_watcher->disconnect(this);
     }
     closeDialog();
+}
+
+void PDFAppAutoRefresh::retire()
+{
+    // The watch of the file system ends now (not with the later deletion); a running worker keeps its own data, its
+    // result is not delivered. The question goes with the refresh (setOwner), the timers stop by retire.
+    if (m_fileWatcher && !m_fileWatcher->files().isEmpty())
+    {
+        m_fileWatcher->removePaths(m_fileWatcher->files());
+    }
+    if (m_watcher)
+    {
+        m_watcher->disconnect(this);
+    }
 }
 
 PDFMessageBox* PDFAppAutoRefresh::getDialog() const
@@ -522,6 +537,7 @@ void PDFAppAutoRefresh::showUnsavedDialog(const PDFAppAutoRefreshReader::Result&
 
     m_dialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 

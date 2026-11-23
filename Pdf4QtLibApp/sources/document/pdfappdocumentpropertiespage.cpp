@@ -38,6 +38,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -154,7 +155,7 @@ public:
         m_radius(radius)
     {
         setObjectName(QStringLiteral("metadataCodeBox"));
-        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+        PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
     }
 
 protected:
@@ -253,7 +254,7 @@ PDFAppDocumentPropertiesBar::PDFAppDocumentPropertiesBar(QWidget* parent) :
 {
     setObjectName(QStringLiteral("propertiesBar"));
     setFixedHeight(HEIGHT);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentPropertiesBar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentPropertiesBar::update));
 }
 
 PDFAppDocumentPropertiesBar::~PDFAppDocumentPropertiesBar() = default;
@@ -284,19 +285,21 @@ PDFAppDocumentPropertiesPage::PDFAppDocumentPropertiesPage(PDFAppContext* contex
         }
     }
 
+    // A child (a value member has no parent otherwise): retire stops it with the page (step A)
+    m_rebuildTimer.setParent(this);
     m_rebuildTimer.setSingleShot(true);
     m_rebuildTimer.setInterval(0);
     connect(&m_rebuildTimer, &QTimer::timeout, this, &PDFAppDocumentPropertiesPage::onRebuildTimeout);
 
     if (m_document)
     {
-        connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppDocumentPropertiesPage::onDocumentChanged);
-        connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
-        connect(m_document.data(), &PDFAppDocument::lockChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
-        connect(m_document.data(), &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
-        connect(m_document.data(), &PDFAppDocument::operationsChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppDocumentPropertiesPage::onDocumentChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::lockChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(m_document.data(), &PDFAppDocument::operationsChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentPropertiesPage::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentPropertiesPage::onThemeChanged);
 
     buildSkeleton();
 }
@@ -304,6 +307,21 @@ PDFAppDocumentPropertiesPage::PDFAppDocumentPropertiesPage(PDFAppContext* contex
 PDFAppDocumentPropertiesPage::~PDFAppDocumentPropertiesPage()
 {
     // A running scan of the fonts ends by itself, its result is dropped
+    if (m_fontScanCancel)
+    {
+        m_fontScanCancel->store(true);
+    }
+    if (m_fontWatcher)
+    {
+        m_fontWatcher->disconnect(this);
+    }
+}
+
+void PDFAppDocumentPropertiesPage::retire()
+{
+    BaseClass::retire();
+
+    // The worker ends by itself (the cancellation), nobody waits; the page emits nothing
     if (m_fontScanCancel)
     {
         m_fontScanCancel->store(true);

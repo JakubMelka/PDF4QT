@@ -1068,14 +1068,14 @@ void AppToolBlankTest::deletionInEachState()
 
             if (isWindow)
             {
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 AppToolOwnTabFixture::settle();
                 QVERIFY(!tab);
                 QVERIFY(!panel);
                 continue;
             }
 
-            delete tab.data();
+            pdftest::AppDocumentFixture::deleteNow(tab.data());
             AppToolOwnTabFixture::settle();
             QVERIFY(!panel);
             QVERIFY(fixture.window);

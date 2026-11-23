@@ -109,8 +109,12 @@ void PDFAppSponsorPage::rebuild()
     m_highlightCards.clear();
     m_linkRows.clear();
     m_priorityRows.clear();
-    delete m_hero.data();
-    delete m_columns.data();
+    // The old content is retired (step A, A2): the slot of a link or a button may be on
+    // the stack; it leaves the layout now and is deleted later
+    PDFAppPageRebuild::retireWidget(m_hero.data());
+    PDFAppPageRebuild::retireWidget(m_columns.data());
+    m_hero = nullptr;
+    m_columns = nullptr;
     buildContent();
     if (m_hero)
     {

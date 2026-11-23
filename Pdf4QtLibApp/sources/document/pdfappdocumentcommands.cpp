@@ -144,10 +144,19 @@ QSet<QString> PDFAppDocumentCommandTable::createSet(PDFAppDocumentPackage packag
 
 PDFAppDocumentCommandHandler::PDFAppDocumentCommandHandler(PDFAppDocumentPackage package, PDFAppDocumentTab* tab) :
     BaseClass(tab),
+    PDFRetirable(this),
     m_package(package),
     m_tab(tab)
 {
 
+}
+
+void PDFAppDocumentCommandHandler::retire()
+{
+    // A handler is retired with its tab. The handler itself has nothing outside the tab: the work outside of its
+    // parts ends in their own hooks (the search, the text index, the signatures, the speech, the print, the auto
+    // refresh, the actions - each PDFRetirable, called by the same retire), their dialogs and popups parented to the
+    // window go with them (setOwner). The destructor of the tab deletes the handlers later, as before.
 }
 
 PDFAppDocumentCommandHandler::~PDFAppDocumentCommandHandler() = default;

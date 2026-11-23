@@ -40,6 +40,7 @@
 #include "pdfappsysteminfo.h"
 #include "pdfapplog.h"
 #include "pdfrepositoryhelper.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfdatabase.h"
 #include "pdfmcpcatalog.h"
@@ -680,14 +681,14 @@ public:
         // the host reports the cancellation, nothing asks the call in intervals
         if (host)
         {
-            connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpOpenWaiter::onCallCanceled);
+            PDFDeferredDeletion::connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpOpenWaiter::onCallCanceled);
         }
 
         PDFAppContext* context = host ? host->getContext() : nullptr;
         m_registry = context ? context->getDocumentRegistry() : nullptr;
         if (m_registry)
         {
-            connect(m_registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMcpOpenWaiter::onDocumentAdded);
+            PDFDeferredDeletion::connect(m_registry.data(), &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMcpOpenWaiter::onDocumentAdded);
             attach(m_registry->findByCanonicalPath(m_canonicalPath));
         }
 
@@ -695,7 +696,7 @@ public:
         // call ends at once instead of after the password timeout (UnitTestsAppMcpLifetime)
         if (PDFAppMainWindow* window = host ? host->getResolver().getWindow() : nullptr)
         {
-            connect(window, &QObject::destroyed, this, &PDFAppMcpOpenWaiter::onWindowDestroyed);
+            PDFDeferredDeletion::connect(window, &QObject::destroyed, this, &PDFAppMcpOpenWaiter::onWindowDestroyed);
         }
     }
 
@@ -708,8 +709,21 @@ public:
 
         m_document = document;
         m_hasDocument = true;
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppMcpOpenWaiter::check);
-        connect(document, &QObject::destroyed, this, &PDFAppMcpOpenWaiter::onDocumentDestroyed);
+
+        // A document closed already (its tab retired): its signals reach nobody any more
+        if (PDFDeferredDeletion::isRetired(document))
+        {
+            onDocumentAboutToBeDeleted();
+            return;
+        }
+
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppMcpOpenWaiter::check);
+        PDFDeferredDeletion::connect(document, &QObject::destroyed, this, &PDFAppMcpOpenWaiter::onDocumentDestroyed);
+
+        // The tab may be closed from inside the emission of stateChanged (a failed load closes its
+        // tab): retire cuts the rest of that emission, so the state is read when the document retires
+        // (step A, lesson 1)
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpOpenWaiter::onDocumentAboutToBeDeleted);
         check();
     }
 
@@ -753,6 +767,16 @@ private:
     {
         // The slot of destroyed only forgets the document
         end(nullptr, false);
+    }
+
+    void onDocumentAboutToBeDeleted()
+    {
+        // Retired: the document is alive and inert, its last state is read (Ready or Failed
+        // answers as check does, any other state is a closed tab). Deleted without retire (the
+        // fallback emission from the destructor): the QPointer is cleared, only forget it.
+        PDFAppDocument* document = m_document;
+        const bool isAnswered = document && (document->getState() == PDFAppDocumentState::Ready || document->getState() == PDFAppDocumentState::Failed);
+        end(isAnswered ? document : nullptr, false);
     }
 
     void onWindowDestroyed()

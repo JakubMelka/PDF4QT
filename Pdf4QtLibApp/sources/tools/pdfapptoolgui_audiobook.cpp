@@ -39,6 +39,7 @@
 #include "pdfdocumenttoolshell.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttool_audiobook.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -88,6 +89,19 @@ public:
     static QString name(const char* parameter)
     {
         return QString::fromLatin1(parameter);
+    }
+
+    /// The tool of \p gui has ended (step A): the GUI is retired (its page, tab or shell closed) or its shell is
+    /// closed already (the page left by a slot of a signal of the GUI, the GUI retired later with the page). Such a
+    /// GUI opens no menu and no question any more.
+    static bool isToolEnded(const PDFAppToolGUIAudioBook* gui)
+    {
+        if (PDFDeferredDeletion::isRetired(gui))
+        {
+            return true;
+        }
+        const PDFDocumentToolShell* shell = gui->getShell();
+        return !shell || shell->getState() == PDFDocumentToolShell::State::Closed;
     }
 
     /// Property of a row of a menu: its identifier
@@ -1065,10 +1079,26 @@ PDFAppToolGUIAudioBook::PDFAppToolGUIAudioBook(QObject* parent) :
     m_commitTimer->setSingleShot(true);
     m_commitTimer->setInterval(PDFAppToolGUIAudioBookHelper::COMMIT_DELAY);
     connect(m_commitTimer.data(), &QTimer::timeout, this, &PDFAppToolGUIAudioBook::commitEditedText);
+    // The edited text is not lost when the tool closes before the rest ends (retire fires the timer)
+    PDFDeferredDeletion::setFlushOnRetire(m_commitTimer.data());
     m_selectionTimer = new QTimer(this);
     m_selectionTimer->setSingleShot(true);
     m_selectionTimer->setInterval(0);
     connect(m_selectionTimer.data(), &QTimer::timeout, this, &PDFAppToolGUIAudioBook::applyListSelection);
+}
+
+void PDFAppToolGUIAudioBook::retire()
+{
+    BaseClass::retire();
+
+    // A running job ends by itself, its result goes nowhere; the sample is silent at once (its signals reach this
+    // GUI no more - the hook emits nothing of the GUI)
+    cancelStreamJob();
+    if (PDFAppSpeechEngine* engine = m_sampleEngine.data())
+    {
+        engine->disconnect(this);
+        engine->stop();
+    }
 }
 
 PDFAppToolGUIAudioBook::~PDFAppToolGUIAudioBook()
@@ -1488,7 +1518,7 @@ QWidget* PDFAppToolGUIAudioBook::createCanvasPage(QWidget* parent)
     m_canvas->getPicture()->setView(view);
     if (view && m_connectedView != view)
     {
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIAudioBook::onDisplayedPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIAudioBook::onDisplayedPageChanged);
         m_connectedView = view;
     }
 
@@ -2005,7 +2035,7 @@ QMenu* PDFAppToolGUIAudioBook::getContextMenu() const
 
 void PDFAppToolGUIAudioBook::onListContextMenuRequested(const QPoint& position)
 {
-    if (!m_listView || !m_itemModel || m_itemModel->getItemCount() == 0)
+    if (!m_listView || !m_itemModel || m_itemModel->getItemCount() == 0 || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
     {
         return;
     }
@@ -2017,10 +2047,11 @@ void PDFAppToolGUIAudioBook::onListContextMenuRequested(const QPoint& position)
         const size_t itemIndex = m_itemModel->getItemIndex(index.row());
         if (!m_itemModel->getSelection().count(itemIndex))
         {
-            // The selection updates the list, the page and the panel (their signals run code)
+            // The selection updates the list, the page and the panel (their signals run code, which may close the
+            // tool: no menu of an ended tool)
             QPointer<PDFAppToolGUIAudioBook> guard(this);
             selectItems({ itemIndex });
-            if (!guard || !m_listView)
+            if (!guard || !m_listView || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
             {
                 return;
             }
@@ -2331,6 +2362,8 @@ void PDFAppToolGUIAudioBook::openSelectPopover(PDFAppAudioBookSelectPopover::Kin
 
     // new + QPointer; deleted later, when it closes
     m_selectPopover = new PDFAppAudioBookSelectPopover(kind, host ? host->getView() : nullptr, host ? host->getCanvasArea() : anchor);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(m_selectPopover.data(), this);
     connect(m_selectPopover.data(), &PDFAppAudioBookSelectPopover::textChanged, this, &PDFAppToolGUIAudioBook::onSelectPopoverTextChanged);
     connect(m_selectPopover.data(), &PDFAppAudioBookSelectPopover::selectRequested, this, &PDFAppToolGUIAudioBook::onSelectPopoverSelected);
     connect(m_selectPopover.data(), &PDFAppDocumentPanelPopup::closed, this, &PDFAppToolGUIAudioBook::onSelectPopoverClosed);
@@ -2538,14 +2571,15 @@ void PDFAppToolGUIAudioBook::rebuildStream()
 
 void PDFAppToolGUIAudioBook::onRebuildClicked()
 {
-    if (!m_itemModel)
+    // Also from the event loop (a new Order with changes): an ended tool asks nothing
+    if (!m_itemModel || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
     {
         return;
     }
 
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard)
+    if (!guard || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
     {
         return;
     }
@@ -2567,6 +2601,8 @@ void PDFAppToolGUIAudioBook::onRebuildClicked()
     PDFAppToolHost* host = getHost();
     QWidget* parent = host ? host->getCanvasArea() : nullptr;
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("Rebuild the text stream?"), tr("The text is read from the document again."), QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(box, this);
     box->setObjectName(QStringLiteral("audioBookRebuildQuestion"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     box->setCardWidth(480);
@@ -2619,6 +2655,8 @@ void PDFAppToolGUIAudioBook::showNoVoiceMessage()
     PDFAppToolHost* host = getHost();
     QWidget* parent = host ? host->getCanvasArea() : nullptr;
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("No voice is available"), tr("An audio book needs a text-to-speech voice of the system."), QDialogButtonBox::NoButton, parent);
+    // A dialog of the window owned by its creator (step A): retire closes it unanswered
+    PDFDeferredDeletion::setOwner(box, this);
     box->setObjectName(QStringLiteral("audioBookNoVoice"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     box->setCardWidth(460);

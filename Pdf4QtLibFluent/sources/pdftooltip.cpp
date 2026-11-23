@@ -22,6 +22,7 @@
 
 #include "pdftooltip.h"
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfwidgetstyleimpl.h"
 
@@ -45,6 +46,29 @@
 namespace pdf
 {
 
+/// The tooltip of a widget is a window outside of the widget: the token (a child of the widget,
+/// created at its first tooltip and kept) hides the tooltip, when the widget is retired or
+/// deleted, unless the tooltip belongs to another widget meanwhile
+class PDFToolTipToken : public PDFLifetimeToken
+{
+public:
+    explicit PDFToolTipToken(QWidget* widget);
+    virtual ~PDFToolTipToken() override;
+
+    /// Name of the token (it has no meta object of its own)
+    static constexpr const char* OBJECT_NAME = "pdf4qt_tooltip_token";
+
+    /// The widget has its token (created, when it has none)
+    static void ensure(QWidget* widget);
+
+protected:
+    virtual void release() override;
+
+private:
+    /// The widget, only compared (the token is released in the destruction of the widget too)
+    const QObject* m_widget = nullptr;
+};
+
 /// Window of the tooltip
 class PDFToolTipWindow : public QWidget
 {
@@ -59,6 +83,8 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setObjectName(QStringLiteral("pdf4qt_tooltip"));
 
+        // A member, made a child: retire (step A) stops it with the window
+        m_hideTimer.setParent(this);
         m_hideTimer.setSingleShot(true);
         connect(&m_hideTimer, &QTimer::timeout, this, &PDFToolTipWindow::hideTip);
     }
@@ -84,6 +110,11 @@ public:
         m_shortcut = shortcut;
         m_description = description;
         m_widget = widget;
+        m_owner = widget;
+        if (widget)
+        {
+            PDFToolTipToken::ensure(widget);
+        }
 
         // The window is prepared by the style before its size is known
         ensurePolished();
@@ -120,7 +151,8 @@ public:
 
         if (!isVisible())
         {
-            qApp->installEventFilter(this);
+            // A filter of the application: the gate of the retired objects stays in front of it
+            PDFDeferredDeletion::installEventFilter(qApp, this);
             show();
         }
 
@@ -148,7 +180,12 @@ public:
         }
 
         m_widget = nullptr;
+        m_owner = nullptr;
     }
+
+    /// The widget of the shown tooltip (only compared: it is cleared by hideTip, not by the
+    /// deletion of the widget)
+    const QObject* getOwner() const { return m_owner; }
 
     virtual bool eventFilter(QObject* watched, QEvent* event) override
     {
@@ -398,6 +435,7 @@ private:
     QString m_shortcut;
     QString m_description;
     QPointer<QWidget> m_widget;
+    const QObject* m_owner = nullptr;
     QTimer m_hideTimer;
 };
 
@@ -412,10 +450,10 @@ public:
     {
         if (!s_window)
         {
+            // A window of the process without an owner (never retired): it lives until the end
+            // of the application
             s_window = new PDFToolTipWindow();
-
-            // The window must not outlive the application
-            QObject::connect(qApp, &QCoreApplication::aboutToQuit, s_window.data(), &QObject::deleteLater);
+            PDFDeferredDeletion::connect(qApp, &QCoreApplication::aboutToQuit, s_window.data(), &QObject::deleteLater);
         }
 
         return s_window;
@@ -424,6 +462,36 @@ public:
 
 QPointer<PDFToolTipWindow> PDFToolTipHelper::s_window;
 
+PDFToolTipToken::PDFToolTipToken(QWidget* widget) :
+    PDFLifetimeToken(widget),
+    m_widget(widget)
+{
+    setObjectName(QLatin1String(OBJECT_NAME));
+}
+
+PDFToolTipToken::~PDFToolTipToken()
+{
+    releaseToken();
+}
+
+void PDFToolTipToken::ensure(QWidget* widget)
+{
+    if (!widget->findChild<PDFLifetimeToken*>(QLatin1String(OBJECT_NAME), Qt::FindDirectChildrenOnly))
+    {
+        new PDFToolTipToken(widget);
+    }
+}
+
+void PDFToolTipToken::release()
+{
+    // Called also from the destruction of the widget: the widget is only compared
+    PDFToolTipWindow* window = PDFToolTipHelper::s_window.data();
+    if (window && window->getOwner() == m_widget)
+    {
+        window->hideTip();
+    }
+}
+
 void PDFToolTip::showText(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget)
 {
     showText(globalPosition, title, shortcut, description, widget, Style::Default);
@@ -431,7 +499,8 @@ void PDFToolTip::showText(const QPoint& globalPosition, const QString& title, co
 
 void PDFToolTip::showText(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget, Style style)
 {
-    if (title.isEmpty() || !qobject_cast<QApplication*>(QCoreApplication::instance()))
+    // A retired widget shows nothing (it is inert until its deletion)
+    if (title.isEmpty() || !qobject_cast<QApplication*>(QCoreApplication::instance()) || (widget && PDFDeferredDeletion::isRetired(widget)))
     {
         hideText();
         return;

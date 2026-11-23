@@ -23,6 +23,7 @@
 #include "pdfappreportpreview.h"
 #include "pdfapptoolvalueformatter.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfpainterutils.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -79,7 +80,7 @@ PDFAppReportPreview::PDFAppReportPreview(QWidget* parent) :
 {
     setObjectName(QStringLiteral("reportPreview"));
     setAccessibleName(tr("Preview of the report"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppReportPreview::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppReportPreview::onThemeChanged);
 }
 
 PDFAppReportPreview::~PDFAppReportPreview() = default;

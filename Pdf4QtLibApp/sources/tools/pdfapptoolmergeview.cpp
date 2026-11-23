@@ -31,6 +31,7 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
@@ -320,7 +321,7 @@ void PDFAppToolMergePageView::setModel(QAbstractItemModel* itemModel)
     m_mergeModel = qobject_cast<PDFAppToolGroupedPageModel*>(itemModel);
     if (m_mergeModel)
     {
-        connect(m_mergeModel.data(), &PDFAppToolGroupedPageModel::groupsChanged, this, &PDFAppToolMergePageView::onGroupsChanged);
+        PDFDeferredDeletion::connect(m_mergeModel.data(), &PDFAppToolGroupedPageModel::groupsChanged, this, &PDFAppToolMergePageView::onGroupsChanged);
     }
     layoutGroups();
 }

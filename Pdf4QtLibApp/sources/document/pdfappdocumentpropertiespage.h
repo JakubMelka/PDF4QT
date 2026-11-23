@@ -147,6 +147,11 @@ Q_SIGNALS:
     /// A scan of the fonts has finished
     void fontsScanned();
 
+protected:
+    /// The hook of PDFDeferredDeletion::retire (PDFAppPage): a running scan of the fonts is canceled at once, its
+    /// result is dropped (as by the destructor)
+    virtual void retire() override;
+
 private:
     void buildSkeleton();
     void scheduleRebuild();

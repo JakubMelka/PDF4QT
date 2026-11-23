@@ -28,6 +28,7 @@
 #include "pdfapproute.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QPointer>
 #include <QUrl>
@@ -89,7 +90,10 @@ enum class PDFAppLeaveResult
 /// nothing else. A page never calls another page: it asks for a route by the
 /// signal navigationRequested (the navigator may delete the page then - the
 /// page must not touch itself after the emission, see requestNavigation).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppPage : public QWidget
+///
+/// Deferred deletion (step A): a page is closed only by PDFDeferredDeletion::retire (with its tab, or by the
+/// navigation, which replaces it); its hook retire() ends the work of the page outside its subtree.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppPage : public QWidget, public PDFRetirable
 {
     Q_OBJECT
 
@@ -174,6 +178,11 @@ public:
     /// A question of the page waits for the answer of the user (the question of the unsaved work of a tool, the
     /// question of its run): an assistant changes no tab meanwhile (RESCCODE L6). Default: false.
     virtual bool isQuestionOpen() const;
+
+    /// The page is closed: retired (step A), or replaced by the navigation of its tab and waiting for its retire from
+    /// the event loop (PDFAppTab::setPage; the rest of the emission, which replaced it, may still run its slots). A
+    /// closed page asks nothing and opens nothing.
+    bool isClosed() const;
 
     /// A navigation of the tab to \p target leaves the page (requestLeave would end what it shows); false = the
     /// page stays (the route of the page itself). An assistant's navigation, which would leave a page with
@@ -267,6 +276,14 @@ Q_SIGNALS:
     void aboutToBeDestroyed();
 
 protected:
+    /// The hook of PDFDeferredDeletion::retire (step 4 of retire, PDFRetirable): the page ends what it has outside
+    /// its subtree - popups parented to the window (setOwner), pending values written (setFlushOnRetire). It never
+    /// moves an object out of its subtree: what the tab lent to the page (the storage banner) is taken back by the tab
+    /// before the page is retired (PDFAppTab::setPage -> onPageChanged); an object moved out by the hook would stay
+    /// whole and would never be deleted. It emits none of the page's signals, opens no dialog and waits for nothing.
+    /// The base has nothing outside its subtree; an override calls BaseClass::retire() first.
+    virtual void retire() override;
+
     /// Emits navigationRequested. The page may be deleted by the navigation:
     /// \returns false, if the page does not exist any more (do not touch members then)
     bool requestNavigation(const PDFAppRoute& route, PDFAppNavigationMode mode = PDFAppNavigationMode::Push);

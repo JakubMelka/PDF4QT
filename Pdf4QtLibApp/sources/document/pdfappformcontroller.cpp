@@ -32,6 +32,7 @@
 
 #include "pdfaction.h"
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
@@ -150,10 +151,10 @@ PDFAppFormController::PDFAppFormController(PDFAppDocumentView* view) :
             m_drawWidget = pdfWidget->getDrawWidget()->getWidget();
         }
 
-        connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppFormController::onInfoBarActionTriggered);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppFormController::onInfoBarActionTriggered);
         if (PDFAppAnnotationController* annotationController = view->getAnnotationController())
         {
-            connect(annotationController, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppFormController::onEditingAllowedChanged);
+            PDFDeferredDeletion::connect(annotationController, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppFormController::onEditingAllowedChanged);
         }
     }
 
@@ -187,14 +188,15 @@ PDFAppFormController::~PDFAppFormController()
 void PDFAppFormController::installFilters()
 {
     // Input of the canvas (focus changes of the editors, the keyboard, the loss of
-    // the focus) and the language of the view (texts of the info bars)
+    // the focus) and the language of the view (texts of the info bars); both are outside
+    // the controller (retire of the controller removes the filters)
     if (m_drawWidget)
     {
-        m_drawWidget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_drawWidget.data(), this);
     }
     if (m_view)
     {
-        m_view->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_view.data(), this);
     }
 }
 
@@ -240,9 +242,9 @@ void PDFAppFormController::setDocument(PDFAppDocument* document)
 
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppFormController::onDocumentChanged);
-        connect(document, &PDFAppDocument::stateChanged, this, &PDFAppFormController::onDocumentStateChanged);
-        connect(document, &PDFAppDocument::pendingEditsCommitRequested, this, &PDFAppFormController::onPendingEditsCommitRequested);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppFormController::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppFormController::onDocumentStateChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::pendingEditsCommitRequested, this, &PDFAppFormController::onPendingEditsCommitRequested);
     }
     scheduleUpdate();
 }

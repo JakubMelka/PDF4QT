@@ -793,6 +793,7 @@ PDFAppPrintJob::Result PDFAppPrintJob::run(Data data)
 
 PDFAppPrintController::PDFAppPrintController(PDFAppDocumentTab* tab, QObject* parent) :
     BaseClass(parent),
+    PDFRetirable(this),
     m_tab(tab),
     m_document(tab ? tab->getDocument() : nullptr)
 {
@@ -802,7 +803,21 @@ PDFAppPrintController::PDFAppPrintController(PDFAppDocumentTab* tab, QObject* pa
 
     if (PDFAppDocumentView* view = tab ? tab->getView() : nullptr)
     {
-        connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppPrintController::onInfoBarActionTriggered);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppPrintController::onInfoBarActionTriggered);
+    }
+}
+
+void PDFAppPrintController::retire()
+{
+    // The printer is outside: the job stops after its page now, not with the later deletion; the operation of the
+    // document ends with the destructor (its end announced now would run the slots of the tab in the retire)
+    if (m_state)
+    {
+        m_state->isCancelRequested.store(true);
+    }
+    if (m_watcher)
+    {
+        m_watcher->disconnect(this);
     }
 }
 
@@ -919,6 +934,7 @@ void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPag
     connect(dialog, &QDialog::finished, this, &PDFAppPrintController::onDialogFinished);
     m_dialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
     Q_EMIT stateChanged();
 }
@@ -1084,7 +1100,7 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
         return;
     }
     m_operation = operation;
-    connect(m_operation, &PDFAppDocumentOperation::cancelRequested, this, &PDFAppPrintController::stop);
+    PDFDeferredDeletion::connect(m_operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFAppPrintController::stop);
 
     QFutureWatcher<PDFAppPrintJob::Result>* watcher = new QFutureWatcher<PDFAppPrintJob::Result>(this);
     m_watcher = watcher;
@@ -1274,6 +1290,7 @@ void PDFAppPrintController::showErrorDialog(const PDFAppPrintJob::Result& result
 
     m_errorDialog = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
     Q_EMIT stateChanged();
 }

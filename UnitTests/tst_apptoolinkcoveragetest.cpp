@@ -317,7 +317,7 @@ void AppToolInkCoverageTest::runToolOwnsTheCollector()
     // A runner with the environment of the run: its run is measured by the tool of the run, the two pages go to
     // the collector (the live rows 478:11954 and the pages after Stop 478:14194 read it)
     QPointer<pdf::PDFDocumentToolRunner> runner = new pdf::PDFDocumentToolRunner(document, catalogTool, document);
-    const QScopeGuard deleteRunner([&runner]() { delete runner.data(); });
+    const QScopeGuard deleteRunner([&runner]() { pdftest::AppDocumentFixture::deleteNow(runner.data()); });
     runner->setEnvironment(environment);
     QSignalSpy finished(runner.data(), &pdf::PDFDocumentToolRunner::runFinished);
     QVERIFY(runner->run(QVariantMap()));

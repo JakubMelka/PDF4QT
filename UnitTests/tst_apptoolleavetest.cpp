@@ -602,6 +602,7 @@ private slots:
     void lockRedactRemoveNewMarks();
     void tabCloseMeasureSaveAndClose();
     void tabCloseCanceledKeepsAppliedAction();
+    void tabCloseFromDocumentChangeAppliesActionLater();
     void incompleteQuitKeepMeasuring();
     void incompleteQuitDiscardAndClose();
     void incompleteTabCloseKeepMeasuring();
@@ -1340,7 +1341,11 @@ void AppToolLeaveTest::waitTabDeleted()
     pdftest::NestedEventLoopGuard loopGuard;
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
     QVERIFY(H::question(shell));
-    delete tabGuard.data();
+    {
+        // A deliberate synchronous delete of the tab (step A: the detector is quiet in the scope)
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete tabGuard.data();
+    }
     AppToolShellFixture::settle();
     QVERIFY(!tabGuard);
     QVERIFY(!shell);
@@ -1643,6 +1648,70 @@ void AppToolLeaveTest::tabCloseMeasureSaveAndClose()
     pdf::PDFAppDocumentTab* reopened = fixture.open(filePath);
     QVERIFY(reopened && AppToolShellFixture::waitFor([reopened]() { return reopened->getDocument() && reopened->getDocument()->isReady(); }));
     QCOMPARE(H::measureAnnotationCount(reopened->getDocument()), size_t(1));
+}
+
+void AppToolLeaveTest::tabCloseFromDocumentChangeAppliesActionLater()
+{
+    // Step A fix wave: the close of the tab requested from a slot of a change of the document (before the tool has
+    // seen the change - a new redaction mark) and answered there by Remove New Marks: the choice is applied from the
+    // event loop, once, after the tool has seen the new mark - both new marks go in one change and the tab closes
+    const LeaveToolCase tool = H::cases()[QStringLiteral("redact")];
+    AppToolOwnTabFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Leave.pdf"), tool.pageCount));
+    QVERIFY(tab);
+    QVERIFY(AppToolShellFixture::waitFor([&tab]() { return !tab || (tab->getDocument() && tab->getDocument()->isReady()); }));
+    QVERIFY(tab);
+    AppToolShellFixture::settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    // Connected before the tool: this slot runs before the shell and the GUI see the change
+    bool isArmed = false;
+    bool isAnswered = false;
+    std::vector<size_t> annotationsAfterAnswer;
+    QObject::connect(document, &pdf::PDFAppDocument::documentChanged, document, [&]()
+    {
+        if (isAnswered)
+        {
+            annotationsAfterAnswer.push_back(H::annotationCount(document));
+            return;
+        }
+        if (!isArmed || !tab)
+        {
+            return;
+        }
+        isArmed = false;
+        fixture.window->closeTab(tab);
+        QPointer<PDFDocumentToolShell> current = AppToolShellFixture::getShell(tab);
+        QPushButton* remove = H::button(H::question(current), QStringLiteral("Remove New Marks"));
+        if (remove)
+        {
+            isAnswered = true;
+            remove->click();
+        }
+    });
+
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, tool.toolId);
+    AppToolShellFixture::settle();
+    QVERIFY(shell);
+    QVERIFY(tool.makeWork(fixture, shell));
+    pdf::PDFAppToolGUIRedact* gui = qobject_cast<pdf::PDFAppToolGUIRedact*>(shell->getGUI());
+    QVERIFY(gui);
+
+    isArmed = true;
+    QVERIFY(gui->markPages({ 2 }));
+    QVERIFY(isAnswered);
+    QVERIFY(annotationsAfterAnswer.empty());
+    AppToolShellFixture::settle();
+
+    QCOMPARE(annotationsAfterAnswer, std::vector<size_t>({ size_t(0) }));
+    QCOMPARE(H::countShownQuestions(), 0);
+
+    // The close goes on: the question of the unsaved changes of the document (Don't Save), the tab closes
+    QPointer<pdf::PDFAppDocumentChoiceDialog> unsaved = AppToolShellFixture::waitForWidget<pdf::PDFAppDocumentChoiceDialog>();
+    QVERIFY(unsaved && unsaved->getChoiceButton(pdf::PDFAppDocumentChoice::Discard));
+    unsaved->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
+    AppToolShellFixture::settle();
+    QVERIFY(!tab);
 }
 
 void AppToolLeaveTest::tabCloseCanceledKeepsAppliedAction()

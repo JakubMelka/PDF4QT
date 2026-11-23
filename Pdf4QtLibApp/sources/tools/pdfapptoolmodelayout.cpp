@@ -28,6 +28,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappviewstate.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QBoxLayout>
@@ -96,7 +97,12 @@ PDFAppToolModeLayout::PDFAppToolModeLayout(QWidget* host, QBoxLayout* hostLayout
     m_splitter->addWidget(m_canvasArea);
 }
 
-PDFAppToolModeLayout::~PDFAppToolModeLayout() = default;
+PDFAppToolModeLayout::~PDFAppToolModeLayout()
+{
+    // The layout dies before its splitter (an earlier child of the host): a part given back by hide only goes to its
+    // former parent now, it does not die with the splitter
+    releasePendingParts();
+}
 
 PDFAppDocumentStatusBar* PDFAppToolModeLayout::createStatusBar(QBoxLayout* hostLayout)
 {
@@ -143,9 +149,23 @@ void PDFAppToolModeLayout::watchPart(Part& part, QWidget* widget)
 {
     part.widget = widget;
     part.parent = widget ? widget->parentWidget() : nullptr;
+
+    // A part given back by hide only (still in the splitter, releasePart) keeps its former parent
+    for (auto it = m_pendingParts.begin(); widget && it != m_pendingParts.end(); ++it)
+    {
+        if (it->widget.data() == widget)
+        {
+            part.parent = it->parent;
+            m_pendingParts.erase(it);
+            break;
+        }
+    }
+
     if (widget)
     {
-        connect(widget, &QObject::destroyed, this, &PDFAppToolModeLayout::onPartDestroyed);
+        // The part belongs to the shell of a tool (step A: the handle is cut by retire of the layout's host; destroyed
+        // stays, the fallback of a part deleted during the mode)
+        PDFDeferredDeletion::connect(widget, &QObject::destroyed, this, &PDFAppToolModeLayout::onPartDestroyed);
     }
 }
 
@@ -155,10 +175,48 @@ void PDFAppToolModeLayout::releasePart(Part& part)
     {
         widget->disconnect(this);
         widget->hide();
-        widget->setParent(part.parent.data());
+        if (m_splitter && widget->parentWidget() == m_splitter.data())
+        {
+            // QSplitter deletes the handle of a widget, which leaves it, at once (QSplitter::childEvent of
+            // ChildRemoved), and the handle is a child of the splitter: the mode may end inside of a loop of Qt over
+            // the children of the splitter by a copied list of raw pointers (QWidget::event sends LanguageChange to
+            // them, a panel of the sidebar emits a signal from its changeEvent, a slot closes the tool), which would
+            // send the event to the deleted handle next. The part is hidden now and leaves the splitter from the
+            // event loop.
+            m_pendingParts.push_back(part);
+            if (!m_isPendingReleaseQueued)
+            {
+                m_isPendingReleaseQueued = true;
+                QMetaObject::invokeMethod(this, &PDFAppToolModeLayout::releasePendingParts, Qt::QueuedConnection);
+            }
+        }
+        else
+        {
+            widget->setParent(part.parent.data());
+        }
     }
     part.widget = nullptr;
     part.parent = nullptr;
+}
+
+void PDFAppToolModeLayout::releasePendingParts()
+{
+    m_isPendingReleaseQueued = false;
+    std::vector<Part> parts;
+    parts.swap(m_pendingParts);
+    for (const Part& part : parts)
+    {
+        // A deleted part, a part without its former parent and a retired part or parent (deleted later with its
+        // owner, from the event loop) stay hidden in the splitter; a part installed again is no longer in the list
+        QWidget* widget = part.widget.data();
+        QWidget* parent = part.parent.data();
+        if (!widget || !parent || !m_splitter || widget->parentWidget() != m_splitter.data() || PDFDeferredDeletion::isRetired(widget) ||
+            PDFDeferredDeletion::isRetired(parent))
+        {
+            continue;
+        }
+        widget->setParent(parent);
+    }
 }
 
 void PDFAppToolModeLayout::installParts(const PDFAppToolModeParts& parts)
@@ -180,12 +238,24 @@ void PDFAppToolModeLayout::installParts(const PDFAppToolModeParts& parts)
         parts.canvasPage->lower();
     }
 
+    // A shown part resizes the canvas, its view emits (viewChanged): a slot may close the host (its tab) - a retired
+    // host has given the installed parts back already (the mode token of the tool), nothing more enters it
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     if (parts.rightPanel && m_bodyLayout)
     {
         watchPart(m_rightPanel, parts.rightPanel);
         m_bodyLayout->addWidget(parts.rightPanel);
         parts.rightPanel->setFixedWidth(RIGHT_PANEL_WIDTH);
         parts.rightPanel->show();
+    }
+
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
     }
 
     if (parts.leftPanel && m_splitter)
@@ -334,7 +404,9 @@ void PDFAppToolModeLayout::showInfoBar(const PDFAppInfoBarRequest& request)
         }
     }
 
+    // The bar is a child of the canvas area and belongs to this layout (step A: retired by it, or with it)
     PDFAppInfoBar* infoBar = new PDFAppInfoBar(request, m_canvasArea);
+    PDFDeferredDeletion::setOwner(infoBar, this);
     connect(infoBar, &PDFAppInfoBar::actionTriggered, this, &PDFAppToolModeLayout::onInfoBarAction);
     connect(infoBar, &PDFAppInfoBar::closeRequested, this, &PDFAppToolModeLayout::onInfoBarClosed);
     m_infoBars.push_back(request);
@@ -349,12 +421,12 @@ void PDFAppToolModeLayout::hideInfoBar(const QString& id)
     {
         if (m_infoBars[i].id == id)
         {
-            // The bar may be the sender of the signal, which hides it
+            // The bar may be the sender of the signal, which hides it: disconnected from this and hidden now,
+            // retired from the event loop (step A, lesson 1b - the rest of its emission reaches its other receivers)
             if (PDFAppInfoBar* infoBar = m_infoBarWidgets[i].data())
             {
                 infoBar->disconnect(this);
-                infoBar->hide();
-                infoBar->deleteLater();
+                PDFDeferredDeletion::retireLater(infoBar);
             }
             m_infoBars.erase(m_infoBars.begin() + i);
             m_infoBarWidgets.erase(m_infoBarWidgets.begin() + i);

@@ -37,6 +37,7 @@
 #include "pdfappdocumentregistry.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmcpcontroller.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfcomponentpanels.h"
 #include "pdfdocument.h"
@@ -548,9 +549,9 @@ PDFAppMcpDocumentWatcher::PDFAppMcpDocumentWatcher(PDFAppMcpHost* host) :
     PDFAppDocumentRegistry* registry = context ? context->getDocumentRegistry() : nullptr;
     if (registry)
     {
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMcpDocumentWatcher::onDocumentAdded);
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMcpDocumentWatcher::onDocumentRemoved);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppMcpDocumentWatcher::onRegistryDocumentChanged);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppMcpDocumentWatcher::onDocumentAdded);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppMcpDocumentWatcher::onDocumentRemoved);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppMcpDocumentWatcher::onRegistryDocumentChanged);
         for (PDFAppDocument* document : registry->getDocuments())
         {
             connectDocument(document);
@@ -562,7 +563,7 @@ PDFAppMcpDocumentWatcher::PDFAppMcpDocumentWatcher(PDFAppMcpHost* host) :
     // not) is the listing compared with the next change of the documents
     if (host)
     {
-        connect(host, &PDFAppMcpHost::catalogChanged, this, &PDFAppMcpDocumentWatcher::onCatalogChanged);
+        PDFDeferredDeletion::connect(host, &PDFAppMcpHost::catalogChanged, this, &PDFAppMcpDocumentWatcher::onCatalogChanged);
     }
     updateListedKeys();
 }
@@ -607,7 +608,7 @@ void PDFAppMcpDocumentWatcher::connectDocument(PDFAppDocument* document)
 {
     if (document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppMcpDocumentWatcher::onDocumentContentChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppMcpDocumentWatcher::onDocumentContentChanged, Qt::UniqueConnection);
     }
 }
 
@@ -623,7 +624,7 @@ void PDFAppMcpDocumentWatcher::connectWindow()
     if (tabBar)
     {
         m_tabBar = tabBar;
-        connect(tabBar, &QTabBar::currentChanged, this, &PDFAppMcpDocumentWatcher::onCurrentTabChanged);
+        PDFDeferredDeletion::connect(tabBar, &QTabBar::currentChanged, this, &PDFAppMcpDocumentWatcher::onCurrentTabChanged);
     }
 }
 

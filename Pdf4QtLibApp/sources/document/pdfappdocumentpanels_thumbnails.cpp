@@ -706,7 +706,7 @@ PDFAppThumbnailScheduler::PDFAppThumbnailScheduler(PDFAppThumbnailsModel* model,
 
     if (model)
     {
-        connect(model, &PDFAppThumbnailsModel::pictureRequested, this, &PDFAppThumbnailScheduler::onPictureRequested);
+        PDFDeferredDeletion::connect(model, &PDFAppThumbnailsModel::pictureRequested, this, &PDFAppThumbnailScheduler::onPictureRequested);
     }
 }
 
@@ -747,7 +747,7 @@ void PDFAppThumbnailScheduler::setProxy(PDFDrawWidgetProxy* proxy)
 
     if (proxy)
     {
-        connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppThumbnailScheduler::onPageImageChanged);
+        PDFDeferredDeletion::connect(proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppThumbnailScheduler::onPageImageChanged);
         connect(proxy, &QObject::destroyed, this, &PDFAppThumbnailScheduler::onProxyDestroyed);
     }
 }
@@ -1262,13 +1262,13 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
 
     if (document && m_connectedDocument != document)
     {
-        connect(document, &PDFAppDocument::documentChanged, this, &PDFAppThumbnailsPanel::onDocumentChanged);
+        PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppThumbnailsPanel::onDocumentChanged);
         connect(document, &QObject::destroyed, this, &PDFAppThumbnailsPanel::onDocumentDestroyed);
     }
     if (view && m_connectedView != view)
     {
-        connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppThumbnailsPanel::onCurrentPageChanged);
-        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppThumbnailsPanel::onCanvasViewChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppThumbnailsPanel::onCurrentPageChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppThumbnailsPanel::onCanvasViewChanged);
         connect(view, &QObject::destroyed, this, &PDFAppThumbnailsPanel::onConnectedViewDestroyed);
     }
     m_connectedDocument = document;

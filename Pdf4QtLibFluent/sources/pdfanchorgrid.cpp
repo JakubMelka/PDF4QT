@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfanchorgrid.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfreferencepointpicker.h"
 #include "pdfstylepainter.h"
 #include "pdfthememanager.h"
@@ -40,7 +41,7 @@ PDFAnchorGrid::PDFAnchorGrid(QWidget* parent) :
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAnchorGrid::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAnchorGrid::update));
     updateDescription();
 }
 

@@ -1166,8 +1166,8 @@ void PDFAppImagesToPdfToolGUI::connectList()
     {
         const PDFAppToolInputRules rules = getInputRules();
         m_list->setAcceptedInputs(rules.maximum, rules.acceptsPdf, rules.acceptsImages, tr("Images to PDF takes images"));
-        connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppImagesToPdfToolGUI::onListChanged);
-        connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppImagesToPdfToolGUI::onListInputChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppImagesToPdfToolGUI::onListChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppImagesToPdfToolGUI::onListInputChanged);
         connect(m_list.data(), &QObject::destroyed, this, &PDFAppImagesToPdfToolGUI::onListDestroyed);
     }
     initializeValues();
@@ -2393,9 +2393,13 @@ void PDFAppImagesToPdfToolGUI::describeToolbar(PDFAppToolPanelBuilder& builder)
         m_pasteAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
         connect(m_pasteAction.data(), &QAction::triggered, this, &PDFAppImagesToPdfToolGUI::pasteImage);
         m_keyWidget->addAction(m_pasteAction);
+
+        // Children of the key widget owned by the GUI (step A): retire disables them at once
+        PDFDeferredDeletion::setOwner(m_addFilesAction.data(), this);
+        PDFDeferredDeletion::setOwner(m_pasteAction.data(), this);
         m_wasDropAccepted = m_keyWidget->acceptDrops();
         m_keyWidget->setAcceptDrops(true);
-        m_keyWidget->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(m_keyWidget.data(), this);
     }
     updateToolbar();
 }

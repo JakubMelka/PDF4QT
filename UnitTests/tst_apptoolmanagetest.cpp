@@ -847,7 +847,7 @@ void AppToolManageTest::closeQuestionGoesWithGui()
     const auto deleteShell = [&question, &tab](pdf::PDFAppDocumentChoiceDialog* dialog)
     {
         question = dialog;
-        delete tab->getShell();
+        pdftest::AppDocumentFixture::deleteNow(tab->getShell());
     };
     QCOMPARE(H::askClose(tab, gui, QString(), deleteShell), pdf::PDFAppLeaveResult::Refused);
     QVERIFY(!question || !question->isVisible());

@@ -28,6 +28,7 @@
 #include "pdfappwindowfactory.h"
 #include "pdfupdatechecker.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfwidgetstyle.h"
 
 #include <QApplication>
@@ -121,7 +122,14 @@ int main(int argc, char* argv[])
         }
 
         exitCode = application.exec();
-        window.reset();
+        {
+            // The end of the application deletes the window at once - a deliberate synchronous deletion (step A)
+            pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+            window.reset();
+        }
+
+        // The objects retired at the end (deleteLater) go before the context closes: the loop level is 0 here
+        pdf::PDFDeferredDeletion::flush();
     }
 
     pdf::PDFAppLog::uninstall();

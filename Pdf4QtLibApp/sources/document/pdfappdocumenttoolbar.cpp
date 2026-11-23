@@ -125,7 +125,7 @@ public:
 void PDFAppToolbarMenuBar::watchPanel(QWidget* panel, QObject* filter)
 {
     panel->setMouseTracking(true);
-    panel->installEventFilter(filter);
+    PDFDeferredDeletion::installEventFilter(panel, filter);
 }
 
 QToolButton* PDFAppToolbarMenuBar::findHoverTarget(const QWidget* popup, const QEvent* event, const std::vector<QToolButton*>& buttons, const QToolButton* openButton)
@@ -196,7 +196,7 @@ PDFAppToolbarDivider::PDFAppToolbarDivider(Qt::Orientation orientation, int leng
     {
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppToolbarDivider::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppToolbarDivider::update));
 }
 
 QSize PDFAppToolbarDivider::sizeHint() const
@@ -522,12 +522,12 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     rightLayout->addWidget(m_searchField);
     m_layout->addWidget(m_rightGroup);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentToolbar::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentToolbar::update));
     if (view)
     {
-        connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentToolbar::updateState);
-        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentToolbar::onViewChanged);
-        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentToolbar::updateState);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentToolbar::onViewChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
 
         // The tooltips show the shortcuts of the user: the view keeps them and it
         // updates the tooltips after a notification of the database

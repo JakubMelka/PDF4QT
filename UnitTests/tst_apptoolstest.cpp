@@ -27,6 +27,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappnavigator.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfapppagelayout.h"
 #include "pdfapppagenotfound.h"
 #include "pdfapproute.h"
@@ -2204,6 +2205,7 @@ void AppToolsTest::deletionMatrix()
     }
     else
     {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;   // a deliberate synchronous deletion of the test
         delete fixture.window.data();
     }
 
@@ -2253,6 +2255,7 @@ void AppToolsTest::deleteFromOwnSignals()
     auto deleteWindow = [&window, &deletions]()
     {
         ++deletions;
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;   // a deliberate synchronous deletion of the test
         delete window.data();
     };
 
@@ -2585,7 +2588,7 @@ void AppToolsTest::recentTimesFollowClock()
 
     // The window deleted from the tick of the page
     QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-    QObject::connect(page->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, page, [window]() { delete window.data(); });
+    QObject::connect(page->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, page, [window]() { pdf::PDFDeferredDeletion::SynchronousDeletionScope scope; delete window.data(); });
     pdf::PDFAppHomeFormat::setCurrentTimeOverride(now + 4 * 60000);
     ticker->tick();
     QVERIFY(!window);

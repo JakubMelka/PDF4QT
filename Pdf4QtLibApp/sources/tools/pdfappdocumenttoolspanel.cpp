@@ -40,6 +40,7 @@
 #include "pdfdocumenttoolcatalog.h"
 
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfwidgetstyle.h"
 
@@ -102,13 +103,19 @@ public:
     /// Caption of a section: one line of 13 px (Medium 11 of 196:3656)
     static constexpr int CAPTION_HEIGHT = 13;
 
-    /// Deletes the widgets of the list and clears it
+    /// Retires the widgets of the list (step A: a row may be the sender of the slot, which rebuilds; it is hidden at
+    /// once and deleted later) and clears it. A retired row leaves the panel at once (its layout, its children - a
+    /// new row of the same name is the one found), it waits for its deletion without a parent.
     template<typename T>
     static void deleteWidgets(std::vector<QPointer<T>>& widgets)
     {
         for (const QPointer<T>& widget : widgets)
         {
-            delete widget.data();
+            if (T* item = widget.data())
+            {
+                PDFDeferredDeletion::retire(item);
+                item->setParent(nullptr);
+            }
         }
         widgets.clear();
     }
@@ -222,8 +229,8 @@ PDFAppDocumentToolsPanel::PDFAppDocumentToolsPanel(PDFAppDocumentView* view, QWi
     const PDFAppContext* context = view ? view->getContext() : nullptr;
     if (PDFDatabaseNotifier* notifier = context ? context->getNotifier() : nullptr)
     {
-        connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppDocumentToolsPanel::onDatabaseChanged);
-        connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentToolsPanel::onDatabaseEverythingChanged);
+        PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppDocumentToolsPanel::onDatabaseChanged);
+        PDFDeferredDeletion::connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentToolsPanel::onDatabaseEverythingChanged);
     }
 
     // O25: the times of the recent tools follow the clock while the panel is open

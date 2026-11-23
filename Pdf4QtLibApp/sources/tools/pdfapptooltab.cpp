@@ -358,10 +358,11 @@ bool PDFAppToolTabPage::setRoute(const PDFAppRoute& route)
 
 bool PDFAppToolTabPage::startShell()
 {
+    // A retired page (its tab closed, step A) opens nothing
     PDFAppToolTab* tab = getToolTab();
     const std::shared_ptr<const PDFDocumentTool> tool = PDFDocumentToolRegistry::getTool(m_toolId);
     const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(m_toolId);
-    if (!tab || !m_view || !tool || !factory)
+    if (!tab || !m_view || !tool || !factory || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -408,13 +409,14 @@ bool PDFAppToolTabPage::startShell()
 
 void PDFAppToolTabPage::deleteShell()
 {
-    // Each pointer is cleared first: a slot of the end may ask this page
+    // Each pointer is cleared first: a slot of the end may ask this page. Retired, never deleted here (step A): its
+    // parts and its runner go with it from the event loop.
     PDFDocumentToolShell* shell = m_shell.data();
     m_shell = nullptr;
     if (shell)
     {
         shell->disconnect(this);
-        delete shell;
+        PDFDeferredDeletion::retire(shell);
     }
 }
 
@@ -778,7 +780,8 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
             {
                 if (PDFAppLeaveFlow* flow = tab->findLeaveFlow())
                 {
-                    connect(flow, &PDFAppLeaveFlow::finished, this, &PDFAppToolTabPage::onCanceledCloseFinished, Qt::SingleShotConnection);
+                    // The flow belongs to the tab (step A: the handle is cut by retire of this page)
+                    PDFDeferredDeletion::connect(flow, &PDFAppLeaveFlow::finished, this, &PDFAppToolTabPage::onCanceledCloseFinished, Qt::SingleShotConnection);
                 }
             }
             return;

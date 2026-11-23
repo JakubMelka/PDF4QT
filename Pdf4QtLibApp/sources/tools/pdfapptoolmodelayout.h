@@ -116,7 +116,10 @@ public:
     /// owner hides (\p getLeftWidget).
     void installParts(const PDFAppToolModeParts& parts);
 
-    /// Gives the parts back to their former parents, hidden; the base widgets come back.
+    /// Gives the parts back to their former parents, hidden; the base widgets come back. The left panel is hidden at
+    /// once and leaves the splitter from the event loop: QSplitter deletes the handle of a widget, which leaves it,
+    /// synchronously, and the caller may run inside a loop of Qt over the children of the splitter (releasePart).
+    /// The function deletes nothing.
     /// \returns the keyboard focus was in a part (the owner gives it to its canvas)
     bool removeParts();
 
@@ -188,6 +191,10 @@ private:
 
     void watchPart(Part& part, QWidget* widget);
     void releasePart(Part& part);
+
+    /// The parts given back by hide only (releasePart) leave the splitter for their former parents
+    void releasePendingParts();
+
     void onPartDestroyed();
     void onInfoBarAction(const QString& infoBarId, const QString& actionId);
     void onInfoBarClosed(const QString& infoBarId);
@@ -208,6 +215,11 @@ private:
     Part m_leftPanel;
     Part m_canvasPage;
     Part m_rightPanel;
+
+    /// Parts given back, still hidden in the splitter (releasePendingParts is queued)
+    std::vector<Part> m_pendingParts;
+    bool m_isPendingReleaseQueued = false;
+
     int m_leftPanelWidth = DEFAULT_LEFT_WIDTH;
     int m_canvasTopInset = 0;
 

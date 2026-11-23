@@ -26,6 +26,7 @@
 #include "pdfapptoolmodelayout.h"
 
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfpainterutils.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -469,9 +470,9 @@ PDFAppToolCanvasChip::PDFAppToolCanvasChip(QWidget* canvasArea) :
 
     if (canvasArea)
     {
-        canvasArea->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(canvasArea, this);
     }
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolCanvasChip::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolCanvasChip::onThemeChanged);
 }
 
 PDFAppToolCanvasChip::~PDFAppToolCanvasChip() = default;
@@ -604,7 +605,7 @@ PDFAppToolPageCaption::PDFAppToolPageCaption(QWidget* canvasArea) :
     }
     if (canvasArea)
     {
-        canvasArea->installEventFilter(this);
+        PDFDeferredDeletion::installEventFilter(canvasArea, this);
     }
     updatePlacement();
 }

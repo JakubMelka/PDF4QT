@@ -24,6 +24,8 @@
 #include "pdfdatabase.h"
 #include "pdfdatabasestatement.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QDateTime>
 #include <QSet>
 
@@ -36,6 +38,10 @@ PDFDatabaseNotifier::PDFDatabaseNotifier(PDFDatabase* database, QObject* parent)
     QObject(parent),
     m_database(database)
 {
+    // The timers are members, made children: retire (step A) stops them with the notifier
+    m_pollTimer.setParent(this);
+    m_pruneTimer.setParent(this);
+    m_pruneRetryTimer.setParent(this);
     m_pollTimer.setInterval(POLL_INTERVAL);
     m_pruneTimer.setInterval(PRUNE_INTERVAL);
     m_pruneRetryTimer.setInterval(PRUNE_RETRY_INTERVAL);
@@ -46,8 +52,8 @@ PDFDatabaseNotifier::PDFDatabaseNotifier(PDFDatabase* database, QObject* parent)
 
     if (database)
     {
-        connect(database, &PDFDatabase::committed, this, &PDFDatabaseNotifier::poll);
-        connect(database, &PDFDatabase::stateChanged, this, &PDFDatabaseNotifier::onStateChanged);
+        PDFDeferredDeletion::connect(database, &PDFDatabase::committed, this, &PDFDatabaseNotifier::poll);
+        PDFDeferredDeletion::connect(database, &PDFDatabase::stateChanged, this, &PDFDatabaseNotifier::onStateChanged);
     }
 
     prune();

@@ -25,12 +25,14 @@
 
 #include "pdfappcontext.h"
 #include "pdfappmainwindow.h"
+#include "pdfdeferreddeletion.h"
 
 #include <QApplication>
 #include <QPointer>
 #include <QSize>
 #include <QString>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QWidget>
 
 #include <memory>
@@ -167,10 +169,48 @@ public:
     static bool write(pdf::PDFDocument& document, const QString& filePath);
 };
 
+/// The synchronous deletion detector of step A in a fixture of the App tests, which owns a PDFAppMainWindow (every
+/// such fixture has one, RB-H2). The constructor resets the count of the detector (in the outermost fixture only)
+/// and, when the switch of lifetimedeletionmode.h is on, turns its reports on and fails the current test function
+/// on them. closeWindow ends the fixture as main.cpp ends the application. At the end the reports go back to their
+/// state before the fixture: a fixture inside another one keeps the detector of the outer one on (RB-L8).
+class AppDeletionCheck
+{
+public:
+    /// \p isTestFunction false: a process outside of a test function (a child instance of a test), only the
+    /// reports are turned on (the process forwards them to its test)
+    explicit AppDeletionCheck(bool isTestFunction = true);
+    ~AppDeletionCheck();
+
+    AppDeletionCheck(const AppDeletionCheck&) = delete;
+    AppDeletionCheck& operator=(const AppDeletionCheck&) = delete;
+
+    /// The end of the fixture, only at the event loop level 0: \p window (may be nullptr) is deleted at once - a
+    /// deliberate synchronous deletion inside a SynchronousDeletionScope, as main.cpp at the end of the application -
+    /// and the objects retired before or left for later by the deletion are flushed. Then the queued work of the
+    /// application runs outside of any scope, so the detector sees a synchronous deletion there (RB-L1), and what
+    /// it retired is flushed too. The reports go back to their state before the fixture.
+    void closeWindow(QWidget* window);
+
+private:
+    /// The reports back to their state before the fixture (once)
+    void restore();
+
+    bool m_wasReported = false;
+    bool m_isRestored = false;
+
+    /// Number of the living checks (nested fixtures)
+    static int s_depth;
+};
+
 /// Fixture of the tests of the document tab: a context with a portable memory
 /// database (a unique name per process and instance), the real main window shown
 /// offscreen and a temporary folder for the samples. The destructor deletes the
-/// window, closes the context and restores the global handlers of the dialogs.
+/// window (a deliberate synchronous deletion, as main.cpp), flushes the retired
+/// objects (PDFDeferredDeletion::flush, AppDeletionCheck::closeWindow), closes the
+/// context and restores the global handlers of the dialogs. The synchronous deletion
+/// detector is on during the whole fixture, when its switch is on
+/// (lifetimedeletionmode.h).
 class AppDocumentFixture
 {
 public:
@@ -193,8 +233,50 @@ public:
     /// Current tab as a document tab (nullptr for another tab)
     pdf::PDFAppDocumentTab* currentDocumentTab() const;
 
-    /// Processes the events (deferred deletions too)
+    /// Processes the events (deferred deletions too). Only from the body of a test (the event
+    /// loop level 0); inside an event loop it only processes the events (a deferred deletion
+    /// there could delete an object, whose code is on the stack).
     static void settle();
+
+    /// Closes \p object by the real single place of the application (step A), never settles:
+    /// a tab by PDFAppMainWindow::closeTab (false, when a question of the tab stays open; the
+    /// window retires the tab once the package of the window switches its close to retire), a
+    /// page by the navigation of its tab back (false, when its tab has no previous entry or the
+    /// page is not shown), a tool shell by the close of its page (an own tab of a tool: the tab),
+    /// anything else by PDFDeferredDeletion::retire. The object stays alive (inert) until the
+    /// event loop: a test settles right after the call, before anything opens a loop (RR2-L6).
+    bool retire(QObject* object);
+
+    /// Answers the open questions of a close (a PDFAppDocumentChoiceDialog: unsaved changes, a running operation) as
+    /// the user, who closes the tab, does: Don't Save, else Stop, and settles after each answer (at most four
+    /// questions). A test calls it from its body after a retire, which a question has left pending (a close from
+    /// an own signal, RB-M6). \returns the number of the answered questions.
+    static int answerCloseQuestions();
+
+    /// Deletes \p object at once on purpose (a destructor order test, a deletion matrix, a window or a
+    /// standalone page of a test): inside PDFDeferredDeletion::SynchronousDeletionScope, so the synchronous
+    /// deletion detector of step A is quiet for it. A close of the application goes through retire instead.
+    template<typename T>
+    static void deleteNow(T* object)
+    {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete object;
+    }
+
+    /// The deleter of a std::unique_ptr of a test, which owns a window, a page or a view: deleteNow
+    struct DeleteNow
+    {
+        template<typename T>
+        void operator()(T* object) const { deleteNow(object); }
+    };
+
+    /// deleteNow of \p object from the event loop (the deleteLater of a test, a window deleted later on purpose;
+    /// QObject::deleteLater would delete it outside of the scope of deleteNow)
+    static void deleteLater(QObject* object)
+    {
+        QPointer<QObject> guard(object);
+        QTimer::singleShot(0, QCoreApplication::instance(), [guard]() { deleteNow(guard.data()); });
+    }
 
     /// Multiplier of the time limits: PDF4QT_TEST_TIMEOUT_FACTOR (at most 1000), or 20
     /// under valgrind
@@ -253,6 +335,8 @@ public:
         return nullptr;
     }
 
+    /// The detector (the first member: on before the context and the window exist)
+    AppDeletionCheck deletionCheck;
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;
     QTemporaryDir directory;

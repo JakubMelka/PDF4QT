@@ -25,6 +25,7 @@
 #include "pdfappdocumentinfobar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
+#include "pdfappinfowidgets.h"
 #include "pdfapplocale.h"
 #include "pdfapppage.h"
 #include "pdfapppagelayout.h"
@@ -42,6 +43,7 @@
 #include "pdfdocumenttoolsearch.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
@@ -173,7 +175,7 @@ PDFAppStorageStateValue::PDFAppStorageStateValue(QWidget* parent) :
     setObjectName(QStringLiteral("storageState"));
     setFocusPolicy(Qt::NoFocus);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStorageStateValue::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppStorageStateValue::update));
 }
 
 PDFAppStorageStateValue::~PDFAppStorageStateValue() = default;
@@ -348,7 +350,8 @@ PDFAppStorageSettingsSection::PDFAppStorageSettingsSection(PDFAppContext* contex
 {
     if (PDFDatabase* database = getDatabase())
     {
-        connect(database, &PDFDatabase::stateChanged, this, &PDFAppStorageSettingsSection::onDatabaseStateChanged);
+        // The database belongs to the context (outside the page): the handle is cut by retire (step A)
+        PDFDeferredDeletion::connect(database, &PDFDatabase::stateChanged, this, &PDFAppStorageSettingsSection::onDatabaseStateChanged);
     }
 }
 
@@ -709,10 +712,12 @@ void PDFAppStorageSettingsSection::updateFiles()
         std::stable_sort(files.begin(), files.end(), &PDFAppStorageSettingsSectionHelper::isOlderFile);
     }
 
-    // The rows are built again (a deleted file, a file of a version started meanwhile)
+    // The rows are built again (a deleted file, a file of a version started meanwhile);
+    // the old ones are retired (step A, A2): the slot of a Delete button may be on the
+    // stack - they leave the card now and are deleted later
     for (const QPointer<PDFAppSettingRow>& row : std::as_const(m_fileRows))
     {
-        delete row.data();
+        PDFAppPageRebuild::retireWidget(row.data());
     }
     m_fileRows.clear();
 
@@ -1179,6 +1184,9 @@ void PDFAppStorageSettingsSection::showError(const QString& title, const QString
 
 void PDFAppStorageSettingsSection::openDialog(DialogKind kind, PDFAppStorageDialog* dialog)
 {
+    // The dialog is a child of the window and belongs to the section (retired with it, step A)
+    PDFDeferredDeletion::setOwner(dialog, this);
+
     // One dialog at a time: a new one replaces an open one (its action is not done)
     if (m_dialog && m_dialog != dialog)
     {

@@ -407,6 +407,7 @@ void PDFAppCompareColorRow::onCustomClicked()
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &PDFColorPickerDialog::colorSelected, this, &PDFAppCompareColorRow::onDialogColorSelected);
     m_dialog = dialog;
+    PDFDeferredDeletion::setOwner(dialog, this);
     dialog->open();
 }
 
@@ -690,6 +691,21 @@ PDFAppToolGUICompare::PDFAppToolGUICompare(QObject* parent) :
 
 }
 
+void PDFAppToolGUICompare::retire()
+{
+    BaseClass::retire();
+
+    // The jobs end by themselves on their copies; their watchers (children) are disconnected by retire
+    if (m_viewCancel)
+    {
+        m_viewCancel->cancel();
+    }
+    if (m_reportCancel)
+    {
+        m_reportCancel->cancel();
+    }
+}
+
 PDFAppToolGUICompare::~PDFAppToolGUICompare()
 {
     // The jobs end by themselves on their copies; their results go with the watchers (children)
@@ -858,8 +874,8 @@ void PDFAppToolGUICompare::connectList()
 
         const PDFAppToolInputRules rules = getInputRules();
         m_list->setAcceptedInputs(rules.maximum, rules.acceptsPdf, rules.acceptsImages, tr("Compare needs PDF files"));
-        connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppToolGUICompare::onListChanged);
-        connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppToolGUICompare::onListInputChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppToolGUICompare::onListChanged);
+        PDFDeferredDeletion::connect(m_list.data(), &PDFAppToolInputList::inputChanged, this, &PDFAppToolGUICompare::onListInputChanged);
         connect(m_list.data(), &QObject::destroyed, this, &PDFAppToolGUICompare::onListDestroyed);
         m_lastInputIds = m_list->getInputIds();
         for (int slot = 0; slot < SlotCount; ++slot)
@@ -875,9 +891,9 @@ void PDFAppToolGUICompare::connectList()
     // FC-5: the close of the source tab of a slot; the open tabs of the choice follow the registry
     if (PDFAppDocumentRegistry* registry = getContext() ? getContext()->getDocumentRegistry() : nullptr)
     {
-        connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolGUICompare::onDocumentRemoved, Qt::UniqueConnection);
-        connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolGUICompare::onRegistryChanged, Qt::UniqueConnection);
-        connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolGUICompare::onRegistryChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppToolGUICompare::onDocumentRemoved, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppToolGUICompare::onRegistryChanged, Qt::UniqueConnection);
+        PDFDeferredDeletion::connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFAppToolGUICompare::onRegistryChanged, Qt::UniqueConnection);
     }
     startWhenRequested();
 }
@@ -1355,6 +1371,8 @@ void PDFAppToolGUICompare::openPassword(Slot slot)
     m_passwordDialog = PDFAppPasswordDialog::openDialog(m_list, input->id, getDialogParent());
     if (m_passwordDialog)
     {
+        // A dialog of the window owned by the GUI (step A): retire of the tool closes it
+        PDFDeferredDeletion::setOwner(m_passwordDialog.data(), this);
         connect(m_passwordDialog.data(), &PDFAppPasswordDialog::removeRequested, this, &PDFAppToolGUICompare::onPasswordRemoveRequested);
     }
 }
@@ -1702,6 +1720,13 @@ void PDFAppToolGUICompare::requestViewDocument()
 {
     using Helper = PDFAppToolGUICompareHelper;
 
+    // A retired tool (step A) starts no job: a request after its close (a slot of a foreign emission, a queued
+    // call) would create a watcher in the retired subtree
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     // One job: the document of the view of the result, or of the inputs before the comparison
     PDFDocumentPointer original;
     PDFDocumentPointer revised;
@@ -1931,7 +1956,7 @@ bool PDFAppToolGUICompare::exportReport()
 {
     using Helper = PDFAppToolGUICompareHelper;
 
-    if (!isExportEnabled() || m_resultInputs.size() != SlotCount || !checkExportPermission(true))
+    if (!isExportEnabled() || m_resultInputs.size() != SlotCount || !checkExportPermission(true) || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -2821,10 +2846,13 @@ void PDFAppToolGUICompare::createKeyActions()
         connect(action, &QAction::triggered, this, keyAction.slot);
         m_keyWidget->addAction(action);
         m_keyActions.push_back(action);
+
+        // A child of the key widget owned by the GUI (step A): retire disables it at once
+        PDFDeferredDeletion::setOwner(action, this);
     }
     m_wasDropAccepted = m_keyWidget->acceptDrops();
     m_keyWidget->setAcceptDrops(true);
-    m_keyWidget->installEventFilter(this);
+    PDFDeferredDeletion::installEventFilter(m_keyWidget.data(), this);
 }
 
 void PDFAppToolGUICompare::describeLeftPanel(PDFAppToolPanelBuilder& builder)
@@ -3241,6 +3269,7 @@ void PDFAppToolGUICompare::openChangePanel(Slot slot, QWidget* anchor)
     m_changeSlot = slot;
     m_changePanel = new PDFAppToolPanelPopup(nullptr, Helper::CHANGE_PANEL_WIDTH, anchor->window());
     m_changePanel->setObjectName(QStringLiteral("compareChangePanel"));
+    PDFDeferredDeletion::setOwner(m_changePanel.data(), this);
     PDFTileRow* fileRow = m_changePanel->addRow(tr("PDF file…"), tr("Choose a file from the disk"), QStringLiteral("folder-open"), PDFTileRow::Kind::MenuItem);
     fileRow->setObjectName(QStringLiteral("compareChangeFile"));
     fileRow->setProperty(Helper::ROW_KEY, QString());

@@ -1310,7 +1310,7 @@ void AppSettingsRenderingTest::deletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
         RenderingTestHelper::click(RenderingTestHelper::colorModes(fixture)->getPresetCard(QStringLiteral("sepia")));
         RenderingTestHelper::click(RenderingTestHelper::colorModes(fixture)->getModeCard(QStringLiteral("inverted")));
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
         QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::colorModesCustomPreset()), QStringLiteral("sepia"));
         QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::colorModesPageColor()), QStringLiteral("#F4ECD8"));
@@ -1333,7 +1333,7 @@ void AppSettingsRenderingTest::deletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
         RenderingTestHelper::click(RenderingTestHelper::colorModes(fixture)->getPresetCard(QStringLiteral("night")));
         fixture.context->close();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
@@ -1348,7 +1348,7 @@ void AppSettingsRenderingTest::deletionMatrix()
         switch (variant)
         {
             case 0:
-                delete fixture.window.data();
+                pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
                 break;
             case 1:
                 fixture.navigate(QStringLiteral("/home"));
@@ -1390,7 +1390,7 @@ void AppSettingsRenderingTest::deletionMatrix()
         QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
         QVERIFY(fixture.findRow(QStringLiteral("page-color"))->getControl()->getColorButton()->showPalette());
         fixture.settle();
-        delete fixture.window.data();
+        pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
         fixture.settle();
     }
 }
@@ -1403,7 +1403,7 @@ void AppSettingsRenderingTest::deleteFromOwnSignals()
         pdftest::AppSettingsFixture fixture;
         QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
         pdf::PDFReadingThemeCard* card = RenderingTestHelper::colorModes(fixture)->getPresetCard(QStringLiteral("sepia"));
-        QObject::connect(card, &QAbstractButton::clicked, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(card, &QAbstractButton::clicked, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         RenderingTestHelper::click(card);
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1414,7 +1414,7 @@ void AppSettingsRenderingTest::deleteFromOwnSignals()
     {
         pdftest::AppSettingsFixture fixture;
         QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
-        QObject::connect(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         RenderingTestHelper::click(RenderingTestHelper::colorModes(fixture)->getPresetCard(QStringLiteral("black")));
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1429,7 +1429,7 @@ void AppSettingsRenderingTest::deleteFromOwnSignals()
         pdf::PDFAppColorModesSettingsSection* section = RenderingTestHelper::colorModes(fixture);
         pdf::PDFDatabaseStatement block(fixture.context->getDatabase()->getConnection(), "CREATE TRIGGER block_setting BEFORE INSERT ON setting BEGIN SELECT RAISE(ABORT, 'blocked'); END");
         QVERIFY(block.execute());
-        QObject::connect(section, &pdf::PDFAppSettingsSection::statusMessageRequested, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(section, &pdf::PDFAppSettingsSection::statusMessageRequested, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         RenderingTestHelper::click(section->getModeCard(QStringLiteral("bitonal")));
         fixture.settle();
         QVERIFY(!fixture.window);
@@ -1458,7 +1458,7 @@ void AppSettingsRenderingTest::deleteFromOwnSignals()
         pdf::PDFAppColorManagementSettingsSection* section = RenderingTestHelper::colorManagement(fixture);
         QVERIFY(RenderingTestHelper::waitForScan(section));
         pdf::PDFAppSettingControl* control = fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl();
-        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { delete fixture.window.data(); });
+        QObject::connect(control, &pdf::PDFAppSettingControl::valueWritten, fixture.window.data(), [&fixture]() { pdftest::AppDocumentFixture::deleteNow(fixture.window.data()); });
         QVERIFY(pdftest::AppSettingsFixture::setControlValue(fixture.findRow(QStringLiteral("additional-profile-directory")), fixture.folder()));
         QTest::qWait(200);
         fixture.settle();
@@ -1825,7 +1825,7 @@ void AppSettingsRenderingTest::moreColorsDialog()
     textButton->setEnabled(true);
     dialog = open();
     QVERIFY(dialog);
-    delete fixture.window.data();
+    pdftest::AppDocumentFixture::deleteNow(fixture.window.data());
     fixture.settle();
     QVERIFY(!dialog);
 }

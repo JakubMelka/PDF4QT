@@ -43,13 +43,20 @@
 #include "pdfappsessionend.h"
 #include "pdfapproutetable.h"
 #include "pdfappfloatingbar.h"
+#include "pdfappmcpcontroller.h"
+#include "pdfappmcphost.h"
+#include "pdfappmcppermissions.h"
 #include "pdfappundostack.h"
 #include "pdfappworkspace.h"
 #include "pdfrecentrepository.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfworkspacerepository.h"
 
+#include "pdfmcpassistants.h"
+#include "pdfmcpcall.h"
+
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
 #include "pdfmessagebox.h"
@@ -66,7 +73,12 @@
 #include "pdfoptionalcontent.h"
 
 #include <QClipboard>
+#include <QDateTime>
+#include <QElapsedTimer>
 #include <QFileOpenEvent>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QStackedWidget>
 #include <QSemaphore>
 #include <QThreadPool>
 #include <QMimeData>
@@ -76,6 +88,7 @@
 #include <QtTest>
 
 #include <functional>
+#include <optional>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -109,6 +122,104 @@ public:
     static pdf::PDFRecentFile recent(pdftest::AppDocumentFixture& fixture, const QString& path)
     {
         return fixture.context->getRecent().getFile(path).value_or(pdf::PDFRecentFile());
+    }
+
+    /// A deliberate synchronous deletion by the test body (the order of the destructors, a deletion from a signal):
+    /// the synchronous deletion detector of step A is quiet for it (lesson 2 of PA0)
+    template<typename T>
+    static void deleteNow(T* object)
+    {
+        pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
+        delete object;
+    }
+
+    /// Allows the assistant everything (the settings of MCP) and waits until the host of the context has them
+    static bool allowAssistant(pdftest::AppDocumentFixture& fixture)
+    {
+        pdf::PDFAppMcpController* controller = fixture.context->getMcpController();
+        pdf::PDFAppMcpHost* host = controller ? controller->getHost() : nullptr;
+        if (!host)
+        {
+            return false;
+        }
+
+        const QString allow = pdf::PDFAppMcpPermissions::getName(pdf::PDFAppMcpPermission::Allow);
+        for (const QString& key : { pdf::PDFSettingKeys::mcpPermissionRead(), pdf::PDFSettingKeys::mcpPermissionEdit(), pdf::PDFSettingKeys::mcpPermissionFiles() })
+        {
+            if (fixture.context->getSettings().setValue(key, allow).isError())
+            {
+                return false;
+            }
+        }
+
+        QElapsedTimer timer;
+        timer.start();
+        const pdf::PDFAppMcpPermissionKind kinds[] = { pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermissionKind::Files };
+        for (pdf::PDFAppMcpPermissionKind kind : kinds)
+        {
+            while (host->getPermissions().get(kind) != pdf::PDFAppMcpPermission::Allow)
+            {
+                if (timer.elapsed() > 10000 * pdftest::AppDocumentFixture::getTimeoutFactor())
+                {
+                    return false;
+                }
+                QTest::qWait(10);
+            }
+        }
+        return true;
+    }
+
+    /// A call of a tool of the assistant directly at the host of the context (no server); its result, std::nullopt
+    /// without one in time. The events are processed while it waits, a deferred deletion of the test body is not
+    /// delivered (the event loop level stays 0).
+    static std::optional<pdf::PDFMcpCallResult> callTool(pdftest::AppDocumentFixture& fixture, const QString& tool, const QJsonObject& arguments)
+    {
+        pdf::PDFAppMcpController* controller = fixture.context->getMcpController();
+        pdf::PDFAppMcpHost* host = controller ? controller->getHost() : nullptr;
+        if (!host)
+        {
+            return std::nullopt;
+        }
+
+        pdf::PDFMcpCallRequest request;
+        request.kind = pdf::PDFMcpCallKind::ToolCall;
+        request.method = QStringLiteral("tools/call");
+        request.name = tool;
+        request.arguments = arguments;
+        request.client.era = pdf::PDFMcpEra::Modern;
+        request.client.protocolVersion = pdf::PDFMcpProtocol::getVersion(pdf::PDFMcpEra::Modern);
+        request.client.clientName = QStringLiteral("PA1 test");
+        request.client.remoteAddress = QStringLiteral("127.0.0.1");
+        request.client.assistantKey = pdf::PDFMcpAssistantRegistry::createModernKey(QByteArray(), request.client.clientName, request.client.remoteAddress);
+        request.id = pdf::PDFMcpRequestId::createInteger(1);
+        request.receivedAt = QDateTime::currentMSecsSinceEpoch();
+        std::shared_ptr<pdf::PDFMcpCall> call = pdf::PDFMcpCall::create(request);
+        host->handleCall(call);
+
+        QElapsedTimer timer;
+        timer.start();
+        while (!call->isFinished() && timer.elapsed() < 30000 * qint64(pdftest::AppDocumentFixture::getTimeoutFactor()))
+        {
+            QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, 10);
+        }
+        return call->getResult();
+    }
+
+    /// The ids of the documents of application.get_state (empty for a failed call)
+    static QStringList getStateDocumentIds(pdftest::AppDocumentFixture& fixture)
+    {
+        QStringList ids;
+        const std::optional<pdf::PDFMcpCallResult> result = callTool(fixture, QStringLiteral("application"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("get_state") } }));
+        if (!result || result->isError)
+        {
+            return ids;
+        }
+        const QJsonObject state = result->toQJson().value(QStringLiteral("structuredContent")).toObject().value(QStringLiteral("get_state")).toObject();
+        for (const QJsonValue& document : state.value(QStringLiteral("documents")).toArray())
+        {
+            ids << document.toObject().value(QStringLiteral("documentId")).toString();
+        }
+        return ids;
     }
 
     /// Changes the title of the document (one undo step)
@@ -369,6 +480,7 @@ private slots:
     void commitAndUndo();
     void undoStack();
     void undoMemoryLimit();
+    void retiredDocumentRefusesChanges();
     void operations();
     void lockAndPopover();
     void lockStoredInRecent();
@@ -383,7 +495,13 @@ private slots:
     void quitSaveAllTabDeleted();
     void closeSaveLetsOthersGo();
     void failedTabClosesAfterFlow();
+    void failedTabClosesAfterLaterFlow();
     void tabCloseDuringQuitSaveAll();
+
+    // Step A (PA1): the tab closed by PDFDeferredDeletion::retire
+    void closeTabFromItsOwnSignal();
+    void retiredTabNotCurrentNorListed();
+    void mcpClosesTabDuringCloseQuestion();
     void sessionEndUnsaved();
     void fileOpenEvent();
     void lastSession();
@@ -1286,6 +1404,55 @@ void AppDocumentTest::undoMemoryLimit()
     QCOMPARE(stack->getMemoryLimit(), qint64(0));
 }
 
+void AppDocumentTest::retiredDocumentRefusesChanges()
+{
+    // A retired document (its tab closed, deleted later) changes no more: every entry point refuses the change as a
+    // closed document, counts it (check 6 of the lifetime sweeps) and names the entry point in the test mode
+    QPointer<QObject> tab = new QObject();
+    QPointer<pdf::PDFAppDocument> document = new pdf::PDFAppDocument(nullptr, tab);
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    document->setLoaded(pdf::PDFDocumentPointer(new pdf::PDFDocument(builder.build())), QByteArray(), QStringLiteral("memory.pdf"), false);
+    QVERIFY(document->isReady());
+    const pdf::PDFDocumentPointer loaded = document->getDocument();
+    pdf::PDFDocumentBuilder changeBuilder(loaded.data());
+    changeBuilder.setDocumentTitle(QStringLiteral("Changed"));
+    const pdf::PDFDocumentPointer changed(new pdf::PDFDocument(changeBuilder.build()));
+
+    // Open: a change is taken
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Open"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QCOMPARE(document->getRetiredChangeRefusalCount(), 0);
+    QVERIFY(document->getLastRetiredChangeRefusal() == nullptr);
+    const quint64 version = document->getVersion();
+
+    // Retired with its tab: nothing changes the document or its version
+    pdf::PDFDeferredDeletion::retire(tab.data());
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(document));
+    const bool wasTestMode = pdf::PDFDeferredDeletion::isTestMode();
+    pdf::PDFDeferredDeletion::setTestMode(false);
+    QVERIFY(!document->commit(pdf::PDFModifiedDocument(loaded, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Closed"), version, pdf::PDFAppChangeSource::User));
+    QVERIFY(!document->commitToolResult(pdf::PDFModifiedDocument(loaded, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Tool"), version, pdf::PDFAppChangeSource::Tool, false));
+    document->restore(loaded, pdf::PDFModifiedDocument::None);
+    document->reload(loaded, QByteArray(), false);
+    QCOMPARE(document->getVersion(), version);
+    QVERIFY(document->getDocument() == changed);
+    QCOMPARE(document->getRetiredChangeRefusalCount(), 4);
+    QCOMPARE(QByteArray(document->getLastRetiredChangeRefusal()), QByteArrayLiteral("reload"));
+
+    // The test mode names the entry point
+    pdf::PDFDeferredDeletion::setTestMode(true);
+    QTest::ignoreMessage(QtWarningMsg, qPrintable(QStringLiteral("%1: restore").arg(QLatin1String(pdf::PDFAppDocument::RETIRED_CHANGE_MESSAGE))));
+    document->restore(loaded, pdf::PDFModifiedDocument::None);
+    pdf::PDFDeferredDeletion::setTestMode(wasTestMode);
+    QCOMPARE(document->getRetiredChangeRefusalCount(), 5);
+    QCOMPARE(document->getVersion(), version);
+    QVERIFY(document->getDocument() == changed);
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(document.isNull());
+    QVERIFY(tab.isNull());
+}
+
 void AppDocumentTest::operations()
 {
     pdftest::AppDocumentFixture fixture;
@@ -2043,7 +2210,7 @@ void AppDocumentTest::sessionEndUnsaved()
         QCOMPARE(manager.cancelCount, 1);
         fixture.settle();
         QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
-        delete window.data();
+        AppDocumentTestHelper::deleteNow(window.data());
         fixture.settle();
         QVERIFY(!window);
         QVERIFY(!pdf::PDFAppSessionEndQuestion::getCurrent());
@@ -2087,7 +2254,7 @@ void AppDocumentTest::fileOpenEvent()
         window->show();
         QTRY_COMPARE_WITH_TIMEOUT(window->getDocumentTabs().size(), qsizetype(1), 20000);
         QCOMPARE(QFileInfo(window->getDocumentTabs().front()->getDocument()->getFilePath()), QFileInfo(early));
-        delete window.data();
+        AppDocumentTestHelper::deleteNow(window.data());
         fixture.settle();
     }
     QCOMPARE(fixture.window->getDocumentTabs().size(), qsizetype(1));
@@ -2261,7 +2428,7 @@ void AppDocumentTest::deletionDuringLoad()
     {
         pdftest::AppDocumentFixture fixture;
         fixture.window->openDocuments(QStringList({ file }), 0);
-        delete fixture.window.data();
+        AppDocumentTestHelper::deleteNow(fixture.window.data());
         fixture.settle();
         QTest::qWait(300);
         fixture.settle();
@@ -2273,7 +2440,7 @@ void AppDocumentTest::deletionDuringLoad()
         fixture.window->openDocuments(QStringList({ file }), 0);
         QPointer<pdf::PDFAppDocumentTab> tab = fixture.currentDocumentTab();
         QVERIFY(tab);
-        delete tab->getDocument();
+        AppDocumentTestHelper::deleteNow(tab->getDocument());
         QTest::qWait(300);
         fixture.settle();
         QVERIFY(tab);
@@ -2305,14 +2472,14 @@ void AppDocumentTest::deletionDuringLoad()
         {
             QVERIFY(tab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
             QVERIFY(tab->getLoader()->isRunning());
-            delete fixture.window.data();
+            AppDocumentTestHelper::deleteNow(fixture.window.data());
         }
         else
         {
             QVERIFY(tab->getDocument()->isReady());
             QVERIFY(tab->getLoader()->reload());
             QVERIFY(tab->getLoader()->isRunning());
-            delete tab;
+            AppDocumentTestHelper::deleteNow(tab);
         }
         fixture.settle();
         QThreadPool::globalInstance()->waitForDone(60000);
@@ -2333,7 +2500,7 @@ void AppDocumentTest::deletionDuringDialogs()
         pdftest::NestedEventLoopGuard loopGuard;
         QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
         QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>());
-        delete guard.data();
+        AppDocumentTestHelper::deleteNow(guard.data());
         fixture.settle();
         QVERIFY(!guard);
         QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
@@ -2349,7 +2516,7 @@ void AppDocumentTest::deletionDuringDialogs()
         pdftest::NestedEventLoopGuard loopGuard;
         QVERIFY(!fixture.window->close());
         QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
-        delete window.data();
+        AppDocumentTestHelper::deleteNow(window.data());
         fixture.settle();
         QVERIFY(!window);
     }
@@ -2364,7 +2531,7 @@ void AppDocumentTest::deletionDuringDialogs()
         pdftest::NestedEventLoopGuard loopGuard;
         QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
         QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseRunningDialog>());
-        delete guard.data();
+        AppDocumentTestHelper::deleteNow(guard.data());
         fixture.settle();
         QVERIFY(!guard);
     }
@@ -2379,20 +2546,27 @@ void AppDocumentTest::deletionDuringDialogs()
         QTRY_VERIFY(fixture.window->getOpenFailedDialog());
         tab->showLockPopover(QRect(fixture.window->mapToGlobal(QPoint(100, 10)), QSize(12, 28)));
         QVERIFY(tab->getLockPopover());
-        delete fixture.window.data();
+        AppDocumentTestHelper::deleteNow(fixture.window.data());
         fixture.settle();
     }
 
-    // The tab deleted from the slot of a button of its lock popover
+    // The tab closed from the slot of a button of its lock popover by the real close of the window (RB-M6): it leaves
+    // the window at once (the close needs no question), it is deleted from the event loop
     {
         pdftest::AppDocumentFixture fixture;
         pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Unlock.pdf"), 1));
         QVERIFY(tab);
+        const QString id = tab->getDocumentId();
         tab->getDocument()->setLocked(true);
         tab->showLockPopover(QRect(fixture.window->mapToGlobal(QPoint(100, 10)), QSize(12, 28)));
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
-        QObject::connect(tab->getLockPopover(), &pdf::PDFAppLockPopover::unlockRequested, tab, [guard]() { guard->deleteLater(); });
+        pdftest::AppDocumentFixture* fixturePointer = &fixture;
+        bool isClosed = false;
+        QObject::connect(tab->getLockPopover(), &pdf::PDFAppLockPopover::unlockRequested, tab, [fixturePointer, guard, &isClosed]() { isClosed = guard && fixturePointer->retire(guard.data()); });
         tab->getLockPopover()->getUnlockButton()->click();
+        QVERIFY(isClosed);
+        QVERIFY(!fixture.window->findDocumentTab(id));
+        QVERIFY(!fixture.window->getDocumentTabs().contains(guard.data()));
         fixture.settle();
         QVERIFY(!guard);
     }
@@ -2435,11 +2609,11 @@ void AppDocumentTest::deletionFromOwnSignals()
         isDeleted = true;
         if (deleteWindow)
         {
-            delete window.data();
+            AppDocumentTestHelper::deleteNow(window.data());
         }
         else
         {
-            delete tab.data();
+            AppDocumentTestHelper::deleteNow(tab.data());
         }
     };
     auto trigger = [&window](const QString& commandId)
@@ -3153,7 +3327,7 @@ void AppDocumentTest::screenshots()
     fixture.settle();
     center(unsaved);
     shoot(QStringLiteral("document-close-unsaved"));
-    delete unsaved.data();
+    AppDocumentTestHelper::deleteNow(unsaved.data());
 
     QPointer<pdf::PDFAppDocumentOperation> operation = tab->getDocument()->beginOperation(pdf::PDFAppDocumentOperationKind::Print, QStringLiteral("Printing"), false);
     operation->setProgress(26);
@@ -3162,7 +3336,7 @@ void AppDocumentTest::screenshots()
     fixture.settle();
     center(running);
     shoot(QStringLiteral("document-close-running"));
-    delete running.data();
+    AppDocumentTestHelper::deleteNow(running.data());
     operation->finish();
 
     pdf::PDFAppDocumentTab* invoice = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Invoice.pdf"), 2));
@@ -3172,7 +3346,7 @@ void AppDocumentTest::screenshots()
     fixture.settle();
     center(quit);
     shoot(QStringLiteral("quit-unsaved"));
-    delete quit.data();
+    AppDocumentTestHelper::deleteNow(quit.data());
 
     pdf::PDFAppOpenFailure missing;
     missing.name = QStringLiteral("C:/Users/Jakub/Documents/Reprot.pdf");
@@ -3189,7 +3363,7 @@ void AppDocumentTest::screenshots()
     fixture.settle();
     center(failed);
     shoot(QStringLiteral("document-open-failed"));
-    delete failed.data();
+    AppDocumentTestHelper::deleteNow(failed.data());
 }
 
 /// Occupies every thread of the global thread pool, so a task started meanwhile
@@ -3251,7 +3425,7 @@ void AppDocumentTest::quitSaveAllTabDeleted()
 
         // The tab goes before its save has reported
         blocker.release();
-        delete first;
+        AppDocumentTestHelper::deleteNow(first);
     }
     fixture.settle();
     QTest::qWait(100);
@@ -3334,6 +3508,197 @@ void AppDocumentTest::failedTabClosesAfterFlow()
     fixture.settle();
     QVERIFY(!guard);
     fixture.closeMessageBoxes();
+}
+
+void AppDocumentTest::failedTabClosesAfterLaterFlow()
+{
+    // RA-L2 of the review of step A: the window closes the tab of a failed document from the event loop; a flow of
+    // the tab, which starts after the failure and before that close (a later receiver of the same failure, an
+    // assistant), postpones the close to the end of that flow - the tab closes then, it never stays with its error
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Failing later.pdf"), 1));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    const QString id = tab->getDocumentId();
+
+    tab->getDocument()->setFailed(QStringLiteral("Failing later.pdf"), QStringLiteral("Damaged"));
+    QVERIFY(guard);
+    QVERIFY(!tab->isLeaving());
+    pdf::PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::Navigate));
+    fixture.settle();
+    QVERIFY(guard);
+    QCOMPARE(fixture.window->findDocumentTab(id), tab);
+
+    // The end of the flow closes the tab (from the event loop)
+    flow->finish(false);
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!fixture.window->findDocumentTab(id));
+    fixture.closeMessageBoxes();
+}
+
+void AppDocumentTest::closeTabFromItsOwnSignal()
+{
+    // Step A (newapp_robustness.md 12, lesson 1 of PA0): a tab is closed by PDFDeferredDeletion::retire, which cuts the
+    // outgoing signals of its whole subtree at once.
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Failing.pdf"), 1));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    const QString id = document->getId();
+
+    // (1) The document of the tab fails: the window closes the tab from the event loop, not inside the emission of
+    // stateChanged - every receiver of the emission (the view, the tools, the waiters of the assistant, here one
+    // connected after the window's tab) sees the failure; the tab is closed only after the emission
+    QObject context;
+    int failedCount = 0;
+    QObject::connect(document.data(), &pdf::PDFAppDocument::stateChanged, &context, [&failedCount, document]()
+    {
+        if (document && document->getState() == pdf::PDFAppDocumentState::Failed)
+        {
+            ++failedCount;
+        }
+    });
+    document->setFailed(QStringLiteral("Failing.pdf"), QStringLiteral("Damaged"));
+    QCOMPARE(failedCount, 1);
+    QVERIFY(guard);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(tab));
+    QCOMPARE(fixture.window->findDocumentTab(id), tab);
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!fixture.window->findDocumentTab(id));
+    QVERIFY(!fixture.context->getDocumentRegistry()->findDocument(id));
+    fixture.closeMessageBoxes();
+
+    // (2) Close tab of its password screen (a signal of the tab's own subtree): the tab is retired at once - out of
+    // the tab bar, the lists of the window and the registry, hidden, inert - and deleted after the slot has returned
+    tab = fixture.open(pdftest::AppDocumentSamples::userPassword(fixture.folder()));
+    QVERIFY(tab);
+    guard = tab;
+    const QString passwordId = tab->getDocumentId();
+    QPointer<QPushButton> closeButton = tab->getStateScreen()->getCloseButton();
+    const int tabCount = fixture.window->getTabBar()->count();
+    closeButton->click();
+    QVERIFY(guard);
+    QVERIFY(closeButton);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(tab));
+    QVERIFY(!tab->isVisible());
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount - 1);
+    QVERIFY(!fixture.window->getTabs().contains(tab));
+    QVERIFY(fixture.window->getCurrentTab() != tab);
+    QVERIFY(!fixture.window->findDocumentTab(passwordId));
+    QVERIFY(!fixture.context->getDocumentRegistry()->findDocument(passwordId));
+    fixture.settle();
+    QVERIFY(!guard);
+    QVERIFY(!closeButton);
+}
+
+void AppDocumentTest::retiredTabNotCurrentNorListed()
+{
+    // Step A: a tab retired by somebody else than the close of the window (a harness, a package, which closes a tab
+    // by PDFDeferredDeletion::retire) leaves the window at once - never current again, nowhere listed, its document
+    // nowhere found - although it lives until the event loop deletes it; the window and the navigator refuse it
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* first = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("First.pdf"), 1));
+    pdf::PDFAppDocumentTab* second = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second.pdf"), 1));
+    QVERIFY(first && second);
+    QCOMPARE(fixture.window->getCurrentTab(), second);
+    const QString secondId = second->getDocumentId();
+    const int tabCount = fixture.window->getTabBar()->count();
+    const int secondHistory = second->getHistory().getCurrentIndex();
+    QStackedWidget* stack = fixture.window->findChild<QStackedWidget*>(QStringLiteral("tabContent"));
+    QVERIFY(stack);
+    QPointer<pdf::PDFAppDocumentTab> guard(second);
+
+    pdf::PDFDeferredDeletion::retire(second);
+    QVERIFY(guard);
+    QVERIFY(fixture.window->getCurrentTab());
+    QVERIFY(fixture.window->getCurrentTab() != second);
+    QCOMPARE(stack->currentWidget(), fixture.window->getCurrentTab());
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount - 1);
+    QVERIFY(!fixture.window->getTabs().contains(second));
+    QVERIFY(!fixture.window->getDocumentTabs().contains(second));
+    QVERIFY(!fixture.window->findDocumentTab(secondId));
+    QVERIFY(!fixture.context->getDocumentRegistry()->findDocument(secondId));
+    QCOMPARE(fixture.context->getDocumentRegistry()->getDocuments().size(), size_t(1));
+
+    // The window does not close it again nor make it current; a navigation from it is ignored (the current tab and
+    // its history stay)
+    pdf::PDFAppTab* current = fixture.window->getCurrentTab();
+    const int currentHistory = current->getHistory().getCurrentIndex();
+    QCOMPARE(fixture.window->requestCloseTab(second), pdf::PDFAppLeaveResult::Refused);
+    fixture.window->activateTab(second);
+    QCOMPARE(fixture.window->getCurrentTab(), current);
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::home(), pdf::PDFAppNavigationMode::Push, second);
+    QCOMPARE(fixture.window->getCurrentTab(), current);
+    QCOMPARE(current->getHistory().getCurrentIndex(), currentHistory);
+    QCOMPARE(second->getHistory().getCurrentIndex(), secondHistory);
+
+    fixture.settle();
+    QVERIFY(!guard);
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount - 1);
+    QCOMPARE(fixture.window->getCurrentTab(), current);
+    QCOMPARE(fixture.window->findDocumentTab(first->getDocumentId()), first);
+}
+
+void AppDocumentTest::mcpClosesTabDuringCloseQuestion()
+{
+    // RR-L7 of the review of the plan: the assistant closes tabs while the question of the close of an unsaved
+    // document is open. Its close of that tab and of another one is refused (the user decides; no second flow); the
+    // answer Don't Save retires the tab at once - the assistant does not find its document any more, before the event
+    // loop deletes the tab - and the assistant closes the other tab afterwards
+    pdftest::AppDocumentFixture fixture;
+    QVERIFY(AppDocumentTestHelper::allowAssistant(fixture));
+    pdf::PDFAppDocumentTab* changed = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Changed.pdf"), 1));
+    pdf::PDFAppDocumentTab* clean = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Clean.pdf"), 1));
+    QVERIFY(changed && clean);
+    QVERIFY(AppDocumentTestHelper::change(changed->getDocument(), QStringLiteral("Changed")));
+    const QString changedId = changed->getDocumentId();
+    const QString cleanId = clean->getDocumentId();
+    QPointer<pdf::PDFAppDocumentTab> changedGuard(changed);
+    QPointer<pdf::PDFAppDocumentTab> cleanGuard(clean);
+    QCOMPARE(AppDocumentTestHelper::getStateDocumentIds(fixture).size(), 2);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(changed), pdf::PDFAppLeaveResult::Pending);
+    pdf::PDFAppCloseUnsavedDialog* dialog = AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>();
+    QVERIFY(dialog);
+
+    auto close = [&fixture](const QString& documentId)
+    {
+        return AppDocumentTestHelper::callTool(fixture, QStringLiteral("view"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("close") }, { QStringLiteral("documentId"), documentId } }));
+    };
+    for (const QString& documentId : { changedId, cleanId })
+    {
+        const std::optional<pdf::PDFMcpCallResult> result = close(documentId);
+        QVERIFY(result);
+        QVERIFY2(result->isError, qPrintable(result->getFirstText()));
+        QVERIFY(changedGuard && cleanGuard);
+        QVERIFY(!pdf::PDFDeferredDeletion::isRetired(changed));
+        QVERIFY(!pdf::PDFDeferredDeletion::isRetired(clean));
+        QCOMPARE(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>(), dialog);
+    }
+
+    // Don't Save: the tab is retired in the answer; the assistant lists only the other document (the retired tab is
+    // still alive - the calls above and below process the events, a deletion of the test body waits for settle)
+    dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
+    QVERIFY(changedGuard);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(changed));
+    QCOMPARE(AppDocumentTestHelper::getStateDocumentIds(fixture), QStringList({ cleanId }));
+    QVERIFY(changedGuard);
+    const std::optional<pdf::PDFMcpCallResult> closedAgain = close(changedId);
+    QVERIFY(closedAgain && closedAgain->isError);
+
+    // The flow has ended: the assistant closes the other tab (retired at once, deleted later)
+    const std::optional<pdf::PDFMcpCallResult> result = close(cleanId);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(AppDocumentTestHelper::getStateDocumentIds(fixture).isEmpty());
+    fixture.settle();
+    QVERIFY(!changedGuard);
+    QVERIFY(!cleanGuard);
 }
 
 void AppDocumentTest::tabCloseDuringQuitSaveAll()

@@ -34,6 +34,8 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 
+#include "pdfdeferreddeletion.h"
+
 namespace pdf
 {
 
@@ -108,23 +110,25 @@ PDFAppAnnotationEditCommandHandler::PDFAppAnnotationEditCommandHandler(PDFAppDoc
     }
 
     // The commands follow the selection, the lock and the permissions
-    connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
-    connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
-    connect(controller, &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::selectionChanged, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::editingAllowedChanged, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::changeCommitted, this, &PDFAppAnnotationEditCommandHandler::stateChanged);
 
     // The requests of the panels, of the commands and of the engine (they come
     // from the event loop): the comment popup, the dialogs, the menus
-    connect(controller, &PDFAppAnnotationController::commentRequested, this, &PDFAppAnnotationEditCommandHandler::onCommentRequested);
-    connect(controller, &PDFAppAnnotationController::replyRequested, this, &PDFAppAnnotationEditCommandHandler::onReplyRequested);
-    connect(controller, &PDFAppAnnotationController::popupRequested, this, &PDFAppAnnotationEditCommandHandler::onPopupRequested);
-    connect(controller, &PDFAppAnnotationController::propertiesRequested, this, &PDFAppAnnotationEditCommandHandler::onPropertiesRequested);
-    connect(controller, &PDFAppAnnotationController::geometryRequested, this, &PDFAppAnnotationEditCommandHandler::onGeometryRequested);
-    connect(controller, &PDFAppAnnotationController::copyToPagesRequested, this, &PDFAppAnnotationEditCommandHandler::onCopyToPagesRequested);
-    connect(controller, &PDFAppAnnotationController::menuRequested, this, &PDFAppAnnotationEditCommandHandler::onMenuRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::commentRequested, this, &PDFAppAnnotationEditCommandHandler::onCommentRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::replyRequested, this, &PDFAppAnnotationEditCommandHandler::onReplyRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::popupRequested, this, &PDFAppAnnotationEditCommandHandler::onPopupRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::propertiesRequested, this, &PDFAppAnnotationEditCommandHandler::onPropertiesRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::geometryRequested, this, &PDFAppAnnotationEditCommandHandler::onGeometryRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::copyToPagesRequested, this, &PDFAppAnnotationEditCommandHandler::onCopyToPagesRequested);
+    PDFDeferredDeletion::connect(controller, &PDFAppAnnotationController::menuRequested, this, &PDFAppAnnotationEditCommandHandler::onMenuRequested);
 
     // The annotation bar lies over the canvas (a child of the canvas area of the
-    // view - it dies with the view), the menus are a child of the handler
+    // view - it dies with the view; logically a part of the handler), the menus are
+    // a child of the handler
     m_bar = new PDFAppAnnotationBar(view, view->getCanvasArea());
+    PDFDeferredDeletion::setOwner(m_bar.data(), this);
     m_menus = new PDFAppAnnotationMenus(view, this);
 }
 

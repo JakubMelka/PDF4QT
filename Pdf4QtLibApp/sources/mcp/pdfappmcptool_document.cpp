@@ -33,6 +33,7 @@
 #include "pdfappdocumentsearch.h"
 #include "pdfappdocumentsignatures.h"
 #include "pdfappdocumenttab.h"
+#include "pdfdeferreddeletion.h"
 
 #include "pdfdocument.h"
 #include "pdfmcperrorcodes.h"
@@ -559,16 +560,19 @@ PDFAppMcpSignatureWaiter::PDFAppMcpSignatureWaiter(PDFAppMcpHost* host, std::sha
     m_document(document),
     m_verifier(verifier)
 {
+    // The verifier belongs to the tab: a closed tab is retired and its signals reach nobody, so
+    // the wait ends on aboutToBeDeleted (step A, lesson 1); destroyed stays for a deletion without retire
     if (m_verifier)
     {
-        connect(m_verifier, &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppMcpSignatureWaiter::onVerificationChanged);
-        connect(m_verifier, &QObject::destroyed, this, &PDFAppMcpSignatureWaiter::onTimeout);
+        PDFDeferredDeletion::connect(m_verifier.data(), &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppMcpSignatureWaiter::onVerificationChanged);
+        PDFDeferredDeletion::connect(m_verifier.data(), &QObject::destroyed, this, &PDFAppMcpSignatureWaiter::onTimeout);
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_verifier), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpSignatureWaiter::onTimeout);
     }
 
     // A canceled call is answered at once (the host reports it), not at the end of the wait
     if (m_host)
     {
-        connect(m_host.data(), &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpSignatureWaiter::onCallCanceled);
+        PDFDeferredDeletion::connect(m_host.data(), &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpSignatureWaiter::onCallCanceled);
     }
 
     m_timer = new QTimer(this);

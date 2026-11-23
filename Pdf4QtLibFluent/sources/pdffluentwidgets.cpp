@@ -23,6 +23,7 @@
 #include "pdffluentwidgets.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -287,7 +288,7 @@ public:
         QObject(widget)
     {
         setObjectName(QLatin1String(PDFFluentWidgetsHelper::TEXT_PALETTE_BINDER));
-        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFTextPaletteBinder::apply);
+        PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFTextPaletteBinder::apply);
     }
 
 private:
@@ -1873,7 +1874,7 @@ PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
     }
 
     updateColors();
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFCalendarWidget::updateColors);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFCalendarWidget::updateColors);
 }
 
 PDFCalendarWidget::~PDFCalendarWidget()
@@ -2319,7 +2320,8 @@ PDFSegmentedControl::PDFSegmentedControl(QWidget* parent) :
     m_group.setExclusive(true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    connect(&m_group, &QButtonGroup::idToggled, this, &PDFSegmentedControl::onSegmentToggled);
+    // A member, not a child: outside of the subtree of the control, a retired control gets nothing of it
+    PDFDeferredDeletion::connect(&m_group, &QButtonGroup::idToggled, this, &PDFSegmentedControl::onSegmentToggled);
 }
 
 void PDFSegmentedControl::onSegmentToggled(int id, bool isChecked)

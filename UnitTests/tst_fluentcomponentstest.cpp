@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfaccenthue.h"
+#include "pdfanchorgrid.h"
 #include "pdfcolorpickerdialog.h"
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
@@ -45,6 +46,7 @@
 #include "pdfwidgetstyle.h"
 #include "pdfwidgetstyleproperties.h"
 #include "pdfwatchedpointer.h"
+#include "pdfdeferreddeletion.h"
 
 #include "gallerypages.h"
 
@@ -746,7 +748,22 @@ private slots:
     void tileRowListTiming();
     void toolsGalleryPage();
 
+    // The library under PDFDeferredDeletion::retire (step A of the robustness plan)
+    void deferredDeletionForeignConnections();
+    void deferredDeletionTextPaletteBinder();
+    void deferredDeletionToolTip();
+    void deferredDeletionToolTipFilterBehindGate();
+    void deferredDeletionColorPicker();
+    void deferredDeletionDelegateFilters();
+    void deferredDeletionDelegateMenu();
+    void deferredDeletionMessageBox();
+    void deferredDeletionReplacedParts();
+    void deferredDeletionMoreButtonMenu();
+
 private:
+    /// Sends the deferred deletions of the retired objects (the test body is the event loop level 0)
+    static void settleRetired() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
+
     /// Returns the pixel of the area, which differs most from the background
     static QColor strongestInk(const QImage& image, const QRect& area, const QColor& background);
 
@@ -21290,6 +21307,459 @@ void FluentComponentsTest::toolsGalleryPage()
         delete page.widget;
     }
     QVERIFY(isFound);
+}
+
+/// A delegate of the library, which counts the calls of its event filter (the filters on its
+/// views and viewports)
+class DeferredDeletionCountingDelegate : public pdf::PDFBookmarkDelegate
+{
+public:
+    explicit DeferredDeletionCountingDelegate(QObject* parent) :
+        pdf::PDFBookmarkDelegate(parent)
+    {
+    }
+
+    int filtered = 0;
+
+protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        ++filtered;
+        return pdf::PDFBookmarkDelegate::eventFilter(watched, event);
+    }
+};
+
+/// Records, whether the color picker still picks, when its Hide event comes
+class DeferredDeletionHideProbe : public QObject
+{
+public:
+    explicit DeferredDeletionHideProbe(pdf::PDFColorPickerDialog* dialog) :
+        m_dialog(dialog)
+    {
+    }
+
+    bool isHideSeen = false;
+    bool isPickingAtHide = false;
+
+protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (watched == m_dialog && event->type() == QEvent::Hide && !isHideSeen)
+        {
+            isHideSeen = true;
+            isPickingAtHide = m_dialog->isPicking();
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QPointer<pdf::PDFColorPickerDialog> m_dialog;
+};
+
+void FluentComponentsTest::deferredDeletionForeignConnections()
+{
+    // A connection, whose sender is neither the receiver nor its descendant (the theme
+    // manager, a member QTimer or QButtonGroup, a header of a view, an editor of a
+    // delegate), is made by PDFDeferredDeletion::connect: its handle is kept at the receiver
+    // and retire of the receiver (or of an ancestor) cuts it (arch/conventions.md, Lifetime)
+    QPointer<QWidget> window = new QWidget();
+    pdf::PDFAnchorGrid* anchorGrid = new pdf::PDFAnchorGrid(window);
+    pdf::PDFCalendarWidget* calendar = new pdf::PDFCalendarWidget(window);
+    pdf::PDFStrengthMeter* meter = new pdf::PDFStrengthMeter(window);
+    pdf::PDFNavList* navList = new pdf::PDFNavList(window);
+    pdf::PDFSegmentedControl* segmented = new pdf::PDFSegmentedControl(window);
+    pdf::PDFPropertyRow* propertyRow = new pdf::PDFPropertyRow(QStringLiteral("Key"), QStringLiteral("Value"), window);
+    pdf::PDFColorPickerDialog* picker = new pdf::PDFColorPickerDialog(QColor(1, 2, 3), window);
+    QLineEdit* edit = new QLineEdit(window);
+    pdf::PDFThemeWidgetHelper::bindTextPalette(edit);
+    QObject* binder = edit->findChild<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly);
+    QVERIFY(binder);
+
+    // The theme manager (one connection each)
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(anchorGrid), 1);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(calendar), 1);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(meter), 1);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(binder), 1);
+
+    // The members, which are no children (QButtonGroup, QTimer); a property row is a component
+    // button, which follows the theme too
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(navList), 1);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(segmented), 1);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(propertyRow), 2);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(picker), 1);
+
+    // A delegate of a tree view: the theme and the header of the view; a shortcut delegate
+    // gets the two signals of each editor (a child of the viewport)
+    QStandardItemModel* model = new QStandardItemModel(window);
+    model->appendRow(new QStandardItem(QStringLiteral("Item")));
+    pdf::PDFTreeView* treeView = new pdf::PDFTreeView(window);
+    treeView->setModel(model);
+    pdf::PDFBookmarkDelegate* treeDelegate = new pdf::PDFBookmarkDelegate(treeView);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(treeDelegate), 2);
+    pdf::PDFShortcutDelegate* shortcutDelegate = new pdf::PDFShortcutDelegate(window);
+    const int shortcutConnections = pdf::PDFDeferredDeletion::getConnectionCount(shortcutDelegate);
+    QWidget* recorder = shortcutDelegate->createEditor(treeView->viewport(), QStyleOptionViewItem(), model->index(0, 0));
+    QVERIFY(recorder);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(shortcutDelegate), shortcutConnections + 2);
+
+    // Retire of the window cuts all of them at once
+    pdf::PDFDeferredDeletion::retire(window);
+    for (const QObject* receiver : std::initializer_list<const QObject*>{ anchorGrid, calendar, meter, binder, navList, segmented, propertyRow, picker, treeDelegate, shortcutDelegate })
+    {
+        QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(receiver), 0);
+    }
+    settleRetired();
+    QVERIFY(!window);
+}
+
+void FluentComponentsTest::deferredDeletionTextPaletteBinder()
+{
+    // The binder of the text palette follows the theme; a retired widget does not follow it
+    // any more (its connection to the theme manager is cut, it is deleted later)
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QPointer<QWidget> window = new QWidget();
+    QLineEdit* edit = new QLineEdit(window);
+    pdf::PDFThemeWidgetHelper::bindTextPalette(edit);
+    const QColor lightText = edit->palette().color(QPalette::Active, QPalette::Text);
+    QCOMPARE(lightText, token(Color::TextPrimary));
+
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    const QColor darkText = edit->palette().color(QPalette::Active, QPalette::Text);
+    QCOMPARE(darkText, token(Color::TextPrimary));
+    QVERIFY(darkText != lightText);
+
+    pdf::PDFDeferredDeletion::retire(window);
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QVERIFY(window);
+    QCOMPARE(edit->palette().color(QPalette::Active, QPalette::Text), darkText);
+    settleRetired();
+    QVERIFY(!window);
+}
+
+void FluentComponentsTest::deferredDeletionToolTip()
+{
+    // The tooltip of the library is a window outside of its widget: retire of the widget
+    // (or of an ancestor) hides it at once, a retired widget shows none, a tooltip of
+    // another widget stays, a widget deleted while its tooltip is shown hides it
+    QPointer<QWidget> window = new QWidget();
+    window->resize(300, 100);
+    QWidget* first = new QWidget(window);
+    QWidget* second = new QWidget(window);
+    QPointer<QWidget> third = new QWidget(window);
+    QPointer<QWidget> fourth = new QWidget(window);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+    const QPoint position = window->mapToGlobal(QPoint(10, 10));
+
+    pdf::PDFToolTip::showText(position, QStringLiteral("First"), QString(), QString(), first);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    pdf::PDFDeferredDeletion::retire(first);
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+
+    pdf::PDFToolTip::showText(position, QStringLiteral("First again"), QString(), QString(), first);
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+
+    pdf::PDFToolTip::showText(position, QStringLiteral("Third"), QString(), QString(), third);
+    pdf::PDFToolTip::showText(position, QStringLiteral("Second"), QString(), QString(), second);
+    QCOMPARE(pdf::PDFToolTip::getTitle(), QStringLiteral("Second"));
+    pdf::PDFDeferredDeletion::retire(third);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QCOMPARE(pdf::PDFToolTip::getTitle(), QStringLiteral("Second"));
+    settleRetired();
+    QVERIFY(!third);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+
+    pdf::PDFToolTip::showText(position, QStringLiteral("Fourth"), QString(), QString(), fourth);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    delete fourth.data();
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+
+    delete window.data();
+    settleRetired();
+    pdf::PDFToolTip::hideText();
+}
+
+void FluentComponentsTest::deferredDeletionToolTipFilterBehindGate()
+{
+    // The tooltip filters the events of the application while it is shown; it is installed
+    // through PDFDeferredDeletion, so the gate stays in front of it: an event of a retired
+    // widget is dropped before the tooltip sees it, an event of a living widget is not
+    QPointer<QWidget> window = new QWidget();
+    window->resize(300, 100);
+    QWidget* retired = new QWidget(window);
+    retired->setGeometry(0, 0, 100, 100);
+    QWidget* other = new QWidget(window);
+    other->setGeometry(150, 0, 100, 100);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+
+    pdf::PDFDeferredDeletion::retire(retired);
+    pdf::PDFToolTip::showText(window->mapToGlobal(QPoint(160, 10)), QStringLiteral("Other"), QString(), QString(), other);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+
+    QMouseEvent retiredPress(QEvent::MouseButtonPress, QPointF(5, 5), retired->mapToGlobal(QPointF(5, 5)), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(retired, &retiredPress);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+
+    QMouseEvent otherPress(QEvent::MouseButtonPress, QPointF(5, 5), other->mapToGlobal(QPointF(5, 5)), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(other, &otherPress);
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+
+    settleRetired();
+    delete window.data();
+}
+
+void FluentComponentsTest::deferredDeletionColorPicker()
+{
+    // The eyedropper reaches outside of the dialog (the grabs): retire of the dialog ends it
+    // by its token (step 4), before the dialog is closed (step 6) - when the dialog hides,
+    // it picks no more; the picking ended by the dialog leaves no token behind
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    QPointer<pdf::PDFColorPickerDialog> dialog = new pdf::PDFColorPickerDialog(QColor(1, 2, 3));
+    dialog->show();
+    QVERIFY(QTest::qWaitForWindowExposed(dialog.data()));
+
+    dialog->startPicking();
+    QVERIFY(dialog->isPicking());
+    QCOMPARE(dialog->findChildren<pdf::PDFLifetimeToken*>().size(), 1);
+    dialog->stopPicking(true);
+    QVERIFY(dialog->findChildren<pdf::PDFLifetimeToken*>().isEmpty());
+
+    dialog->startPicking();
+    QVERIFY(dialog->isPicking());
+    DeferredDeletionHideProbe probe(dialog);
+    dialog->installEventFilter(&probe);
+    pdf::PDFDeferredDeletion::retire(dialog);
+    QVERIFY(probe.isHideSeen);
+    QVERIFY(!probe.isPickingAtHide);
+    QVERIFY(dialog);
+    QVERIFY(!dialog->isPicking());
+    QVERIFY(!dialog->isVisible());
+    settleRetired();
+    QVERIFY(!dialog);
+}
+
+void FluentComponentsTest::deferredDeletionDelegateFilters()
+{
+    // A delegate, whose parent is not its view, filters the events of the view and of its
+    // viewport; retired, it filters nothing more (the view lives on), then it is deleted
+    QPointer<QWidget> window = new QWidget();
+    window->resize(300, 200);
+    QStandardItemModel* model = new QStandardItemModel(window);
+    model->appendRow(new QStandardItem(QStringLiteral("Item")));
+    pdf::PDFListView* view = new pdf::PDFListView(window);
+    view->setGeometry(0, 0, 300, 200);
+    view->setModel(model);
+    QObject* owner = new QObject();
+    QPointer<DeferredDeletionCountingDelegate> delegate = new DeferredDeletionCountingDelegate(owner);
+    view->setItemDelegate(delegate);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+    view->grab();
+    QVERIFY(delegate->isWatching(view));
+
+    QEvent leave(QEvent::Leave);
+    const int beforeRetire = delegate->filtered;
+    QApplication::sendEvent(view->viewport(), &leave);
+    QApplication::sendEvent(view, &leave);
+    QVERIFY(delegate->filtered >= beforeRetire + 2);
+
+    pdf::PDFDeferredDeletion::retire(owner);
+    const int afterRetire = delegate->filtered;
+    QApplication::sendEvent(view->viewport(), &leave);
+    QApplication::sendEvent(view, &leave);
+    view->grab();
+    QCOMPARE(delegate->filtered, afterRetire);
+
+    settleRetired();
+    QVERIFY(!delegate);
+    view->grab();
+    delete window.data();
+}
+
+void FluentComponentsTest::deferredDeletionDelegateMenu()
+{
+    // The context menu of an item is a child of the view, but its actions call the delegate:
+    // it belongs to the delegate, a retired delegate closes it and disables its actions
+    QStandardItemModel model;
+    DelegateSamples::fonts(&model);
+    QPointer<QWidget> window = new QWidget();
+    window->resize(300, 200);
+    pdf::PDFListView* view = new pdf::PDFListView(window);
+    view->setGeometry(0, 0, 300, 200);
+    view->setModel(&model);
+    QPointer<pdf::PDFFontDelegate> delegate = new pdf::PDFFontDelegate();
+    view->setItemDelegate(delegate);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+
+    QPointer<QMenu> menu = delegate->createContextMenu(view, model.index(0, 0), view);
+    QVERIFY(menu);
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(menu), delegate.data());
+    menu->popup(view->mapToGlobal(QPoint(10, 10)));
+    QVERIFY(menu->isVisible());
+    QVERIFY(!menu->actions().isEmpty());
+    QPointer<QAction> action = menu->actions().at(0);
+    QVERIFY(action->isEnabled());
+
+    pdf::PDFDeferredDeletion::retire(delegate);
+    QVERIFY(menu);
+    QVERIFY(!menu->isVisible());
+    QVERIFY(action && !action->isEnabled());
+    settleRetired();
+    QVERIFY(!delegate);
+    QVERIFY(!menu);
+    delete window.data();
+}
+
+void FluentComponentsTest::deferredDeletionMessageBox()
+{
+    // The scrim of a message box is a child of its target, but it belongs to the box: it is
+    // retired with the box (step 1, before any listener); an own head replaced by another
+    // one is retired at once and deleted later
+    QPointer<QWidget> window = new QWidget();
+    window->resize(640, 480);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+    QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, window);
+    box->setScrimTarget(window);
+
+    QPointer<QWidget> firstHead = new QLabel(QStringLiteral("First head"));
+    box->setHeadWidget(firstHead);
+    box->show();
+    QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+    QPointer<QWidget> scrim = box->getScrim();
+    QVERIFY(scrim);
+    QCOMPARE(pdf::PDFDeferredDeletion::getOwner(scrim), box.data());
+
+    box->setHeadWidget(new QLabel(QStringLiteral("Second head")));
+    QVERIFY(firstHead);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(firstHead));
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(box));
+    settleRetired();
+    QVERIFY(!firstHead);
+
+    bool isScrimRetiredFirst = false;
+    QObject::connect(pdf::PDFDeferredDeletion::getNotifier(box), &pdf::PDFLifetimeNotifier::aboutToBeDeleted, window, [&isScrimRetiredFirst, scrim]()
+    {
+        isScrimRetiredFirst = scrim && pdf::PDFDeferredDeletion::isRetired(scrim);
+    });
+    pdf::PDFDeferredDeletion::retire(box);
+    QVERIFY(isScrimRetiredFirst);
+    QVERIFY(scrim && scrim->isHidden());
+    settleRetired();
+    QVERIFY(!box);
+    QVERIFY(!scrim);
+    delete window.data();
+}
+
+void FluentComponentsTest::deferredDeletionReplacedParts()
+{
+    // The parts, which the library replaces while they are shown (the close button of
+    // a tab, the tags of a video card), may be replaced from a slot of their own signal:
+    // they are hidden at once and retired from the event loop (retireLater - the rest of
+    // the signal still reaches its later receivers), then they are inert and deleted later
+    QPointer<QWidget> window = new QWidget();
+    pdf::PDFDocumentTabBar* tabBar = new pdf::PDFDocumentTabBar(window);
+    tabBar->addTab(QStringLiteral("Home"));
+    tabBar->addTab(QStringLiteral("Document"));
+    tabBar->setTabClosable(1, true);
+    const QTabBar::ButtonPosition side = static_cast<QTabBar::ButtonPosition>(tabBar->style()->styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, tabBar));
+    QPointer<QWidget> closeButton = tabBar->tabButton(1, side);
+    QVERIFY(closeButton);
+    pdf::PDFVideoCard* card = new pdf::PDFVideoCard(QStringLiteral("Video"), QString(), QString(), { QStringLiteral("OCR"), QStringLiteral("Basics") }, window);
+    QList<QPointer<pdf::PDFTag>> oldTags;
+    for (pdf::PDFTag* tag : card->getTagWidgets())
+    {
+        oldTags << tag;
+    }
+    QCOMPARE(oldTags.size(), 2);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+
+    // The tab bar makes the tab not closable from the click of its own close button
+    int laterReceivers = 0;
+    QObject::connect(tabBar, &QTabBar::tabCloseRequested, tabBar, [tabBar](int index) { tabBar->setTabClosable(index, false); });
+    QObject::connect(qobject_cast<QAbstractButton*>(closeButton.data()), &QAbstractButton::clicked, window, [&laterReceivers]() { ++laterReceivers; });
+    qobject_cast<QAbstractButton*>(closeButton.data())->click();
+    QVERIFY(closeButton);
+    QVERIFY(closeButton->isHidden());
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(closeButton));
+    QCOMPARE(laterReceivers, 1);
+    QVERIFY(!tabBar->isTabClosable(1));
+
+    // The card sets other tags from the click of its own tag (tagClicked)
+    int tagLaterReceivers = 0;
+    QObject::connect(card, &pdf::PDFVideoCard::tagClicked, card, [card]() { card->setTags({ QStringLiteral("Forms") }); });
+    QObject::connect(oldTags.at(0).data(), &QAbstractButton::clicked, window, [&tagLaterReceivers]() { ++tagLaterReceivers; });
+    oldTags.at(0)->click();
+    for (const QPointer<pdf::PDFTag>& tag : std::as_const(oldTags))
+    {
+        QVERIFY(tag);
+        QVERIFY(tag->isHidden());
+        QVERIFY(!pdf::PDFDeferredDeletion::isRetired(tag));
+    }
+    QCOMPARE(tagLaterReceivers, 1);
+    QCOMPARE(card->getTagWidgets().size(), 1);
+    QCOMPARE(card->getTagWidgets().front()->text(), QStringLiteral("Forms"));
+
+    // The event loop retires them: inert (a click reaches nobody), deleted later
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+    QVERIFY(closeButton);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(closeButton));
+    for (const QPointer<pdf::PDFTag>& tag : std::as_const(oldTags))
+    {
+        QVERIFY(tag);
+        QVERIFY(pdf::PDFDeferredDeletion::isRetired(tag));
+    }
+    qobject_cast<QAbstractButton*>(closeButton.data())->click();
+    oldTags.at(0)->click();
+    QCOMPARE(laterReceivers, 1);
+    QCOMPARE(tagLaterReceivers, 1);
+
+    settleRetired();
+    QVERIFY(!closeButton);
+    for (const QPointer<pdf::PDFTag>& tag : std::as_const(oldTags))
+    {
+        QVERIFY(!tag);
+    }
+    delete window.data();
+}
+
+void FluentComponentsTest::deferredDeletionMoreButtonMenu()
+{
+    // The menu of a more button belongs to the application (here a window of its own): the
+    // button stays down while the menu is shown; a retired button gets nothing of the menu
+    QPointer<QWidget> window = new QWidget();
+    window->resize(200, 100);
+    pdf::PDFMoreButton* button = new pdf::PDFMoreButton(window);
+    QMenu* menu = new QMenu();
+    menu->addAction(QStringLiteral("Action"));
+    button->setMenu(menu);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+
+    QVERIFY(button->showMenu());
+    QVERIFY(button->isDown());
+    menu->hide();
+    QVERIFY(!button->isDown());
+
+    // The theme (a component button) and the shown menu
+    QVERIFY(button->showMenu());
+    QVERIFY(button->isDown());
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), 2);
+    pdf::PDFDeferredDeletion::retire(window);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), 0);
+
+    // The retire has hidden the window (the focus left the button, Qt released it); the
+    // button pressed again is not released by the closing menu any more
+    button->setDown(true);
+    menu->hide();
+    QVERIFY(button->isDown());
+    settleRetired();
+    QVERIFY(!window);
+    delete menu;
 }
 
 

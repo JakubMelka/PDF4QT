@@ -738,7 +738,7 @@ void AppToolSoftProofTest::beforeAfterWithoutProof()
 
     pdf::PDFAppDocumentView* view = tab->getView();
     QPointer<pdf::PDFAppToolBeforeAfterOverlay> overlay = new pdf::PDFAppToolBeforeAfterOverlay(view->getPdfWidget(), view->getCanvasArea());
-    const QScopeGuard deleteOverlay([&overlay]() { delete overlay.data(); });
+    const QScopeGuard deleteOverlay([&overlay]() { pdftest::AppDocumentFixture::deleteNow(overlay.data()); });
     overlay->setResult(tab->getDocument()->getDocument(), QStringLiteral("After"));
     overlay->setOverlayShown(true);
     overlay->setLinePosition(0);

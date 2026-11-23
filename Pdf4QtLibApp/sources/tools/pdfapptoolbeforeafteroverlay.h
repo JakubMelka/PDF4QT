@@ -27,6 +27,7 @@
 #include "pdfapptooldragsource.h"
 
 #include "pdfcms.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdocumentdrawinterface.h"
 
@@ -43,6 +44,7 @@
 namespace pdf
 {
 
+class PDFAppCanvasDrawToken;
 class PDFAppToolBeforeAfterJob;
 class PDFAppToolBeforeAfterLink;
 class PDFDrawWidgetProxy;
@@ -60,14 +62,16 @@ class PDFWidget;
 /// are drawn into the canvas by its draw interface, so the wheel and the mouse reach the
 /// canvas everywhere else.
 ///
-/// Ownership: a child of the canvas area (the shell of the tool deletes it, the canvas
-/// area when it dies first). It holds the canvas and its proxy by QPointer. A render job
+/// Ownership: a child of the canvas area (the shell of the tool retires it, the canvas
+/// area deletes it when it dies first). It holds the canvas and its proxy by QPointer; its
+/// draw interface is a token (PDFAppCanvasDrawToken, a child), the filter of the canvas
+/// area and the connection of the theme go through PDFDeferredDeletion. A render job
 /// holds only its own shared data - the document of the result, the settings of the color
 /// management taken in the thread of the user interface, the matrices - and it never
 /// holds the overlay: its deletion cancels the job, nobody waits and a late result is
 /// dropped (F12). At most the images of one result exist, bounded by MAXIMUM_PIXELS.
 /// The overlay emits no signals.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolBeforeAfterOverlay : public QWidget, public IDocumentDrawInterface, public IPDFAppToolDragSource
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolBeforeAfterOverlay : public QWidget, public PDFRetirable, public IDocumentDrawInterface, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -156,6 +160,10 @@ protected:
     virtual void focusInEvent(QFocusEvent* event) override;
     virtual void focusOutEvent(QFocusEvent* event) override;
 
+    /// Hook of PDFDeferredDeletion::retire: the render job is canceled and its link cut at once (its late result
+    /// reaches nobody); the draw interface leaves the canvas by its token
+    virtual void retire() override;
+
 private:
     friend class PDFAppToolBeforeAfterLink;
 
@@ -193,6 +201,7 @@ private:
     QPointer<PDFDrawWidgetProxy> m_proxy;
     QPointer<QWidget> m_canvasArea;
     QPointer<QWidget> m_drawWidget;
+    QPointer<PDFAppCanvasDrawToken> m_drawToken;    ///< Child: the draw interface on the proxy
     QString m_beforeText;
     QString m_afterText;
     PDFDocumentPointer m_document;

@@ -34,6 +34,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 
@@ -121,10 +122,10 @@ PDFAppDocumentSearchCommandHandler::PDFAppDocumentSearchCommandHandler(PDFAppDoc
 
     if (view)
     {
-        connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentSearchCommandHandler::onPanelChanged);
+        PDFDeferredDeletion::connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentSearchCommandHandler::onPanelChanged);
         if (PDFAppDocumentSidebar* sidebar = view->getSidebar())
         {
-            connect(sidebar, &PDFAppDocumentSidebar::tabClicked, this, &PDFAppDocumentSearchCommandHandler::onSidebarTabClicked);
+            PDFDeferredDeletion::connect(sidebar, &PDFAppDocumentSidebar::tabClicked, this, &PDFAppDocumentSearchCommandHandler::onSidebarTabClicked);
         }
         view->addStatusItem(new PDFAppSignatureStatusItem(m_signatureVerifier, view), PDFAppDocumentStatusBar::Area::Trailing);
     }
@@ -167,8 +168,8 @@ void PDFAppDocumentSearchCommandHandler::connectSearchField()
     }
 
     m_searchField = field;
-    connect(field, &QLineEdit::returnPressed, this, &PDFAppDocumentSearchCommandHandler::onFieldReturnPressed);
-    field->installEventFilter(this);
+    PDFDeferredDeletion::connect(field, &QLineEdit::returnPressed, this, &PDFAppDocumentSearchCommandHandler::onFieldReturnPressed);
+    PDFDeferredDeletion::installEventFilter(field, this);
 }
 
 PDFAppDocumentTextIndexer* PDFAppDocumentSearchCommandHandler::getIndexer() const

@@ -24,6 +24,7 @@
 #include "pdfapplocale.h"
 #include "pdfdocumenttool_statistics.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfpainterutils.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -70,7 +71,7 @@ public:
 PDFAppToolCanvasMessage::PDFAppToolCanvasMessage(QWidget* parent) :
     BaseClass(parent)
 {
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolCanvasMessage::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolCanvasMessage::onThemeChanged);
 }
 
 PDFAppToolCanvasMessage::~PDFAppToolCanvasMessage() = default;
@@ -134,7 +135,7 @@ PDFAppStatisticsTable::PDFAppStatisticsTable(QWidget* parent) :
     setObjectName(QStringLiteral("statisticsTable"));
     setFocusPolicy(Qt::StrongFocus);
     setAccessibleName(tr("Statistics"));
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppStatisticsTable::onThemeChanged);
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppStatisticsTable::onThemeChanged);
 }
 
 PDFAppStatisticsTable::~PDFAppStatisticsTable() = default;

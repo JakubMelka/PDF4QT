@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentbadges.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QEvent>
@@ -79,7 +80,7 @@ void PDFIconBadge::init()
     // A picture: the mouse goes to the widget below it
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 void PDFIconBadge::setIconName(const QString& iconName)
@@ -182,7 +183,7 @@ PDFStatusBadge::PDFStatusBadge(QWidget* parent) :
 {
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFStatusBadge::PDFStatusBadge(const QString& text, const QString& iconName, PDFAccentHue hue, QWidget* parent) :
@@ -267,7 +268,7 @@ PDFFactPill::PDFFactPill(QWidget* parent) :
 {
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFFactPill::PDFFactPill(const QString& iconName, const QString& text, QWidget* parent) :
@@ -338,7 +339,7 @@ PDFAvatar::PDFAvatar(QWidget* parent) :
 {
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFAvatar::PDFAvatar(const QString& initials, int extent, int fontPixelSize, QWidget* parent) :
@@ -421,7 +422,7 @@ PDFStatusRow::PDFStatusRow(QWidget* parent) :
     BaseClass(parent)
 {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFStatusRow::PDFStatusRow(const QString& title, const QString& subtitle, const QString& status, bool isActive, QWidget* parent) :
@@ -535,7 +536,7 @@ PDFTintedCard::PDFTintedCard(QWidget* parent) :
     BaseClass(parent)
 {
     setFrameShape(QFrame::NoFrame);
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    PDFDeferredDeletion::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 }
 
 PDFTintedCard::PDFTintedCard(std::optional<PDFAccentHue> hue, QWidget* parent) :
