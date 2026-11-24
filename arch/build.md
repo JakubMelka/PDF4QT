@@ -3,13 +3,14 @@
     cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Debug
     cmake --build build -j
 
-The vcpkg toolchain is required; Qt 6.9 is the minimum of the project. Options: `PDF4QT_BUILD_ONLY_CORE_LIBRARY` (no GUI target, no application), `PDF4QT_BUILD_TESTS` (ON), `PDF4QT_QT_ROOT` (needed when installing the Qt dependencies), `PDF4QT_INSTALL_TO_USR`, `PDF4QT_ENABLE_OCR` (Tesseract), `PDF4QT_ENABLE_PCH` (ON), `PDF4QT_ENABLE_COVERAGE`, `PDF4QT_ENABLE_VALGRIND_ANNOTATIONS` ([checks.md](checks.md)). On Linux set `VCPKG_OVERLAY_PORTS=vcpkg/overlays/linux:vcpkg/overlays/general` - the libpng of vcpkg crashes otherwise.
+The vcpkg toolchain is required; Qt 6.9 is the minimum of the project. Options: `PDF4QT_BUILD_ONLY_CORE_LIBRARY` (no GUI target, no application), `PDF4QT_BUILD_TESTS` (ON), `PDF4QT_QT_ROOT` (needed when installing the Qt dependencies), `PDF4QT_INSTALL_TO_USR`, `PDF4QT_ENABLE_OCR` (Tesseract), `PDF4QT_ENABLE_PCH` (ON), `PDF4QT_ENABLE_COVERAGE`, `PDF4QT_ENABLE_VALGRIND_ANNOTATIONS`, `PDF4QT_ENABLE_MSVC_ASAN` (AddressSanitizer of MSVC cl: `/fsanitize=address`, `_DISABLE_STL_ANNOTATION`, `/Ob1`, `/Z7`, `/DEBUG /INCREMENTAL:NO`; only Release / RelWithDebInfo of a single-configuration generator, Debug fails the configuration) ([checks.md](checks.md)). On Linux set `VCPKG_OVERLAY_PORTS=vcpkg/overlays/linux:vcpkg/overlays/general` - the libpng of vcpkg crashes otherwise.
 
 ## Trees of the development machine
 
 - `build/msvc2022_debug`: Ninja + MSVC debug, Qt 6.9.0 at `E:/Programming/Qt/6.9.0/msvc2022_64`.
 - Without it the Qt Creator tree `build/Desktop_Qt_6_11_2_MSVC2026_64bit_Release` (Release, Qt 6.11.2, `VCPKG_MANIFEST_INSTALL=OFF`): after a change of `vcpkg.json` run by hand `vcpkg install --x-manifest-root=. --x-install-root=<build>/vcpkg_installed --overlay-ports=vcpkg/overlays/general`.
 - Build by a `.bat` written to the scratchpad, which calls `vcvars64.bat`, `cd /d` into the tree and runs `ninja <target>` - nested quotes are mangled otherwise.
+- A tree configured by `CMAKE_PREFIX_PATH` to the `vcpkg_installed` of the Qt Creator tree (no vcpkg toolchain) in RelWithDebInfo needs `"-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=RelWithDebInfo;Release;None"` (quoted: semicolons; the toolchain sets it); otherwise the debug libraries of vcpkg are linked (LNK2038 `_ITERATOR_DEBUG_LEVEL` with `Clipper2.lib`).
 - Executables need Qt's `bin` on `PATH`; QtTest stdout is swallowed by some shells here, so run with `-o result.txt,txt` and read the file.
 
 ## Precompiled headers

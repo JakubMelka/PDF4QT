@@ -50,6 +50,7 @@ option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
 option(PDF4QT_ENABLE_VALGRIND_ANNOTATIONS "Annotate the hand-offs between threads and QMutex for valgrind helgrind / drd (needs the headers of valgrind, Linux)" OFF)
+option(PDF4QT_ENABLE_MSVC_ASAN "Instrument the code of PDF4QT by the AddressSanitizer of MSVC (cl, single-configuration generator, Release or RelWithDebInfo; a separate build tree for the tests)" OFF)
 option(PDF4QT_ENABLE_OCR "Build the OCR support with the Tesseract engine (requires Tesseract and Leptonica)" ON)
 option(PDF4QT_OCR_REQUIRED "Release gate of the OCR support: fail the configuration instead of disabling OCR silently when the Tesseract engine is not found, when a built-in language model declared by a manifest (ocr/tesseract/<profile>/manifest.json) has no archive or is not extracted, or when a runtime library of the engine is missing in the installer. Turn it on for the distributed builds, which must ship the OCR engine and the declared built-in model set (OPS-01, LANG-01, LANG-02)" OFF)
 
@@ -132,6 +133,63 @@ set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
 
 if (MSVC)
     add_compile_options(/bigobj /W4 /wd5054 /wd4127 /wd4702)
+endif()
+
+if(PDF4QT_ENABLE_MSVC_ASAN)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(FATAL_ERROR "PDF4QT_ENABLE_MSVC_ASAN needs the MSVC compiler cl (now: ${CMAKE_CXX_COMPILER_ID}). Linux uses the ASan + UBSan tree of arch/checks.md.")
+    endif()
+    get_property(PDF4QT_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" PDF4QT_BUILD_TYPE_UPPER)
+    if(PDF4QT_MULTI_CONFIG OR NOT PDF4QT_BUILD_TYPE_UPPER MATCHES "^(RELEASE|RELWITHDEBINFO)$")
+        message(FATAL_ERROR "PDF4QT_ENABLE_MSVC_ASAN needs a single-configuration generator (Ninja) with CMAKE_BUILD_TYPE Release or RelWithDebInfo (now: '${CMAKE_BUILD_TYPE}', generator ${CMAKE_GENERATOR}). The option is made for the optimized test trees only: the Debug flags (/Zi, /Od, /RTC1) and the debug libraries are not adapted to ASan.")
+    endif()
+
+    # AddressSanitizer of MSVC, only the code of PDF4QT is instrumented (Qt and vcpkg are not,
+    # the allocator of the CRT is intercepted in the whole process):
+    # - _DISABLE_STL_ANNOTATION: the static libraries of vcpkg (Clipper2) are compiled without
+    #   ASan; the annotations of the containers of the STL (vector, string, optional) would fail
+    #   the link by a mismatch of #pragma detect_mismatch (LNK2038) and report false
+    #   container overflows of the containers passed between the modules
+    # - /Z7: debug information in the objects (symbolized stacks, no contention of the parallel
+    #   compilers for one PDB, no warning C5072 of ASan without debug information)
+    # - /Ob1: less inlining, readable stacks
+    # - /DEBUG /INCREMENTAL:NO: PDB for the symbolizer, incremental link is incompatible with ASan
+    # The runtime libraries of ASan are linked by /INFERASANLIBS of the objects.
+    add_compile_options(/fsanitize=address)
+    add_compile_definitions(_DISABLE_STL_ANNOTATION)
+
+    # The default flags are replaced (not overridden by later flags: warning D9025). /Zi is in the
+    # default flags because CMP0141 is OLD (cmake_minimum_required 3.16), so it is edited here;
+    # CMAKE_MSVC_DEBUG_INFORMATION_FORMAT would have no effect
+    get_property(PDF4QT_ENABLED_LANGUAGES GLOBAL PROPERTY ENABLED_LANGUAGES)
+    foreach(PDF4QT_CONFIG RELEASE RELWITHDEBINFO)
+        foreach(PDF4QT_LANGUAGE C CXX)
+            if(PDF4QT_LANGUAGE IN_LIST PDF4QT_ENABLED_LANGUAGES)
+                set(PDF4QT_FLAGS "${CMAKE_${PDF4QT_LANGUAGE}_FLAGS_${PDF4QT_CONFIG}}")
+                string(REGEX REPLACE "[/-]Ob[23]" "/Ob1" PDF4QT_FLAGS "${PDF4QT_FLAGS}")
+                string(REGEX REPLACE "[/-]Z[iI]" "/Z7" PDF4QT_FLAGS "${PDF4QT_FLAGS}")
+                if(NOT PDF4QT_FLAGS MATCHES "[/-]Ob1")
+                    string(APPEND PDF4QT_FLAGS " /Ob1")
+                endif()
+                if(NOT PDF4QT_FLAGS MATCHES "[/-]Z7")
+                    string(APPEND PDF4QT_FLAGS " /Z7")
+                endif()
+                set(CMAKE_${PDF4QT_LANGUAGE}_FLAGS_${PDF4QT_CONFIG} "${PDF4QT_FLAGS}")
+            endif()
+        endforeach()
+        foreach(PDF4QT_TARGET_TYPE EXE SHARED MODULE)
+            set(PDF4QT_FLAGS "${CMAKE_${PDF4QT_TARGET_TYPE}_LINKER_FLAGS_${PDF4QT_CONFIG}}")
+            string(REGEX REPLACE "[/-][Ii][Nn][Cc][Rr][Ee][Mm][Ee][Nn][Tt][Aa][Ll](:[Yy][Ee][Ss])?( |$)" "/INCREMENTAL:NO\\2" PDF4QT_FLAGS "${PDF4QT_FLAGS}")
+            if(NOT PDF4QT_FLAGS MATCHES "[/-][Ii][Nn][Cc][Rr][Ee][Mm][Ee][Nn][Tt][Aa][Ll]:[Nn][Oo]")
+                string(APPEND PDF4QT_FLAGS " /INCREMENTAL:NO")
+            endif()
+            if(NOT PDF4QT_FLAGS MATCHES "[/-][Dd][Ee][Bb][Uu][Gg]")
+                string(APPEND PDF4QT_FLAGS " /DEBUG")
+            endif()
+            set(CMAKE_${PDF4QT_TARGET_TYPE}_LINKER_FLAGS_${PDF4QT_CONFIG} "${PDF4QT_FLAGS}")
+        endforeach()
+    endforeach()
 endif()
 
 if(PDF4QT_ENABLE_COVERAGE)

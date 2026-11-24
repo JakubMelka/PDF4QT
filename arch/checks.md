@@ -2,7 +2,7 @@
 
 ## Who runs what
 
-- An agent builds on Windows warning-free and runs its new and changed tests, then ASan + UBSan on Linux once on its final code (owner 2026-10-24, 2026-11-04). When more agents work at once, the coordinator runs the Linux checks for all of them (owner 2026-11-05).
+- An agent builds on Windows warning-free, runs its new and changed tests, and runs only them (and the lifetime rows of the scenarios whose code it changed) once in its own [Windows ASan](#windows-asan) tree before its report (owner QR.6, 2026-11-24); its final test run goes in parallel on all cores (split per `function:tag`). The coordinator runs ASan + UBSan on Linux once per wave for all agents (owner 2026-11-05, QR.6).
 - Valgrind memcheck, TSan, helgrind / drd and the whole tool corpus run once per step by the coordinator (phase 2: at its end).
 - After a larger change of a library (new classes, ownership, signals, destruction) build it with GCC too - GCC rejects code which MSVC accepts. A change is finished only when every test ends with exit 0 there too.
 
@@ -22,6 +22,18 @@ Linux draws the glyphs of a widget with the subpixel antialiasing of fontconfig,
 - `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=0:exitcode=113:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:allocator_may_return_null=1` (a huge allocation of a hostile-size test returns null as glibc does), `UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:exitcode=114`, `PDF4QT_TEST_TIMEOUT_FACTOR=3`, offscreen.
 - Any report of the test or of a child process is a failure (exit 113 / 114, `SANITIZER` in the summary). Logs and `summary.txt` in `~/pdf4qt-ci/pdf4qt-asan/logs`; `asan-summary.py` groups the reports by their first frames in our code.
 - Suppressions, narrow and each with its reason in the file: `~/pdf4qt-ci/tools/pdf4qt-lsan.supp` (fontconfig, libspeechd of the Qt speech plugin), `pdf4qt-ubsan.supp` (`vptr:*/QtCore/qpointer.h` - the static_cast inside `QPointer<T>::data()` of an object whose derived destructors have run). The vptr check stays on: it finds a member called on an object whose derived part is gone, e.g. a signal of `qApp` reaching a widget while `~QWidget` deletes its children - disconnect it in the destructor.
+
+## Windows ASan
+
+    cmake -G Ninja -S . -B build/agent_<name>_asan -DCMAKE_BUILD_TYPE=Release -DPDF4QT_ENABLE_MSVC_ASAN=ON <options and CMAKE_PREFIX_PATH of the agent trees>
+    ninja -C build/agent_<name>_asan <the tested targets>
+    python -I UnitTests/runtest_asan.py <test> --tree build/agent_<name>_asan --temp build/work/<name>/tmp [--filter REGEX] [--jobs N] [--repeat N] [--full-stacks]
+
+- The tree `build/agent_<name>_asan` is configured from the working copy and builds only the tested targets (a `.bat` as in [build.md](build.md)); Release, or RelWithDebInfo with the mapping of the imported configurations of [build.md](build.md); Debug fails the configuration (its flags are not adapted). Only the code of PDF4QT is instrumented, Qt and vcpkg are not (no ASan triplet); the clean build of the libraries and a few App tests takes about as long as a Release tree, the tree about 8 GB.
+- `runtest_asan.py` (standard library, `python -I`) reads the cache of the tree and puts the runtime of ASan (`clang_rt.asan_dynamic-x86_64.dll` beside the `cl` of the cache, else `VCToolsInstallDir`), Qt's `bin`, the `bin` of the vcpkg prefixes and `usr/bin` on `PATH`; it splits the executable per `function:tag` (default 8 jobs, at most 24; `PDF4QT_TEST_SLOT_DIR` / `PDF4QT_TEST_SLOTS` share a machine-wide limit), sets `QT_QPA_PLATFORM=offscreen`, `QTEST_FUNCTION_TIMEOUT=1800000` (the 300 s of QtTest are too short for a lifetime row), `PDF4QT_TEST_TIMEOUT_FACTOR=3` and TEMP from `--temp` (refused on C: or under the system TEMP). Each test process runs in its own job object: a timeout, Ctrl+C or the end of the runner kills the processes the test started too; a listing (`-functions`) that crashes ends the run with its exit code and stderr. Windows only. Results in `<tree>/asan_runs/<test>/<run>/`: the QtTest file and `<item>.err` (stdout + stderr, the report of ASan).
+- `ASAN_OPTIONS=halt_on_error=1:exitcode=113:allocator_may_return_null=1:check_initialization_order=1:symbolize=1:malloc_context_size=0` (Linux without `detect_leaks`). The stack unwinding of every allocation and release makes a run 7-8 times slower than Release; with `malloc_context_size=0` it is 2.5-3 times (6-12 jobs, peak 5.5-8 GiB), but a report has no stacks of the allocation and the release: rerun a hit with `--full-stacks` (and `--filter` of the item). A report is exit 113 and `ERROR: AddressSanitizer` in `.err`; the runner counts and prints them.
+- It sees heap-use-after-free, double free, heap / stack / global buffer overflow in our code, also our access to memory freed by Qt or vcpkg (the allocator of the CRT is intercepted in the whole process) - freed memory stays readable in a normal Windows Release build. It does not see leaks (no LeakSanitizer on Windows), UB including vptr (no UBSan in MSVC), races, uninitialized memory, container overflows (`_DISABLE_STL_ANNOTATION`: the static `Clipper2.lib` is built without ASan, LNK2038 otherwise) or a use-after-free inside Qt (only a crash). Linux ASan + UBSan stays the final check by the coordinator.
+- A lost report (the crash handler of QtTest) is rerun with `--arg=-nocrashhandler`. `tbbmalloc_proxy.dll` of vcpkg must never be loaded (it replaces `malloc`); PDF4QT links TBB only on Linux.
 
 ## Valgrind memcheck
 
