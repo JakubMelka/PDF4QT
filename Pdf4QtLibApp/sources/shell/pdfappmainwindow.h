@@ -150,6 +150,11 @@ public:
     /// (or the save of the close runs): the tab closes itself by closeTab after the last answer, or stays.
     PDFAppLeaveResult requestCloseTab(PDFAppTab* tab);
 
+    /// A message for a moment in the status bar of the current tab (the view of a document, the own tab of a tool):
+    /// the notice of an action, which has closed a tab (an own tab of a tool closed by its answer after a canceled
+    /// quit, owner 2026-11-24). Nothing for a tab without a status bar (Home). No signal.
+    void showTransientMessage(const QString& text);
+
     /// The leave flow of the window (A0, RR3-H2: one per window, its child): the quit, the question of the end of
     /// the session (PDFAppSessionEnd)
     PDFAppLeaveFlow* getLeaveFlow();

@@ -31,6 +31,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappleaveflow.h"
 #include "pdfapptoolgui_measure.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptoolresultdialog.h"
@@ -1107,15 +1108,17 @@ void AppToolMeasureTest::escapeOrder()
 void AppToolMeasureTest::quitSaveAndCloseThenKeep()
 {
     // Owner 2026-11-20, decision 8: Save and Close of the first tab and Keep Measuring of the second cancel the quit -
-    // nothing is saved, the first tool keeps its temporary measurement; when the quit goes on, the measurement becomes
-    // an annotation before the question of the unsaved documents
+    // nothing is saved while the quit waits. Owner 2026-11-24: the answer of the first tool is final - the canceled
+    // quit keeps the window, the first measurement becomes an annotation (one Undo step) and the first tool closes; the
+    // second tool keeps its temporary measurement (its own Keep). When the quit goes on, the measurement becomes an
+    // annotation before the question of the unsaved documents; Cancel there keeps the window, the answered tools close.
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* firstTab = nullptr;
     pdf::PDFAppDocumentTab* secondTab = nullptr;
     QPointer<PDFDocumentToolShell> firstShell = H::openSimple(fixture, &firstTab);
     QPointer<PDFDocumentToolShell> secondShell = H::open(fixture, AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second_Plan.pdf"), 2), &secondTab);
-    PDFAppToolGUIMeasure* first = H::gui(firstShell);
-    PDFAppToolGUIMeasure* second = H::gui(secondShell);
+    QPointer<PDFAppToolGUIMeasure> first = H::gui(firstShell);
+    QPointer<PDFAppToolGUIMeasure> second = H::gui(secondShell);
     QVERIFY(first && second);
     QVERIFY(first->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
     QVERIFY(second->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
@@ -1136,6 +1139,7 @@ void AppToolMeasureTest::quitSaveAndCloseThenKeep()
 
     // While the quit asks the second tool, Save and Close of the first one is only remembered by its shell (decision
     // 8): no annotation yet, the measurement is still temporary, no pending edit of the document stands for it
+    const int firstUndoCount = AppToolShellFixture::undoCount(firstTab->getDocument());
     pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
     QVERIFY(answer(firstShell, QStringLiteral("toolCloseAction")));                 // Save and Close
@@ -1149,20 +1153,37 @@ void AppToolMeasureTest::quitSaveAndCloseThenKeep()
     QCOMPARE(measurementsDuringWait, size_t(1));
     QVERIFY(!isPendingEditDuringWait);
     QVERIFY(isDeferredDuringWait);
-    QVERIFY(firstShell && secondShell);
-    QCOMPARE(firstShell->getState(), PDFDocumentToolShell::State::Editing);
-    QCOMPARE(first->getMeasurements().size(), size_t(1));
-    QVERIFY(H::annotations(firstTab->getDocument()).empty());
 
-    // The canceled answer is forgotten by the end of the leave (finishLeave(false)): a later commit of the pending
-    // edits (an undo, a save) writes nothing
-    QVERIFY(!firstShell->hasDeferredCloseQuestionAction());
-    QVERIFY(!firstTab->getDocument()->hasPendingEdits());
+    // The canceled quit keeps the window; the answer of the first tool is applied (one Undo step of the document, an
+    // unsaved change) and the first tool closes; the second tool keeps its temporary measurement and nothing of it
+    // is in its document
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+    QVERIFY(!firstShell || firstShell->getState() == PDFDocumentToolShell::State::Closed);
+    QVERIFY(!firstTab->getView()->isToolModeActive());
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    QCOMPARE(AppToolShellFixture::undoCount(firstTab->getDocument()), firstUndoCount + 1);
+    QVERIFY(firstTab->getDocument()->isModified());
+    QVERIFY(secondShell && second);
+    QCOMPARE(secondShell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(second->getMeasurements().size(), size_t(1));
+    QVERIFY(H::annotations(secondTab->getDocument()).empty());
+
+    // The answer is applied once (RLC2 L-1): a later commit of the pending edits (an undo, a save) writes nothing more
     firstTab->getDocument()->commitPendingEdits();
     AppToolShellFixture::settle();
-    QVERIFY(H::annotations(firstTab->getDocument()).empty());
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    QCOMPARE(AppToolShellFixture::undoCount(firstTab->getDocument()), firstUndoCount + 1);
 
-    // The quit goes on: the measurement is an annotation, when the unsaved documents are asked (Cancel keeps all)
+    // The quit goes on with the tool opened again in the first tab: the new measurement is an annotation, when the
+    // unsaved documents are asked; Cancel there keeps the window - both tools answered by closing, both close (Save
+    // and Close kept its annotation, Discard Measurement discarded the temporary measurement of the second tool)
+    firstShell = fixture.openTool(firstTab, H::toolId());
+    AppToolShellFixture::settle();
+    first = H::gui(firstShell);
+    QVERIFY(first && H::waitRead(first));
+    QVERIFY(first->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 300), QPointF(172, 300) }, PDFAppMeasureDrawKind::Linear));
+    AppToolShellFixture::settle();
     QVERIFY(!fixture.window->close());
     QVERIFY(answer(firstShell, QStringLiteral("toolCloseAction")));
     QVERIFY(answer(secondShell, QStringLiteral("toolCloseDiscard")));
@@ -1172,9 +1193,16 @@ void AppToolMeasureTest::quitSaveAndCloseThenKeep()
         unsaved = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget : unsaved;
     }
     QVERIFY(unsaved);
-    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(2));
     unsaved->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
     AppToolShellFixture::settle();
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(!firstShell || firstShell->getState() == PDFDocumentToolShell::State::Closed);
+    QVERIFY(!secondShell || secondShell->getState() == PDFDocumentToolShell::State::Closed);
+    QVERIFY(!firstTab->getView()->isToolModeActive());
+    QVERIFY(!secondTab->getView()->isToolModeActive());
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(2));
+    QVERIFY(H::annotations(secondTab->getDocument()).empty());
     fixture.closeMessageBoxes();
 }
 

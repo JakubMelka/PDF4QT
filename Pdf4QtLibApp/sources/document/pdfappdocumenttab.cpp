@@ -326,11 +326,13 @@ PDFAppLeaveResult PDFAppDocumentTab::requestTabClose()
         flow->raiseQuestion();
         return PDFAppLeaveResult::Refused;
     }
+    m_closeFinishedPages.clear();
 
     // A tool of the tab with unsaved work of the user asks first (owner 2026-11-20: the question of the
     // tool, as at its Esc); its answer may run code of the tool - the tab may be deleted meanwhile. The page,
-    // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8). A retired tab
-    // (or page) goes on with nothing.
+    // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8; a close canceled later
+    // keeps the tab and the tool honors its closing answer, owner 2026-11-24). A retired tab (or page) goes on with
+    // nothing.
     if (QPointer<PDFAppPage> page = getPage())
     {
         flow->setStep(int(CloseStep::Page));
@@ -396,9 +398,10 @@ PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
 
     // The close goes on: the choice of the question of the tool, which changes the document (Redact "Remove New
     // Marks", Measure "Save and Close"), is applied before the question of the unsaved changes - Save then saves
-    // it; Cancel there keeps the applied change (Undo takes it back). A tool, which could not keep all of its work
-    // (a measurement, which cannot be stored), keeps the tab (owner 2026-11-21); its question about the rest is a
-    // step of this flow. The slots of the commit may delete the tab.
+    // it; Cancel there keeps the tab with the applied change (Undo takes it back) and the tool closes (owner
+    // 2026-11-24: its answer is final; PDFAppLeaveFlow::finish ends it by false). A tool, which could not keep all
+    // of its work (a measurement, which cannot be stored), keeps the tab (owner 2026-11-21); its question about the
+    // rest is a step of this flow. The slots of the commit may delete the tab.
     if (from <= CloseStep::FinishPages)
     {
         flow->setStep(int(CloseStep::FinishPages));
@@ -443,7 +446,7 @@ PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
     }
 
     // Every question has been answered: the flow ends (the caller closes the tab)
-    flow->finish(true);
+    finishCloseFlow(flow.data());
     return (!guard || PDFDeferredDeletion::isRetired(this)) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
 }
 
@@ -455,12 +458,37 @@ bool PDFAppDocumentTab::isCloseStep(CloseStep step) const
 
 void PDFAppDocumentTab::completeClose(PDFAppLeaveResult result)
 {
-    // The last answer has come later than the request: the tab closes by its window now (the last call)
+    // The last answer has come later than the request: the tab closes by its window now (the last call; a tab, which
+    // the window refuses, stays - a tool, which answered its question by closing, closes)
     if (result == PDFAppLeaveResult::Done)
     {
+        QPointer<PDFAppDocumentTab> guard(this);
         m_isCloseConfirmed = true;
         requestClose();
+        if (guard && !PDFDeferredDeletion::isRetired(this))
+        {
+            endUnfinishedClose();
+        }
     }
+}
+
+void PDFAppDocumentTab::endUnfinishedClose()
+{
+    // The pages, which the close has ended by true (the current page may be another one: a navigation during the save
+    // of the close - its tool has closed by its own leave); a flow running meanwhile asks its pages anew
+    std::vector<QPointer<PDFAppPage>> pages = std::move(m_closeFinishedPages);
+    m_closeFinishedPages.clear();
+    const PDFAppLeaveFlow* flow = findLeaveFlow();
+    if (!(flow && flow->isRunning()))
+    {
+        PDFAppPage::finishLeaves(pages, false);
+    }
+}
+
+void PDFAppDocumentTab::finishCloseFlow(PDFAppLeaveFlow* flow)
+{
+    m_closeFinishedPages = flow->getFinishedPages();
+    flow->finish(true);
 }
 
 void PDFAppDocumentTab::onClosePageStepFinished(PDFAppLeaveResult result)
@@ -530,7 +558,7 @@ void PDFAppDocumentTab::onCloseUnsavedChosen(PDFAppDocumentChoice choice)
     switch (choice)
     {
         case PDFAppDocumentChoice::Discard:
-            flow->finish(true);
+            finishCloseFlow(flow);
             completeClose(PDFAppLeaveResult::Done);
             return;
 
@@ -540,7 +568,7 @@ void PDFAppDocumentTab::onCloseUnsavedChosen(PDFAppDocumentChoice choice)
             // and the save is no step of it (M3 of the review of A0: a quit, the end of the session, a navigation or
             // a lock go on meanwhile as before A0); a second close is refused until the save ends.
             m_isClosingAfterSave = true;
-            flow->finish(true);
+            finishCloseFlow(flow);
             if (guard && !PDFDeferredDeletion::isRetired(this))
             {
                 startCloseSave();
@@ -580,6 +608,7 @@ void PDFAppDocumentTab::startCloseSave()
     if (!handler || !handler->requestSave(this, &PDFAppDocumentTab::onCloseSaveFinished))
     {
         m_isClosingAfterSave = false;
+        endUnfinishedClose();
     }
 }
 
@@ -590,9 +619,12 @@ void PDFAppDocumentTab::onCloseSaveFinished(bool isSaved)
         return;
     }
 
+    // A canceled or failed save keeps the tab (its error has been shown); the answers of the questions of the close
+    // stay valid (owner 2026-11-24): a tool, which answered by closing, closes
     if (!isSaved || !m_document)
     {
         m_isClosingAfterSave = false;
+        endUnfinishedClose();
         return;
     }
 
@@ -612,6 +644,7 @@ void PDFAppDocumentTab::onCloseSaveFinished(bool isSaved)
         return;
     }
     m_isClosingAfterSave = false;
+    endUnfinishedClose();
 }
 
 void PDFAppDocumentTab::onFileSaveFinished(bool isSaved)

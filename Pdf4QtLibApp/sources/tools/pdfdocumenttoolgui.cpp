@@ -569,8 +569,9 @@ void PDFDocumentToolGUI::onCloseQuestionActionClicked()
     }
 
     // A leave waits for the answer (the close of the tab, the quit, the lock, another route): the shell only
-    // remembers the choice and accepts the leave - the code, which started the leave, applies it, when the leave
-    // really goes on (PDFDocumentToolShell::finishLeave; owner 2026-11-20, decision 8)
+    // remembers the choice and accepts the leave - the code, which started the leave, applies it at the end of the
+    // leave (PDFDocumentToolShell::finishLeave; owner 2026-11-20, decision 8), also when a later step cancels the leave
+    // (owner 2026-11-24: then the tool closes and the tab stays)
     PDFDocumentToolShell* shell = getShell();
     if (shell && shell->deferCloseQuestionAction())
     {

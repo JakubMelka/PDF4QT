@@ -403,8 +403,8 @@ public:
     virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
 
     /// Save and Close of the question (Save as Annotations): true, when no temporary measurement is left (473:90376 keeps those,
-    /// which could not be stored - the tool stays with them); during a leave, when the leave goes on
-    /// (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8)
+    /// which could not be stored - the tool stays with them); during a leave at the end of the leave, also of one
+    /// canceled later (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8; owner 2026-11-24)
     virtual bool applyCloseQuestionAction() override;
 
     /// Save and Close has stored only some measurements (owner 2026-11-21): "N measurements could not be saved as

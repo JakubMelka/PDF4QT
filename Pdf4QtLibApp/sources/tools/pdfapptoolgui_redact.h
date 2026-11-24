@@ -599,8 +599,8 @@ public:
     virtual QDialog* askClose() override;
 
     /// Remove New Marks of the question (448:17473): the new marks go in one Undo step; true, when no new mark is
-    /// left (a locked one keeps the tool open). During a leave it runs, when the leave goes on
-    /// (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8).
+    /// left (a locked one keeps the tool open). During a leave it runs at the end of the leave, also of one canceled
+    /// later (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8; owner 2026-11-24).
     virtual bool applyCloseQuestionAction() override;
 
     /// A mark made in this session of the tool is in the document (owner 2026-11-20): the marks, which the

@@ -191,6 +191,14 @@ public:
     /// requestOwnTabClose), else K16 (the loss text). Pending: the page reports by \p flow->finishStep(this page).
     virtual PDFAppLeaveResult requestClose(PDFAppLeaveFlow* flow) override;
 
+    /// The end of the leave, which this page has accepted (the quit of the window; owner 2026-11-24, the rule of the
+    /// tools in the tabs of the documents): \p isProceeding false = a later step has canceled the leave - the page,
+    /// whose question was answered by closing (Discard List, Don't Save, Stop and Leave), closes its tab from the event
+    /// loop without a second question (onCanceledLeaveQueued) and the window shows why; a page, which asked nothing or
+    /// whose question was answered by Keep, stays. Work of the user made after the answer (inputs added during Save
+    /// All) keeps the tab. Nothing runs inside the call. \returns true.
+    virtual bool finishLeave(bool isProceeding) override;
+
     /// A question of the leave of this page or of its shell is open
     virtual bool isQuestionOpen() const override;
 
@@ -250,6 +258,15 @@ private:
     /// The flow of the tab closed by Cancel of the tool has ended (\p isDone false: the tool takes requests again)
     void onCanceledCloseFinished(bool isDone);
 
+    /// The leave, to which the question of this page was answered by closing, was canceled by a later step
+    /// (finishLeave(false)): the tab closes now as by its answer, the window says why (the last call). A page asked
+    /// again meanwhile, a result dialog, work changed since the answer keep the tab.
+    void onCanceledLeaveQueued();
+
+    /// The work of the user, which closing the tab loses (the loss text, the number of the inputs): equal before and
+    /// after = no work of the user since
+    QString getLeaveWorkSignature() const;
+
     QString m_toolId;
     QPointer<PDFAppToolTabView> m_view;
     QPointer<PDFAppOwnTabToolHost> m_host;
@@ -258,6 +275,10 @@ private:
     LeaveStage m_leaveStage = LeaveStage::None;
     bool m_isRestartQueued = false;
     bool m_isLeavingTool = false;   ///< requestClose runs for requestLeave: only the tool closes, the tab stays
+    bool m_isLeaveAnswered = false;     ///< The question of the close of the tab was answered by closing (owner 2026-11-24: final)
+    bool m_isLeaveRunStopped = false;   ///< The answer was Stop and Leave: the end of the stopped run is no work of the user
+    bool m_isCanceledLeaveQueued = false;   ///< onCanceledLeaveQueued is posted
+    QString m_leaveAnsweredWork;        ///< getLeaveWorkSignature at the answer (later work keeps the tab)
 };
 
 /// Factory of the page of a tool in its own tab (PDFAppToolPageKind::OwnTab)

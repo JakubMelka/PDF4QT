@@ -615,8 +615,9 @@ void AppToolOwnTabTest::quitAsksForInputs()
 
 void AppToolOwnTabTest::quitStopsRunWhenAsked()
 {
-    // The quit asks every tool tab: Stop and Leave stops the run at once - a quit canceled by a
-    // later question (the inputs of another tool tab) keeps that tool editing, nothing runs
+    // The quit asks every tool tab: Stop and Leave stops the run at once. Owner 2026-11-24 (decision 1
+    // of the fix wave of the leave): the answer is final - a quit canceled by a later question (the
+    // inputs of another tool tab, Cancel there) still closes the stopped tab; the other tab stays
     AppToolOwnTabFixture fixture;
     std::shared_ptr<OwnTabTestTool> tool = fixture.registerOwnTabTool(QStringLiteral("pages.merge"));
     QVERIFY(tool);
@@ -640,9 +641,11 @@ void AppToolOwnTabTest::quitStopsRunWhenAsked()
     QVERIFY(AppToolOwnTabFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
     tool->setHold(false);
     AppToolOwnTabFixture::settle();
-    QVERIFY(running && listed);
-    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-    QCOMPARE(shell->getRunner()->getState(), pdf::PDFDocumentToolRunner::State::Idle);
+    QVERIFY(fixture.window && fixture.window->isVisible());
+    QVERIFY(AppToolOwnTabFixture::waitFor([&running]() { return !running; }));
+    QVERIFY(listed);
+    QCOMPARE(AppToolOwnTabFixture::getShell(listed)->getState(), pdf::PDFDocumentToolShell::State::Editing);
+    QCOMPARE(listed->getInputList()->getCount(), 1);
 }
 
 void AppToolOwnTabTest::acceptOpensNewTabAfterToolTab()

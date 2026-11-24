@@ -1524,7 +1524,7 @@ PDFAppLeaveResult PDFDocumentToolShell::requestLeaveWork(PDFAppLeaveFlow* flow)
         return PDFAppLeaveResult::Refused;
     }
 
-    m_isCloseQuestionActionDeferred = false;
+    clearLeaveAnswer();
     return waitForLeaveQuestion(m_closeQuestion.data(), flow);
 }
 
@@ -1601,8 +1601,13 @@ void PDFDocumentToolShell::onLeaveQuestionSettled()
 
 void PDFDocumentToolShell::reportLeave(PDFAppLeaveResult result)
 {
-    // The wait ends first; the waiter of the flow is the last call (it may delete anything)
+    // The wait ends first; the waiter of the flow is the last call (it may delete anything). The tool's own Keep
+    // (Back to Redacting, Keep Measuring, Esc of its question) keeps the tool with its work: no closing answer stands.
     QPointer<PDFAppLeaveFlow> flow = m_leaveFlow;
+    if (result != PDFAppLeaveResult::Done)
+    {
+        clearLeaveAnswer();
+    }
     disconnectLeaveQuestion();
     m_leaveFlow = nullptr;
     m_leaveQuestion = nullptr;
@@ -1623,6 +1628,10 @@ void PDFDocumentToolShell::closeAfterQuestion()
     // ended meanwhile waits no more: the answer closes the tool.
     if (!m_isAskingLeave && checkLeaveWait())
     {
+        // The closing answer is final (owner 2026-11-24): a later cancel of the leave still closes the tool - with the
+        // work, which the answer has seen (RLC1 M1: later work keeps the tool)
+        m_isLeaveAnswered = true;
+        m_leaveAnsweredWork = getLeaveWorkSignature();
         reportLeave(PDFAppLeaveResult::Done);
         return;
     }
@@ -1645,11 +1654,14 @@ bool PDFDocumentToolShell::deferCloseQuestionAction()
         return false;
     }
 
-    // Owner 2026-11-20, decision 8: the choice changes nothing, until the leave really goes on (finishLeave); the
-    // leave is accepted now (the last call: the waiter may delete the shell; the GUI does nothing more). A tool,
-    // which has left Editing while the question was open, applies nothing then (requestFinishLeave) - the leave
-    // still gets its answer.
+    // Owner 2026-11-20, decision 8: the choice changes nothing, until the end of the leave (finishLeave); the leave
+    // is accepted now (the last call: the waiter may delete the shell; the GUI does nothing more). The answer is final
+    // (owner 2026-11-24): the leave going on applies the choice before its next question, a leave canceled later
+    // applies it too and closes the tool. A tool, which has left Editing while the question was open, applies nothing
+    // then (requestFinishLeave) - the leave still gets its answer.
     m_isCloseQuestionActionDeferred = true;
+    m_isLeaveAnswered = true;
+    m_leaveAnsweredWork = getLeaveWorkSignature();
     reportLeave(PDFAppLeaveResult::Done);
     return true;
 }
@@ -1661,10 +1673,34 @@ bool PDFDocumentToolShell::finishLeave(bool isProceeding)
 
 PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow)
 {
+    if (!isProceeding)
+    {
+        // The leave was canceled by a later step (another question, a save, a lock): the closing answer of the question
+        // of the tool still stands (owner 2026-11-24) - its choice is applied and the tool closes from the event loop
+        // (the flow, which calls this, ends first; no navigation runs inside of it). Without such an answer the tool
+        // stays as it is.
+        if (m_isLeaveAnswered && m_state == State::Editing && m_gui)
+        {
+            if (!m_isCanceledLeaveQueued)
+            {
+                m_isCanceledLeaveQueued = true;
+                QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onCanceledLeaveQueued, Qt::QueuedConnection);
+            }
+        }
+        else
+        {
+            clearLeaveAnswer();
+        }
+        return PDFAppLeaveResult::Done;
+    }
+
+    // The leave goes on: nothing of the user can change the work since the answer (the questions of the leave are
+    // modal), the work is read again after the choice applied below - a later cancel compares the work with it
     const bool isDeferred = m_isCloseQuestionActionDeferred;
     m_isCloseQuestionActionDeferred = false;
-    if (!isProceeding || !isDeferred || m_state != State::Editing || !m_gui)
+    if (!isDeferred || m_state != State::Editing || !m_gui)
     {
+        m_leaveAnsweredWork = getLeaveWorkSignature();
         return PDFAppLeaveResult::Done;
     }
 
@@ -1687,8 +1723,16 @@ PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PD
     // The guard stays (RC6-M1): the activation below may delete the tab synchronously in a test (as
     // shellDeletedFromActivation), the callers of the tools keep theirs too.
     QPointer<PDFDocumentToolShell> guard(this);
+    const quint64 versionBefore = document ? document->getVersion() : 0;
     const bool isKept = m_gui->applyCloseQuestionAction();
-    if (!guard || PDFDeferredDeletion::isRetired(this) || isKept)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return PDFAppLeaveResult::Done;
+    }
+    const PDFAppDocument* changedDocument = m_host ? m_host->getDocument() : nullptr;
+    m_isLeaveChoiceApplied = changedDocument && changedDocument->getVersion() != versionBefore;
+    m_leaveAnsweredWork = getLeaveWorkSignature();
+    if (isKept)
     {
         return PDFAppLeaveResult::Done;
     }
@@ -1698,7 +1742,8 @@ PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PD
     // cancels the leave, Discard and Close lets it go on) as the open question of the tool, waited for as by
     // requestLeave (A0: the step stays Pending until its answer). A GUI without such a question keeps its work and
     // has told why: the leave is canceled. Without a flow nobody waits: the question stays as the question of the
-    // tool (its closing answer closes the tool) and the leave is canceled.
+    // tool (its closing answer closes the tool) and the leave is canceled. A refused end keeps the tool with the rest
+    // (owner 2026-11-21): no closing answer stands for a later cancel of the leave.
     if (m_host)
     {
         m_host->activate();
@@ -1708,11 +1753,201 @@ PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PD
         return PDFAppLeaveResult::Done;
     }
     QDialog* question = askIncompleteQuestion();
-    if (!guard || PDFDeferredDeletion::isRetired(this) || !question)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return PDFAppLeaveResult::Refused;
     }
-    return waitForLeaveQuestion(question, flow);
+    const PDFAppLeaveResult result = question ? waitForLeaveQuestion(question, flow) : PDFAppLeaveResult::Refused;
+    if (result == PDFAppLeaveResult::Refused)
+    {
+        clearLeaveAnswer();
+    }
+    return result;
+}
+
+void PDFDocumentToolShell::onCanceledLeaveQueued()
+{
+    // The leave, to which the question of the tool was answered by closing, was canceled by a later step (owner
+    // 2026-11-24): the answer is honored now. A tool, which has ended meanwhile, a leave or a question of the tool
+    // started meanwhile (it decides anew), a retired shell (its posted call is removed) do nothing. A leave, which waits
+    // for this tool, owns the answer (requestLeave has forgotten the old one); every other early end forgets it too
+    // (RLC1 L1: a later leave, which does not ask the tool, never applies or closes by an old answer).
+    m_isCanceledLeaveQueued = false;
+    if (!m_isLeaveAnswered || checkLeaveWait())
+    {
+        return;
+    }
+    const bool isDeferred = m_isCloseQuestionActionDeferred;
+    const bool isChangeApplied = m_isLeaveChoiceApplied;
+    const bool isWorkUnchanged = getLeaveWorkSignature() == m_leaveAnsweredWork;
+    clearLeaveAnswer();
+    if (m_state != State::Editing || !m_gui || !m_host || m_isCloseRequested || PDFDocumentToolShellHelper::isClosed(this) || m_isAskingClose ||
+        isCloseQuestionOpen())
+    {
+        return;
+    }
+
+    // RLC1 M1: the answer covered the work, which existed then (and its applied choice). Work of the user made later
+    // (a measurement added while the file of the close or of Save All was written) was never answered: the tool stays
+    // with it - nothing happens, which the user did not choose.
+    if (!isWorkUnchanged)
+    {
+        return;
+    }
+
+    // RLC1 L2: a choice, which the document cannot take now (an operation, which blocks the changes, kept by Keep
+    // Running; the document locked meanwhile), is not applied: the tool stays with its work and says the true reason
+    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
+    const QString toolTitle = tool ? tool->getTitle() : QString();
+    PDFAppDocument* document = m_host->getDocument();
+    if (isDeferred && document && (document->isLocked() || document->isBlockedByOperation()))
+    {
+        m_host->showTransientMessage(document->isLocked() ? tr("%1 stays open. The document is locked. Unlock it to make changes.").arg(toolTitle)
+                                                          : tr("%1 stays open. The document cannot be changed while an operation is running.").arg(toolTitle));
+        return;
+    }
+
+    // The remembered choice (Redact "Remove New Marks", Measure "Save and Close") commits through the shell as without
+    // a leave (one Undo step of the tool); the slots of the commit may close the tool. Work, which the choice could not
+    // keep, keeps the tool open (owner 2026-11-21): the GUI asks about the rest as the question of the tool (Keep
+    // Measuring / Discard and Close), one question of the tools at a time, or has told why (a locked mark).
+    QPointer<PDFDocumentToolShell> guard(this);
+    bool isDocumentChanged = isChangeApplied;
+    if (isDeferred)
+    {
+        const quint64 versionBefore = document ? document->getVersion() : 0;
+        const bool isKept = m_gui->applyCloseQuestionAction();
+        if (!guard || PDFDeferredDeletion::isRetired(this) || m_state != State::Editing)
+        {
+            return;
+        }
+        if (!isKept)
+        {
+            m_isIncompleteQuestionPending = true;
+            askIncompleteAfterCanceledLeave();
+            return;
+        }
+        const PDFAppDocument* changedDocument = m_host ? m_host->getDocument() : nullptr;
+        isDocumentChanged = isDocumentChanged || (changedDocument && changedDocument->getVersion() != versionBefore);
+    }
+
+    // The tool ends as by its closing answer without a leave (closeAfterQuestion): the page leaves it for the document
+    // and shows the message (decision 3 of 24. 11.: the user sees why the tool has gone and how to take the change
+    // back); the last call: the shell, the GUI and the page may go
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Canceled;
+    request.statusMessage = getCanceledLeaveMessage(isDocumentChanged);
+    requestClose(request);
+}
+
+void PDFDocumentToolShell::clearLeaveAnswer()
+{
+    m_isLeaveAnswered = false;
+    m_isCloseQuestionActionDeferred = false;
+    m_isLeaveChoiceApplied = false;
+    m_leaveAnsweredWork.clear();
+}
+
+QString PDFDocumentToolShell::getLeaveWorkSignature() const
+{
+    // What leaving the tool loses, as its question says it: the unsaved work and the texts of the question, which name
+    // it ("Discard the 2 temporary measurements?"). A reading of the document, which ends later (the annotations listed
+    // again after a commit), changes neither - the stamp of the work would change by it (RLC1 M1)
+    if (!m_gui)
+    {
+        return QString();
+    }
+    const PDFAppToolCloseQuestion question = m_gui->getCloseQuestion();
+    return QString::number(m_gui->hasUnsavedWork() ? 1 : 0) + QLatin1Char('\n') + question.title + QLatin1Char('\n') + question.text;
+}
+
+void PDFDocumentToolShell::forgetLeaveAnswer()
+{
+    if (!m_isAskingLeave && !checkLeaveWait())
+    {
+        clearLeaveAnswer();
+    }
+}
+
+QString PDFDocumentToolShell::getCanceledLeaveMessage(bool isChangeApplied) const
+{
+    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
+    const QString toolTitle = tool ? tool->getTitle() : QString();
+    return isChangeApplied ? tr("%1 has closed as you chose in its question. Ctrl+Z undoes its change.").arg(toolTitle)
+                           : tr("%1 has closed as you chose in its question.").arg(toolTitle);
+}
+
+void PDFDocumentToolShell::askIncompleteAfterCanceledLeave()
+{
+    stopWaitingForOtherQuestion();
+    if (!m_isIncompleteQuestionPending)
+    {
+        return;
+    }
+
+    // A tool, which has ended or is asked again meanwhile (a new leave asks its own question about all of the work),
+    // asks nothing more
+    if (m_state != State::Editing || !m_gui || !m_host || m_isCloseRequested || PDFDocumentToolShellHelper::isClosed(this) || checkLeaveWait() ||
+        m_isAskingClose || isCloseQuestionOpen())
+    {
+        m_isIncompleteQuestionPending = false;
+        return;
+    }
+
+    // RLC1 L3: one question at a time (as the quit, which goes on, asks them one by one) - the open question of another
+    // tool is answered first; its end (finished, or its deletion without it) tries again
+    if (QDialog* other = findOtherOpenQuestion())
+    {
+        m_otherQuestionFinishedConnection = PDFDeferredDeletion::connect(other, &QDialog::finished, this, &PDFDocumentToolShell::onOtherQuestionEnded);
+        m_otherQuestionEndConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(other), &PDFLifetimeNotifier::aboutToBeDeleted, this,
+                                                                    &PDFDocumentToolShell::onOtherQuestionEnded);
+        return;
+    }
+
+    // The tab of the tool is shown, so the user sees what the question is about (a slot of the activation may close the
+    // tool); the question is the last call
+    m_isIncompleteQuestionPending = false;
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_host->activate();
+    if (guard && !PDFDocumentToolShellHelper::isClosed(this) && m_state == State::Editing)
+    {
+        askIncompleteQuestion();
+    }
+}
+
+void PDFDocumentToolShell::onOtherQuestionEnded()
+{
+    // The slot only notes the end (the question may be in its destructor, its tool closes after it): the next try from
+    // the event loop
+    stopWaitingForOtherQuestion();
+    if (m_isIncompleteQuestionPending)
+    {
+        QMetaObject::invokeMethod(this, &PDFDocumentToolShell::askIncompleteAfterCanceledLeave, Qt::QueuedConnection);
+    }
+}
+
+void PDFDocumentToolShell::stopWaitingForOtherQuestion()
+{
+    disconnect(m_otherQuestionFinishedConnection);
+    disconnect(m_otherQuestionEndConnection);
+    m_otherQuestionFinishedConnection = QMetaObject::Connection();
+    m_otherQuestionEndConnection = QMetaObject::Connection();
+}
+
+QDialog* PDFDocumentToolShell::findOtherOpenQuestion() const
+{
+    // The shells of the tools in the tabs of the window (the pages, children of the tabs); a retired or closed shell asks
+    // nothing
+    const QWidget* keyWidget = m_host ? m_host->getKeyWidget() : nullptr;
+    const QWidget* window = keyWidget ? keyWidget->window() : nullptr;
+    for (const PDFDocumentToolShell* shell : window ? window->findChildren<PDFDocumentToolShell*>() : QList<PDFDocumentToolShell*>())
+    {
+        if (shell != this && !PDFDocumentToolShellHelper::isClosed(shell) && shell->isCloseQuestionOpen())
+        {
+            return shell->getCloseQuestion();
+        }
+    }
+    return nullptr;
 }
 
 void PDFDocumentToolShell::onFinishLeaveQueued()
@@ -1844,6 +2079,15 @@ void PDFDocumentToolShell::onEscape()
 
 PDFAppLeaveResult PDFDocumentToolShell::requestLeave(PDFAppLeaveFlow* flow)
 {
+    // A new leave asks anew: an answer given to an earlier leave is not this one's (owner 2026-11-24), nor is a question
+    // about the rest of an earlier leave still to come (the question of this leave covers all of the work)
+    if (!m_isAskingLeave && !checkLeaveWait())
+    {
+        clearLeaveAnswer();
+        m_isIncompleteQuestionPending = false;
+        stopWaitingForOtherQuestion();
+    }
+
     switch (m_state)
     {
         case State::Created:
@@ -3160,7 +3404,9 @@ void PDFDocumentToolShell::retire()
     ++m_leaveWaitId;
     m_isAskingLeave = false;
     m_isAskingClose = false;
-    m_isCloseQuestionActionDeferred = false;
+    clearLeaveAnswer();
+    m_isIncompleteQuestionPending = false;
+    stopWaitingForOtherQuestion();
 
     // The info bar of a result of the tool belongs to the tool (the host may be retired with the page: its view is not)
     if (wasEntered && m_host)

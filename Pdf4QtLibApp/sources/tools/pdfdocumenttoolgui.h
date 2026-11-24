@@ -413,7 +413,8 @@ public:
     /// false = the tool stays (a part could not be kept, the owner password is asked). It may commit to the
     /// document (its slots run); it never deletes the shell itself. Called at the answer, or - when a leave
     /// waits for the answer (PDFDocumentToolShell::deferCloseQuestionAction) - by PDFDocumentToolShell::
-    /// finishLeave, when the leave goes on (the tool still edits; the return value is not used then).
+    /// finishLeave at the end of the leave (the tool still edits): when the leave goes on, or from the event loop
+    /// when it was canceled later (owner 2026-11-24: the answer is final, the tool then closes when it returns true).
     /// Default: false.
     virtual bool applyCloseQuestionAction();
 

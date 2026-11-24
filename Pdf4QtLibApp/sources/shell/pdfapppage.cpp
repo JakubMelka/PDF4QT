@@ -161,7 +161,8 @@ bool PDFAppPage::finishLeave(bool isProceeding)
 bool PDFAppPage::finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding)
 {
     // A page applies its choice by a commit: its slots may close the other pages (retired with their tabs, step A -
-    // nothing to finish there). A refusal cancels the leave - the other pages forget their choices.
+    // nothing to finish there). A refusal cancels the leave - the other pages are ended by false (each honors its own
+    // closing answer from the event loop, owner 2026-11-24).
     bool isFinished = true;
     for (const QPointer<PDFAppPage>& page : pages)
     {

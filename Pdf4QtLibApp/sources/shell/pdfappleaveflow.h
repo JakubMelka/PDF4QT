@@ -179,9 +179,10 @@ private:
 /// - one flow per tab and one per window (a child of its owner, GUI thread only); start refuses a second request
 ///   while a flow runs (as the former synchronous flows did; the open question stays, raiseQuestion brings it to the
 ///   front);
-/// - every end of the flow is finish(isDone): the accepted pages, which the owner has not finished, forget their
-///   choices (finishLeave(false)), the state is cleared, finished(isDone) is emitted last. A flow deleted with its
-///   owner ends silently (no slot runs);
+/// - every end of the flow is finish(isDone): the accepted pages, which the owner has not finished, and on a canceled
+///   end also the pages finished by true learn that the leave does not go on (finishLeave(false): a tool, which
+///   answered its question by closing, applies its choice and closes - owner 2026-11-24), the state is cleared,
+///   finished(isDone) is emitted last. A flow deleted with its owner ends silently (no slot runs);
 /// - a question (waitForQuestion) continues on QDialog::finished and also on its deletion without finished (Rejected,
 ///   from the event loop): a question deleted with its parent never leaves the flow stuck;
 /// - a step left Pending by another object (a page, a shell, a GUI) is reported by finishStep(reporter, Done /
@@ -229,8 +230,9 @@ public:
     bool start(Goal goal);
 
     /// Ends the flow: the accepted pages, which the owner has not finished (requestFinishPages), are finished by false,
-    /// the state is cleared, the waiting steps are dropped (no delivery), finished(\p isDone) is the last call.
-    /// Nothing when no flow runs.
+    /// for \p isDone false also the pages finished by true (the leave stops after all: owner 2026-11-24), the state is
+    /// cleared, the waiting steps are dropped (no delivery), finished(\p isDone) is the last call. Nothing when no
+    /// flow runs.
     void finish(bool isDone);
 
     bool isRunning() const { return m_goal != Goal::None; }
@@ -275,14 +277,19 @@ public:
     /// The accepted pages, which still exist
     std::vector<QPointer<PDFAppPage>> getAcceptedPages() const;
 
+    /// The pages ended by requestFinishPages(true) (finish(false) ends them by false; finish(true) forgets them - the
+    /// owner reads them before, when its own end may still keep the tab: a failed save of the close)
+    const std::vector<QPointer<PDFAppPage>>& getFinishedPages() const { return m_finishedPages; }
+
     /// The end of the transaction of the pages (A0, P1): PDFAppPage::requestFinishLeave(\p isProceeding, this flow) of
-    /// the accepted pages one by one (the list is empty afterwards); after a page has refused, the rest are ended by
-    /// false. Done = every page has finished, the leave goes on; Refused = a page has refused (the caller cancels the
-    /// leave by finish(false)); Pending = a page asks about the work, which its applied choice could not keep (Measure
-    /// "Keep Measuring / Discard and Close"): the result comes later to the waiter of this flow as the reporter - the
-    /// caller waits by waitForStep(this flow, caller, slot) right after the call. The pages, which have not been
-    /// finished yet, are finished by false, when the flow ends meanwhile (finish). The pages run code of the
-    /// application: the flow, its owner and anything may be deleted meanwhile - guard them.
+    /// the accepted pages one by one (the list is empty afterwards; the pages ended by true are remembered for a
+    /// canceled finish); after a page has refused, the rest are ended by false. Done = every page has finished, the
+    /// leave goes on; Refused = a page has refused (the caller cancels the leave by finish(false)); Pending = a page
+    /// asks about the work, which its applied choice could not keep (Measure "Keep Measuring / Discard and Close"): the
+    /// result comes later to the waiter of this flow as the reporter - the caller waits by waitForStep(this flow,
+    /// caller, slot) right after the call. The pages, which have not been finished yet, are finished by false, when the
+    /// flow ends meanwhile (finish). The pages run code of the application: the flow, its owner and anything may be
+    /// deleted meanwhile - guard them.
     PDFAppLeaveResult requestFinishPages(bool isProceeding);
 
     // ------------------------------------------------------------- the question
@@ -365,6 +372,7 @@ private:
     std::vector<QPointer<QObject>> m_queue;
     std::vector<QPointer<PDFAppPage>> m_acceptedPages;
     std::vector<QPointer<PDFAppPage>> m_finishingPages;    ///< The pages of requestFinishPages, which have not been finished yet
+    std::vector<QPointer<PDFAppPage>> m_finishedPages;     ///< The pages ended by requestFinishLeave(true): finish(false) ends them by false
     bool m_isFinishProceeding = false;  ///< requestFinishPages(true)
     bool m_isFinishRefused = false;     ///< A page of requestFinishPages has refused
     QPointer<QDialog> m_question;

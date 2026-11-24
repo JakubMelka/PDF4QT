@@ -2891,8 +2891,9 @@ void PDFAppToolGUIRedact::onCloseRemoveClicked()
     }
 
     // A leave waits for the answer (the close of the tab, the quit, the lock, another route; owner 2026-11-20,
-    // decision 8): the shell only remembers the choice and accepts the leave - the marks go, when the leave really
-    // goes on (PDFDocumentToolShell::finishLeave); a later Keep of another tool keeps them
+    // decision 8): the shell only remembers the choice and accepts the leave - the marks go at the end of the leave
+    // (PDFDocumentToolShell::finishLeave), also when a later step cancels it (owner 2026-11-24: then the tool closes,
+    // the tab stays)
     PDFDocumentToolShell* shell = getShell();
     if (shell && shell->deferCloseQuestionAction())
     {

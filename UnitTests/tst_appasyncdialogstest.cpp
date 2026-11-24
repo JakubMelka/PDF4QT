@@ -24,7 +24,7 @@
 // asynchronous file dialogs (PDFAppFileDialogRequest; the answer and a test handler never inside the call, a requester
 // gone gets nothing, the dialog belongs to the window), the choice dialog answered by a signal (also when it is deleted without
 // an answer), the leave flow (a second request refused, a question or a reporter gone ends the step Refused, the
-// accepted pages forget their choices at a canceled end), the default leave functions of the page and of the GUI of a
+// accepted and the finished pages learn a canceled end by finishLeave(false)), the default leave functions of the page and of the GUI of a
 // tool, and the guard, which fails a test entering a nested event loop.
 
 #include "appasyncdialogs.h"
@@ -192,10 +192,11 @@ public:
     virtual bool finishLeave(bool isProceeding) override
     {
         finishes.push_back(isProceeding);
-        return true;
+        return !(isProceeding && isRefusing);
     }
 
     std::vector<bool> finishes;
+    bool isRefusing = false;    ///< finishLeave(true) refuses (the choice could not keep all of the work)
 };
 
 class AppAsyncDialogsTest : public QObject
@@ -850,7 +851,7 @@ void AppAsyncDialogsTest::flowReporterDeletedEndsRefused()
 void AppAsyncDialogsTest::flowAcceptedPagesFinished()
 {
     // Decision 8: the pages, which accepted, wait for finishLeave - requestFinishPages(true) at the transaction end; a
-    // canceled end gives finishLeave(false) to the pages not finished yet, each once
+    // canceled end gives finishLeave(false) to the pages not finished yet and to the pages finished by true, each once
     QWidget host;
     AsyncTestPage* first = new AsyncTestPage(&host);
     AsyncTestPage* second = new AsyncTestPage(&host);
@@ -873,6 +874,41 @@ void AppAsyncDialogsTest::flowAcceptedPagesFinished()
     flow->finish(true);
     QCOMPARE(first->finishes, std::vector<bool>({ false, true }));
     QCOMPARE(second->finishes, std::vector<bool>({ false }));
+
+    // Owner 2026-11-24: a page finished by true learns a canceled end of the flow (the tab or the window stays after
+    // all - a tool, which answered by closing, closes): finishLeave(false) once more; a page ended by false after a
+    // refusal is not ended again
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::QuitWindow));
+    AsyncTestPage* third = new AsyncTestPage(&host);
+    second->isRefusing = true;
+    flow->addAcceptedPage(first);
+    flow->addAcceptedPage(second);
+    flow->addAcceptedPage(third);
+    QCOMPARE(flow->requestFinishPages(true), pdf::PDFAppLeaveResult::Refused);
+    QCOMPARE(first->finishes, std::vector<bool>({ false, true, true }));
+    QCOMPARE(second->finishes, std::vector<bool>({ false, true }));
+    QCOMPARE(third->finishes, std::vector<bool>({ false }));
+    flow->finish(false);
+    QCOMPARE(first->finishes, std::vector<bool>({ false, true, true, false }));
+    QCOMPARE(second->finishes, std::vector<bool>({ false, true, false }));
+    QCOMPARE(third->finishes, std::vector<bool>({ false }));
+
+    // RLC2 L-5, the main path: every page finished by true (Done), then the leave is canceled (Cancel of the question
+    // of the unsaved documents) - each finished page learns it once; its owner reads them before a Done end
+    // (getFinishedPages: a failed save of the close of a tab)
+    second->isRefusing = false;
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+    flow->addAcceptedPage(first);
+    flow->addAcceptedPage(third);
+    QCOMPARE(flow->requestFinishPages(true), pdf::PDFAppLeaveResult::Done);
+    QCOMPARE(flow->getFinishedPages().size(), size_t(2));
+    QCOMPARE(first->finishes, std::vector<bool>({ false, true, true, false, true }));
+    QCOMPARE(third->finishes, std::vector<bool>({ false, true }));
+    flow->finish(false);
+    QCOMPARE(first->finishes, std::vector<bool>({ false, true, true, false, true, false }));
+    QCOMPARE(third->finishes, std::vector<bool>({ false, true, false }));
+    QCOMPARE(second->finishes, std::vector<bool>({ false, true, false }));
+    QVERIFY(flow->getFinishedPages().empty());
 }
 
 void AppAsyncDialogsTest::flowEndsSilentlyWithOwner()

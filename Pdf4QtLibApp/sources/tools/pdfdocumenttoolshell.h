@@ -255,34 +255,52 @@ public:
 
     /// The question of PDFDocumentToolGUI::askClose has been answered by closing (Discard Drawing, Keep
     /// Marks and Close, Remove Marks): the tool ends as Cancel ends it, without asking again. Nothing
-    /// outside of the state Editing. The shell, the GUI and the tab may be deleted by it (the last call).
+    /// outside of the state Editing. While a leave waits for the answer, the leave is accepted instead and the
+    /// answer is final (owner 2026-11-24): a leave canceled later closes the tool (requestFinishLeave(false)).
+    /// The shell, the GUI and the tab may be deleted by it (the last call).
     void closeAfterQuestion();
 
     /// The question of PDFDocumentToolGUI::askClose has been answered by its choice, which changes the document
     /// (PDFDocumentToolGUI::applyCloseQuestionAction: Redact "Remove New Marks", Measure "Save and Close"). While a
     /// leave waits for the answer (requestLeave), the choice is only remembered and the leave accepted (owner
-    /// 2026-11-20, decision 8: a later Keep of another tool cancels the quit and this tool keeps its work); the code,
-    /// which started the leave, ends it by requestFinishLeave. \returns true = remembered, the GUI does nothing more
-    /// (the waiter of the leave has run in this call: anything may have been deleted); false = no leave waits (Esc,
-    /// Close in the tool), the GUI applies the choice at once.
+    /// 2026-11-20, decision 8); the code, which started the leave, ends it by requestFinishLeave - the choice is
+    /// applied either way (owner 2026-11-24: the answer is final; a leave canceled later applies it and closes the
+    /// tool). \returns true = remembered, the GUI does nothing more (the waiter of the leave has run in this call:
+    /// anything may have been deleted); false = no leave waits (Esc, Close in the tool), the GUI applies the choice at
+    /// once.
     bool deferCloseQuestionAction();
 
-    /// Ends the leave, which requestLeave has accepted (PDFAppPage::requestFinishLeave; called once by the code,
-    /// which started the leave, also when nothing was remembered). \p isProceeding - the leave goes on: the choice
+    /// Ends the leave, which requestLeave has accepted (PDFAppPage::requestFinishLeave; called by the code, which
+    /// started the leave, also when nothing was remembered). \p isProceeding - the leave goes on: the choice
     /// remembered by deferCloseQuestionAction is applied now (PDFDocumentToolGUI::applyCloseQuestionAction, while the
     /// tool still edits: the commit of the tool, one Undo step), the caller then goes on with the leave; false = the
-    /// leave was canceled, the choice is forgotten and the tool keeps its work. When the applied choice could not
-    /// keep all of the work (owner 2026-11-21: a measurement, which cannot be stored, a locked mark), the tab of
-    /// the tool is shown and its question about the rest (askIncompleteQuestion) is opened. \returns Refused = the
+    /// leave was canceled by a later step (another question, a save, a lock): when the question of the tool was
+    /// answered by closing for this leave, the answer still stands (owner 2026-11-24) - from the event loop the
+    /// remembered choice is applied (if it was not yet) and the tool closes as by its answer without a leave
+    /// (onCanceledLeaveQueued) with a message in the status bar (the change of the answer can be undone); without such
+    /// an answer the tool stays as it is. Called again with false after a true (the tab or the window stays after
+    /// all), it closes the tool the same way. The answer covers only the work, which existed when it was given (and
+    /// its applied choice): work of the user made later (during a save of the close or of Save All) keeps the tool
+    /// open, so does a choice, which the document cannot take now (locked, an operation blocks the changes - the
+    /// message says why). When the applied choice could not keep all of the work (owner 2026-11-21: a measurement,
+    /// which cannot be stored, a locked mark), the tab of the tool is shown and its question about the rest
+    /// (askIncompleteQuestion) is opened - after a canceled leave one question of the tools at a time (the next one
+    /// waits for the answer of the open one). \returns Refused = the
     /// caller cancels the leave (no such question - the tool stays with the rest and has told why); Done = the leave
-    /// goes on (nothing to apply, all kept); Pending = the question about the rest is open: its answer comes by
-    /// \p flow->finishStep(this shell, Done / Refused) - Discard and Close Done, Keep Measuring Refused (A0: no event
-    /// loop; without a running flow the question stays as the question of the tool and the result is Refused). The
-    /// slots of the commit may delete the shell, its tab or the window (the caller guards them).
+    /// goes on (nothing to apply, all kept; always for false); Pending = the question about the rest is open: its
+    /// answer comes by \p flow->finishStep(this shell, Done / Refused) - Discard and Close Done, Keep Measuring
+    /// Refused (A0: no event loop; without a running flow the question stays as the question of the tool and the
+    /// result is Refused). The slots of the commit may delete the shell, its tab or the window (the caller guards
+    /// them); false runs no foreign code in the call.
     PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow);
 
     /// requestFinishLeave without a flow: \returns it is Done (\p isProceeding false never asks)
     bool finishLeave(bool isProceeding);
+
+    /// A leave accepts the page of the tool without asking it (the tool is not edited, or it works on a locked
+    /// document): an answer given to an earlier leave is not this leave's - its end applies and closes nothing (owner
+    /// 2026-11-24, L1 of the review RLC1). Nothing while a leave waits for the answer of the tool.
+    void forgetLeaveAnswer();
 
     /// The applied choice of the question (PDFDocumentToolGUI::applyCloseQuestionAction) could not keep all of the
     /// work: the question of the GUI about the rest (PDFDocumentToolGUI::askIncompleteClose: Measure "Keep
@@ -554,6 +572,39 @@ private:
     /// it once and reports the step of the flow (the last call).
     void onFinishLeaveQueued();
 
+    /// The leave, to which the question of the tool was answered by closing, was canceled by a later step
+    /// (requestFinishLeave(false); owner 2026-11-24): from the event loop the remembered choice is applied (one Undo
+    /// step) and the tool closes as by its closing answer without a leave; a choice, which could not keep all of the
+    /// work, keeps the tool open with its question about the rest (askIncompleteQuestion, owner 2026-11-21)
+    void onCanceledLeaveQueued();
+
+    /// The answer of the leave is forgotten (the flags of requestFinishLeave(false), the signature of the work)
+    void clearLeaveAnswer();
+
+    /// The work of the user, which leaving the tool loses, as its question names it (PDFDocumentToolGUI::hasUnsavedWork
+    /// and the texts of PDFDocumentToolGUI::getCloseQuestion): equal before and after = no work of the user since
+    QString getLeaveWorkSignature() const;
+
+    /// The message of the status bar of a tool closed by its answer after a canceled leave (\p isChangeApplied: the
+    /// applied choice has changed the document - Undo takes it back)
+    QString getCanceledLeaveMessage(bool isChangeApplied) const;
+
+    /// The question about the rest of the work after a canceled leave (onCanceledLeaveQueued): one question of the
+    /// tools at a time - while the question of another tool of the window is open, this one waits for its end
+    /// (onOtherQuestionEnded); then the tab of the tool is shown and the question opened (the last call)
+    void askIncompleteAfterCanceledLeave();
+
+    /// The question of another tool, for which askIncompleteAfterCanceledLeave waits, has ended: the next try from
+    /// the event loop (the other tool closes or stays first)
+    void onOtherQuestionEnded();
+
+    /// Stops the wait of askIncompleteAfterCanceledLeave (the connections to the other question are cut)
+    void stopWaitingForOtherQuestion();
+
+    /// The open question of another tool of the window of this tool (askClose, the question about the rest), nullptr =
+    /// none
+    QDialog* findOtherOpenQuestion() const;
+
     /// The answer of the question of a run (close-running)
     void onLeaveRunningChosen(PDFAppDocumentChoice choice);
 
@@ -700,6 +751,13 @@ private:
     quint64 m_leaveWaitId = 0;              ///< The current wait of a leave (a queued end of an older wait is ignored)
     quint64 m_endedLeaveWaitId = 0;         ///< The wait, whose question has ended
     bool m_isCloseQuestionActionDeferred = false;   ///< The choice of the question waits for finishLeave (decision 8)
+    bool m_isLeaveAnswered = false;         ///< The question of the tool was answered by closing for the leave, which waited (owner 2026-11-24: final)
+    bool m_isCanceledLeaveQueued = false;   ///< onCanceledLeaveQueued is posted
+    bool m_isLeaveChoiceApplied = false;    ///< The remembered choice of the answer has changed the document in this leave (the message names Undo)
+    QString m_leaveAnsweredWork;            ///< getLeaveWorkSignature at the answer and after its applied choice: later work keeps the tool (RLC1 M1)
+    bool m_isIncompleteQuestionPending = false;     ///< askIncompleteAfterCanceledLeave waits for the question of another tool
+    QMetaObject::Connection m_otherQuestionFinishedConnection;  ///< finished of the question of another tool waited for
+    QMetaObject::Connection m_otherQuestionEndConnection;       ///< aboutToBeDeleted of the notifier of that question
     quint64 m_knownDocumentVersion = 0;     ///< The version of the document, which this shell has seen (entry, documentChanged)
     QPointer<PDFAppContext> m_context;  ///< The context of the entry (recordUse after the host has gone)
     QPointer<QWidget> m_visibleKeyWidget;   ///< The key widget of the host watched by the event filter (an interactive tool); not owned

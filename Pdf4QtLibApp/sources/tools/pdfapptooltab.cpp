@@ -546,6 +546,10 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
         return PDFAppLeaveResult::Refused;
     }
 
+    // A new leave asks anew: an answer given to an earlier leave is not this one's (owner 2026-11-24)
+    m_isLeaveAnswered = false;
+    m_isLeaveRunStopped = false;
+
     // The calls run code of the application: a page retired meanwhile refuses (step A). The guard stays (RC6-M1): the
     // activation of the shell may delete the tab synchronously in a test.
     QPointer<PDFAppToolTabPage> guard(this);
@@ -562,7 +566,7 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
         case PDFDocumentToolShell::State::Running:
         {
             // Stop and Leave / Keep Running (F14, close-running 955:145813): Stop stops the run
-            // now, the tool ends with the tab (a quit canceled later keeps the tool editing)
+            // now, the tool ends with the tab (a quit canceled later closes the tab too, finishLeave)
             QPointer<PDFDocumentToolShell> shell = m_shell;
             const PDFAppLeaveResult result = m_shell->requestLeave(flow);
             if (!guard || PDFDeferredDeletion::isRetired(this))
@@ -658,6 +662,15 @@ void PDFAppToolTabPage::finishCloseStep(bool isAccepted)
         // A navigation leaves only the tool: it closes, the tab stays
         m_shell->close();
     }
+    else if (isAccepted && m_shell && !PDFDeferredDeletion::isRetired(this))
+    {
+        // The closing answer of the close of the tab is final (owner 2026-11-24): a later step, which cancels the
+        // leave (another question of the quit, Save All), still closes the tab (finishLeave) - with the work, which the
+        // answer has seen (the end of a stopped run is no work of the user)
+        m_isLeaveAnswered = true;
+        m_isLeaveRunStopped = stage == LeaveStage::Run && m_shell->getState() == PDFDocumentToolShell::State::Running;
+        m_leaveAnsweredWork = getLeaveWorkSignature();
+    }
 
     // The waiter of the flow is the last call
     if (flow && !PDFDeferredDeletion::isRetired(this))
@@ -737,6 +750,13 @@ void PDFAppToolTabPage::onShellStateChanged()
     {
         const PDFDocumentToolShell::State state = m_shell->getState();
         m_host->setBusy(state == PDFDocumentToolShell::State::Running || state == PDFDocumentToolShell::State::Deciding);
+    }
+
+    // The run stopped by Stop and Leave has ended: the work after it is the one, which the answer covers
+    if (m_isLeaveRunStopped && m_shell && m_shell->getState() != PDFDocumentToolShell::State::Running)
+    {
+        m_isLeaveRunStopped = false;
+        m_leaveAnsweredWork = getLeaveWorkSignature();
     }
     if (!PDFDeferredDeletion::isRetired(this))
     {
@@ -904,6 +924,78 @@ void PDFAppToolTabPage::onCanceledCloseFinished(bool isDone)
     if (!isDone && m_shell)
     {
         m_shell->resumeEditing();
+    }
+}
+
+QString PDFAppToolTabPage::getLeaveWorkSignature() const
+{
+    // What closing the tab loses, as the tab names it (K16: the loss text, the number of the inputs); a reading of an
+    // input, which ends later, changes neither (RLC1 M1)
+    const PDFAppToolTab* tab = getToolTab();
+    const PDFAppToolInputList* list = tab ? tab->getInputList() : nullptr;
+    return (tab ? tab->getLossText() : QString()) + QLatin1Char('\n') + QString::number(list ? list->getCount() : -1);
+}
+
+bool PDFAppToolTabPage::finishLeave(bool isProceeding)
+{
+    if (isProceeding)
+    {
+        // The leave goes on (the questions of the quit are modal: no work of the user since the answer); the work of
+        // the tool is read again for a later cancel (a stopped run, which is still ending, is read at its end)
+        if (m_isLeaveAnswered && m_shell && !m_isLeaveRunStopped)
+        {
+            m_leaveAnsweredWork = getLeaveWorkSignature();
+        }
+        return true;
+    }
+
+    // Owner 2026-11-24: the closing answer is final - the tab closes from the event loop (the flow, which calls this,
+    // ends first); a page without such an answer stays as it is
+    if (m_isLeaveAnswered && !m_isCanceledLeaveQueued)
+    {
+        m_isCanceledLeaveQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolTabPage::onCanceledLeaveQueued, Qt::QueuedConnection);
+    }
+    return true;
+}
+
+void PDFAppToolTabPage::onCanceledLeaveQueued()
+{
+    // A leave, which waits for this page again, owns the answer (requestClose has forgotten the old one); every other
+    // end forgets it too. A retired page (its posted call is removed) does nothing.
+    m_isCanceledLeaveQueued = false;
+    if (!m_isLeaveAnswered || checkLeaveWait())
+    {
+        return;
+    }
+    const bool isWorkUnchanged = !m_shell || m_isLeaveRunStopped || getLeaveWorkSignature() == m_leaveAnsweredWork;
+    m_isLeaveAnswered = false;
+    m_isLeaveRunStopped = false;
+    QPointer<PDFAppToolTab> tab = getToolTab();
+    QPointer<PDFAppMainWindow> window = tab ? qobject_cast<PDFAppMainWindow*>(tab->window()) : nullptr;
+    if (!tab || !window || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(tab.data()))
+    {
+        return;
+    }
+
+    // RLC1 M1: work made after the answer (inputs added while Save All of the quit ran) was never answered - the tab
+    // stays with it; so does a tool, whose result dialog or question is open (the user decides there)
+    if (!isWorkUnchanged || (m_shell && (m_shell->getState() == PDFDocumentToolShell::State::Deciding || m_shell->isQuestionOpen())))
+    {
+        return;
+    }
+
+    // The tab closes as by the answer in a quit, which goes on: the tool ends first, then the tab goes without a second
+    // question; the window says why the tab has gone (decision 3 of 24. 11.) - the last call
+    const QString message = tr("%1 has closed as you chose in its question.").arg(getTitle());
+    if (!closeShell() || !tab || !window)
+    {
+        return;
+    }
+    tab->setCloseConfirmed(true);
+    if (window->closeTab(tab) && window)
+    {
+        window->showTransientMessage(message);
     }
 }
 

@@ -204,6 +204,17 @@ private:
     void startCloseSave();
     void onCloseSaveFinished(bool isSaved);
 
+    /// The close, whose questions have all been answered, has not closed the tab (its save failed or was canceled,
+    /// the window refused the tab): the tab stays, a tool, which answered its question by closing, still closes with
+    /// its choice applied (PDFAppPage::finishLeave(false) of the pages, which the close has ended by true - RLC1 L4:
+    /// those pages, not the current one; owner 2026-11-24; nothing runs inside the call). Nothing while another flow
+    /// of the tab runs (it decides).
+    void endUnfinishedClose();
+
+    /// The flow of the close ends Done (\p flow->finish(true)); the pages it has ended by true are remembered for
+    /// endUnfinishedClose (the save of the close or the window may still keep the tab)
+    void finishCloseFlow(PDFAppLeaveFlow* flow);
+
     /// The steps of the close from \p from on (Done: the flow has ended, the caller closes the tab; Pending: a
     /// question is open; Refused: the flow has ended without the close)
     PDFAppLeaveResult continueClose(CloseStep from);
@@ -235,6 +246,7 @@ private:
     bool m_isShown = false;             ///< The document has been shown once
     bool m_isCloseConfirmed = false;    ///< The questions have been answered (closing after the last answer or the save)
     bool m_isClosingAfterSave = false;  ///< Save of close-unsaved runs (the tab closes after it)
+    std::vector<QPointer<PDFAppPage>> m_closeFinishedPages;    ///< The pages ended by true by the last close, which has not closed the tab yet (endUnfinishedClose)
     bool m_isReadingStatePending = false;
 };
 

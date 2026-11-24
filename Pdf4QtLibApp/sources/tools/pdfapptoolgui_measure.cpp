@@ -1354,8 +1354,8 @@ PDFAppToolCloseQuestion PDFAppToolGUIMeasure::getCloseQuestion() const
 
 bool PDFAppToolGUIMeasure::applyCloseQuestionAction()
 {
-    // Save and Close: as Save as Annotations, one Undo step through the shell (during a leave only when it goes on,
-    // PDFDocumentToolShell::finishLeave - the tool still edits then)
+    // Save and Close: as Save as Annotations, one Undo step through the shell (during a leave at its end, also of one
+    // canceled later, PDFDocumentToolShell::finishLeave - the tool still edits then)
     // Measurements, which could not be stored, stay temporary: the shell asks askIncompleteClose then (owner 2026-11-21)
     const bool isWritten = saveAsAnnotations();
     return !PDFDeferredDeletion::isRetired(this) && isWritten && m_measurements.empty();

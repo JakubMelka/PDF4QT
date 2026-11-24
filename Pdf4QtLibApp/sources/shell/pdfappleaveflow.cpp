@@ -236,12 +236,19 @@ void PDFAppLeaveFlow::finish(bool isDone)
         return;
     }
 
-    // The state is cleared first: the pages and the slots of finished may start a new flow
+    // The state is cleared first: the pages and the slots of finished may start a new flow. The pages finished by true
+    // learn a canceled end too (owner 2026-11-24: the tab or the window stays after all - a tool, which answered its
+    // question by closing, closes).
     std::vector<QPointer<PDFAppPage>> pages = std::move(m_acceptedPages);
     std::vector<QPointer<PDFAppLeaveFlowStep>> steps = std::move(m_steps);
     pages.insert(pages.end(), m_finishingPages.begin(), m_finishingPages.end());
+    if (!isDone)
+    {
+        pages.insert(pages.end(), m_finishedPages.begin(), m_finishedPages.end());
+    }
     m_acceptedPages.clear();
     m_finishingPages.clear();
+    m_finishedPages.clear();
     m_isFinishProceeding = false;
     m_isFinishRefused = false;
     m_steps.clear();
@@ -263,8 +270,9 @@ void PDFAppLeaveFlow::finish(bool isDone)
         }
     }
 
-    // A page, which has accepted and was not finished by the owner, forgets its choice (decision 8); the pages run
-    // code of the application
+    // A page, which has accepted and was not finished by the owner, learns that the leave does not go on (finishLeave
+    // false: a tool, which answered its question by closing, applies its choice and closes from the event loop - owner
+    // 2026-11-24; decision 8 kept nothing applied while the leave waited); the pages run code of the application
     QPointer<PDFAppLeaveFlow> guard(this);
     PDFAppPage::finishLeaves(pages, false);
     if (guard)
@@ -365,9 +373,15 @@ PDFAppLeaveResult PDFAppLeaveFlow::continueFinishPages()
             continue;
         }
 
-        // A refusal cancels the leave: the rest of the pages forget their choices (PDFAppPage::finishLeaves). The page
-        // runs code of the application (a commit, its question).
-        PDFAppLeaveResult result = page->requestFinishLeave(m_isFinishProceeding && !m_isFinishRefused, this);
+        // A refusal cancels the leave: the rest of the pages are ended by false (PDFAppPage::finishLeaves). A page ended
+        // by true learns a canceled end of the flow later (finish). The page runs code of the application (a commit,
+        // its question).
+        const bool isPageProceeding = m_isFinishProceeding && !m_isFinishRefused;
+        if (isPageProceeding)
+        {
+            m_finishedPages.push_back(page);
+        }
+        PDFAppLeaveResult result = page->requestFinishLeave(isPageProceeding, this);
         if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             // The flow of the window may go with the window; the flow of a tab is retired with its tab (step A): the

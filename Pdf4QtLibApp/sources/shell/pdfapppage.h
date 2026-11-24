@@ -194,16 +194,21 @@ public:
     /// (owner 2026-11-20, decision 8). \p isProceeding - the leave goes on (the quit and the close of a tab before
     /// the question of the unsaved documents, the lock before the lock): a choice of a question of the page, which
     /// changes the document (Redact "Remove New Marks", Measure "Save and Close"), is applied now; false = the leave
-    /// was canceled (a later Keep, Cancel of another question), the page forgets the choice and keeps its work. A page
-    /// deleted before the end forgets it too. \returns false, when the applied choice could not keep all of the work
-    /// (owner 2026-11-21: a measurement, which cannot be stored): the page stays with it and told the user why, the
-    /// caller cancels the leave (the window stays, the tab stays, no lock, no navigation); true otherwise. The page,
-    /// its tab or the window may be deleted meanwhile (the caller guards them). The default returns true.
+    /// was canceled by a later step (a Keep of another tool, Cancel of another question, a failed save, a lock
+    /// stopped), also after an earlier true (the tab or the window stays after all). An answer of a question of the
+    /// page is final (owner 2026-11-24): a page, whose question was answered by closing (Discard, Keep Marks and
+    /// Close, Remove New Marks, Save and Close), applies its choice and closes its tool from the event loop (nothing
+    /// runs inside the call); only the tab, the window, the lock or the navigation stays as it was. A page without such
+    /// an answer stays as it is. A page deleted before the end applies nothing. \returns false, when the applied choice
+    /// could not keep all of the work (owner 2026-11-21: a measurement, which cannot be stored): the page stays with
+    /// it and told the user why, the caller cancels the leave (the window stays, the tab stays, no lock, no
+    /// navigation); true otherwise. The page, its tab or the window may be deleted meanwhile (the caller guards
+    /// them). The default returns true.
     virtual bool finishLeave(bool isProceeding);
 
     /// finishLeave(\p isProceeding) of every page of \p pages, which still exists (each may delete the others). After
-    /// a page has refused (false), the rest are ended by false: the leave is canceled, no further choice is applied.
-    /// \returns false, when a page has refused.
+    /// a page has refused (false), the rest are ended by false: the leave is canceled (each page honors its own
+    /// closing answer, see finishLeave). \returns false, when a page has refused.
     static bool finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding);
 
     // ------------------------------------------------------------- leave without a nested event loop (A0)
@@ -228,7 +233,8 @@ public:
     /// its question, also when its tab or the window closes). Done = the page may go; the caller records it by
     /// PDFAppLeaveFlow::addAcceptedPage and ends it by finishLeave at the end of the transaction
     /// (PDFAppLeaveFlow::requestFinishPages / finish); nothing is ended here: a close canceled by a later question
-    /// keeps the page as it is. Refused = the page stays. Pending = its question is open. The default is Done.
+    /// keeps the tab, the page honors its closing answer then (finishLeave(false), owner 2026-11-24). Refused = the
+    /// page stays. Pending = its question is open. The default is Done.
     virtual PDFAppLeaveResult requestClose(PDFAppLeaveFlow* flow);
 
     /// The document of the tab of the page is being locked by the user (owner 2026-11-20, decision 6): a tool, which
@@ -241,7 +247,8 @@ public:
     /// leave goes on (finishLeave true); Refused = the applied choice could not keep all of the work, the caller cancels
     /// the leave (finishLeave false); Pending = the page asks about the rest (Measure "Keep Measuring / Discard and
     /// Close", its question open): its result comes by \p flow->finishStep(this page, Done / Refused), never inside the
-    /// call. \p isProceeding false never asks. The default calls finishLeave.
+    /// call. \p isProceeding false never asks (a closing answer is honored from the event loop, finishLeave). The
+    /// default calls finishLeave.
     virtual PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow);
 
     PDFAppContext* getContext() const { return m_context; }

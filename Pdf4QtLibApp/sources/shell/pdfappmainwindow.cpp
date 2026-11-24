@@ -32,6 +32,7 @@
 #include "pdfappfiledrop.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappnavigator.h"
+#include "pdfappowntabtoolhost.h"
 #include "pdfappsessionend.h"
 #include "pdfapptab.h"
 #include "pdfappassemblyloader.h"
@@ -487,6 +488,27 @@ PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
     PDFDeferredDeletion::retire(closedTab.data());
     updateWindowTitle();
     return PDFAppLeaveResult::Done;
+}
+
+void PDFAppMainWindow::showTransientMessage(const QString& text)
+{
+    PDFAppTab* tab = getCurrentTab();
+    if (PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(tab))
+    {
+        PDFAppDocumentView* view = documentTab->getView();
+        if (PDFAppDocumentStatusBar* statusBar = view ? view->getStatusBar() : nullptr)
+        {
+            statusBar->showMessage(text, PDFAppDocumentToolHost::MESSAGE_TIMEOUT);
+        }
+    }
+    else if (PDFAppToolTab* toolTab = qobject_cast<PDFAppToolTab*>(tab))
+    {
+        PDFAppToolTabPage* page = toolTab->getToolPage();
+        if (PDFAppOwnTabToolHost* host = page ? page->getHost() : nullptr)
+        {
+            host->showTransientMessage(text);
+        }
+    }
 }
 
 void PDFAppMainWindow::detachTab(PDFAppTab* tab)
@@ -2149,9 +2171,11 @@ PDFAppLeaveResult PDFAppMainWindow::requestQuit()
     }
 
     // The tools in the tabs of the documents ask first about the unsaved work of the user, each shown with its
-    // question (owner 2026-11-20). Their closing answers end nothing here: a later Keep cancels the quit and
-    // every tool keeps its work (decision 8). Work discarded at the end of the system session is not asked again
-    // only by the close, which the allowed end of the session makes (PDFAppSessionEnd::isSessionEnding).
+    // question (owner 2026-11-20). Their closing answers end nothing here (decision 8); they are final (owner
+    // 2026-11-24): a later Keep of another tool or Cancel cancels only the quit - a tool, which answered by closing,
+    // applies its choice and closes (PDFAppPage::finishLeave(false)). Work discarded at the end of the system
+    // session is not asked again only by the close, which the allowed end of the session makes
+    // (PDFAppSessionEnd::isSessionEnding).
     const bool isSessionEnding = PDFAppSessionEnd::isSessionEnding();
     std::vector<QPointer<QObject>> toolPages;
     for (PDFAppDocumentTab* tab : getDocumentTabs())
@@ -2172,8 +2196,8 @@ PDFAppLeaveResult PDFAppMainWindow::continueQuit(QuitStep from)
 
     // The pages of the tools, one by one (A0: each question is shown, its answer continues in onQuitStepFinished).
     // A slot may delete a tab or the window. Every page, which has accepted, waits for the end of the leave
-    // (PDFAppLeaveFlow::requestFinishPages): false when the quit is canceled, true before the question of the unsaved
-    // documents.
+    // (PDFAppLeaveFlow::requestFinishPages): false when the quit is canceled (also after true: the window stays, a
+    // tool, which answered by closing, closes - owner 2026-11-24), true before the question of the unsaved documents.
     if (from <= QuitStep::ToolPages)
     {
         flow->setStep(int(QuitStep::ToolPages));
@@ -2208,7 +2232,9 @@ PDFAppLeaveResult PDFAppMainWindow::continueQuit(QuitStep from)
 
         // Then the own tabs of the tools, each shown with its question (K16: the list of the inputs is lost; a run
         // asks as close-running and Stop stops it at once - after the questions above, so a Keep there never comes
-        // after a stopped run; an open result dialog keeps the window)
+        // after a stopped run; an open result dialog keeps the window). An own tab, which has accepted, waits for the
+        // end of the leave as the pages of the documents (owner 2026-11-24, the same rule: its closing answer -
+        // Discard List, Don't Save, Stop and Leave - closes the tab also when a later step cancels the quit)
         std::vector<QPointer<QObject>> toolTabs;
         for (PDFAppToolTab* toolTab : getToolTabs())
         {
@@ -2237,7 +2263,7 @@ PDFAppLeaveResult PDFAppMainWindow::continueQuit(QuitStep from)
             {
                 if (page && flow->waitForStep(page.data(), this, &PDFAppMainWindow::onQuitStepFinished))
                 {
-                    flow->setSubject(nullptr);
+                    flow->setSubject(page.data());
                     return PDFAppLeaveResult::Pending;
                 }
                 result = PDFAppLeaveResult::Refused;
@@ -2247,14 +2273,16 @@ PDFAppLeaveResult PDFAppMainWindow::continueQuit(QuitStep from)
                 flow->finish(false);
                 return PDFAppLeaveResult::Refused;
             }
+            flow->addAcceptedPage(page.data());
         }
     }
 
     // The quit goes on: the choices of the questions of the tools, which change their documents (Redact "Remove New
     // Marks", Measure "Save and Close"), are applied before the question of the unsaved documents - Save All then
-    // saves them; Cancel there keeps the applied changes (Undo takes them back). A tool, which could not keep all of
-    // its work (a measurement, which cannot be stored), asks about the rest; its Keep cancels the quit (owner
-    // 2026-11-21): the window stays. The slots of the commits may delete a tab or the window.
+    // saves them; Cancel there keeps the window with the applied changes (Undo takes them back) and those tools close
+    // (owner 2026-11-24). A tool, which could not keep all of its work (a measurement, which cannot be stored), asks
+    // about the rest; its Keep cancels the quit (owner 2026-11-21): the window stays. The slots of the commits may
+    // delete a tab or the window.
     if (from <= QuitStep::FinishPages)
     {
         flow->setStep(int(QuitStep::FinishPages));
@@ -2375,9 +2403,9 @@ void PDFAppMainWindow::onQuitStepFinished(PDFAppLeaveResult result)
         return;
     }
 
-    // A page of a tool has accepted: it waits for the end of the leave; the queue goes on (the tabs, the pages may
-    // have gone meanwhile - the queue holds them weakly)
-    if (step == QuitStep::ToolPages)
+    // A page of a tool (also of an own tab) has accepted: it waits for the end of the leave; the queue goes on (the
+    // tabs, the pages may have gone meanwhile - the queue holds them weakly)
+    if (step == QuitStep::ToolPages || step == QuitStep::ToolTabs)
     {
         if (PDFAppPage* page = qobject_cast<PDFAppPage*>(flow->getSubject()))
         {

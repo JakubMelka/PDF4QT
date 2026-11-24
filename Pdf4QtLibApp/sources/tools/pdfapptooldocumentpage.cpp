@@ -222,9 +222,14 @@ PDFAppLeaveResult PDFAppToolDocumentPage::forwardShellStep(PDFAppLeaveResult res
 PDFAppLeaveResult PDFAppToolDocumentPage::requestClose(PDFAppLeaveFlow* flow)
 {
     // Only the question of the work of a tool, which is edited: a run is asked by the tab (its operation,
-    // close-running), the result dialog is modal
+    // close-running), the result dialog is modal. A page accepted without the question of the tool keeps no answer of
+    // an earlier leave (RLC1 L1: its end applies and closes nothing).
     if (!m_shell || m_shell->getState() != PDFDocumentToolShell::State::Editing)
     {
+        if (m_shell)
+        {
+            m_shell->forgetLeaveAnswer();
+        }
         return PDFAppLeaveResult::Done;
     }
 
@@ -266,10 +271,15 @@ bool PDFAppToolDocumentPage::isLeftBy(const PDFAppRoute& target) const
 PDFAppLeaveResult PDFAppToolDocumentPage::requestDocumentLock(PDFAppLeaveFlow* flow)
 {
     // Only a tool, which the lock ends (PDFDocumentToolShell::onLockChanged), and only while it is edited (a run
-    // and the result dialog keep the document busy)
+    // and the result dialog keep the document busy); a page accepted without the question keeps no answer of an earlier
+    // leave (RLC1 L1)
     const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(m_toolId);
     if (!m_shell || !tool || tool->getLockedAccess() != PDFDocumentToolLockedAccess::Unavailable || m_shell->getState() != PDFDocumentToolShell::State::Editing)
     {
+        if (m_shell)
+        {
+            m_shell->forgetLeaveAnswer();
+        }
         return PDFAppLeaveResult::Done;
     }
 

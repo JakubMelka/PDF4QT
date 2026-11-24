@@ -1711,10 +1711,12 @@ void AppToolRedactTest::closePromptCountsNewMarks()
 void AppToolRedactTest::quitRemoveNewMarksThenKeep()
 {
     // Owner 2026-11-20, decision 8: the quit asks the tools of both document tabs. Remove New Marks in the first tab and
-    // Back to Redacting (Keep) in the second cancel the quit - the first tool keeps its new mark (nothing is removed
-    // until the quit really goes), also later (the answer of the canceled quit is forgotten: no later commit of the
-    // pending edits removes it). When the quit goes on, the new marks are removed before the question of the unsaved
-    // documents (so Save All would save the documents without them).
+    // Back to Redacting (Keep) in the second cancel the quit - nothing is removed while the quit waits. Owner
+    // 2026-11-24: the answer of the first tool is final - the canceled quit keeps the window, the new mark of the first
+    // tool is removed in one Undo step and the first tool closes, the second tool keeps its new mark (its own Back);
+    // the applied answer is not applied again by a later commit of the pending edits. When the quit goes on, the new
+    // marks are removed before the question of the unsaved documents (so Save All would save the documents without
+    // them); Cancel there keeps the window and both tools close.
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* firstTab = H::openReady(fixture, QStringLiteral("First.pdf"));
     QVERIFY(firstTab);
@@ -1746,6 +1748,7 @@ void AppToolRedactTest::quitRemoveNewMarksThenKeep()
     // While the quit asks the second tool, the answer of the first one is only remembered by its shell (decision 8):
     // the new mark is still in the document, no pending edit of the document stands for it (no polling of the
     // document by the tool)
+    const int firstUndoCount = pdftest::AppDocumentFixture::undoCount(firstTab->getDocument());
     pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
     QVERIFY(answer(first, 2));                  // Remove New Marks
@@ -1758,21 +1761,30 @@ void AppToolRedactTest::quitRemoveNewMarksThenKeep()
     QVERIFY(!isPendingEditDuringWait);
     QVERIFY(isDeferredDuringWait);
     QVERIFY(fixture.window->isVisible());
-    QVERIFY(firstShell && secondShell);
-    QCOMPARE(firstShell->getState(), PDFDocumentToolShell::State::Editing);
-    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
-    QCOMPARE(first->getNewMarks().size(), size_t(1));
+    QVERIFY(!firstShell || firstShell->getState() == PDFDocumentToolShell::State::Closed);
+    QVERIFY(!firstTab->getView()->isToolModeActive());
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(0));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(firstTab->getDocument()), firstUndoCount + 1);
+    QCOMPARE(firstTab->getDocument()->getUndoStack()->getUndoDescription(), QStringLiteral("Remove the new redaction marks"));
+    QVERIFY(secondShell && second);
+    QCOMPARE(secondShell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(second->getNewMarks().size(), size_t(1));
+    QCOMPARE(H::annotations(secondTab->getDocument()).size(), size_t(1));
 
-    // The canceled answer is forgotten by the end of the leave (finishLeave(false)): a later commit of the pending
-    // edits (an undo, a save) removes nothing
-    QVERIFY(!firstShell->hasDeferredCloseQuestionAction());
+    // The applied answer is applied once: a later commit of the pending edits (an undo, a save) changes nothing
     QVERIFY(!firstTab->getDocument()->hasPendingEdits());
     firstTab->getDocument()->commitPendingEdits();
     AppToolShellFixture::settle();
-    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(0));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(firstTab->getDocument()), firstUndoCount + 1);
 
-    // The quit goes on: both new marks are removed before the question of the unsaved documents (Cancel keeps the
-    // window)
+    // The quit goes on (the tool opened again in the first tab with a new mark): both new marks are removed before
+    // the question of the unsaved documents; Cancel there keeps the window, both tools close
+    firstShell = fixture.openTool(firstTab, H::TOOL_ID);
+    first = H::gui(firstShell);
+    QVERIFY(first);
+    QVERIFY(first->addAreaMark(0, QRectF(100, 600, 50, 50)));
+    AppToolShellFixture::settle();
     QVERIFY(!fixture.window->close());
     QVERIFY(answer(first, 2));
     QVERIFY(answer(second, 2));
@@ -1786,10 +1798,17 @@ void AppToolRedactTest::quitRemoveNewMarksThenKeep()
     unsaved->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
     AppToolShellFixture::settle();
     QCOMPARE(countsAtQuestion, std::vector<size_t>({ 0, 0 }));
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(!firstShell || firstShell->getState() == PDFDocumentToolShell::State::Closed);
+    QVERIFY(!secondShell || secondShell->getState() == PDFDocumentToolShell::State::Closed);
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(0));
+    QCOMPARE(H::annotations(secondTab->getDocument()).size(), size_t(0));
 
     // Another route of the first tab (the view of the document): the leave waits for the answer as well and goes on
     // right after it - Remove New Marks removes the new mark while the tool still edits (PDFAppToolDocumentPage::
     // requestLeave ends its own leave), then the tool closes
+    firstShell = fixture.openTool(firstTab, H::TOOL_ID);
+    first = H::gui(firstShell);
     QVERIFY(firstShell && first);
     QVERIFY(first->addAreaMark(0, QRectF(100, 600, 50, 50)));
     AppToolShellFixture::settle();

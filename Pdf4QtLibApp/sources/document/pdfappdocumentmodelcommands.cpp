@@ -175,8 +175,12 @@ void PDFAppDocumentModelCommandHandler::continueLock()
 
     // The lock goes on, unless the document has gone or has been locked meanwhile: a choice of the question of the
     // tool, which changes the document (Redact "Remove New Marks", Measure "Save and Close"), is applied before the
-    // lock while the tool still edits (one Undo step; decision 8). The slots of the commit may delete anything. A
-    // tool, which could not keep all of its work (a locked mark), keeps the document unlocked (owner 2026-11-21);
+    // lock while the tool still edits (one Undo step; decision 8); a lock, which does not go on, ends the page by
+    // false - its closing answer still closes the tool (owner 2026-11-24). The user cannot cancel the lock after the
+    // answer: the question of the tool is the only question of the lock, so it does not go on only when the document
+    // has gone or was locked by another route meanwhile - the lock has ended the tool then (a tool, which the lock
+    // ends, is the only one asked), finishLeave(false) finds it closed. The slots of the commit may delete anything.
+    // A tool, which could not keep all of its work (a locked mark), keeps the document unlocked (owner 2026-11-21);
     // its question about the rest is a step of the flow.
     QPointer<PDFAppDocument> document = qobject_cast<PDFAppDocument*>(flow->getSubject());
     const bool isProceeding = document && !document->isLocked();
