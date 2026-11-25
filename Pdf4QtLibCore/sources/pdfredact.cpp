@@ -22,6 +22,7 @@
 
 #include "pdfredact.h"
 #include "pdfannotation.h"
+#include "pdfcontentstreamtext.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfpainter.h"
 #include "pdfdocumentbuilder.h"
@@ -297,21 +298,7 @@ public:
     /// A number of a content stream (at most 4 decimal places, no trailing zero)
     static QByteArray formatNumber(PDFReal value)
     {
-        if (!std::isfinite(value) || std::abs(value) < 0.00005)
-        {
-            return "0";
-        }
-
-        QByteArray text = QByteArray::number(value, 'f', 4);
-        while (text.endsWith('0'))
-        {
-            text.chop(1);
-        }
-        if (text.endsWith('.'))
-        {
-            text.chop(1);
-        }
-        return text;
+        return PDFContentStreamText::formatFixedNumber(value, 4);
     }
 
     /// The content stream of the fill of the area (R6-5: the own last content stream of the page,

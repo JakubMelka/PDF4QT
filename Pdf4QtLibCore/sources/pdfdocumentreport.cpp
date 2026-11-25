@@ -669,8 +669,9 @@ public:
     }
 
     /// The content items of an element (14.7.2, Table 355 /K): marked-content sequences (an integer, a
-    /// marked-content reference) and objects (an object reference) - read from the element dictionary, as
-    /// the parser of the tree keeps only the dictionaries of its kids
+    /// marked-content reference) and objects (an object reference) - read from the element dictionary
+    /// (written when the parser of the tree kept only the dictionaries of its kids; it keeps the integer
+    /// kids too since 2026-11-25, the count is the same)
     static qint64 getContentItemCount(const PDFDocument* document, const PDFStructureElement* element)
     {
         const PDFDictionary* dictionary = element->getSelfReference().isValid() ? document->getDictionaryFromObject(PDFObject::createReference(element->getSelfReference())) : nullptr;

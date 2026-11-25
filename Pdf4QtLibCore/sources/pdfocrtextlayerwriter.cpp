@@ -27,6 +27,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfpage.h"
 #include "pdfcatalog.h"
+#include "pdfcontentstreamtext.h"
 #include "pdfstreamfilters.h"
 #include "pdfconstants.h"
 #include "pdfexception.h"
@@ -174,30 +175,7 @@ QByteArray PDFOCRTextLayerWriter::encodeText(const QString& text, int* codeUnitC
 
 QByteArray PDFOCRTextLayerWriter::formatNumber(double value)
 {
-    if (!std::isfinite(value))
-    {
-        value = 0.0;
-    }
-
-    QByteArray text = QByteArray::number(value, 'f', 4);
-    if (text.contains('.'))
-    {
-        while (text.endsWith('0'))
-        {
-            text.chop(1);
-        }
-        if (text.endsWith('.'))
-        {
-            text.chop(1);
-        }
-    }
-
-    if (text == "-0")
-    {
-        text = "0";
-    }
-
-    return text;
+    return PDFContentStreamText::formatFixedNumber(value, 4);
 }
 
 double PDFOCRTextLayerWriter::computeHorizontalScaling(const PDFOCRWord& word)

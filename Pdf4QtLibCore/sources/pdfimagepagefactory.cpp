@@ -687,6 +687,65 @@ PDFObject PDFImagePageFactory::createColorSpace(PDFDocumentBuilder* builder, con
     return PDFObject::createArray(std::move(array));
 }
 
+PDFObjectReference PDFImagePageFactory::createImageXObject(PDFDocumentBuilder* builder, const Frame& frame)
+{
+    using Helper = PDFImagePageFactoryHelper;
+
+    // A compacted frame has no pixels, but its coded image or its JPEG
+    if (frame.image.isNull() && frame.codedImage.isNull() && frame.jpegData.isEmpty())
+    {
+        throw PDFException(tr("The image is empty."));
+    }
+
+    if (!frame.jpegData.isEmpty())
+    {
+        PDFDictionaryBuilder dictionary;
+        dictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(frame.jpegSize.width()));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(frame.jpegSize.height()));
+        dictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
+        dictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), createColorSpace(builder, frame.iccProfile, frame.jpegComponents));
+        if (frame.isAdobeCmyk)
+        {
+            // Adobe writes the samples of CMYK inverted (5.3 of the plan)
+            PDFArrayBuilder decode;
+            for (int i = 0; i < 4; ++i)
+            {
+                decode.appendItem(PDFObject::createInteger(1));
+                decode.appendItem(PDFObject::createInteger(0));
+            }
+            dictionary.addEntry(PDFInplaceOrMemoryString("Decode"), PDFObject::createArray(std::move(decode)));
+        }
+        dictionary.addEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("DCTDecode"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(frame.jpegData.size()));
+        QByteArray content = frame.jpegData;
+        return builder->addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
+    }
+
+    // Lossless coding; the alpha channel is the soft mask (11.6.5.3); a compacted frame was
+    // coded already
+    PDFObject codedImage = frame.codedImage;
+    PDFObject codedMask = frame.codedMask;
+    int components = frame.codedComponents;
+    if (codedImage.isNull())
+    {
+        Helper::codeSamples(frame.image, &codedImage, &codedMask, &components);
+    }
+
+    const PDFStream* stream = codedImage.getStream();
+    PDFDictionaryBuilder dictionary(*stream->getDictionary());
+    dictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), createColorSpace(builder, frame.iccProfile, components));
+    if (!codedMask.isNull())
+    {
+        const PDFObjectReference maskReference = builder->addObject(codedMask);
+        dictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(maskReference));
+    }
+
+    QByteArray content = *stream->getContent();
+    return builder->addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
+}
+
 PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, const Frame& frame, QSizeF pageSize, QRectF clip)
 {
     return createPage(builder, frame, PDFImagePageLayout::createStretched(pageSize, clip));
@@ -713,56 +772,7 @@ PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, 
     }
 
     // The image XObject
-    PDFObjectReference imageReference;
-    if (!frame.jpegData.isEmpty())
-    {
-        PDFDictionaryBuilder dictionary;
-        dictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
-        dictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
-        dictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(frame.jpegSize.width()));
-        dictionary.addEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(frame.jpegSize.height()));
-        dictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
-        dictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), createColorSpace(builder, frame.iccProfile, frame.jpegComponents));
-        if (frame.isAdobeCmyk)
-        {
-            // Adobe writes the samples of CMYK inverted (5.3 of the plan)
-            PDFArrayBuilder decode;
-            for (int i = 0; i < 4; ++i)
-            {
-                decode.appendItem(PDFObject::createInteger(1));
-                decode.appendItem(PDFObject::createInteger(0));
-            }
-            dictionary.addEntry(PDFInplaceOrMemoryString("Decode"), PDFObject::createArray(std::move(decode)));
-        }
-        dictionary.addEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("DCTDecode"));
-        dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(frame.jpegData.size()));
-        QByteArray content = frame.jpegData;
-        imageReference = builder->addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
-    }
-    else
-    {
-        // Lossless coding; the alpha channel is the soft mask (11.6.5.3); a compacted frame was
-        // coded already
-        PDFObject codedImage = frame.codedImage;
-        PDFObject codedMask = frame.codedMask;
-        int components = frame.codedComponents;
-        if (codedImage.isNull())
-        {
-            Helper::codeSamples(frame.image, &codedImage, &codedMask, &components);
-        }
-
-        const PDFStream* stream = codedImage.getStream();
-        PDFDictionaryBuilder dictionary(*stream->getDictionary());
-        dictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), createColorSpace(builder, frame.iccProfile, components));
-        if (!codedMask.isNull())
-        {
-            const PDFObjectReference maskReference = builder->addObject(codedMask);
-            dictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(maskReference));
-        }
-
-        QByteArray content = *stream->getContent();
-        imageReference = builder->addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
-    }
+    const PDFObjectReference imageReference = createImageXObject(builder, frame);
 
     // The matrix: the unit square of the image (its bottom left corner is the origin) to the
     // page, through the orientation of EXIF of the stored JPEG, the clip and the turn of the

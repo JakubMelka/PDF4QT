@@ -269,6 +269,7 @@ static constexpr const char* TOOL_PAGE_CHANGES[] =
     "pages.resize",
     "pages.boxes",
     "protect.sign-by-hand",     // The drawing goes into the content of the pages (plan of step 6 of phase 2, 4.2, 10.1)
+    "edit.content",             // The content of the pages is rewritten (GUI_overhaul/edit_tool/zadani.md, KE.6, QE.3)
 };
 
 /// Tools, whose result is the input document with an incremental update of its exact bytes
@@ -305,6 +306,7 @@ static constexpr const char* TOOL_ALWAYS_CONFIRMED_BY_MCP[] =
     "protect.sign",
     "protect.timestamp",
     "protect.sign-by-hand",
+    "edit.content",             // The changes of the content of the pages by an assistant (GUI_overhaul/edit_tool/zadani.md, KE.6, QE.4)
 };
 
 /// Tools, whose secret values (a password, the choice of a certificate with its private key) only the user
@@ -739,6 +741,10 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // the clipboard, the XML and the text of the differences of Compare - is an extraction, bit 5 with the
     // owner password offered (Table 22); Measure adding annotations (mode add, ChangeDocument) bit 6; the
     // report PDF of Compare is a new document of its inputs (the rule of Merge). No successors (Q7.15).
+    // Edit Content (GUI_overhaul/edit_tool/zadani.md, KE.6, owner answers QE.3, QE.4): it rewrites the content
+    // of the pages - bit 4, a change of the pages (isPageChange: the certification of a certified document is
+    // removed with a warning), the signatures as Sign by Hand (an incremental update keeps them), an action of
+    // MCP always confirmed by the user (isAlwaysConfirmedByMcp).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -771,7 +777,7 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("convert.extract-text", Input::One, Result::Files, Dependency::None, "fetch-text", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("convert.extract-images", Input::One, Result::Files, Dependency::None, "fetch-images", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
-        PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
+        PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("edit.page-numbers", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password"),
         PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
         PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),

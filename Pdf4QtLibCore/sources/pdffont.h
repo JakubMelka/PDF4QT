@@ -144,6 +144,20 @@ struct TextSequenceItem
     QChar character;
     PDFReal advance = 0;
     CID cid = 0;
+
+    /// Character code read from the string of the text showing operator (ISO 32000-2, 9.4.3): the
+    /// bytes of the code as a big-endian number (the byte itself in a simple and in a Type 3 font,
+    /// the code matched by the CMap in a Type 0 font). It is not the CID.
+    unsigned int code = 0;
+
+    /// Number of bytes of the string, which form \p code (1 in a simple and in a Type 3 font, 1 to 4 in
+    /// a Type 0 font). Zero for an item, which comes from no character code: a number of the array
+    /// of the operator TJ.
+    unsigned int codeLength = 0;
+
+    /// The word spacing applies to this item (ISO 32000-2, 9.3.3): the single-byte character code 32,
+    /// never a code of more bytes, whatever its Unicode value or its low byte is
+    inline bool isWordSpace() const { return codeLength == 1 && code == 32; }
 };
 
 struct TextSequence
@@ -371,6 +385,16 @@ public:
     /// Returns ToUnicode mapping (or nullptr, if font has no mapping to unicode)
     virtual const PDFFontCMap* getToUnicode() const { return nullptr; }
 
+    /// Text of a character code by /ToUnicode of the font (ISO 32000-2, 9.10.3): one or more UTF-16
+    /// code units - a character, a surrogate pair of a character outside of the basic multilingual
+    /// plane or a sequence of characters (a ligature). Empty, when the font has no /ToUnicode or the
+    /// code is not mapped by it: the encoding of a simple font, a predefined CMap or a character
+    /// collection is not asked here (unlike the character of a text sequence). The result does
+    /// not depend on the realized font, the function is safe for more threads.
+    /// \param code Character code (TextSequenceItem::code)
+    /// \param codeLength Number of bytes of the code (TextSequenceItem::codeLength), 0 = any
+    virtual QString getToUnicodeText(unsigned int code, unsigned int codeLength) const;
+
     /// Returns cmap for font character encoding
     virtual const PDFFontCMap* getCMap() const { return nullptr; }
 
@@ -449,12 +473,37 @@ public:
     /// Returns the glyph advance (or zero, if glyph advance is invalid)
     PDFInteger getGlyphAdvance(size_t index) const;
 
+    /// The font dictionary has a width for the character code: the code is inside of /FirstChar
+    /// ... /LastChar and /Widths has an item for it - the condition, under which getGlyphAdvance
+    /// returns the item (a width 0 of the dictionary is a width). False = the dictionary gives
+    /// no width for the code: /MissingWidth of the font descriptor applies, when the font has
+    /// one (ISO 32000-2, 9.8.1, Table 120; getFontDescriptor()->missingWidth).
+    bool hasGlyphAdvance(size_t index) const
+    {
+        const size_t min = static_cast<size_t>(m_firstChar);
+        const size_t max = static_cast<size_t>(m_lastChar);
+        return index >= min && index <= max && index - min < m_widths.size();
+    }
+
+    /// /FirstChar and /LastChar of the font dictionary (the code of the first item of /Widths
+    /// and the last code, which may have one)
+    PDFInteger getFirstChar() const { return m_firstChar; }
+    PDFInteger getLastChar() const { return m_lastChar; }
+
     /// Returns the assigned standard font (or invalid, if font is not standard)
     StandardFontType getStandardFontType() const { return m_standardFontType; }
 
     virtual QByteArray encodeCharacter(char32_t codePoint) const override;
 
     virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const override;
+
+    virtual QString getToUnicodeText(unsigned int code, unsigned int codeLength) const override;
+
+    /// Sets the mapping read from /ToUnicode of the font dictionary (createFont). The font keeps
+    /// it only for getToUnicodeText: the characters of the font come from the table given to the
+    /// constructor as before, and getToUnicode of a simple font stays nullptr (Document Report
+    /// reads it as "no mapping of its own").
+    void setToUnicodeTextMap(PDFFontCMap toUnicodeTextMap);
 
 protected:
     QByteArray m_name;
@@ -469,6 +518,7 @@ protected:
     GlyphIndices m_glyphIndices;
     GlyphNames m_glyphNames;
     StandardFontType m_standardFontType; ///< Type of the standard font (or invalid, if it is not a standard font)
+    QSharedPointer<const PDFFontCMap> m_toUnicodeTextMap; ///< /ToUnicode of the font dictionary for getToUnicodeText, nullptr = none; immutable after createFont
 };
 
 class PDFType1Font : public PDFSimpleFont
@@ -711,7 +761,7 @@ public:
     };
 
     /// Returns true, if mapping is valid
-    bool isValid() const { return !m_entries.empty(); }
+    bool isValid() const { return !m_entries.empty() || !m_textEntries.empty(); }
 
     /// Returns true, if vertical writing mode is on
     bool isVertical() const { return m_vertical; }
@@ -742,6 +792,21 @@ public:
 
     /// Converts character code with a known byte length to QChar, use only on ToUnicode CMaps
     QChar getToUnicode(CID cid, unsigned int byteCount) const;
+
+    /// Text of a character code, use only on ToUnicode CMaps (ISO 32000-2, 9.10.3: the destination of
+    /// bfchar and bfrange is a string of UTF-16BE, so one code can map to more code units - a
+    /// surrogate pair or a sequence of characters). getToUnicode gives a null character for such
+    /// a code (it is kept so), this function gives its whole text; for a code mapped to one code
+    /// unit it gives that character. Empty, when the code is not mapped.
+    /// \param code Character code
+    /// \param byteCount Number of bytes of the code, 0 = any
+    QString getToUnicodeText(unsigned int code, unsigned int byteCount) const;
+
+    /// Limits of the texts of more code units of one ToUnicode CMap (a hostile map; not limits of
+    /// the standard): the longest text in code units (a longer destination is not mapped) and
+    /// the number of the texts (the destinations over it are not mapped)
+    static constexpr qsizetype MAXIMUM_TO_UNICODE_TEXT_LENGTH = 256;
+    static constexpr size_t MAXIMUM_TO_UNICODE_TEXT_COUNT = 65536;
 
     /// Converts QChar to CID, use only on ToUnicode CMaps
     CID getFromUnicode(QChar character) const;
@@ -797,6 +862,21 @@ private:
 
     using Entries = std::vector<Entry>;
 
+    /// Text of more code units of one code of a ToUnicode CMap (getToUnicodeText)
+    struct TextEntry
+    {
+        unsigned int code = 0;
+        unsigned int byteCount = 0;
+        QString text;
+
+        inline bool operator<(const TextEntry& other) const
+        {
+            return std::tie(byteCount, code) < std::tie(other.byteCount, other.code);
+        }
+    };
+
+    using TextEntries = std::vector<TextEntry>;
+
     explicit PDFFontCMap(Entries&& entries, bool vertical, bool unicodeEncoded);
 
     /// Optimizes the entries - merges entries, which can be merged. This function
@@ -804,6 +884,7 @@ private:
     static Entries optimize(const Entries& entries);
 
     Entries m_entries;
+    TextEntries m_textEntries; ///< Sorted, at most MAXIMUM_TO_UNICODE_TEXT_COUNT
     unsigned int m_maxKeyLength = 0;
     bool m_vertical = false;
     bool m_unicodeEncoded = false;
@@ -828,6 +909,15 @@ public:
 
     /// Returns width of the character. If character doesn't exist, then zero is returned.
     double getWidth(int characterIndex) const;
+
+    /// The font dictionary has a width for the character: the code is inside of /FirstChar ...
+    /// /LastChar and /Widths has an item for it - the condition, under which getWidth returns
+    /// the item (a width 0 of the dictionary is a width)
+    bool hasWidth(int characterIndex) const
+    {
+        return characterIndex >= m_firstCharacterIndex && characterIndex <= m_lastCharacterIndex &&
+               static_cast<size_t>(characterIndex - m_firstCharacterIndex) < m_widths.size();
+    }
 
     /// Return content stream for the character. If character doesn't exist, then nullptr
     /// is returned.
@@ -887,6 +977,15 @@ public:
     /// be obtained or error occurs.
     /// \param cid CID of the glyph
     PDFReal getGlyphAdvance(CID cid) const;
+
+    /// The CID has a width of its own in /W of the CIDFont (/W2 of a font of the vertical
+    /// writing mode); false = getGlyphAdvance gives the default width (a width 0 of /W is a width)
+    bool hasExplicitGlyphAdvance(CID cid) const { return m_advances.find(cid) != m_advances.cend(); }
+
+    /// The default width of the CIDs without a width of their own: /DW of the CIDFont, 1000
+    /// when it is missing (ISO 32000-2, 9.7.4.1, Table 115); the vertical displacement of /DW2
+    /// for a font of the vertical writing mode
+    PDFReal getDefaultGlyphAdvance() const { return m_defaultAdvance; }
 
     /// Returns unicode character of the CID, which is obtained from the CID to unicode
     /// mapping of the predefined Adobe character collection of this font (Adobe-Japan1,

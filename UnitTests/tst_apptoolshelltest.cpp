@@ -6271,7 +6271,9 @@ void AppToolShellTest::shellHelpTopic()
     // F1 of the page of a tool: the topic of the tool, without it the page Tools. The tool without a topic
     // is the first tool of the tab of a document, which has none yet - an analysis first, else any kind (step 7
     // of phase 2 gave review.statistics its topic, step 7c review.measure: every analysis of a document tab has
-    // one now, the tool is one of the tools not opened yet, edit.content today)
+    // one now, the tool is one of the tools not opened yet, edit.page-numbers today). Edit Content is left out:
+    // its tool and its GUI are registered from stage E1 on (GUI_overhaul/edit_tool/zadani.md, KE.7), the test
+    // must not depend on it.
     using H = ToolShellFlowHelper;
     const std::shared_ptr<const pdf::PDFAppHelpCatalog> help = pdf::PDFAppHelpCatalog::getBuiltin();
     QVERIFY(help);
@@ -6281,7 +6283,7 @@ void AppToolShellTest::shellHelpTopic()
         for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
         {
             const bool isKind = !isAnalysisOnly || entry.getResultKind() == pdf::PDFDocumentToolResultKind::Analysis;
-            if (withoutTopic.isEmpty() && isKind && !entry.hasOwnTab() && entry.getInputKind() == pdf::PDFDocumentToolInputKind::One &&
+            if (withoutTopic.isEmpty() && isKind && entry.getId() != QLatin1String("edit.content") && !entry.hasOwnTab() && entry.getInputKind() == pdf::PDFDocumentToolInputKind::One &&
                 entry.getExternalDependency() == pdf::PDFDocumentToolExternalDependency::None && !help->findTopic(entry.getHelpTopic()))
             {
                 withoutTopic = entry.getId();

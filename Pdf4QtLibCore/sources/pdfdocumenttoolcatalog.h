@@ -349,7 +349,8 @@ public:
 
     /// The run changes the pages of the open document - inserts, removes, rotates, crops, resizes
     /// them, writes their boxes or arranges them (Insert Pages, Add Image as Page, Remove Pages,
-    /// Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Manage Pages This document). No
+    /// Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Manage Pages This document) or
+    /// rewrites their content (Sign by Hand, Edit Content - GUI_overhaul/edit_tool/zadani.md, KE.6). No
     /// level of a certification allows it (ISO 32000-2, 12.8.2.2, Table 257): the run of such a
     /// tool removes the certification of a certified document (PDFDocMDPPermissions::
     /// isCertificationRemovedBy). The value of the row of the catalog; a tool, whose output
@@ -383,9 +384,10 @@ public:
 
     /// The user always confirms the action of MCP in PDF4QT, also when the assistant is allowed to do
     /// it (Allow): the changes of the security (step 5), Sign with Certificate (a legal act of the user),
-    /// Add Timestamp (a hash of the document goes to a third party) and Sign by Hand (a drawing of a
-    /// signature; plan of step 6 of phase 2, 6.5, R6-10, R6-20). A property of its own, not derived
-    /// from isSecurityChange.
+    /// Add Timestamp (a hash of the document goes to a third party), Sign by Hand (a drawing of a
+    /// signature; plan of step 6 of phase 2, 6.5, R6-10, R6-20) and Edit Content (the changes of the
+    /// content of the pages by an assistant; GUI_overhaul/edit_tool/zadani.md, owner answer QE.4).
+    /// A property of its own, not derived from isSecurityChange.
     bool isAlwaysConfirmedByMcp() const;
 
     /// The secret values of a run (a password, the choice of a certificate with its private key) are

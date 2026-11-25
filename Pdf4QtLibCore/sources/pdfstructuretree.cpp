@@ -609,7 +609,7 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
         // One walk of the whole tree: an element is read once, also when more parents list it
         // or when it is its own kid (ISO 32000-2, 14.7.2: each element has one parent); the root
         // is a part of the walk, a kid, which is the root, is no element
-        PDFObjectWalk walk;
+        PDFObjectWalk walk(MAXIMUM_DEPTH);
         walk.enter(object, 0);
         parseKids(storage, &tree, dictionary, &walk, 1);
 
@@ -636,13 +636,16 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
 
                     if (dereferencedObject.isArray())
                     {
+                        // The array of a content stream is indexed by the marked-content identifier
+                        // (ISO 32000-2, 14.7.5.4): an item, which is not a reference (null for an
+                        // identifier without an element, anything else in a wrong file), keeps its
+                        // index as an invalid reference, so the items behind it keep theirs
+                        const PDFArray* array = dereferencedObject.getArray();
                         std::vector<PDFObjectReference> references;
-                        for (const PDFObject& objectInArray : *dereferencedObject.getArray())
+                        references.reserve(array->getCount());
+                        for (const PDFObject& objectInArray : *array)
                         {
-                            if (objectInArray.isReference())
-                            {
-                                references.emplace_back(objectInArray.getReference());
-                            }
+                            references.emplace_back(objectInArray.isReference() ? objectInArray.getReference() : PDFObjectReference());
                         }
 
                         return ParentTreeParseEntry{ id, qMove(references) };
@@ -656,8 +659,19 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
                 }
             };
             auto entries = PDFNumberTreeLoader<ParentTreeParseEntry>::parse(storage, dictionary->get("ParentTree"));
+            const ParentTreeParseEntry* previousEntry = nullptr;
             for (const auto& entry : entries)
             {
+                // A key has one entry (ISO 32000-2, 7.9.7). Of a key listed twice the first entry
+                // in the order of the tree is kept (the loader sorts stably): the arrays of two
+                // entries are never joined into one array, which would give an identifier behind
+                // the first array an element of the second one
+                if (previousEntry && previousEntry->id == entry.id)
+                {
+                    continue;
+                }
+                previousEntry = &entry;
+
                 for (const PDFObjectReference& reference : entry.references)
                 {
                     tree.m_parentTreeEntries.emplace_back(ParentTreeEntry{entry.id, reference});
@@ -717,6 +731,20 @@ PDFStructureTree::ParentTreeEntry PDFStructureTree::getParentTreeEntry(PDFIntege
 
 PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFObjectWalk* walk, int depth, PDFStructureItem* parent)
 {
+    // An integer kid of a structure element is the identifier of a marked-content sequence
+    // (ISO 32000-2, Table 355, /K; 14.7.5.2). The structure tree root has only structure
+    // elements below it (14.7.2, Table 354) and no page: an integer there is no kid.
+    const PDFObject& dereferencedObject = storage->getObject(object);
+    if (dereferencedObject.isInt())
+    {
+        if (PDFStructureElement* parentElement = parent->asStructureElement())
+        {
+            return PDFStructureMarkedContentReference::createMarkedContentIdentifier(dereferencedObject.getInteger(), walk, depth, parentElement, parent->getTree());
+        }
+
+        return nullptr;
+    }
+
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
         PDFDocumentDataLoaderDecorator loader(storage);
@@ -754,10 +782,13 @@ PDFStructureItem::Type PDFStructureItem::getTypeFromName(const QByteArray& name)
 
 void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureItem* parentItem, const PDFDictionary* dictionary, PDFObjectWalk* walk, int depth)
 {
+    // The array of the kids may be an indirect object; a single kid stays the reference it is
+    // (the self reference of its element, the visited set of the walk)
     PDFObject kids = dictionary->get("K");
-    if (kids.isArray())
+    const PDFObject& dereferencedKids = storage->getObject(kids);
+    if (dereferencedKids.isArray())
     {
-        const PDFArray* kidsArray = kids.getArray();
+        const PDFArray* kidsArray = dereferencedKids.getArray();
         for (const PDFObject& object : *kidsArray)
         {
             PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, walk, depth, parentItem);
@@ -962,6 +993,33 @@ PDFStructureItemPointer PDFStructureMarkedContentReference::parseMarkedContentRe
             item->m_contentStreamOwnerReference = loader.readReferenceFromDictionary(dictionary, "StmOwn");
             item->m_markedContentIdentifier = loader.readIntegerFromDictionary(dictionary, "MCID", 0);
         }
+    }
+
+    return pointer;
+}
+
+PDFStructureItemPointer PDFStructureMarkedContentReference::createMarkedContentIdentifier(PDFInteger markedContentIdentifier,
+                                                                                         PDFObjectWalk* walk,
+                                                                                         int depth,
+                                                                                         PDFStructureElement* parent,
+                                                                                         PDFStructureTree* root)
+{
+    PDFStructureItemPointer pointer;
+
+    Q_ASSERT(parent);
+    Q_ASSERT(root);
+
+    // The integer is a value, not a node of the graph (an indirect integer may be listed by more
+    // elements): no reference is remembered, the walk bounds its depth and the number of the items
+    if (walk->enter(PDFObject::createInteger(markedContentIdentifier), depth))
+    {
+        PDFStructureMarkedContentReference* item = new PDFStructureMarkedContentReference(parent, root);
+        pointer.reset(item);
+
+        // The sequence is in the content stream of the page of /Pg of the element, which lists
+        // the integer (14.7.5.2; Table 355: /Pg is required for it there, it is not inherited)
+        item->m_pageReference = parent->getPageReference();
+        item->m_markedContentIdentifier = markedContentIdentifier;
     }
 
     return pointer;

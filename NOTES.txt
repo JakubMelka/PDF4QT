@@ -48,11 +48,56 @@ Section 8: Issues
    shall not apply to the painting of images" is read as images with color
    samples of their own; the text does not name image masks, so the reading is
    an interpretation (fix wave of step 7 of phase 2)
+ - 8.7.3.1 A tiling pattern used inside of a glyph procedure of a Type 3 font
+   takes the space of the content, which shows the glyph, as the base of its
+   matrix, not the glyph space (read from the code on 2026-11-25, not tested).
+   A pattern matrix, which cannot be inverted, is not refused
+ - 7.8.2, 8.4.2 Nested contents (a form XObject, a cell of a tiling pattern, a
+   glyph procedure of a Type 3 font) share the stack of q / Q, the marked
+   content stack and the level of BX / EX with the content, which uses them:
+   an unbalanced Q, EMC or EX inside of one reaches the outer content; a form
+   and a pattern cell also share the state of the text object (BT / ET) with
+   it (read from the code on 2026-11-25; the operand stack, the current path
+   of a pattern cell and the text object of a glyph procedure are separate
+   since that day)
  - 8.10.2 Some form dictionary entries, in table 93, are not all being processed
  - 8.10.4 Reference XObject is not supported. Instead, proxy is displayed.
 
 Section 9: Issues
- - 9.3.2 Negative font size is not supported
+ - 9.4.4, 9.6.2.1 The advance of a glyph of an embedded simple font is taken
+   from the font program (FreeType), not from /Widths of the font dictionary.
+   Deliberate until the owner tries the change on the corpus (owner decision
+   QE.15 of the plan of Edit Content, 2026-11-24: another source of the widths
+   changes the rendering of every document with wrong /Widths). The content
+   model of Edit Content lays its text out by the widths of the dictionary
+   (PDFContentTextLayout), so its canvas can differ from the rendering there.
+   The other two deviations of QE.15 were fixed on 2026-11-25: the word spacing
+   applies to the single-byte character code 32 only (9.3.3) and a Type 3 font
+   gets the character and the word spacing
+ - 9.4.4, 9.6.2.1 A character code, which has neither a glyph nor a width in
+   the font dictionary, moves the text by nothing, also not by the character
+   and the word spacing (a code with a width and without a glyph is advanced
+   by its width and the spacings since 2026-11-25)
+ - 9.6.5.2, 9.6.5.4 A name of /Differences replaces the base encoding of its
+   code always (since 2026-11-25: a name without a glyph paints nothing and
+   has no character). What remains: for an embedded font a code, whose name
+   has no glyph, still gets the glyph of its /ToUnicode character, when
+   /ToUnicode maps the code (strictly it is .notdef; it rescues documents with
+   made-up glyph names); a known name, which the embedded program has only
+   under another name (Euro / uni20AC), paints that glyph; an embedded
+   TrueType font with only a (1, 0) "cmap" takes its glyphs by the character
+   code and does not use /Differences (read from the code, not tested)
+ - 9.10.2 A glyph name with a suffix or of several components (one.oldstyle,
+   f_i) and a name uXXXXXX outside of the basic multilingual plane give no
+   character; the names of the glyphs of a Type 3 font are not looked up in
+   the glyph list for their characters (only /ToUnicode gives them)
+ - 9.6.4 Glyph procedures of Type 3 fonts are processed at most 8 deep and
+   never inside of themselves (a limit of the implementation against a stack
+   overflow, SECURITY_TODO.md item 67); the refused glyph is not painted
+ - 9.10.3 A character code mapped by /ToUnicode to more than one UTF-16 code
+   unit (a ligature, a character outside of the basic multilingual plane) has
+   no character in the text layout and in the extracted text (one QChar per
+   glyph); PDFFont::getToUnicodeText gives its whole text (Edit Content)
  - 9.3.8 Text knockout not implemented
  - 9.5 Some type of fonts not supported yet (CIDFont, some others)
  - 9.6.2.1 Missing width is not used for missing characters
@@ -182,6 +227,18 @@ Section 14: Issues
  - 14.3 Document metadata stream is not processed
  - 14.4 Modifiable file identifier is not updated
  - 14.5 Page-piece dictionaries not implemented
+ - 14.7.5.4 For a form XObject the content processor reads /StructParent as the
+   key of the marked content inside of the form; /StructParents of the form is
+   not read, so the marked content of a form is looked up under the key of the
+   page (checked on 2026-11-25, KE.25 of the plan of Edit Content)
+ - 14.7.2, 14.7.5 The text by the structure (Extract Text, the audio book, the
+   text flow) gives all texts of one structure element in the order of the
+   content stream and then its child elements, not in the order of the
+   children of /K, when marked content and elements are mixed there (the
+   structure tree itself keeps the integer children of /K and the null items
+   of /ParentTree since 2026-11-25, SECURITY_TODO.md item 66); a
+   marked-content reference or an object reference without /Pg reports no
+   page instead of the page of its element (Tables 357, 358)
  - 14.9 Accessibility support not implemented
  - 14.10 Web capture not implemented
  - 14.11 Prepress support not implemented at all, only

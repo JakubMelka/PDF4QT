@@ -91,7 +91,7 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
 
     if (processOrder == ProcessOrder::BeforeOperation)
     {
-        if (currentOperator == Operator::TextBegin && !isTextProcessing())
+        if (currentOperator == Operator::TextBegin && !isTextElementOpen())
         {
             // This intercept is called before the BT operator is performed, so the graphic
             // state still contains the text matrices of the previous text object. The operator
@@ -182,7 +182,7 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
             m_shadingObject = PDFObject();
         }
 
-        if (currentOperator == Operator::TextEnd && !isTextProcessing())
+        if (currentOperator == Operator::TextEnd && !isTextElementOpen())
         {
             if (m_contentElementText)
             {
@@ -233,7 +233,7 @@ void PDFPageContentEditorProcessor::performUpdateGraphicsState(const PDFPageCont
 {
     BaseClass::performUpdateGraphicsState(state);
 
-    if (isTextProcessing() && m_contentElementText)
+    if (isTextElementOpen() && m_contentElementText)
     {
         PDFEditedPageContentElementText::Item item;
         item.isUpdateGraphicState = true;
@@ -241,6 +241,29 @@ void PDFPageContentEditorProcessor::performUpdateGraphicsState(const PDFPageCont
 
         m_contentElementText->addItem(item);
     }
+}
+
+void PDFPageContentEditorProcessor::performType3GlyphBegin(const PDFType3Font* font, unsigned int code, const QByteArray& content)
+{
+    BaseClass::performType3GlyphBegin(font, code, content);
+
+    // The call comes in the state of the content, which shows the glyph
+    m_type3GlyphTextElementStates.push_back(isTextElementOpen());
+}
+
+void PDFPageContentEditorProcessor::performType3GlyphEnd()
+{
+    BaseClass::performType3GlyphEnd();
+
+    if (!m_type3GlyphTextElementStates.empty())
+    {
+        m_type3GlyphTextElementStates.pop_back();
+    }
+}
+
+bool PDFPageContentEditorProcessor::isTextElementOpen() const
+{
+    return isTextProcessing() || (!m_type3GlyphTextElementStates.empty() && m_type3GlyphTextElementStates.back());
 }
 
 void PDFPageContentEditorProcessor::performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order)

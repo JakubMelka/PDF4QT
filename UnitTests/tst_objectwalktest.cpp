@@ -406,7 +406,10 @@ void ObjectWalkTest::structureParentTree()
     QVERIFY(timer.elapsed() < WalkTestHelper::getTimeLimit());
     QCOMPARE(tree.getParentTreeEntry(0).reference, PDFObjectReference(11, 0));
     QVERIFY(!tree.getParentTreeEntry(1).reference.isValid());
-    QCOMPARE(WalkTestHelper::getTree(&tree), QStringLiteral("P"));
+
+    // The paragraph has one kid, the marked content of its /K 0 (Table 355: an integer kid is a
+    // marked-content identifier); getTree shows a kid, which is not an element, as "?"
+    QCOMPARE(WalkTestHelper::getTree(&tree), QStringLiteral("P[?]"));
 }
 
 void ObjectWalkTest::structureTreeMoved()

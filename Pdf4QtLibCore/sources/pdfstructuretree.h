@@ -336,7 +336,8 @@ public:
 
 protected:
     /// Parses kids of the item. Invalid items aren't added
-    /// to the kid list.
+    /// to the kid list. An integer kid of a structure element is a marked content
+    /// (PDFStructureMarkedContentReference::createMarkedContentIdentifier).
     /// \param storage Storage
     /// \param parentItem Parent item, where children are inserted
     /// \param dictionary Dictionary
@@ -387,6 +388,10 @@ class PDF4QTLIBCORESHARED_EXPORT PDFStructureTree : public PDFStructureItem
 public:
     explicit inline PDFStructureTree() : PDFStructureItem(nullptr, this) { }
 
+    /// Depth of the deepest item, which is read (the kids of the root have the depth 1). An item
+    /// below it is not read, the rest of the tree is.
+    static constexpr int MAXIMUM_DEPTH = PDFObjectWalk::DEFAULT_MAXIMUM_DEPTH;
+
     /// The items of the tree point to the tree object (getParent of its kids, getTree of
     /// all items): a move hands them to the new object, a copy would share them, so the
     /// tree cannot be copied
@@ -401,13 +406,20 @@ public:
     virtual void accept(PDFStructureTreeAbstractVisitor* visitor) const override { visitor->visitStructureTree(this); }
 
     /// Returns parents from parent tree for given entry. If entry
-    /// is not found, then empty vector is returned.
+    /// is not found, then empty vector is returned. For the array of a content
+    /// stream (/StructParents) the index of an item is the marked-content identifier:
+    /// an item of the array, which is not a reference (null), is an invalid reference
+    /// at its index. For an object (/StructParent) the vector has its one element.
     /// \param id Id
     std::vector<PDFObjectReference> getParents(PDFInteger id) const;
 
     /// Returns parent key for structural entry with given id,
     /// and index. Id is, typically, structural tree parent key in page,
-    /// index is index into the marked content references array.
+    /// index is index into the marked content references array, that is
+    /// the marked-content identifier (ISO 32000-2, 14.7.5.4). An invalid reference
+    /// is returned, if the key is not in the tree, the index is outside of its array
+    /// or the item of the array is not a reference (null). For an object
+    /// (/StructParent) the index 0 gives its element.
     /// \param id Structural tree parent id
     /// \param index Index into the subarray
     PDFObjectReference getParent(PDFInteger id, PDFInteger index) const;
@@ -452,7 +464,9 @@ public:
     };
 
     /// Returns given page tree entry. If index is invalid,
-    /// empty parent tree entry is returned.
+    /// empty parent tree entry is returned. The entries are the items of all keys
+    /// in the order of the keys, the items without an element (an invalid reference,
+    /// see getParents) included.
     /// \param index Index
     ParentTreeEntry getParentTreeEntry(PDFInteger index) const;
 
@@ -563,7 +577,10 @@ private:
     QByteArray m_phoneticAlphabet;
 };
 
-/// Structure marked content reference
+/// Structure marked content reference: a marked-content sequence, which is a content item of its
+/// structure element (ISO 32000-2, 14.7.5.2). It is a marked-content reference dictionary of /K
+/// (/Type /MCR, Table 357), or an integer of /K - the identifier alone, on the page of /Pg of the
+/// element (createMarkedContentIdentifier).
 class PDF4QTLIBCORESHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
 {
 public:
@@ -595,6 +612,22 @@ public:
                                                                int depth,
                                                                PDFStructureItem* parent,
                                                                PDFStructureTree* root);
+
+    /// Creates the item of an integer kid of a structure element (ISO 32000-2, Table 355, /K;
+    /// 14.7.5.2): the marked-content sequence of the identifier in the content stream of the page
+    /// of /Pg of the element (the entry of the element itself, not valid, when it has none). The
+    /// item has no content stream of its own and no self reference. If the walk refuses it (the
+    /// depth, the number of the items), nullptr is returned.
+    /// \param markedContentIdentifier The integer
+    /// \param walk Walk of the whole tree
+    /// \param depth Depth of the item
+    /// \param parent The structure element, which lists the integer
+    /// \param root Structure tree root
+    static PDFStructureItemPointer createMarkedContentIdentifier(PDFInteger markedContentIdentifier,
+                                                                 PDFObjectWalk* walk,
+                                                                 int depth,
+                                                                 PDFStructureElement* parent,
+                                                                 PDFStructureTree* root);
 
 private:
     PDFObjectReference m_pageReference;

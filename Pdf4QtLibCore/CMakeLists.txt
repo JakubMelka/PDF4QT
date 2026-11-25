@@ -326,6 +326,42 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfbitonaldocumentcreator.cpp
     sources/pdfcolorconvertor.h
     sources/pdfcolorconvertor.cpp
+    sources/pdfcontentstreamtext.h
+    sources/pdfcontentstreamtext.cpp
+    sources/pdfcontentoperation.h
+    sources/pdfcontentoperation.cpp
+    sources/pdfcontentresources.h
+    sources/pdfcontentresources.cpp
+    sources/pdfcontentstreamwriter.h
+    sources/pdfcontentstreamwriter.cpp
+    sources/pdfcontentextgstate.h
+    sources/pdfcontentextgstate.cpp
+    sources/pdfcontentnode.h
+    sources/pdfcontentnode.cpp
+    sources/pdfcontentstate.h
+    sources/pdfcontentstate.cpp
+    sources/pdfcontenttreebuilder.h
+    sources/pdfcontenttreebuilder.cpp
+    sources/pdfcontenttextlayout.h
+    sources/pdfcontenttextlayout.cpp
+    sources/pdfcontentstructure.h
+    sources/pdfcontentstructure.cpp
+    sources/pdfnumbertreewriter.h
+    sources/pdfnumbertreewriter.cpp
+    sources/pdfstructuretreewriter.h
+    sources/pdfstructuretreewriter.cpp
+    sources/pdfcontenteditsession.h
+    sources/pdfcontenteditsession.cpp
+    sources/pdfcontentundostack.h
+    sources/pdfcontentundostack.cpp
+    sources/pdfcontentcommands.h
+    sources/pdfcontentcommands.cpp
+    sources/pdfcontentdocumentwriter.h
+    sources/pdfcontentdocumentwriter.cpp
+    sources/pdfcontentjson.h
+    sources/pdfcontentjson.cpp
+    sources/pdfdocumenttool_content.h
+    sources/pdfdocumenttool_content.cpp
     sources/pdftextlayoutgenerator.h
     sources/pdftextlayoutgenerator.cpp
     sources/pdfwidgetsnapshot.cpp

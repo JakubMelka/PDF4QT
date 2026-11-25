@@ -345,6 +345,12 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     m_contentStreamOwner = m_page->getPageReference();
     m_inlineImageCounter = 0;
 
+    // The streams of /Contents are one content: an operation can begin in one stream and end
+    // in the next one (7.8.2), the streams are numbered by their index in the array
+    m_contentStack.clear();
+    m_contentStack.emplace_back();
+    m_pageContentContext = ContentContext();
+
     if (contents.isArray())
     {
         const PDFArray* array = contents.getArray();
@@ -365,6 +371,8 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
             }
             else
             {
+                // The item keeps its index among the streams of the content
+                addContentStream(QByteArray(), false);
                 m_errorList.append(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid page contents.")));
             }
         }
@@ -390,6 +398,14 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     }
 
     finishMarkedContent();
+
+    // The streams of the page and the range of its last operation stay readable
+    if (!m_contentStack.empty())
+    {
+        m_pageContentContext = std::move(m_contentStack.front());
+        m_contentStack.clear();
+    }
+
     return m_errorList;
 }
 
@@ -597,7 +613,290 @@ void PDFPageContentProcessor::performInterceptInstruction(Operator currentOperat
     Q_UNUSED(operatorAsText);
 }
 
+void PDFPageContentProcessor::performOperatorFailed(Operator currentOperator, const PDFRenderError& error)
+{
+    Q_UNUSED(currentOperator);
+    Q_UNUSED(error);
+}
+
+void PDFPageContentProcessor::performType3GlyphBegin(const PDFType3Font* font, unsigned int code, const QByteArray& content)
+{
+    Q_UNUSED(font);
+    Q_UNUSED(code);
+    Q_UNUSED(content);
+}
+
+void PDFPageContentProcessor::performType3GlyphEnd()
+{
+
+}
+
+bool PDFPageContentProcessor::isContentStreamDecoded(PDFInteger streamIndex) const
+{
+    const ContentContext& context = getCurrentContentContext();
+    return streamIndex >= 0 && streamIndex < PDFInteger(context.streams.size()) && context.streams[size_t(streamIndex)].decoded;
+}
+
+QByteArray PDFPageContentProcessor::getContentStreamData(PDFInteger streamIndex) const
+{
+    const ContentContext& context = getCurrentContentContext();
+    if (streamIndex >= 0 && streamIndex < PDFInteger(context.streams.size()))
+    {
+        return context.streams[size_t(streamIndex)].data;
+    }
+
+    return QByteArray();
+}
+
+void PDFPageContentProcessor::addContentStream(const QByteArray& data, bool decoded)
+{
+    Q_ASSERT(!m_contentStack.empty());
+
+    ContentStream stream;
+    stream.data = decoded ? data : QByteArray();
+    stream.decoded = decoded;
+    m_contentStack.back().streams.push_back(std::move(stream));
+}
+
+void PDFPageContentProcessor::finishContentStream()
+{
+    Q_ASSERT(!m_contentStack.empty());
+
+    ContentContext& context = m_contentStack.back();
+    if (!context.streams.empty() && !isContentDataRetained())
+    {
+        context.streams.back().data = QByteArray();
+    }
+}
+
+void PDFPageContentProcessor::setOperationRangeEnd(PDFInteger endOffset)
+{
+    Q_ASSERT(!m_contentStack.empty());
+
+    ContentContext& context = m_contentStack.back();
+    Q_ASSERT(!context.streams.empty());
+
+    const PDFInteger currentStream = PDFInteger(context.streams.size()) - 1;
+    context.range.beginStream = context.pendingStream;
+    context.range.beginOffset = context.pendingOffset;
+    context.range.endStream = currentStream;
+    context.range.endOffset = endOffset;
+    context.inlineImageRange = InlineImageRange();
+    context.pendingStream = currentStream;
+    context.pendingOffset = endOffset;
+}
+
+void PDFPageContentProcessor::reportInlineImageFailed(bool* isIntercepted, const QByteArray& command, const PDFRenderError& error)
+{
+    if (!*isIntercepted)
+    {
+        *isIntercepted = true;
+        performInterceptInstruction(Operator::InlineImage, ProcessOrder::BeforeOperation, command);
+    }
+
+    performOperatorFailed(Operator::InlineImage, error);
+}
+
+void PDFPageContentProcessor::processInlineImage(PDFLexicalAnalyzer& parser, const QByteArray& content, const QByteArray& command, PDFInteger inlineImageIndex)
+{
+    // Strategy: We will try to find position of BI/ID/EI in the stream. If we can determine
+    // length of the stream explicitly, then we use explicit length. We also create a PDFObject
+    // from the inline image dictionary/image content stream and then process it like XObject.
+    PDFInteger operatorBIPosition = parser.pos();
+
+    // The operation ends after BI, until the end of the image is known. The inline image is one
+    // instruction for the intercept: it is told before the image is painted (its end is known
+    // then), or with its failure. The call after the operation comes also when an exception
+    // leaves this function (the caller adds the error to the error list as before).
+    setOperationRangeEnd(operatorBIPosition);
+    const PDFInteger beginStream = getOperationRange().beginStream;
+    const PDFInteger beginOffset = getOperationRange().beginOffset;
+    bool isIntercepted = false;
+    auto callInterceptInstAtEnd = qScopeGuard([&isIntercepted, &command, this]()
+    {
+        if (isIntercepted)
+        {
+            performInterceptInstruction(Operator::InlineImage, ProcessOrder::AfterOperation, command);
+        }
+    });
+
+    try
+    {
+        PDFInteger operatorIDPosition = parser.findSubstring("ID", operatorBIPosition);
+        PDFInteger operatorEIPosition = parser.findSubstring("EI", operatorIDPosition);
+
+        // According the PDF 1.7 specification, single white space characters is after ID, then the byte
+        // immediately after it is interpreted as first byte of image data.
+        PDFInteger startDataPosition = operatorIDPosition + 3;
+
+        if (operatorIDPosition == -1 || operatorEIPosition == -1)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid inline image dictionary, ID operator is missing."));
+        }
+
+        Q_ASSERT(operatorBIPosition < content.size());
+        Q_ASSERT(operatorIDPosition < content.size());
+        Q_ASSERT(operatorBIPosition <= operatorIDPosition);
+
+        PDFLexicalAnalyzer inlineImageLexicalAnalyzer(content.constBegin() + operatorBIPosition, content.constBegin() + operatorIDPosition);
+        PDFParser inlineImageParser([&inlineImageLexicalAnalyzer]{ return inlineImageLexicalAnalyzer.fetch(); });
+
+        constexpr std::pair<const char*, const char*> replacements[] =
+        {
+            { "BPC", "BitsPerComponent" },
+            { "CS", "ColorSpace" },
+            { "D", "Decode" },
+            { "DP", "DecodeParms" },
+            { "F", "Filter" },
+            { "H", "Height" },
+            { "IM", "ImageMask" },
+            { "I", "Interpolate" },
+            { "W", "Width" },
+            { "L", "Length" },
+            { "G", "DeviceGray" },
+            { "RGB", "DeviceRGB" },
+            { "CMYK", "DeviceCMYK" }
+        };
+
+        PDFDictionaryBuilder inlineImageDictionary;
+        PDFDictionaryBuilder* dictionary = &inlineImageDictionary;
+
+        while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
+        {
+            PDFObject nameObject = inlineImageParser.getObject();
+            PDFObject valueObject = inlineImageParser.getObject();
+
+            if (!nameObject.isName())
+            {
+                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+            }
+
+            // Replace the name, if neccessary
+            QByteArray name = nameObject.getString();
+            for (auto [string, replacement] : replacements)
+            {
+                if (name == string)
+                {
+                    name = replacement;
+                    break;
+                }
+            }
+
+            dictionary->addEntry(PDFInplaceOrMemoryString(qMove(name)), qMove(valueObject));
+        }
+
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        PDFInteger dataLength = 0;
+
+        if (dictionary->hasKey("Length"))
+        {
+            dataLength = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Length", 0);
+        }
+        else if (dictionary->hasKey("Filter"))
+        {
+            dataLength = -1;
+
+            // We will try to use stream filter hint
+            QByteArray filterName = loader.readNameFromDictionary(dictionary->getDictionary(), "Filter");
+            if (!filterName.isEmpty())
+            {
+                dataLength = PDFStreamFilterStorage::getStreamDataLength(content, filterName, startDataPosition);
+            }
+
+            if (dataLength == -1)
+            {
+                // We will use EI operator position to determine stream length
+                dataLength = operatorEIPosition - startDataPosition;
+            }
+        }
+        else
+        {
+            // We will calculate stream size from the with/height and bit per component
+            const bool isImageMask = loader.readBooleanFromDictionary(dictionary->getDictionary(), "ImageMask", false);
+            const PDFInteger width = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Width", 0);
+            const PDFInteger height = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Height", 0);
+            const PDFInteger bpc = isImageMask ? 1 : loader.readIntegerFromDictionary(dictionary->getDictionary(), "BitsPerComponent", 8);
+
+            if (width <= 0 || height <= 0 || bpc <= 0)
+            {
+                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
+            }
+
+            // Each sample consists of one value per color component, so the size
+            // of the image data depends on the color space of the image. Stencil
+            // masks have a single component.
+            PDFInteger componentCount = 1;
+            if (!isImageMask && dictionary->hasKey("ColorSpace"))
+            {
+                try
+                {
+                    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_document->getObject(dictionary->get("ColorSpace")));
+                    if (colorSpace)
+                    {
+                        componentCount = qMax<PDFInteger>(1, PDFInteger(colorSpace->getColorComponentCount()));
+                    }
+                }
+                catch (const std::exception&)
+                {
+                    // Color space is invalid, we will use a single component
+                    // and the image itself will report the error later.
+                }
+            }
+
+            const PDFInteger stride = (width * componentCount * bpc + 7) / 8;
+            dataLength = stride * height;
+        }
+
+        // We will once more find the "EI" operator, due to recomputed dataLength.
+        operatorEIPosition = parser.findSubstring("EI", startDataPosition + dataLength);
+        if (operatorEIPosition == -1)
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid inline image stream."));
+        }
+
+        // We must seek after EI operator. Then we will paint the image. Because painting of image can throw exception,
+        // then we will paint the image AFTER we seek the position.
+        parser.seek(operatorEIPosition + 2);
+
+        QByteArray buffer = content.mid(startDataPosition, dataLength);
+        PDFStream imageStream(std::move(*dictionary), std::move(buffer));
+
+        // The whole image is known: the operation ends after EI and begins, where it began
+        setOperationRangeEnd(operatorEIPosition + 2);
+        ContentContext& context = m_contentStack.back();
+        context.range.beginStream = beginStream;
+        context.range.beginOffset = beginOffset;
+        context.inlineImageRange.dictionaryOffset = operatorBIPosition;
+        context.inlineImageRange.dataOperatorOffset = operatorIDPosition;
+        context.inlineImageRange.dataOffset = startDataPosition;
+        context.inlineImageRange.dataLength = dataLength;
+        context.inlineImageRange.endOperatorOffset = operatorEIPosition;
+
+        isIntercepted = true;
+        performInterceptInstruction(Operator::InlineImage, ProcessOrder::BeforeOperation, command);
+
+        PDFTemporaryValueChange positionGuard(&m_inlineImagePosition, InlineImagePosition{ m_contentStreamOwner, inlineImageIndex });
+        paintXObjectImage(&imageStream, PDFObjectReference());
+    }
+    catch (const PDFException& exception)
+    {
+        reportInlineImageFailed(&isIntercepted, command, PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+        throw;
+    }
+    catch (const PDFRendererException& exception)
+    {
+        reportInlineImageFailed(&isIntercepted, command, exception.getError());
+        throw;
+    }
+}
+
 void PDFPageContentProcessor::processContent(const QByteArray& content)
+{
+    PDFContentContextGuard contextGuard(this, content);
+    processContentData(content);
+}
+
+void PDFPageContentProcessor::processContentData(const QByteArray& content)
 {
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
 
@@ -623,154 +922,13 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                         // other inline images of the content do not depend on it (R4-8)
                         const PDFInteger inlineImageIndex = m_inlineImageCounter++;
 
-                        // Strategy: We will try to find position of BI/ID/EI in the stream. If we can determine
-                        // length of the stream explicitly, then we use explicit length. We also create a PDFObject
-                        // from the inline image dictionary/image content stream and then process it like XObject.
-                        PDFInteger operatorBIPosition = parser.pos();
-                        PDFInteger operatorIDPosition = parser.findSubstring("ID", operatorBIPosition);
-                        PDFInteger operatorEIPosition = parser.findSubstring("EI", operatorIDPosition);
-
-                        // According the PDF 1.7 specification, single white space characters is after ID, then the byte
-                        // immediately after it is interpreted as first byte of image data.
-                        PDFInteger startDataPosition = operatorIDPosition + 3;
-
-                        if (operatorIDPosition == -1 || operatorEIPosition == -1)
-                        {
-                            throw PDFException(PDFTranslationContext::tr("Invalid inline image dictionary, ID operator is missing."));
-                        }
-
-                        Q_ASSERT(operatorBIPosition < content.size());
-                        Q_ASSERT(operatorIDPosition < content.size());
-                        Q_ASSERT(operatorBIPosition <= operatorIDPosition);
-
-                        PDFLexicalAnalyzer inlineImageLexicalAnalyzer(content.constBegin() + operatorBIPosition, content.constBegin() + operatorIDPosition);
-                        PDFParser inlineImageParser([&inlineImageLexicalAnalyzer]{ return inlineImageLexicalAnalyzer.fetch(); });
-
-                        constexpr std::pair<const char*, const char*> replacements[] =
-                        {
-                            { "BPC", "BitsPerComponent" },
-                            { "CS", "ColorSpace" },
-                            { "D", "Decode" },
-                            { "DP", "DecodeParms" },
-                            { "F", "Filter" },
-                            { "H", "Height" },
-                            { "IM", "ImageMask" },
-                            { "I", "Interpolate" },
-                            { "W", "Width" },
-                            { "L", "Length" },
-                            { "G", "DeviceGray" },
-                            { "RGB", "DeviceRGB" },
-                            { "CMYK", "DeviceCMYK" }
-                        };
-
-                        PDFDictionaryBuilder inlineImageDictionary;
-                        PDFDictionaryBuilder* dictionary = &inlineImageDictionary;
-
-                        while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
-                        {
-                            PDFObject nameObject = inlineImageParser.getObject();
-                            PDFObject valueObject = inlineImageParser.getObject();
-
-                            if (!nameObject.isName())
-                            {
-                                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
-                            }
-
-                            // Replace the name, if neccessary
-                            QByteArray name = nameObject.getString();
-                            for (auto [string, replacement] : replacements)
-                            {
-                                if (name == string)
-                                {
-                                    name = replacement;
-                                    break;
-                                }
-                            }
-
-                            dictionary->addEntry(PDFInplaceOrMemoryString(qMove(name)), qMove(valueObject));
-                        }
-
-                        PDFDocumentDataLoaderDecorator loader(m_document);
-                        PDFInteger dataLength = 0;
-
-                        if (dictionary->hasKey("Length"))
-                        {
-                            dataLength = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Length", 0);
-                        }
-                        else if (dictionary->hasKey("Filter"))
-                        {
-                            dataLength = -1;
-
-                            // We will try to use stream filter hint
-                            QByteArray filterName = loader.readNameFromDictionary(dictionary->getDictionary(), "Filter");
-                            if (!filterName.isEmpty())
-                            {
-                                dataLength = PDFStreamFilterStorage::getStreamDataLength(content, filterName, startDataPosition);
-                            }
-
-                            if (dataLength == -1)
-                            {
-                                // We will use EI operator position to determine stream length
-                                dataLength = operatorEIPosition - startDataPosition;
-                            }
-                        }
-                        else
-                        {
-                            // We will calculate stream size from the with/height and bit per component
-                            const bool isImageMask = loader.readBooleanFromDictionary(dictionary->getDictionary(), "ImageMask", false);
-                            const PDFInteger width = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Width", 0);
-                            const PDFInteger height = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Height", 0);
-                            const PDFInteger bpc = isImageMask ? 1 : loader.readIntegerFromDictionary(dictionary->getDictionary(), "BitsPerComponent", 8);
-
-                            if (width <= 0 || height <= 0 || bpc <= 0)
-                            {
-                                throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
-                            }
-
-                            // Each sample consists of one value per color component, so the size
-                            // of the image data depends on the color space of the image. Stencil
-                            // masks have a single component.
-                            PDFInteger componentCount = 1;
-                            if (!isImageMask && dictionary->hasKey("ColorSpace"))
-                            {
-                                try
-                                {
-                                    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_document->getObject(dictionary->get("ColorSpace")));
-                                    if (colorSpace)
-                                    {
-                                        componentCount = qMax<PDFInteger>(1, PDFInteger(colorSpace->getColorComponentCount()));
-                                    }
-                                }
-                                catch (const std::exception&)
-                                {
-                                    // Color space is invalid, we will use a single component
-                                    // and the image itself will report the error later.
-                                }
-                            }
-
-                            const PDFInteger stride = (width * componentCount * bpc + 7) / 8;
-                            dataLength = stride * height;
-                        }
-
-                        // We will once more find the "EI" operator, due to recomputed dataLength.
-                        operatorEIPosition = parser.findSubstring("EI", startDataPosition + dataLength);
-                        if (operatorEIPosition == -1)
-                        {
-                            throw PDFException(PDFTranslationContext::tr("Invalid inline image stream."));
-                        }
-
-                        // We must seek after EI operator. Then we will paint the image. Because painting of image can throw exception,
-                        // then we will paint the image AFTER we seek the position.
-                        parser.seek(operatorEIPosition + 2);
-
-                        QByteArray buffer = content.mid(startDataPosition, dataLength);
-                        PDFStream imageStream(std::move(*dictionary), std::move(buffer));
-                        PDFTemporaryValueChange positionGuard(&m_inlineImagePosition, InlineImagePosition{ m_contentStreamOwner, inlineImageIndex });
-                        paintXObjectImage(&imageStream, PDFObjectReference());
+                        processInlineImage(parser, content, command, inlineImageIndex);
                     }
                     else
                     {
-                        // Process the command, then clear the operand stack
+                        // Process the command, then clear the operand stack. The operation ends
+                        // after its operator, the next one begins there.
+                        setOperationRangeEnd(parser.pos());
                         processCommand(command);
                     }
 
@@ -834,17 +992,50 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
 void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
 {
+    // The stream is the next one of the content of the page (processContents), also when it
+    // cannot be decoded: the streams keep their indices of the array /Contents
+    bool isStreamAdded = false;
+
     try
     {
         QByteArray content = m_document->getDecodedStream(stream);
 
-        processContent(content);
+        addContentStream(content, true);
+        isStreamAdded = true;
+        processContentData(content);
     }
     catch (const PDFException& exception)
     {
+        if (!isStreamAdded)
+        {
+            addContentStream(QByteArray(), false);
+        }
+
         m_operands.clear();
         m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
     }
+
+    finishContentStream();
+}
+
+PDFPageContentProcessor::PDFContentContextGuard::PDFContentContextGuard(PDFPageContentProcessor* processor, const QByteArray& content) :
+    m_processor(processor)
+{
+    m_processor->m_contentStack.emplace_back();
+    m_processor->addContentStream(content, true);
+
+    // The nested content starts with an empty operand stack, the operands of the outer
+    // content are put away
+    std::swap(m_outerOperands, m_processor->m_operands);
+}
+
+PDFPageContentProcessor::PDFContentContextGuard::~PDFContentContextGuard()
+{
+    // The operands of the outer content are back, those left by the nested one are dropped
+    std::swap(m_outerOperands, m_processor->m_operands);
+
+    Q_ASSERT(!m_processor->m_contentStack.empty());
+    m_processor->m_contentStack.pop_back();
 }
 
 void PDFPageContentProcessor::processForm(const QTransform& matrix,
@@ -1136,11 +1327,21 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 }
 
 void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPattern* tilingPattern,
-                                                            const QPainterPath& path,
+                                                            QPainterPath path,
                                                             PDFColorSpacePointer uncoloredPatternColorSpace,
                                                             PDFColor uncoloredPatternColor)
 {
     PDFPageContentProcessorStateGuard guard(this);
+
+    // The content of a cell is a content stream of its own (ISO 32000-2, 8.7.3.1), so it starts
+    // with an empty current path. The painted path is usually the current path of the caller -
+    // the painting operators clear it only after the painting -, so without this the first cell
+    // would add its path to the painted one and its painting operator would clear it. The
+    // current path of the caller is put away for the cells (the painted path is a copy of
+    // it) and it is back after them, also when a cell throws: an operator, which fills by a
+    // pattern and strokes, strokes the same path afterwards.
+    PDFTemporaryValueChange<QPainterPath> currentPathGuard(&m_currentPath, QPainterPath());
+
     performClipping(path, path.fillRule());
 
     // Initialize resources
@@ -1202,9 +1403,18 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     QPainterPath boundingPath;
     boundingPath.addRect(boundingBox);
 
-    // Draw the tiling
-    const PDFInteger columns = qMax<PDFInteger>(qCeil(tilingArea.width() / xStep), 1);
-    const PDFInteger rows = qMax<PDFInteger>(qCeil(tilingArea.height() / yStep), 1);
+    // The cells are on the lattice of the pattern space (ISO 32000-2, 8.7.3.1): the cell (i, j) is the
+    // content of the pattern moved by (i * XStep, j * YStep) from the origin of the pattern
+    // space, wherever the painted area is and whatever the current transformation matrix is.
+    // The cells, which can touch the painted area, are those, whose moved /BBox intersects the
+    // bounding box of the area in the pattern space (the box can be larger than the step -
+    // the cells overlap - or smaller - there are gaps). A negative step only reverses the
+    // direction of the lattice, the cells are the same, so the absolute value is used; a zero
+    // step is refused, when the pattern is loaded.
+    const PDFTilingCellRange columnRange = getTilingCellRange(tilingArea.left(), tilingArea.right(), boundingBox.left(), boundingBox.right(), xStep);
+    const PDFTilingCellRange rowRange = getTilingCellRange(tilingArea.top(), tilingArea.bottom(), boundingBox.top(), boundingBox.bottom(), yStep);
+    const PDFInteger columns = columnRange.count;
+    const PDFInteger rows = rowRange.count;
 
     if (!isTilingPatternProcessingAllowed(columns * rows))
     {
@@ -1220,8 +1430,7 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
             PDFPageContentProcessorGraphicStateSaveRestoreGuard guard3(this);
 
             QTransform transformationMatrix = baseTransformationMatrix;
-            transformationMatrix.translate(tilingArea.left(), tilingArea.top());
-            transformationMatrix.translate(column * xStep, row * yStep);
+            transformationMatrix.translate((columnRange.first + column) * xStep, (rowRange.first + row) * yStep);
 
             QTransform currentPatternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
             PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, currentPatternMatrix);
@@ -1249,6 +1458,42 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     }
 }
 
+PDFPageContentProcessor::PDFTilingCellRange PDFPageContentProcessor::getTilingCellRange(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step)
+{
+    PDFTilingCellRange range;
+
+    if (!(step > 0.0) || !(areaMax >= areaMin) || !(boxMax >= boxMin))
+    {
+        return range;
+    }
+
+    // The cell k covers [boxMin + k * step, boxMax + k * step]. It reaches into the area, when
+    // boxMin + k * step < areaMax and boxMax + k * step > areaMin; a cell, which only touches the
+    // area by its edge, paints nothing in it. The tolerance (a billionth of the step) keeps such
+    // a cell out, when its edge is off by a rounding error of the matrices.
+    constexpr PDFReal TOLERANCE = 1e-9;
+    const PDFReal first = std::floor((areaMin - boxMax) / step + TOLERANCE) + 1.0;
+    const PDFReal last = std::ceil((areaMax - boxMin) / step - TOLERANCE) - 1.0;
+
+    if (!std::isfinite(first) || !std::isfinite(last) || last < first)
+    {
+        return range;
+    }
+
+    // An area of billions of cells is never painted (isTilingPatternProcessingAllowed, the
+    // cancellation): the count is limited, so the product of the two counts cannot overflow
+    constexpr PDFReal MAXIMUM_COUNT = 2147483647.0;
+    constexpr PDFReal MAXIMUM_INDEX = 4.0e18;
+    if (std::abs(first) > MAXIMUM_INDEX || std::abs(last) > MAXIMUM_INDEX)
+    {
+        return range;
+    }
+
+    range.first = PDFInteger(first);
+    range.count = PDFInteger(qMin(last - first + 1.0, MAXIMUM_COUNT));
+    return range;
+}
+
 void PDFPageContentProcessor::processCommand(const QByteArray& command)
 {
     Operator op = Operator::Invalid;
@@ -1266,6 +1511,26 @@ void PDFPageContentProcessor::processCommand(const QByteArray& command)
     performInterceptInstruction(op, ProcessOrder::BeforeOperation, command);
     auto callInterceptInstAtEnd = qScopeGuard([&, this](){ performInterceptInstruction(op, ProcessOrder::AfterOperation, command); });
 
+    // A refused operator is told to the processor (performOperatorFailed) between the two calls
+    // of the intercept; the caller adds its error to the error list as before
+    try
+    {
+        executeOperator(op, command);
+    }
+    catch (const PDFException& exception)
+    {
+        performOperatorFailed(op, PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+        throw;
+    }
+    catch (const PDFRendererException& exception)
+    {
+        performOperatorFailed(op, exception.getError());
+        throw;
+    }
+}
+
+void PDFPageContentProcessor::executeOperator(Operator op, const QByteArray& command)
+{
     switch (op)
     {
         case Operator::SetLineWidth:
@@ -3420,27 +3685,37 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
 
         if (!isType3Font)
         {
+            const bool isType0Font = m_graphicState.getTextFont()->getFontType() == FontType::Type0;
+
             for (const TextSequenceItem& item : textSequence.items)
             {
                 PDFReal displacementX = 0.0;
                 PDFReal displacementY = 0.0;
 
-                if (item.isCharacter())
-                {
-                    QChar character = item.character;
-                    QPointF advance = isHorizontalWritingSystem ? QPointF(item.advance, 0) : QPointF(0, item.advance);
+                // The character and the word spacing of a character code. The word spacing
+                // belongs to the single-byte character code 32 only (ISO 32000-2, 9.3.3): not to a
+                // character, whose Unicode value is a space under another code, and never to a
+                // code of more bytes of a Type 0 font.
+                const PDFReal additionalAdvance = item.isWordSpace() ? wordSpacing + characterSpacing : characterSpacing;
 
-                    // First, compute the advance
-                    const PDFReal additionalAdvance = (character == QChar(QChar::Space)) ? wordSpacing + characterSpacing : characterSpacing;
-                    if (isHorizontalWritingSystem)
-                    {
-                        advance.rx() += additionalAdvance;
-                    }
-                    else
-                    {
-                        advance.ry() += additionalAdvance;
-                    }
-                    advance.rx() *= horizontalScaling * fontFactor;
+                // A character code, which has a width, but no glyph in the font program, shows
+                // nothing and moves the text as any other code: tx = (w0 * Tfs + Tc + Tw) * Th
+                // (9.4.4). The item of a simple font has the advance of a glyph (w0 * Tfs), so it
+                // goes the way of the glyphs; the item of a Type 0 font has the form of a number
+                // of TJ (the negative width in thousandths) and gets its spacing there. A number
+                // of TJ comes from no character code (codeLength 0) and gets no spacing.
+                const bool isCodeWithoutGlyph = !item.isCharacter() && item.codeLength > 0;
+
+                if (item.isCharacter() || (isCodeWithoutGlyph && !isType0Font))
+                {
+                    // First, compute the advance: tx = (w0 * Tfs + Tc + Tw) * Th in the horizontal and
+                    // ty = w1 * Tfs + Tc + Tw in the vertical writing mode (ISO 32000-2, 9.4.4). The
+                    // advance of the item is of the absolute font size, so it gets the sign of
+                    // the size; the character and the word spacing are added as they are - a
+                    // negative font size does not turn them (9.3.2, 9.3.3).
+                    const PDFReal signedAdvance = item.advance * fontFactor;
+                    QPointF advance = isHorizontalWritingSystem ? QPointF((signedAdvance + additionalAdvance) * horizontalScaling, 0)
+                                                                : QPointF(0, signedAdvance + additionalAdvance);
 
                     // Then get the glyph outline and paint it. Outline is shared by the threads,
                     // which use the font, painter paths of the glyphs belong to this processor.
@@ -3505,6 +3780,20 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                     {
                         displacementY = -item.advance * 0.001 * fontSize;
                     }
+
+                    if (isCodeWithoutGlyph)
+                    {
+                        // A code of a Type 0 font without a glyph: the spacing as the spacing of
+                        // a glyph above, never with the sign of the font size
+                        if (isHorizontalWritingSystem)
+                        {
+                            displacementX += additionalAdvance * horizontalScaling;
+                        }
+                        else
+                        {
+                            displacementY += additionalAdvance;
+                        }
+                    }
                 }
 
                 textMatrix.translate(displacementX, displacementY);
@@ -3531,16 +3820,27 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                 initDictionaries(resources);
             }
 
-            QTransform scaleMatrix(fontSize, 0.0, 0.0, fontSize, 0.0, 0.0);
-            adjustMatrix = scaleMatrix * adjustMatrix;
+            // The text rendering matrix of 9.4.4 scales the text space by the font size for every
+            // font type: [Tfs * Th 0 0 Tfs 0 Trise]. A negative size mirrors the glyphs of a Type 3
+            // font in both axes and they advance to the left, as the glyphs of the other fonts.
+            // (The matrix of the other fonts has only the sign of the size: their outlines and
+            // advances are made for its absolute value. That sign must not be applied here once
+            // more, or it is lost.)
+            adjustMatrix = QTransform(fontSize * horizontalScaling, 0.0, 0.0, fontSize, 0.0, textRise);
             QTransform fontAdjustedMatrix = fontMatrix * adjustMatrix;
 
             for (const TextSequenceItem& item : textSequence.items)
             {
                 // First, compute horizontal advance
 
+                // A character code (codeLength 1) has its width of /Widths in the glyph space,
+                // whether it has a glyph procedure or not (a code without a procedure shows
+                // nothing and moves the text as any other code); a number of TJ (codeLength 0) is
+                // in thousandths of the text space unit
+                const bool isCharacterCode = item.codeLength > 0;
+
                 qreal displacementX = 0.0;
-                if (!item.isContentStream())
+                if (!isCharacterCode)
                 {
                     displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
                 }
@@ -3550,7 +3850,34 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                     fontAdjustedMatrix.map(item.advance, 0.0, &displacementX, &ry);
                 }
 
-                if (item.characterContentStream && (fill || stroke))
+                if (isCharacterCode)
+                {
+                    // The character and the word spacing apply to a Type 3 font as to any simple
+                    // font (ISO 32000-2, 9.3.2, 9.3.3, 9.4.4): tx = (w0 * Tfs + Tc + Tw) * Th, the
+                    // word spacing for the single-byte character code 32 only
+                    displacementX += (characterSpacing + (item.isWordSpace() ? wordSpacing : 0.0)) * horizontalScaling;
+                }
+
+                // A glyph procedure, which shows a glyph of a Type 3 font (its own font too, also
+                // through other glyphs), would never end: a procedure being processed is not
+                // processed again and the procedures are nested at most MAXIMUM_TYPE3_GLYPH_NESTING
+                // times. The refused glyph is not painted, its advance is kept.
+                bool isGlyphProcessed = item.characterContentStream && (fill || stroke);
+                if (isGlyphProcessed)
+                {
+                    if (std::find(m_type3GlyphStack.cbegin(), m_type3GlyphStack.cend(), item.characterContentStream) != m_type3GlyphStack.cend())
+                    {
+                        reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Glyph of a Type 3 font draws itself, it was not painted again."));
+                        isGlyphProcessed = false;
+                    }
+                    else if (m_type3GlyphStack.size() >= MAXIMUM_TYPE3_GLYPH_NESTING)
+                    {
+                        reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Glyphs of Type 3 fonts are nested too deeply, the innermost glyph was not painted."));
+                        isGlyphProcessed = false;
+                    }
+                }
+
+                if (isGlyphProcessed)
                 {
                     PDFPageContentProcessorStateGuard guard2(this);
 
@@ -3566,7 +3893,31 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                     PDFTemporaryValueChange ownerGuard(&m_contentStreamOwner, PDFObjectReference());
                     PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
                     PDFTemporaryValueChange glyphBoxGuard(&m_type3GlyphBox, std::optional<QRectF>());
-                    processContent(*item.characterContentStream);
+
+                    {
+                        // The stack is restored and the end of the glyph is told also by an
+                        // exception of the procedure
+                        m_type3GlyphStack.push_back(item.characterContentStream);
+                        auto glyphStackGuard = qScopeGuard([this]() { m_type3GlyphStack.pop_back(); });
+
+                        performType3GlyphBegin(parentFont, item.code, *item.characterContentStream);
+                        auto glyphEndGuard = qScopeGuard([this]() { performType3GlyphEnd(); });
+
+                        // A glyph procedure is a content stream of its own (ISO 32000-2, 9.6.4): no
+                        // text object is open at its start, though the text object of the content,
+                        // which shows the glyph, is. What belongs to that text object - that it is
+                        // open, and the clipping path it has collected (a text object of the
+                        // procedure would apply and clear it at its ET) - is put away for the
+                        // procedure and it is back after it, also when the procedure throws. The
+                        // text matrices are in the graphic state, which the guard above restores.
+                        // The begin and the end of the glyph are told in the state of the content,
+                        // which shows it.
+                        PDFTemporaryValueChange<int> textObjectGuard(&m_textBeginEndState, 0);
+                        PDFTemporaryValueChange<QPainterPath> textClippingPathGuard(&m_textClippingPath, QPainterPath());
+
+                        processContent(*item.characterContentStream);
+                        finishType3GlyphTextObject();
+                    }
 
                     if (!item.character.isNull())
                     {
@@ -3599,6 +3950,24 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
     }
 
     performProcessTextSequence(textSequence, ProcessOrder::AfterOperation);
+}
+
+void PDFPageContentProcessor::finishType3GlyphTextObject()
+{
+    if (m_textBeginEndState <= 0)
+    {
+        return;
+    }
+
+    // A hostile document repeats the glyph many times: it is reported once
+    reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Text object of a glyph of a Type 3 font is not ended."));
+
+    // The text object ends the way the operator ET ends it, so the begin and the end of a text
+    // object stay paired for the descendants (a second BT inside of a text object has counted too)
+    while (m_textBeginEndState > 0)
+    {
+        operatorTextEnd();
+    }
 }
 
 QRectF PDFPageContentProcessor::getType3GlyphBox(const PDFFont* font, const std::optional<QRectF>& glyphBox, PDFReal advance) const

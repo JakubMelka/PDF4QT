@@ -4810,6 +4810,36 @@ QChar PDFNameToUnicode::getUnicodeUsingResolvedName(const QByteArray& name)
         }
     }
 
+    if (character.isNull() && name.size() >= 5 && name.size() <= 7 && name.startsWith('u'))
+    {
+        // The name "u" with four to six upper case hexadecimal digits of a code point (the
+        // glyph naming convention of the Adobe Glyph List). A code point outside of the basic
+        // multilingual plane has no character of one code unit, a surrogate is no code point.
+        char32_t value = 0;
+        bool isCodePoint = true;
+        for (qsizetype i = 1; i < name.size() && isCodePoint; ++i)
+        {
+            const char digit = name[i];
+            if (digit >= '0' && digit <= '9')
+            {
+                value = value * 16 + static_cast<char32_t>(digit - '0');
+            }
+            else if (digit >= 'A' && digit <= 'F')
+            {
+                value = value * 16 + static_cast<char32_t>(digit - 'A' + 10);
+            }
+            else
+            {
+                isCodePoint = false;
+            }
+        }
+
+        if (isCodePoint && value <= 0xFFFF && !QChar::isSurrogate(value))
+        {
+            character = QChar(static_cast<char16_t>(value));
+        }
+    }
+
     return character;
 }
 

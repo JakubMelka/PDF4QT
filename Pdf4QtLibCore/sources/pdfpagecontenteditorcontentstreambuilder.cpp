@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfpagecontenteditorcontentstreambuilder.h"
+#include "pdfcontentstreamtext.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentwriter.h"
 #include "pdfobject.h"
@@ -40,64 +41,6 @@ namespace pdf
 
 namespace pagecontenteditorcontentstreambuilder
 {
-
-/// Formats the real number, so it can be written into the content stream.
-/// Numbers in the content stream must not use the exponential notation
-/// (see PDF 32000-1, chapter 7.3.3), but the default QTextStream formatting
-/// produces it for very small or very large values (for example '1e-05').
-/// Such a number is rejected by the parser and the whole operator, in which
-/// it appears, is skipped. At most 9 significant digits are written: they keep any
-/// IEEE single exactly, which is what a reader may read (PDF Reference 1.7, Table C.1).
-/// A shorter value keeps its shortest text, an integral part longer than 9 digits
-/// keeps its digits. An operand needs no decimal point, a type of an operand does
-/// not matter and the content stream stays shorter.
-QByteArray formatNumber(PDFReal value)
-{
-    constexpr int MAXIMUM_SIGNIFICANT_DIGITS = 9;
-
-    QByteArray text = PDFDocumentWriter::getRealNumberText(value);
-    if (text.endsWith(".0"))
-    {
-        // No fraction: the digits of an integral part are kept, whatever their count is.
-        // An operand of a negative zero is the same value as zero, its shortest text has no sign.
-        text.chop(2);
-        return text == "-0" ? QByteArrayLiteral("0") : text;
-    }
-
-    int significantDigits = 0;
-    for (const char character : text)
-    {
-        if (character >= '0' && character <= '9' && (significantDigits > 0 || character != '0'))
-        {
-            ++significantDigits;
-        }
-    }
-
-    if (significantDigits <= MAXIMUM_SIGNIFICANT_DIGITS)
-    {
-        return text;
-    }
-
-    // The exponent is taken after the rounding: 9.9999999996 has the exponent 1 then
-    const QByteArray scientific = QByteArray::number(value, 'e', MAXIMUM_SIGNIFICANT_DIGITS - 1);
-    const int exponent = scientific.mid(scientific.indexOf('e') + 1).toInt();
-
-    text = QByteArray::number(value, 'f', qMax(MAXIMUM_SIGNIFICANT_DIGITS - 1 - exponent, 0));
-    if (text.contains('.'))
-    {
-        while (text.endsWith('0'))
-        {
-            text.chop(1);
-        }
-
-        if (text.endsWith('.'))
-        {
-            text.chop(1);
-        }
-    }
-
-    return text;
-}
 
 /// Returns the image samples as a continuous byte array, without the padding
 /// which the image can have at the end of each scanline.
@@ -427,7 +370,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineWidth))
     {
-        stream << formatNumber(m_currentState.getLineWidth()) << " w" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getLineWidth()) << " w" << Qt::endl;
     }
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineCapStyle))
@@ -442,7 +385,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateMitterLimit))
     {
-        stream << formatNumber(m_currentState.getMitterLimit()) << " M" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getMitterLimit()) << " M" << Qt::endl;
     }
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineDashPattern))
@@ -459,10 +402,10 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
 
             for (PDFReal arrayItem : dashPattern.getDashArray())
             {
-                stream << formatNumber(arrayItem) << " ";
+                stream << PDFContentStreamText::formatNumber(arrayItem) << " ";
             }
 
-            stream << " ] " << formatNumber(dashPattern.getDashOffset()) << " d" << Qt::endl;
+            stream << " ] " << PDFContentStreamText::formatNumber(dashPattern.getDashOffset()) << " d" << Qt::endl;
         }
     }
 
@@ -490,7 +433,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateFlatness))
     {
-        stream << formatNumber(m_currentState.getFlatness()) << " i" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getFlatness()) << " i" << Qt::endl;
     }
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||
@@ -507,7 +450,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
             const PDFColor& strokeColorOriginal = m_currentState.getStrokeColorOriginal();
             if (strokeColorOriginal.size() >= 4)
             {
-                stream << formatNumber(strokeColorOriginal[0]) << " " << formatNumber(strokeColorOriginal[1]) << " " << formatNumber(strokeColorOriginal[2]) << " " << formatNumber(strokeColorOriginal[3]) << " K" << Qt::endl;
+                stream << PDFContentStreamText::formatNumber(strokeColorOriginal[0]) << " " << PDFContentStreamText::formatNumber(strokeColorOriginal[1]) << " " << PDFContentStreamText::formatNumber(strokeColorOriginal[2]) << " " << PDFContentStreamText::formatNumber(strokeColorOriginal[3]) << " K" << Qt::endl;
             }
         }
         else
@@ -531,7 +474,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
             const PDFColor& fillColor = m_currentState.getFillColorOriginal();
             if (fillColor.size() >= 4)
             {
-                stream << formatNumber(fillColor[0]) << " " << formatNumber(fillColor[1]) << " " << formatNumber(fillColor[2]) << " " << formatNumber(fillColor[3]) << " k" << Qt::endl;
+                stream << PDFContentStreamText::formatNumber(fillColor[0]) << " " << PDFContentStreamText::formatNumber(fillColor[1]) << " " << PDFContentStreamText::formatNumber(fillColor[2]) << " " << PDFContentStreamText::formatNumber(fillColor[3]) << " k" << Qt::endl;
             }
         }
         else
@@ -997,15 +940,15 @@ void PDFPageContentEditorContentStreamBuilder::writePathGeometry(QTextStream& st
         switch (element.type)
         {
         case QPainterPath::MoveToElement:
-            stream << formatNumber(element.x) << " " << formatNumber(element.y) << " m" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(element.x) << " " << PDFContentStreamText::formatNumber(element.y) << " m" << Qt::endl;
             break;
 
         case QPainterPath::LineToElement:
-            stream << formatNumber(element.x) << " " << formatNumber(element.y) << " l" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(element.x) << " " << PDFContentStreamText::formatNumber(element.y) << " l" << Qt::endl;
             break;
 
         case QPainterPath::CurveToElement:
-            stream << formatNumber(element.x) << " " << formatNumber(element.y) << " ";
+            stream << PDFContentStreamText::formatNumber(element.x) << " " << PDFContentStreamText::formatNumber(element.y) << " ";
             ++i;
 
             while (i < elementCount)
@@ -1015,7 +958,7 @@ void PDFPageContentEditorContentStreamBuilder::writePathGeometry(QTextStream& st
                 if (currentElement.type == QPainterPath::CurveToDataElement)
                 {
                     ++i;
-                    stream << formatNumber(currentElement.x) << " " << formatNumber(currentElement.y) << " ";
+                    stream << PDFContentStreamText::formatNumber(currentElement.x) << " " << PDFContentStreamText::formatNumber(currentElement.y) << " ";
                 }
                 else
                 {
@@ -1027,7 +970,7 @@ void PDFPageContentEditorContentStreamBuilder::writePathGeometry(QTextStream& st
             break;
 
         case QPainterPath::CurveToDataElement:
-            stream << formatNumber(element.x) << " " << formatNumber(element.y) << " ";
+            stream << PDFContentStreamText::formatNumber(element.x) << " " << PDFContentStreamText::formatNumber(element.y) << " ";
             break;
 
         default:
@@ -1118,32 +1061,32 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
         QByteArray currentFontKey = selectFont(!fontKey.isEmpty() ? fontKey : m_textFont->getFontId());
         m_currentTextFontKey = currentFontKey;
         m_currentTextFontSize = m_currentState.getTextFontSize();
-        stream << "/" << currentFontKey << " " << formatNumber(m_currentState.getTextFontSize()) << " Tf" << Qt::endl;
+        stream << "/" << currentFontKey << " " << PDFContentStreamText::formatNumber(m_currentState.getTextFontSize()) << " Tf" << Qt::endl;
     }
 
     if (!qFuzzyIsNull(m_currentState.getTextCharacterSpacing()))
     {
-        stream << formatNumber(m_currentState.getTextCharacterSpacing()) << " Tc" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getTextCharacterSpacing()) << " Tc" << Qt::endl;
     }
 
     if (!qFuzzyIsNull(m_currentState.getTextWordSpacing()))
     {
-        stream << formatNumber(m_currentState.getTextWordSpacing()) << " Tw" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getTextWordSpacing()) << " Tw" << Qt::endl;
     }
 
     if (!qFuzzyCompare(m_currentState.getTextHorizontalScaling(), 100.0))
     {
-        stream << formatNumber(m_currentState.getTextHorizontalScaling()) << " Tz" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getTextHorizontalScaling()) << " Tz" << Qt::endl;
     }
 
     if (!qFuzzyIsNull(m_currentState.getTextLeading()))
     {
-        stream << formatNumber(m_currentState.getTextLeading()) << " TL" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getTextLeading()) << " TL" << Qt::endl;
     }
 
     if (!qFuzzyIsNull(m_currentState.getTextRise()))
     {
-        stream << formatNumber(m_currentState.getTextRise()) << " Ts" << Qt::endl;
+        stream << PDFContentStreamText::formatNumber(m_currentState.getTextRise()) << " Ts" << Qt::endl;
     }
 
     if (m_currentState.getTextRenderingMode() != TextRenderingMode::Fill)
@@ -1251,7 +1194,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         }
         else
         {
-            stream << formatNumber(textRise) << " Ts" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(textRise) << " Ts" << Qt::endl;
         }
     }
     else if (isCommand("tc"))
@@ -1266,7 +1209,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         }
         else
         {
-            stream << formatNumber(textCharacterSpacing) << " Tc" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(textCharacterSpacing) << " Tc" << Qt::endl;
         }
     }
     else if (isCommand("tw"))
@@ -1281,7 +1224,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         }
         else
         {
-            stream << formatNumber(textWordSpacing) << " Tw" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(textWordSpacing) << " Tw" << Qt::endl;
         }
     }
     else if (isCommand("tl"))
@@ -1296,7 +1239,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         }
         else
         {
-            stream << formatNumber(textLeading) << " TL" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(textLeading) << " TL" << Qt::endl;
         }
     }
     else if (isCommand("tz"))
@@ -1311,7 +1254,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         }
         else
         {
-            stream << formatNumber(textScaling) << " Tz" << Qt::endl;
+            stream << PDFContentStreamText::formatNumber(textScaling) << " Tz" << Qt::endl;
         }
     }
     else if (isCommand("tk"))
@@ -1372,7 +1315,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
                 return;
             }
 
-            colorCommand += formatNumber(component) + " ";
+            colorCommand += PDFContentStreamText::formatNumber(component) + " ";
         }
 
         stream << colorCommand << colorOperator << Qt::endl;
@@ -1390,7 +1333,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             }
             else
             {
-                stream << "[ " << formatNumber(advance) << " ] TJ" << Qt::endl;
+                stream << "[ " << PDFContentStreamText::formatNumber(advance) << " ] TJ" << Qt::endl;
             }
         }
         else
@@ -1457,7 +1400,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
                 v1 = selectFont(v1);
                 m_currentTextFontKey = v1;
                 m_currentTextFontSize = v2;
-                stream << "/" << v1 << " " << formatNumber(v2) << " Tf" << Qt::endl;
+                stream << "/" << v1 << " " << PDFContentStreamText::formatNumber(v2) << " Tf" << Qt::endl;
             }
         }
         else
@@ -1487,7 +1430,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
                 // The recorded position is the absolute text matrix translation.
                 // Operator Td is relative to the current text line matrix, so
                 // the absolute position must be set with the Tm operator.
-                stream << "1 0 0 1 " << formatNumber(v1) << " " << formatNumber(v2) << " Tm" << Qt::endl;
+                stream << "1 0 0 1 " << PDFContentStreamText::formatNumber(v1) << " " << PDFContentStreamText::formatNumber(v2) << " Tm" << Qt::endl;
             }
         }
         else
@@ -1520,7 +1463,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             }
             else
             {
-                stream << formatNumber(m11) << " " << formatNumber(m12) << " " << formatNumber(m21) << " " << formatNumber(m22) << " " << formatNumber(x) << " " << formatNumber(y) << " Tm" << Qt::endl;
+                stream << PDFContentStreamText::formatNumber(m11) << " " << PDFContentStreamText::formatNumber(m12) << " " << PDFContentStreamText::formatNumber(m21) << " " << PDFContentStreamText::formatNumber(m22) << " " << PDFContentStreamText::formatNumber(x) << " " << PDFContentStreamText::formatNumber(y) << " Tm" << Qt::endl;
             }
         }
         else
@@ -1596,12 +1539,12 @@ void PDFPageContentEditorContentStreamBuilder::writeTextWithFallback(QTextStream
 
             for (const PDFEditorFallbackFontManager::Run& fallbackRun : fallbackRuns)
             {
-                stream << "/" << fallbackRun.fontResourceKey << " " << formatNumber(m_currentTextFontSize) << " Tf" << Qt::endl;
+                stream << "/" << fallbackRun.fontResourceKey << " " << PDFContentStreamText::formatNumber(m_currentTextFontSize) << " Tf" << Qt::endl;
                 writeTextHexString(stream, fallbackRun.encodedBytes);
             }
 
             // Restore the original font
-            stream << "/" << m_currentTextFontKey << " " << formatNumber(m_currentTextFontSize) << " Tf" << Qt::endl;
+            stream << "/" << m_currentTextFontKey << " " << PDFContentStreamText::formatNumber(m_currentTextFontSize) << " Tf" << Qt::endl;
         }
     }
 }
@@ -1983,7 +1926,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
     PDFReal x = imageTransform.dx();
     PDFReal y = imageTransform.dy();
 
-    stream << formatNumber(m11) << " " << formatNumber(m12) << " " << formatNumber(m21) << " " << formatNumber(m22) << " " << formatNumber(x) << " " << formatNumber(y) << " cm" << Qt::endl;
+    stream << PDFContentStreamText::formatNumber(m11) << " " << PDFContentStreamText::formatNumber(m12) << " " << PDFContentStreamText::formatNumber(m21) << " " << PDFContentStreamText::formatNumber(m22) << " " << PDFContentStreamText::formatNumber(x) << " " << PDFContentStreamText::formatNumber(y) << " cm" << Qt::endl;
 
     writeImage(stream, image);
 
@@ -2018,7 +1961,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, Q
     // the image should fill the whole rectangle with the first image row at
     // the rectangle's top edge. The image unit square has the first row at
     // v = 1, so the y axis must be flipped here.
-    stream << formatNumber(rectangle.width()) << " 0 0 " << formatNumber(-rectangle.height()) << " " << formatNumber(rectangle.left()) << " " << formatNumber(rectangle.bottom()) << " cm" << Qt::endl;
+    stream << PDFContentStreamText::formatNumber(rectangle.width()) << " 0 0 " << PDFContentStreamText::formatNumber(-rectangle.height()) << " " << PDFContentStreamText::formatNumber(rectangle.left()) << " " << PDFContentStreamText::formatNumber(rectangle.bottom()) << " cm" << Qt::endl;
 
     writeImage(stream, image);
 
@@ -2043,7 +1986,7 @@ void PDFPageContentEditorContentStreamBuilder::writeCurrentTransformationMatrix(
     PDFReal x = transform.dx();
     PDFReal y = transform.dy();
 
-    stream << formatNumber(m11) << " " << formatNumber(m12) << " " << formatNumber(m21) << " " << formatNumber(m22) << " " << formatNumber(x) << " " << formatNumber(y) << " cm" << Qt::endl;
+    stream << PDFContentStreamText::formatNumber(m11) << " " << PDFContentStreamText::formatNumber(m12) << " " << PDFContentStreamText::formatNumber(m21) << " " << PDFContentStreamText::formatNumber(m22) << " " << PDFContentStreamText::formatNumber(x) << " " << PDFContentStreamText::formatNumber(y) << " cm" << Qt::endl;
 }
 
 }   // namespace pdf

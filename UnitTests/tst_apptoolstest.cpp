@@ -187,9 +187,9 @@ void AppToolsTest::routesAndNavHighlight_data()
     QTest::newRow("custom-99999999999 page") << "/tools/collections/custom-99999999999" << QString() << QString();
     QTest::newRow("custom-01 page") << "/tools/collections/custom-01" << QString() << QString();
     QTest::newRow("unknown collection page") << "/tools/collections/unknown" << QString() << QString();
-    // A tool of the catalog without a GUI: edit.content stays closed (owner O32), every tool of
+    // A tool of the catalog without a GUI: edit.page-numbers stays closed (owner O32), every tool of
     // steps 1 to 4 of phase 2 has its page
-    QTest::newRow("tool without page") << "/tools/edit.content" << QString() << QString();
+    QTest::newRow("tool without page") << "/tools/edit.page-numbers" << QString() << QString();
     QTest::newRow("unknown tool") << "/tools/convert.epub" << QString() << QString();
     QTest::newRow("null in tool") << "/tools/pages.split%00" << QString() << QString();
 }
@@ -234,14 +234,14 @@ void AppToolsTest::notFoundToolTitle()
     pdftest::AppToolsFixture fixture;
 
     // A tool of the catalog without a page: its title (940:134845) and the search for it
-    // (edit.content stays closed, owner O32: the title of its row of 272:12821)
-    fixture.navigate(QStringLiteral("/tools/edit.content"));
+    // (edit.page-numbers stays closed, owner O32: the title of its row of 272:12821)
+    fixture.navigate(QStringLiteral("/tools/edit.page-numbers"));
     pdf::PDFPageNotFoundPage* page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Edit Content"));
-    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Edit Content”"));
-    QCOMPARE(page->getPathText(), QStringLiteral("/tools/edit.content"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Add Page Numbers"));
+    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Add Page Numbers”"));
+    QCOMPARE(page->getPathText(), QStringLiteral("/tools/edit.page-numbers"));
 
     // An unknown tool keeps its id, bounded
     fixture.navigate(QStringLiteral("/tools/convert.epub"));
@@ -263,68 +263,69 @@ void AppToolsTest::notFoundToolTitle()
     pdf::PDFAppDocumentTab* tab = fixture.openDocument();
     QVERIFY(tab);
     const QString documentId = tab->getDocumentId();
-    fixture.navigate(QStringLiteral("/document/%1/tool/edit.content").arg(documentId));
+    fixture.navigate(QStringLiteral("/document/%1/tool/edit.page-numbers").arg(documentId));
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
     page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Edit Content"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Add Page Numbers"));
 }
 
 void AppToolsTest::toolPageRegistryPath()
 {
     // The registry rules: catalog ids only, no null factory, no route factory
     QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub"), std::make_shared<pdftest::AppToolsTestPageFactory>()));
-    // edit.content: a tool of the catalog, which has no GUI (closed, owner O32)
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"), nullptr));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"),
+    // edit.page-numbers: a tool of the catalog, which has no GUI (closed, owner O32)
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.page-numbers"), nullptr));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.page-numbers"),
                                                           std::make_shared<pdf::PDFAppToolRoutePageFactory>(pdf::PDFAppToolPageKind::Start)));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content")));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.page-numbers")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::getFactory(pdf::PDFAppToolPageKind::Start, QString(1000, QLatin1Char('x'))));
 
     {
         pdftest::AppToolsFixture fixture;
-        QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.content")));
+        QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.page-numbers")));
         QVERIFY(fixture.registerTestToolPage(QStringLiteral("review.statistics"), pdf::PDFAppToolPageKind::Document));
 
         // The page of the test and the start pages of the tools with a GUI (phase 2), nothing else
         QStringList toolsWithPage = pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start);
-        QVERIFY(toolsWithPage.removeOne(QStringLiteral("edit.content")));
+        QVERIFY(toolsWithPage.removeOne(QStringLiteral("edit.page-numbers")));
         QCOMPARE(toolsWithPage, pdf::PDFDocumentToolGUIRegistry::getTools());
-        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("edit.content")));
+        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("edit.page-numbers")));
 
         // The route
-        fixture.navigate(QStringLiteral("/tools/edit.content"));
+        fixture.navigate(QStringLiteral("/tools/edit.page-numbers"));
         pdftest::AppToolsTestPage* testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
-        QCOMPARE(testPage->getToolId(), QStringLiteral("edit.content"));
+        QCOMPARE(testPage->getToolId(), QStringLiteral("edit.page-numbers"));
         QCOMPARE(fixture.currentTab()->getNavItem(), pdf::PDFAppNavItem::Tools);
 
         // A row of the Tools page: a registered tool opens its page, another one Page Not Found
-        // (edit.page-numbers is closed too, owner O32)
+        // (convert.ocr is closed too, owner O32; only its row is clicked, the tool does not run -
+        // the title of its row of 272:12821)
         fixture.openTools(QStringLiteral("/tools"));
-        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("edit.content"));
+        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("edit.page-numbers"));
         QVERIFY(row);
         row->click();
 
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
-        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.content"));
+        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.page-numbers"));
 
         fixture.openTools(QStringLiteral("/tools"));
-        row = fixture.findToolRow(QStringLiteral("edit.page-numbers"));
+        row = fixture.findToolRow(QStringLiteral("convert.ocr"));
         QVERIFY(row);
         row->click();
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.notFoundPage());
-        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
+        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Recognize Text (OCR)”"));
 
         // The global search: the tool result navigates to the page of the tool
-        fixture.navigate(QStringLiteral("/search?q=edit%20content"));
+        fixture.navigate(QStringLiteral("/search?q=add%20page%20numbers"));
         pdf::PDFAppSearchPage* searchPage = fixture.page<pdf::PDFAppSearchPage>();
         QVERIFY(searchPage);
-        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("edit.content"));
+        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("edit.page-numbers"));
         QVERIFY(result);
         const pdf::PDFAppSearchResult resultCopy = *result;
         searchPage->activateResult(resultCopy);
@@ -339,13 +340,13 @@ void AppToolsTest::toolPageRegistryPath()
         testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
         QCOMPARE(testPage->getToolId(), QStringLiteral("review.statistics"));
-        fixture.navigate(QStringLiteral("/document/%1/tool/edit.content").arg(tab->getDocumentId()));
+        fixture.navigate(QStringLiteral("/document/%1/tool/edit.page-numbers").arg(tab->getDocumentId()));
         QVERIFY(fixture.notFoundPage());
 
         // Unregistered: Page Not Found again
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"));
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"));
-        fixture.navigate(QStringLiteral("/tools/edit.content"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.page-numbers"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.page-numbers"));
+        fixture.navigate(QStringLiteral("/tools/edit.page-numbers"));
         QVERIFY(fixture.notFoundPage());
     }
 
@@ -1895,12 +1896,12 @@ void AppToolsTest::toolActivationRoutes()
     pdf::PDFAppToolsPage* page = AppToolsPageTestHelper::open(fixture);
     QVERIFY(page);
 
-    // A row, a tile, a recent tool: Page Not Found of a tool without a page (edit.content stays
+    // A row, a tile, a recent tool: Page Not Found of a tool without a page (edit.page-numbers stays
     // closed, owner O32), the page of a tool with one
-    page->findToolRow(QStringLiteral("edit.content"))->click();
+    page->findToolRow(QStringLiteral("edit.page-numbers"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
 
     page = AppToolsPageTestHelper::open(fixture);
     page->findTile(QStringLiteral("optimize.compress"))->click();
@@ -1915,16 +1916,16 @@ void AppToolsTest::toolActivationRoutes()
 
     // Enter on a row focused by the keyboard
     page = AppToolsPageTestHelper::open(fixture);
-    pdf::PDFToolRow* row = page->findToolRow(QStringLiteral("edit.content"));
+    pdf::PDFToolRow* row = page->findToolRow(QStringLiteral("edit.page-numbers"));
     row->setFocus(Qt::TabFocusReason);
     QTest::keyClick(row, Qt::Key_Return);
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.content"));
+    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.page-numbers"));
 
     // A registered page of the tool is shown
-    QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.content")));
+    QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.page-numbers")));
     page = AppToolsPageTestHelper::open(fixture);
-    page->findToolRow(QStringLiteral("edit.content"))->click();
+    page->findToolRow(QStringLiteral("edit.page-numbers"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
 }

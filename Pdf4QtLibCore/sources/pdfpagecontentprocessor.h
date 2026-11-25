@@ -61,7 +61,7 @@ static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 class PDFLineDashPattern
 {
 public:
-    explicit inline PDFLineDashPattern() = default;
+    inline PDFLineDashPattern() = default;
     explicit PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset);
 
     inline const std::vector<PDFReal>& getDashArray() const { return m_dashArray; }
@@ -476,7 +476,13 @@ public:
         // Compatibility:              BX, EX
         CompatibilityBegin,                 ///< BX, Compatibility mode begin (unrecognized operators are ignored)
         CompatibilityEnd,                   ///< EX, Compatibility mode end
-        Invalid                             ///< Invalid operator, use for error reporting
+        Invalid,                            ///< Invalid operator, use for error reporting
+
+        // Inline image as one operation: BI ... ID ... EI. It is the last value, so the values of the
+        // other operators are the same as before it was added. No operator of the table has it
+        // (BI is not a command of processCommand): performInterceptInstruction and
+        // performOperatorFailed get it for the whole inline image.
+        InlineImage                         ///< BI ... ID ... EI, the whole inline image
     };
 
     enum ProcedureSet
@@ -605,13 +611,114 @@ protected:
     };
 
     /// This function is used, when we directly want to intercept content
-    /// stream instructions and operands.
+    /// stream instructions and operands. An inline image is one instruction (Operator::InlineImage,
+    /// the text "BI"): the call before the operation comes, when its end is known (getInlineImageRange
+    /// is valid), or just before performOperatorFailed, when its dictionary or its end cannot be read
+    /// (getInlineImageRange is not valid, the range of the operation ends after BI). The call
+    /// after the operation comes always, also when the operator fails.
     /// \param currentOperator Current operator
     /// \param processOrder Mark before/after instruction is executed
     /// \param operatorAsText Operator converted to text
     virtual void performInterceptInstruction(Operator currentOperator,
                                              ProcessOrder processOrder,
                                              const QByteArray& operatorAsText);
+
+    /// The operator was refused: its operands are wrong, its resource is missing, or its work
+    /// failed (an exception of the operator; the error is added to the error list as before).
+    /// It is called between the two calls of performInterceptInstruction of the operator, for
+    /// the operators of every content (also of a form, a tiling pattern or a glyph of a Type 3
+    /// font drawn by this processor, see getContentNestingLevel). An unknown operator is not a
+    /// failure: it is reported by Operator::Invalid. The default does nothing.
+    /// \param currentOperator The operator, Operator::InlineImage for an inline image
+    /// \param error The error of the operator (the one added to the error list)
+    virtual void performOperatorFailed(Operator currentOperator, const PDFRenderError& error);
+
+    /// The procedure of a glyph of a Type 3 font is going to be processed (ISO 32000-2, 9.6.4): the
+    /// instructions between this call and performType3GlyphEnd belong to the glyph, not to the
+    /// content, which shows the text. The calls are paired (also when the procedure fails) and
+    /// nested, when a glyph procedure shows a text of a Type 3 font. A glyph, which is not
+    /// processed (the nesting limit, an invisible text, no procedure), has no calls. The default
+    /// does nothing. The procedure is a content stream of its own: no text object is open at
+    /// its start (isTextProcessing is false between the two calls, until the procedure begins
+    /// one), and a text object, which it leaves open, is ended at its end with one error. Inside
+    /// of the two calls themselves the state is the one of the content, which shows the glyph.
+    /// \param font The Type 3 font
+    /// \param code The character code of the glyph
+    /// \param content The content stream of the glyph procedure
+    virtual void performType3GlyphBegin(const PDFType3Font* font, unsigned int code, const QByteArray& content);
+
+    /// The procedure of a glyph of a Type 3 font has ended, see performType3GlyphBegin
+    virtual void performType3GlyphEnd();
+
+    /// A processor, which reads the bytes of its operations (the content tree of the editor),
+    /// returns true: the decoded data of all streams of the content are kept (getContentStreamData),
+    /// for a page until the next processing. The default is false - only the stream being
+    /// processed is available, so a renderer holds one stream of /Contents at a time as before.
+    virtual bool isContentDataRetained() const { return false; }
+
+    /// Bytes of one operation of the content being processed: from the end of the previous
+    /// operation (the start of the content for the first one) to the end of its operator, so
+    /// the white space, the comments and the operands before the operator belong to it, also
+    /// the bytes, which cannot be read as an operand. The streams of /Contents of a page are
+    /// numbered by their index in the array (a single stream, the content of a form, of a tiling
+    /// pattern and of a glyph procedure is the stream 0); the offsets are in the decoded data of
+    /// the stream. An operation can begin in one stream and end in a later one (7.8.2).
+    /// The ranges of all operations of a content and the rest after the last one are the whole
+    /// content, each byte once.
+    struct ContentOperationRange
+    {
+        PDFInteger beginStream = -1;    ///< Stream, in which the operation begins, -1 = no operation
+        PDFInteger beginOffset = 0;     ///< Offset of its first byte in the data of \p beginStream
+        PDFInteger endStream = -1;      ///< Stream of its operator
+        PDFInteger endOffset = 0;       ///< Offset after the last byte of its operator in the data of \p endStream
+
+        bool isValid() const { return beginStream >= 0 && endStream >= beginStream; }
+        bool operator==(const ContentOperationRange&) const = default;
+    };
+
+    /// Parts of an inline image inside of the stream of its operator (offsets in the decoded
+    /// data of ContentOperationRange::endStream)
+    struct InlineImageRange
+    {
+        PDFInteger dictionaryOffset = -1;   ///< Offset after BI: the entries of the image dictionary up to \p dataOperatorOffset
+        PDFInteger dataOperatorOffset = -1; ///< Offset of ID
+        PDFInteger dataOffset = -1;         ///< Offset of the first byte of the image data
+        PDFInteger dataLength = -1;         ///< Length of the image data, as the processor used it
+        PDFInteger endOperatorOffset = -1;  ///< Offset of EI (the operation ends two bytes after it)
+
+        bool isValid() const { return dataOffset >= 0; }
+        bool operator==(const InlineImageRange&) const = default;
+    };
+
+    /// Range of the current operation: valid inside of performInterceptInstruction and
+    /// performOperatorFailed (of the content they belong to), and until the next operation of
+    /// that content begins. After processContents it is the range of the last operation of the
+    /// page (not valid for a page without an operation).
+    const ContentOperationRange& getOperationRange() const { return getCurrentContentContext().range; }
+
+    /// Parts of the current inline image: valid inside of the calls of Operator::InlineImage, when
+    /// the end of the image was found
+    const InlineImageRange& getInlineImageRange() const { return getCurrentContentContext().inlineImageRange; }
+
+    /// Nesting of the content being processed: 0 for the streams of the page (processContents) and
+    /// for a content given by the caller (the public processForm), one more for each form drawn by
+    /// Do, each tile of a tiling pattern and each glyph procedure inside of it
+    PDFInteger getContentNestingLevel() const { return m_contentStack.empty() ? 0 : PDFInteger(m_contentStack.size()) - 1; }
+
+    /// Number of the streams of the content being processed, which were reached so far (a page:
+    /// the items of the array /Contents, also those, which are not streams or cannot be decoded).
+    /// After processContents the streams of the page.
+    PDFInteger getContentStreamCount() const { return PDFInteger(getCurrentContentContext().streams.size()); }
+
+    /// The stream of the content could be decoded (false also for an index out of range). A page
+    /// with a stream, which could not, was processed without it.
+    bool isContentStreamDecoded(PDFInteger streamIndex) const;
+
+    /// Decoded data of a stream of the content being processed (after processContents: of the
+    /// page). Null for an index out of range and for a stream, which is not available: one, which
+    /// could not be decoded, and - unless isContentDataRetained - every stream except the one being
+    /// processed.
+    QByteArray getContentStreamData(PDFInteger streamIndex) const;
 
     /// This function has to be implemented in the client drawing implementation, it should
     /// draw the path according to the parameters.
@@ -866,11 +973,100 @@ private:
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
 
-    /// Process the content
+    /// Process the content: a content of its own (one stream; the content of a form, of a tile of
+    /// a tiling pattern, of a glyph procedure), one level deeper than the content, whose operator
+    /// started it
     void processContent(const QByteArray& content);
+
+    /// Processes the operators of \p content, which is the next stream of the content at the top
+    /// of the content stack (the caller has added it there)
+    void processContentData(const QByteArray& content);
+
+    /// One stream of a content (ContentContext)
+    struct ContentStream
+    {
+        QByteArray data;        ///< Decoded data; null, when not decoded or not kept (isContentDataRetained)
+        bool decoded = false;   ///< The stream could be decoded
+    };
+
+    /// A content being processed: the streams of a page, or the single stream of a form, a tile
+    /// or a glyph procedure
+    struct ContentContext
+    {
+        std::vector<ContentStream> streams;     ///< The streams reached so far, the last one is being processed
+        ContentOperationRange range;            ///< Range of the current (last) operation
+        InlineImageRange inlineImageRange;      ///< Parts of the current inline image
+        PDFInteger pendingStream = 0;           ///< End of the last operation = begin of the next one
+        PDFInteger pendingOffset = 0;
+    };
+
+    /// Adds the next stream to the content at the top of the content stack
+    /// \param data Decoded data of the stream
+    /// \param decoded The stream could be decoded
+    void addContentStream(const QByteArray& data, bool decoded);
+
+    /// Releases the data of the stream, which was processed (unless isContentDataRetained)
+    void finishContentStream();
+
+    /// Sets the range of the current operation of the content at the top of the content stack:
+    /// it ends at \p endOffset of the stream being processed, the next operation begins there
+    void setOperationRangeEnd(PDFInteger endOffset);
+
+    /// The content being processed; after processContents the content of the page
+    const ContentContext& getCurrentContentContext() const { return m_contentStack.empty() ? m_pageContentContext : m_contentStack.back(); }
+
+    /// Pushes a content of one stream onto the content stack and pops it in its destructor.
+    /// A nested content (a form, a cell of a tiling pattern, a glyph procedure, a content given
+    /// by the caller) is a content stream of its own, also for the operand stack: it starts with
+    /// an empty one - the operands of the operator, which is being executed outside, are not
+    /// visible inside -, and what it leaves there does not reach the outer content, whose
+    /// operands are back, when the nested content ends (also by an exception). The streams of
+    /// /Contents of a page are one content and share the operand stack (they have no guard).
+    class PDFContentContextGuard
+    {
+    public:
+        explicit PDFContentContextGuard(PDFPageContentProcessor* processor, const QByteArray& content);
+        ~PDFContentContextGuard();
+
+    private:
+        PDFPageContentProcessor* m_processor;
+        PDFFlatArray<PDFLexicalAnalyzer::Token, 33> m_outerOperands;
+    };
+
+    /// Cells of a tiling pattern along one axis, which can touch the painted area (getTilingCellRange)
+    struct PDFTilingCellRange
+    {
+        PDFInteger first = 0;   ///< Index of the first cell: it is moved by first * step
+        PDFInteger count = 0;   ///< Number of the cells, 0 = no cell reaches into the area
+    };
+
+    /// Returns the cells of the lattice of a tiling pattern along one axis of the pattern space
+    /// (ISO 32000-2, 8.7.3.1), whose box reaches into the painted area: the cell k covers
+    /// [boxMin + k * step, boxMax + k * step].
+    /// \param areaMin Lower bound of the painted area in the pattern space
+    /// \param areaMax Upper bound of the painted area
+    /// \param boxMin Lower bound of /BBox of the pattern
+    /// \param boxMax Upper bound of /BBox
+    /// \param step Absolute value of /XStep or /YStep (no cell for a step, which is not positive)
+    static PDFTilingCellRange getTilingCellRange(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step);
+
+    /// Reports the failure of an inline image, whose dictionary or end could not be read or
+    /// whose painting failed: the call before the operation, if it was not done yet, and
+    /// performOperatorFailed
+    void reportInlineImageFailed(bool* isIntercepted, const QByteArray& command, const PDFRenderError& error);
 
     /// Processes single command
     void processCommand(const QByteArray& command);
+
+    /// Executes the operator of a command (processCommand, between the calls of the intercept)
+    void executeOperator(Operator op, const QByteArray& command);
+
+    /// Processes an inline image: the parser is after its BI, it is moved after its EI
+    /// \param parser Lexical analyzer of \p content
+    /// \param content The stream being processed
+    /// \param command The command BI
+    /// \param inlineImageIndex Index of the image in its content (InlineImagePosition)
+    void processInlineImage(PDFLexicalAnalyzer& parser, const QByteArray& content, const QByteArray& command, PDFInteger inlineImageIndex);
 
     /// Performs path painting
     /// \param path Path, which should be drawn (can be emtpy - in that case nothing happens)
@@ -880,13 +1076,16 @@ private:
     /// \param fillRule Fill rule used in the fill mode
     void processPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule);
 
-    /// Performs tiling pattern painting
+    /// Performs tiling pattern painting. The content of each cell is a content stream of its
+    /// own (ISO 32000-2, 8.7.3.1): it starts with an empty current path, and the current path of
+    /// the caller is the same after the cells as before them.
     /// \param tilingPattern Tiling pattern to be painted
-    /// \param path Clipping path
+    /// \param path Clipping path. It is taken by value: the caller usually gives its current
+    ///        path, which is put away, while the cells are processed.
     /// \param uncoloredPatternColorSpace Color space for uncolored color patterns
     /// \param uncoloredPatternColor Uncolored color pattern color
     void processTillingPatternPainting(const PDFTilingPattern* tilingPattern,
-                                       const QPainterPath& path,
+                                       QPainterPath path,
                                        PDFColorSpacePointer uncoloredPatternColorSpace,
                                        PDFColor uncoloredPatternColor);
 
@@ -1142,6 +1341,13 @@ private:
     /// \param advance The advance of the glyph in its glyph space
     QRectF getType3GlyphBox(const PDFFont* font, const std::optional<QRectF>& glyphBox, PDFReal advance) const;
 
+    /// Ends the text object, which a glyph procedure of a Type 3 font has left open (a glyph
+    /// procedure is a content stream of its own, ISO 32000-2, 9.6.4: its text object never
+    /// reaches the content, which shows the glyph). The text object is ended as by the
+    /// operator ET and one error of the procedure is reported; nothing happens, when no text
+    /// object of the procedure is open.
+    void finishType3GlyphTextObject();
+
     /// Remembers /FontBBox of a Type 3 font set by Tf (the box in its glyph space, Table 112)
     /// \param font The font
     /// \param fontObject The font dictionary (or its reference) of the resources
@@ -1289,6 +1495,26 @@ private:
 
     /// Most form XObjects drawn inside of each other
     static constexpr size_t MAXIMUM_FORM_NESTING = 32;
+
+    /// The contents being processed, the innermost one last (getCurrentContentContext). The
+    /// content of a page is its first item during processContents.
+    std::vector<ContentContext> m_contentStack;
+
+    /// The content of the page after processContents has ended (its streams and the range of
+    /// its last operation stay readable until the next processing)
+    ContentContext m_pageContentContext;
+
+    /// The glyph procedures of Type 3 fonts being processed, the innermost one last: a procedure
+    /// showing a glyph of a Type 3 font (also its own, also through other glyphs) would overflow
+    /// the stack. The procedures are owned by their fonts, which the callers of drawText hold.
+    std::vector<const QByteArray*> m_type3GlyphStack;
+
+protected:
+    /// Most glyph procedures of Type 3 fonts processed inside of each other (a glyph, whose
+    /// procedure shows a glyph of a Type 3 font: two in a sensible document). A glyph over the
+    /// limit and a procedure, which is being processed already, are not processed: the glyph is
+    /// not painted, its advance is kept, the error is reported once.
+    static constexpr size_t MAXIMUM_TYPE3_GLYPH_NESTING = 8;
 };
 
 template<>

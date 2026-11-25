@@ -80,6 +80,14 @@ public:
     /// Returns number of output variables
     inline uint32_t getOutputVariableCount() const { return m_n; }
 
+    /// Returns the domain of the function (/Domain, ISO 32000-2, Table 38): 2 x m values
+    /// [x1 min, x1 max, x2 min, x2 max, ... ]
+    inline const std::vector<PDFReal>& getDomain() const { return m_domain; }
+
+    /// Returns the range of the function (/Range, ISO 32000-2, Table 38): 2 x n values
+    /// [y1 min, y1 max, y2 min, y2 max, ... ], empty, if the function has no range
+    inline const std::vector<PDFReal>& getRange() const { return m_range; }
+
     using iterator = PDFReal*;
     using const_iterator = const PDFReal*;
 
@@ -248,6 +256,15 @@ public:
     /// \param y_n Iterator to the end of the output values (one item after last value)
     virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const override;
 
+    /// Returns the values of the function at x == 0.0 (/C0, ISO 32000-2, Table 40), n values
+    inline const std::vector<PDFReal>& getC0() const { return m_c0; }
+
+    /// Returns the values of the function at x == 1.0 (/C1, ISO 32000-2, Table 40), n values
+    inline const std::vector<PDFReal>& getC1() const { return m_c1; }
+
+    /// Returns the interpolation exponent (/N, ISO 32000-2, Table 40)
+    inline PDFReal getExponent() const { return m_exponent; }
+
 private:
     std::vector<PDFReal> m_c0;
     std::vector<PDFReal> m_c1;
@@ -309,6 +326,17 @@ public:
     /// \param y_1 Iterator to the first output value
     /// \param y_n Iterator to the end of the output values (one item after last value)
     virtual FunctionResult apply(const_iterator x_1, const_iterator x_m, iterator y_1, iterator y_n) const override;
+
+    /// Returns the k partial functions (/Functions, ISO 32000-2, Table 41) in their order, each with
+    /// the interval of the domain it covers and with its pair of /Encode
+    inline const std::vector<PartialFunction>& getPartialFunctions() const { return m_partialFunctions; }
+
+    /// Returns the k - 1 values of /Bounds (ISO 32000-2, Table 41): the inner limits of the intervals
+    /// of the partial functions, without the limits of the domain
+    std::vector<PDFReal> getBounds() const;
+
+    /// Returns the 2 x k values of /Encode (ISO 32000-2, Table 41): a pair for each partial function
+    std::vector<PDFReal> getEncode() const;
 
 private:
     /// Partial function definitions

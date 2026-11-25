@@ -631,6 +631,37 @@ PDFFunction::FunctionResult PDFStitchingFunction::apply(const_iterator x_1,
     return result;
 }
 
+std::vector<PDFReal> PDFStitchingFunction::getBounds() const
+{
+    std::vector<PDFReal> bounds;
+
+    // The upper limit of the last partial function is the upper limit of the domain
+    if (m_partialFunctions.size() > 1)
+    {
+        bounds.reserve(m_partialFunctions.size() - 1);
+        for (size_t i = 0; i + 1 < m_partialFunctions.size(); ++i)
+        {
+            bounds.push_back(m_partialFunctions[i].bound1);
+        }
+    }
+
+    return bounds;
+}
+
+std::vector<PDFReal> PDFStitchingFunction::getEncode() const
+{
+    std::vector<PDFReal> encode;
+    encode.reserve(2 * m_partialFunctions.size());
+
+    for (const PartialFunction& partialFunction : m_partialFunctions)
+    {
+        encode.push_back(partialFunction.encode0);
+        encode.push_back(partialFunction.encode1);
+    }
+
+    return encode;
+}
+
 PDFIdentityFunction::PDFIdentityFunction() :
     PDFFunction(0, 0, std::vector<PDFReal>(), std::vector<PDFReal>())
 {

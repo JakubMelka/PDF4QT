@@ -300,6 +300,176 @@ set_target_properties(UnitTestsContentEditor PROPERTIES
 )
 add_test(UnitTestsContentEditor  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentEditor")
 
+add_executable(UnitTestsContentHelpers
+	tst_contenthelperstest.cpp
+)
+
+target_link_libraries(UnitTestsContentHelpers PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentHelpers REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentHelpers PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentHelpers  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentHelpers")
+set_tests_properties(UnitTestsContentHelpers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentProcessor
+	tst_contentprocessortest.cpp
+)
+
+target_link_libraries(UnitTestsContentProcessor PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentProcessor REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentProcessor PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentProcessor  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentProcessor")
+set_tests_properties(UnitTestsContentProcessor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsStructureTree
+	tst_structuretreetest.cpp
+)
+
+target_link_libraries(UnitTestsStructureTree PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsStructureTree REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsStructureTree PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsStructureTree  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsStructureTree")
+set_tests_properties(UnitTestsStructureTree PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentOperations
+	tst_contentoperationstest.cpp
+)
+
+target_link_libraries(UnitTestsContentOperations PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentOperations REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentOperations PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentOperations  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentOperations")
+set_tests_properties(UnitTestsContentOperations PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentTree
+	tst_contenttreetest.cpp
+)
+
+target_link_libraries(UnitTestsContentTree PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentTree REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentTree PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentTree  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentTree")
+set_tests_properties(UnitTestsContentTree PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentTextLayout
+	tst_contenttextlayouttest.cpp
+)
+
+target_link_libraries(UnitTestsContentTextLayout PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentTextLayout REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentTextLayout PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentTextLayout  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentTextLayout")
+set_tests_properties(UnitTestsContentTextLayout PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentStructureModel
+	tst_contentstructuremodeltest.cpp
+)
+
+target_link_libraries(UnitTestsContentStructureModel PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentStructureModel REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentStructureModel PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentStructureModel  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentStructureModel")
+set_tests_properties(UnitTestsContentStructureModel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentCommands
+	tst_contentcommandstest.cpp
+)
+
+target_link_libraries(UnitTestsContentCommands PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentCommands REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentCommands PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentCommands  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentCommands")
+set_tests_properties(UnitTestsContentCommands PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsDocumentToolContent
+	tst_documenttoolcontenttest.cpp
+)
+
+target_link_libraries(UnitTestsDocumentToolContent PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolContent REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsDocumentToolContent PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolContent  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolContent")
+set_tests_properties(UnitTestsDocumentToolContent PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsContentRoundTrip
+	tst_contentroundtriptest.cpp
+)
+
+target_link_libraries(UnitTestsContentRoundTrip PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentRoundTrip REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentRoundTrip PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentRoundTrip  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentRoundTrip")
+set_tests_properties(UnitTestsContentRoundTrip PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(UnitTestsMeasure
 	tst_measuretest.cpp
 )

@@ -467,6 +467,8 @@ void DocumentToolTest::catalogPermissions()
     // interactive form fields (including signature fields)" - Sign, the field of Add Timestamp); Sign
     // by Hand writes into the content of the pages (bit 4); Redact Content follows the rule of Merge
     // (no bit of its row, isNewDocumentOfInputs); Manage Certificates has no input document.
+    // Edit Content (GUI_overhaul/edit_tool/zadani.md, KE.6): it rewrites the content of the pages - bit 4
+    // "Modify the contents of the document by operations other than those controlled by bits 6, 9, and 11".
     const Permissions everyPermission({ Permission::PrintLowResolution, Permission::Modify, Permission::CopyContent, Permission::ModifyInteractiveItems,
                                         Permission::ModifyFormFields, Permission::Accessibility, Permission::Assemble, Permission::PrintHighResolution });
     const std::map<QString, Permissions> expected =
@@ -501,6 +503,7 @@ void DocumentToolTest::catalogPermissions()
         { QStringLiteral("protect.sanitize"), Permissions({ Permission::Modify }) },
         { QStringLiteral("protect.remove-links"), Permissions({ Permission::ModifyInteractiveItems }) },
         { QStringLiteral("convert.extract-text"), Permissions({ Permission::CopyContent }) },
+        { QStringLiteral("edit.content"), Permissions({ Permission::Modify }) },
     };
 
     // The tools, which change the security: the four tools of the subgroup Encryption, no other one
@@ -553,6 +556,13 @@ void DocumentToolTest::catalogPermissions()
     QVERIFY(!compress->isPermitted(&assembleOnly));
     QVERIFY(compress->isPermitted(&modifyOnly));
     QVERIFY(statistics->isPermitted(&nothing));
+
+    // Edit Content rewrites the content of the pages: bit 4 allows it, bit 11 alone does not (KE.6)
+    const pdf::PDFDocumentToolCatalogEntry* content = pdf::PDFDocumentToolCatalog::findTool(u"edit.content");
+    QVERIFY(content);
+    QVERIFY(content->isPermitted(&modifyOnly));
+    QVERIFY(!content->isPermitted(&assembleOnly));
+    QVERIFY(!content->isPermitted(&nothing));
 
     // The base class of the tools refuses a document without the permission, one tool for the GUI and MCP
     class CompressIdTool : public pdf::PDFDocumentTool
@@ -734,6 +744,24 @@ void DocumentToolTest::catalogSignaturesAndRedaction()
     QCOMPARE(tool("protect.sign-by-hand")->getResultKind(), Kind::ChangeDocument);
     QCOMPARE(tool("protect.certificates")->getResultKind(), Kind::Analysis);
 
+    // Edit Content (GUI_overhaul/edit_tool/zadani.md, KE.6, owner answer QE.3): as Sign by Hand - it rewrites
+    // the content of the pages of the open document (Table 257: no level of a certification allows it, the
+    // certification is removed with a warning), a signed document is saved by an incremental update, which
+    // keeps its signatures; Keep in this tab is preselected (the default of a change of the document)
+    QVERIFY(tool("edit.content")->isPageChange());
+    QCOMPARE(tool("edit.content")->getResultKind(), Kind::ChangeDocument);
+    QCOMPARE(tool("edit.content")->getSignatureImpact(), pdf::PDFDocumentToolSignatureImpact::IncrementalSave);
+    QCOMPARE(tool("edit.content")->getPreselectedResult(), pdf::PDFDocumentToolPreselectedResult::Keep);
+    QVERIFY(pdf::PDFDocumentToolOutputTraits(tool("edit.content")).isPageChange);
+
+    // The tools, whose run changes the pages of the open document (ISO 32000-2, 12.8.2.2, Table 257; owner
+    // decision of 13. 11. 2026, DocumentToolInsertTest::certificationRemovedByTools): the tools of the pages
+    // with the output This document of Manage Pages, Sign by Hand and Edit Content, no other row. A closed
+    // tool (Recognize Text, Add Page Numbers) gets its row, when it is implemented.
+    const QStringList pageChanges = { QStringLiteral("pages.manage"), QStringLiteral("pages.insert"), QStringLiteral("pages.add-image"), QStringLiteral("pages.remove"),
+                                      QStringLiteral("pages.rotate"), QStringLiteral("pages.crop"), QStringLiteral("pages.resize"), QStringLiteral("pages.boxes"),
+                                      QStringLiteral("protect.sign-by-hand"), QStringLiteral("edit.content") };
+
     // Tools.md 9.3 point 11: the tools, which do not change the open document and write only a new file; the
     // report PDF of Compare (plan of step 7, 4.9, R7-13: its file, Open the report in a new tab - 492:107143)
     const QStringList fileOnly = { QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.redact"), QStringLiteral("review.compare") };
@@ -742,9 +770,12 @@ void DocumentToolTest::catalogSignaturesAndRedaction()
     // change of the security - Sign is no change of the security, but it is always confirmed (a legal
     // act of the user) with the password typed in PDF4QT; Add Timestamp is always confirmed (a hash goes
     // to a third party), Sign by Hand too (R6-20: a drawn signature could be a forgery); no successor
-    // after Sign and Timestamp (434:9276, 435:8356), Redact keeps them (437:13887, Q6.16)
+    // after Sign and Timestamp (434:9276, 435:8356), Redact keeps them (437:13887, Q6.16). Edit Content
+    // (GUI_overhaul/edit_tool/zadani.md, owner answer QE.4): the changes of the content of the pages by an
+    // assistant are always confirmed by the user.
     const QStringList security = { QStringLiteral("protect.password"), QStringLiteral("protect.permissions"), QStringLiteral("protect.certificate-encrypt"), QStringLiteral("protect.unlock") };
-    const QStringList alwaysConfirmed = security + QStringList({ QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.sign-by-hand") });
+    const QStringList alwaysConfirmed = security + QStringList({ QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.sign-by-hand"),
+                                                                 QStringLiteral("edit.content") });
     const QStringList secretsInApplication = security + QStringList({ QStringLiteral("protect.sign") });
     const QStringList withoutSuccessors = security + QStringList({ QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp") });
     for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
@@ -754,6 +785,7 @@ void DocumentToolTest::catalogSignaturesAndRedaction()
         QVERIFY2(entry.isAlwaysConfirmedByMcp() == alwaysConfirmed.contains(id), qPrintable(id));
         QVERIFY2(entry.isSecretTypedInApplication() == secretsInApplication.contains(id), qPrintable(id));
         QVERIFY2(entry.isOfferingSuccessors() == !withoutSuccessors.contains(id), qPrintable(id));
+        QVERIFY2(entry.isPageChange() == pageChanges.contains(id), qPrintable(id));
     }
     QVERIFY(!tool("protect.sign")->isSecurityChange());
     QVERIFY(tool("protect.redact")->getDefaultSuccessors().contains(QStringLiteral("protect.sanitize")));

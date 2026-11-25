@@ -269,6 +269,16 @@ public:
     /// unchanged needs only its bytes. createPage makes the same page of a compacted frame.
     static void compact(Frame* frame);
 
+    /// Creates the image XObject of a frame (ISO 32000-2, 8.9.5, Table 87): a JPEG is written unchanged
+    /// (DCTDecode, /Decode of an Adobe CMYK), other samples losslessly, the alpha channel as /SMask, the
+    /// ICC profile as an ICCBased color space. The objects it needs (the profile, the soft mask) are
+    /// added to the builder before the image; createPage calls it.
+    /// \param builder Builder of the document
+    /// \param frame The frame (compacted or not)
+    /// \returns the reference of the image XObject added to the builder
+    /// Throws PDFException for an empty frame.
+    static PDFObjectReference createImageXObject(PDFDocumentBuilder* builder, const Frame& frame);
+
     /// Creates a page of the image: a page dictionary, which is not in the page tree (the
     /// caller adds it and sets its /Parent), with the image XObject and the content
     /// stream. The part \p clip of the image fills the whole page

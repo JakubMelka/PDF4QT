@@ -390,6 +390,8 @@ protected:
     virtual void performRestoreGraphicState(ProcessOrder order) override;
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order) override;
+    virtual void performType3GlyphBegin(const PDFType3Font* font, unsigned int code, const QByteArray& content) override;
+    virtual void performType3GlyphEnd() override;
     virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
 
@@ -433,7 +435,17 @@ private:
     /// \param textElement Text element
     void registerFontResources(PDFEditedPageContentElementText* textElement) const;
 
+    /// Is the text object, whose text element is collected, open? Inside of a glyph
+    /// procedure of a Type 3 font it is the text object of the content, which shows the
+    /// glyph: the procedure is a content stream of its own (isTextProcessing tells its own
+    /// text objects there), but its text objects never begin or end the text element.
+    bool isTextElementOpen() const;
+
     PDFEditedPageContent m_content;
+
+    /// The value of isTextElementOpen at the begin of each glyph procedure of a Type 3
+    /// font being processed, the innermost one last
+    std::vector<bool> m_type3GlyphTextElementStates;
 
     /// Stack of clip paths. The paths are stored in the page coordinate
     /// space (each clip path is mapped by the current transformation matrix
