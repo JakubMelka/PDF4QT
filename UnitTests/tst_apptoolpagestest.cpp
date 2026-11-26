@@ -70,6 +70,7 @@
 
 #include <QPainter>
 #include <QScopeGuard>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QTranslator>
 #include <QtTest>

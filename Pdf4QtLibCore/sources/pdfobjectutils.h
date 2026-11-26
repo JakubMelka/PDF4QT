@@ -65,10 +65,21 @@ public:
     /// Reads the entries of a number tree in the order of the tree. The values of the
     /// entries are not dereferenced. The kids are read by one PDFObjectWalk: each node once
     /// (a kid listed twice or a cycle of a damaged document adds nothing), up to the maximal depth.
+    /// One budget of the walk (PDFObjectWalk::DEFAULT_MAXIMUM_NODES) bounds the whole reading:
+    /// every entered node and every pair of /Nums read spend one item of it. A direct node is
+    /// entered each time it is reached, and so is the /Nums array it names: many direct nodes,
+    /// which name one indirect array, read it once each - the budget keeps that work and the
+    /// number of the entries bounded.
     /// \param storage Storage
     /// \param root Root node of the number tree
     /// \param maximumDepth Maximal depth of the kids
-    static std::vector<std::pair<PDFInteger, PDFObject>> readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth = 32);
+    /// \param isLimitReached Optional. Set to true, when a node or a pair was not read because of
+    ///        the maximal depth or of the budget of the walk (PDFObjectWalk::isLimitReached):
+    ///        the result may be incomplete, and a caller, which writes the tree again from it,
+    ///        would lose the rest. Set to false otherwise. A kid refused because it was read
+    ///        already (a cycle, a kid listed twice) is no limit: its entries are in the result.
+    ///        A node, which is not a dictionary, and a missing object are no limit either.
+    static std::vector<std::pair<PDFInteger, PDFObject>> readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth = 32, bool* isLimitReached = nullptr);
 
     /// Returns true, if the object is an object stream of the file structure: a stream with
     /// /Type /ObjStm and the required entries /N and /First (PDF Reference 1.7, 3.4.6).

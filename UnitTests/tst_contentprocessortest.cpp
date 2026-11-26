@@ -36,7 +36,14 @@
 // page alone (8.7.3.1). And three more: the cells of a tiling pattern are on the lattice of the
 // pattern space (8.7.3.1); a negative font size turns the advance of a glyph of every font type,
 // never the character and the word spacing (9.4.4); every nested content has an operand stack
-// of its own.
+// of its own. And the overprint of a graphics state parameter dictionary (8.4.5): /OP sets the
+// one for the other painting operations only when /op is absent, a dictionary with neither
+// changes neither. Three more entries of that dictionary (PDF Reference 1.7, Table 4.8): /Font
+// is [font size] with an indirect reference to the font dictionary, /BM as an array takes its
+// first recognized name, /SMask of a wrong type leaves the soft mask alone. And: an ET without
+// an open text object fails alone (5.3 of the Reference), a path construction operator without
+// a current point is reported and still builds its segment (4.4.1), and a descendant processes
+// the cell of an uncolored tiling pattern inside of PDFUncoloredTilingPatternGuard (4.6.2).
 //
 // The expected values are written by hand from the hand-written content and from the standard;
 // the byte offsets are counted in the tests from the literal strings (offsetAfter), never taken
@@ -50,6 +57,7 @@
 #include "pdfexception.h"
 #include "pdffont.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfoperationcontrol.h"
 #include "pdfoptionalcontent.h"
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfpagecontentprocessor.h"
@@ -120,6 +128,12 @@ public:
         PDFReal lineWidth = 0.0;
         PDFReal alphaFilling = 0.0;
         PDFReal alphaStroking = 0.0;
+        bool overprintStroking = false;     ///< getOverprintMode: the overprint for stroking
+        bool overprintFilling = false;      ///< getOverprintMode: the overprint for the other painting
+        BlendMode blendMode = BlendMode::Normal;
+        const PDFFont* font = nullptr;      ///< getTextFont: the address is compared, never used
+        PDFReal fontSize = 0.0;             ///< getTextFontSize
+        bool isColorIgnored = false;        ///< isColorOperatorsIgnored
         bool isTextObjectOpen = false;      ///< isTextProcessing
         size_t operandCount = 0;            ///< getOperands().size()
         bool hasSoftMask = false;
@@ -163,6 +177,16 @@ public:
     /// isContentDataRetained
     bool retainData = false;
 
+    /// isTextIgnored
+    bool ignoreText = false;
+
+    /// Thrown by performPathPainting, when throwInPathPainting is set: an exception, which the
+    /// processor does not catch, so it leaves processForm
+    struct ProbeException
+    {
+    };
+    bool throwInPathPainting = false;
+
     std::vector<Event> events;
     std::vector<PaintedPath> paths;
     std::vector<std::vector<TextItem>> textSequences;
@@ -202,6 +226,39 @@ public:
     bool isStreamDecoded(PDFInteger index) const { return isContentStreamDecoded(index); }
     QByteArray streamData(PDFInteger index) const { return getContentStreamData(index); }
     QList<PDFRenderError> renderErrors() const { return getRenderErrors(); }
+    bool colorOperatorsIgnored() const { return isColorOperatorsIgnored(); }
+
+    /// Processes the content by the public processForm, the way a descendant processes the cell
+    /// of a tiling pattern by itself: inside of PDFUncoloredTilingPatternGuard(this, uncolored)
+    void processCell(const QByteArray& content, bool uncolored)
+    {
+        PDFUncoloredTilingPatternGuard guard(this, uncolored);
+        processForm(QTransform(), QRectF(), PDFObject(), PDFObject(), content, 0);
+    }
+
+    /// isColorOperatorsIgnored before the guards, inside of an uncolored one, of a colored one
+    /// in it, of an uncolored one in both, and after the end of each of the three
+    std::vector<bool> colorOperatorsIgnoredInNestedGuards()
+    {
+        std::vector<bool> result;
+        result.push_back(isColorOperatorsIgnored());
+        {
+            PDFUncoloredTilingPatternGuard outerGuard(this);
+            result.push_back(isColorOperatorsIgnored());
+            {
+                PDFUncoloredTilingPatternGuard coloredGuard(this, false);
+                result.push_back(isColorOperatorsIgnored());
+                {
+                    PDFUncoloredTilingPatternGuard innerGuard(this, true);
+                    result.push_back(isColorOperatorsIgnored());
+                }
+                result.push_back(isColorOperatorsIgnored());
+            }
+            result.push_back(isColorOperatorsIgnored());
+        }
+        result.push_back(isColorOperatorsIgnored());
+        return result;
+    }
 
     static Range makeRange(PDFInteger beginStream, PDFInteger beginOffset, PDFInteger endStream, PDFInteger endOffset)
     {
@@ -298,6 +355,7 @@ public:
 
 protected:
     virtual bool isContentDataRetained() const override { return retainData; }
+    virtual bool isTextIgnored() const override { return ignoreText; }
 
     virtual bool isTilingPatternProcessingAllowed(PDFInteger tileCount) const override
     {
@@ -359,6 +417,11 @@ protected:
         paintedPath.strokeColor = getGraphicState()->getStrokeColor();
         paintedPath.fillColor = getGraphicState()->getFillColor();
         paths.push_back(std::move(paintedPath));
+
+        if (throwInPathPainting)
+        {
+            throw ProbeException();
+        }
     }
 
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
@@ -472,6 +535,12 @@ private:
         event.lineWidth = state->getLineWidth();
         event.alphaFilling = state->getAlphaFilling();
         event.alphaStroking = state->getAlphaStroking();
+        event.overprintStroking = state->getOverprintMode().overprintStroking;
+        event.overprintFilling = state->getOverprintMode().overprintFilling;
+        event.blendMode = state->getBlendMode();
+        event.font = state->getTextFont().get();
+        event.fontSize = state->getTextFontSize();
+        event.isColorIgnored = isColorOperatorsIgnored();
         event.isTextObjectOpen = isTextProcessing();
         event.operandCount = getOperands().size();
         event.hasSoftMask = state->getSoftMask() != nullptr;
@@ -494,6 +563,37 @@ private:
 };
 
 using Recorder = ContentRecordingProcessor;
+
+/// A descendant with the default isTilingPatternProcessingAllowed (every pattern is allowed),
+/// which only counts the painted paths. It cancels the processing after CANCEL_AFTER_PATHS paths:
+/// a lattice without a bound ends so (a renderer would paint its cells until the page is canceled).
+class TilingCellCountingProcessor : public PDFPageContentProcessor, public PDFOperationControl
+{
+public:
+    using PDFPageContentProcessor::PDFPageContentProcessor;
+
+    static constexpr int CANCEL_AFTER_PATHS = 10000;
+
+    int paintedPaths = 0;
+    QList<QRectF> paintedBounds;    ///< Bounds of the paths painted with a nesting level 0
+
+    virtual bool isOperationCanceled() const override { return paintedPaths >= CANCEL_AFTER_PATHS; }
+
+protected:
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override
+    {
+        Q_UNUSED(stroke);
+        Q_UNUSED(fill);
+        Q_UNUSED(text);
+        Q_UNUSED(fillRule);
+
+        ++paintedPaths;
+        if (getContentNestingLevel() == 0)
+        {
+            paintedBounds.push_back(path.boundingRect());
+        }
+    }
+};
 
 /// A document, the objects its processing needs, and the processor after processContents
 class ContentProcessorRun
@@ -597,6 +697,7 @@ private slots:
     void tilingPatternLattice();
     void tilingPatternLatticeRendering();
     void tilingPatternCellLimit();
+    void tilingPatternTooFineToCount();
 
     // A negative font size
     void negativeFontSize_data();
@@ -612,6 +713,38 @@ private slots:
     // The same output as before the change
     void interceptedOperators();
     void pathsAndGraphicState();
+
+    // The overprint parameters of a graphics state parameter dictionary (OP, op)
+    void overprintOfGraphicState_data();
+    void overprintOfGraphicState();
+
+    // The entries Font, BM and SMask of a graphics state parameter dictionary
+    void fontOfGraphicState_data();
+    void fontOfGraphicState();
+    void fontOfGraphicStateOfIgnoredText();
+    void blendModeOfGraphicState_data();
+    void blendModeOfGraphicState();
+    void softMaskOfGraphicState_data();
+    void softMaskOfGraphicState();
+
+    // ET without an open text object
+    void textEndWithoutBegin_data();
+    void textEndWithoutBegin();
+    void textEndWithoutBeginInForm();
+    void textEndWithoutBeginInGlyph();
+
+    // Path construction operators without a current point
+    void pathWithoutCurrentPoint_data();
+    void pathWithoutCurrentPoint();
+
+    // The cell of an uncolored tiling pattern
+    void uncoloredPatternIgnoresColorOperators();
+    void coloredPatternInsideUncoloredCell();
+    void uncoloredPatternInsideColoredCell();
+    void uncoloredCellByDescendant_data();
+    void uncoloredCellByDescendant();
+    void uncoloredCellGuardsNest();
+    void uncoloredCellGuardEndsWithException();
 
     // The documents of contenttestdocuments.h
     void documentSimpleFonts();
@@ -645,6 +778,48 @@ private:
     static bool getTextPositionAfterShow(const ContentProcessorRun& run, const QByteArray& showOperator, PDFReal* position);
 
     static bool isSameColor(const QColor& color, int red, int green, int blue);
+
+    /// The references to the fonts of createFontStateResources
+    struct FontStateFonts
+    {
+        PDFObject fontA;    ///< /FA: addType3FontObject, Plain
+        PDFObject fontB;    ///< /FB: addType3FontObject, NoSpaceProcedure
+        PDFObject fontS;    ///< /FS: addSimpleFontObject
+        PDFObject fontU;    ///< A font, which the font resources do not have: addType3FontObject, Plain
+    };
+
+    /// The resources of the tests of the entry Font of a graphics state parameter dictionary:
+    /// /Font << /FA /FB /FS >> (FontStateFonts) and the dictionaries of /ExtGState, each << /LW 3
+    /// /Font (the value of its row) >>. The code 65 has the width 0.6 of the text space in the
+    /// three Type 3 fonts.
+    /// \param fonts Gets the references to the fonts
+    static PDFDictionaryBuilder createFontStateResources(PDFDocumentBuilder* builder, FontStateFonts* fonts);
+
+    /// The elements of the path as a text: "M x y" (move), "L x y" (line), "C x1 y1 x2 y2 x3 y3"
+    /// (curve), separated by a space, e.g. "M 0 0 L 10 20"
+    static QString pathText(const QPainterPath& path);
+
+    /// Adds a Type 3 font with one glyph and returns the reference to it: /FontBBox [0 0 100 100],
+    /// /FontMatrix [0.01 0 0 0.01 0 0], /FirstChar 65, /LastChar 65, /Widths [60], /Encoding with
+    /// /Differences [65 /square], /CharProcs << /square (a stream with \p procedure) >>,
+    /// /Resources << /ProcSet [/PDF] >>
+    static PDFObject addGlyphFontObject(PDFDocumentBuilder* builder, const QByteArray& procedure);
+
+    /// The content of the cell of the uncolored tiling pattern /PU of createUncoloredPatternResources:
+    /// each of the twelve color operators once, then the square [0 0 5 5] filled and stroked
+    static QByteArray uncoloredCellContent();
+
+    /// The resources of the tests of the uncolored tiling patterns: /ColorSpace << /Cs [/Pattern
+    /// /DeviceRGB] >> and /Pattern with four tiling patterns (/PatternType 1, /TilingType 1,
+    /// /BBox [0 0 size size], both steps = size):
+    ///   /PU   uncolored (/PaintType 2), size 10, the content uncoloredCellContent
+    ///   /PC   colored (/PaintType 1), size 10, the content "0 0 1 rg 0 0 3 3 re f"
+    ///   /PUN  uncolored, size 10, /Resources << /Pattern << /PC >> >>, the content
+    ///         "/Pattern cs /PC scn 0 0 5 5 re f" - it selects the colored pattern /PC
+    ///   /PCN  colored, size 40, /Resources << /ColorSpace << /Cs >> /Pattern << /PU >> >>, the
+    ///         content "/Cs cs 0 1 0 /PU scn 2 2 6 6 re f 0 0 1 rg 20 20 5 5 re f" - it fills by
+    ///         the uncolored pattern /PU in green and sets a color after it
+    static PDFDictionaryBuilder createUncoloredPatternResources(PDFDocumentBuilder* builder);
 };
 
 PDFInteger ContentProcessorTest::offsetAfter(const QByteArray& content, const QByteArray& token)
@@ -712,6 +887,155 @@ bool ContentProcessorTest::getTextPositionAfterShow(const ContentProcessorRun& r
 bool ContentProcessorTest::isSameColor(const QColor& color, int red, int green, int blue)
 {
     return color.red() == red && color.green() == green && color.blue() == blue;
+}
+
+QString ContentProcessorTest::pathText(const QPainterPath& path)
+{
+    QStringList parts;
+    for (int i = 0; i < path.elementCount(); ++i)
+    {
+        const QPainterPath::Element element = path.elementAt(i);
+        const QString point = QString::number(element.x) + QLatin1Char(' ') + QString::number(element.y);
+        switch (element.type)
+        {
+            case QPainterPath::MoveToElement:
+                parts << QStringLiteral("M") << point;
+                break;
+            case QPainterPath::LineToElement:
+                parts << QStringLiteral("L") << point;
+                break;
+            case QPainterPath::CurveToElement:
+                parts << QStringLiteral("C") << point;
+                break;
+            case QPainterPath::CurveToDataElement:
+                parts << point;
+                break;
+        }
+    }
+    return parts.join(QLatin1Char(' '));
+}
+
+PDFObject ContentProcessorTest::addGlyphFontObject(PDFDocumentBuilder* builder, const QByteArray& procedure)
+{
+    using Documents = ContentTestDocuments;
+
+    PDFObject glyph = Documents::addStreamObject(builder, Documents::DictionaryEntries(), procedure);
+    return Documents::addObject(builder, Documents::createDictionaryObject({
+        { "Type", PDFObject::createName("Font") },
+        { "Subtype", PDFObject::createName("Type3") },
+        { "FontBBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) },
+        { "FontMatrix", Documents::createNumberArrayObject({ 0.01, 0, 0, 0.01, 0, 0 }) },
+        { "FirstChar", PDFObject::createInteger(65) },
+        { "LastChar", PDFObject::createInteger(65) },
+        { "Widths", Documents::createIntegerArrayObject({ 60 }) },
+        { "Encoding", Documents::createDictionaryObject({ { "Type", PDFObject::createName("Encoding") },
+                                                          { "Differences", Documents::createArrayObject({ PDFObject::createInteger(65), PDFObject::createName("square") }) } }) },
+        { "CharProcs", Documents::createDictionaryObject({ { "square", std::move(glyph) } }) },
+        { "Resources", Documents::createDictionaryObject({ { "ProcSet", Documents::createArrayObject({ PDFObject::createName("PDF") }) } }) } }));
+}
+
+QByteArray ContentProcessorTest::uncoloredCellContent()
+{
+    return QByteArray("/DeviceRGB cs /DeviceRGB CS 0 1 0 sc 0 1 0 SC 0 1 0 scn 0 1 0 SCN "
+                      "0.5 g 0.5 G 0 0 1 rg 0 0 1 RG 0 0 0 1 k 0 0 0 1 K "
+                      "0 0 5 5 re B");
+}
+
+PDFDictionaryBuilder ContentProcessorTest::createUncoloredPatternResources(PDFDocumentBuilder* builder)
+{
+    using Documents = ContentTestDocuments;
+
+    const auto addPattern = [builder](PDFInteger paintType, PDFInteger size, PDFObject patternResources, const QByteArray& content)
+    {
+        return Documents::addStreamObject(builder, { { "Type", PDFObject::createName("Pattern") },
+                                                     { "PatternType", PDFObject::createInteger(1) },
+                                                     { "PaintType", PDFObject::createInteger(paintType) },
+                                                     { "TilingType", PDFObject::createInteger(1) },
+                                                     { "BBox", Documents::createIntegerArrayObject({ 0, 0, size, size }) },
+                                                     { "XStep", PDFObject::createInteger(size) },
+                                                     { "YStep", PDFObject::createInteger(size) },
+                                                     { "Resources", std::move(patternResources) } }, content);
+    };
+    const auto noResources = []()
+    {
+        return Documents::createDictionaryObject(Documents::DictionaryEntries());
+    };
+
+    const PDFObject colorSpace = Documents::createArrayObject({ PDFObject::createName("Pattern"), PDFObject::createName("DeviceRGB") });
+    const PDFObject colorSpaces = Documents::createDictionaryObject({ { "Cs", colorSpace } });
+
+    const PDFObject uncolored = addPattern(2, 10, noResources(), uncoloredCellContent());
+    const PDFObject colored = addPattern(1, 10, noResources(), "0 0 1 rg 0 0 3 3 re f");
+    const PDFObject uncoloredNesting = addPattern(2, 10, Documents::createDictionaryObject({ { "Pattern", Documents::createDictionaryObject({ { "PC", colored } }) } }),
+                                                  "/Pattern cs /PC scn 0 0 5 5 re f");
+    const PDFObject coloredNesting = addPattern(1, 40, Documents::createDictionaryObject({ { "ColorSpace", colorSpaces },
+                                                                                           { "Pattern", Documents::createDictionaryObject({ { "PU", uncolored } }) } }),
+                                                "/Cs cs 0 1 0 /PU scn 2 2 6 6 re f 0 0 1 rg 20 20 5 5 re f");
+
+    PDFDictionaryBuilder resources;
+    resources.addEntry(PDFInplaceOrMemoryString("ColorSpace"), colorSpaces);
+    resources.addEntry(PDFInplaceOrMemoryString("Pattern"), Documents::createDictionaryObject({ { "PU", uncolored },
+                                                                                                { "PC", colored },
+                                                                                                { "PUN", uncoloredNesting },
+                                                                                                { "PCN", coloredNesting } }));
+    return resources;
+}
+
+PDFDictionaryBuilder ContentProcessorTest::createFontStateResources(PDFDocumentBuilder* builder, FontStateFonts* fonts)
+{
+    using Documents = ContentTestDocuments;
+
+    fonts->fontA = Documents::addType3FontObject(builder, Documents::Type3Variant::Plain);
+    fonts->fontB = Documents::addType3FontObject(builder, Documents::Type3Variant::NoSpaceProcedure);
+    fonts->fontS = Documents::addSimpleFontObject(builder);
+    fonts->fontU = Documents::addType3FontObject(builder, Documents::Type3Variant::Plain);
+
+    const PDFObject font = fonts->fontA;
+    const PDFObject size = PDFObject::createInteger(12);
+    const PDFObject indirectNumber = Documents::addObject(builder, PDFObject::createInteger(12));
+    const PDFObject noFont = Documents::addObject(builder, Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") } }));
+    const PDFObject directFont = Documents::createDictionaryObject({ { "Type", PDFObject::createName("Font") },
+                                                                     { "Subtype", PDFObject::createName("Type1") },
+                                                                     { "BaseFont", PDFObject::createName("Helvetica") } });
+    const PDFObject nothing = PDFObject::createReference(PDFObjectReference(100000, 0));
+    const PDFObject indirectArray = Documents::addObject(builder, Documents::createArrayObject({ font, size }));
+
+    // << /LW 3 /Font value >>, the value mostly an array
+    const auto state = [](PDFObject value)
+    {
+        return Documents::createDictionaryObject({ { "LW", PDFObject::createInteger(3) }, { "Font", std::move(value) } });
+    };
+    const auto array = [](std::vector<PDFObject> items)
+    {
+        return Documents::createArrayObject(std::move(items));
+    };
+
+    PDFDictionaryBuilder resources;
+    resources.addEntry(PDFInplaceOrMemoryString("Font"), Documents::createDictionaryObject({ { "FA", fonts->fontA }, { "FB", fonts->fontB }, { "FS", fonts->fontS } }));
+    resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({
+        { "GReference", state(array({ font, size })) },
+        { "GSimpleFont", state(array({ fonts->fontS, size })) },
+        { "GUnnamedFont", state(array({ fonts->fontU, size })) },
+        { "GRealSize", state(array({ font, PDFObject::createReal(7.5) })) },
+        { "GIndirectSize", state(array({ font, indirectNumber })) },
+        { "GIndirectArray", state(indirectArray) },
+        { "GName", state(array({ PDFObject::createName("FA"), size })) },
+        { "GNoArray", state(font) },
+        { "GEmpty", state(array({ })) },
+        { "GOneItem", state(array({ font })) },
+        { "GThreeItems", state(array({ font, size, size })) },
+        { "GDirectFont", state(array({ directFont, size })) },
+        { "GNumberFont", state(array({ size, size })) },
+        { "GSizeName", state(array({ font, PDFObject::createName("x") })) },
+        { "GSizeNull", state(array({ font, PDFObject() })) },
+        { "GSizeInfinite", state(array({ font, PDFObject::createReal(std::numeric_limits<PDFReal>::infinity()) })) },
+        { "GSizeNaN", state(array({ font, PDFObject::createReal(std::numeric_limits<PDFReal>::quiet_NaN()) })) },
+        { "GReferenceToNumber", state(array({ indirectNumber, size })) },
+        { "GReferenceToNoFont", state(array({ noFont, size })) },
+        { "GReferenceToNothing", state(array({ nothing, size })) },
+        { "GNameMissing", state(array({ PDFObject::createName("Missing"), size })) },
+        { "GNameSizeName", state(array({ PDFObject::createName("FA"), PDFObject::createName("x") })) } }));
+    return resources;
 }
 
 void ContentProcessorTest::rangesOfOneStream()
@@ -2459,6 +2783,71 @@ void ContentProcessorTest::tilingPatternCellLimit()
     }
 }
 
+void ContentProcessorTest::tilingPatternTooFineToCount()
+{
+    // A5L1-5. The pattern /PF: /BBox [0 0 0.00001 0.00001], /XStep and /YStep 0.00001 (more than the
+    // smallest step a pattern may have, 0.000001) and /Matrix [0.001 0 0 0.001 0 0]. The square
+    // [50 50 150 150] of the page is [50000 150000] of the pattern space in each direction: 10^10
+    // cells of each direction (ISO 32000-2, 8.7.3.1: the lattice of /XStep and /YStep), more than
+    // a count of cells can hold (2^31 - 1). Such a lattice is not painted, also by a descendant,
+    // which allows every pattern (the default isTilingPatternProcessingAllowed): one warning, and
+    // the processing goes on with the black square after the pattern.
+    using D = ContentTestDocuments;
+
+    auto createResources = [](PDFDocumentBuilder* builder)
+    {
+        const PDFObject pattern = D::addStreamObject(builder, { { "Type", PDFObject::createName("Pattern") },
+                                                                { "PatternType", PDFObject::createInteger(1) },
+                                                                { "PaintType", PDFObject::createInteger(1) },
+                                                                { "TilingType", PDFObject::createInteger(1) },
+                                                                { "BBox", D::createNumberArrayObject({ 0.0, 0.0, 0.00001, 0.00001 }) },
+                                                                { "XStep", PDFObject::createReal(0.00001) },
+                                                                { "YStep", PDFObject::createReal(0.00001) },
+                                                                { "Matrix", D::createNumberArrayObject({ 0.001, 0.0, 0.0, 0.001, 0.0, 0.0 }) },
+                                                                { "Resources", D::createDictionaryObject(D::DictionaryEntries()) } },
+                                                     QByteArray("0 0 1 rg 0 0 0.00001 0.00001 re f"));
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Pattern"), D::createDictionaryObject({ { "PF", pattern } }));
+        return resources;
+    };
+
+    PDFDocument document = D::createDocument(QByteArray("/Pattern cs /PF scn 50 50 100 100 re f\n0 g 160 160 20 20 re f\n"), createResources);
+
+    PDFCMSGeneric cms;
+    PDFFontCache fontCache(32, 32);
+    PDFICCProfileCache iccProfileCache;
+    PDFOptionalContentActivity activity(&document, OCUsage::View, nullptr);
+    fontCache.setDocument(PDFModifiedDocument(&document, &activity));
+    iccProfileCache.setDocument(PDFModifiedDocument(&document, &activity));
+
+    TilingCellCountingProcessor processor(document.getCatalog()->getPage(0), &document, &fontCache, &iccProfileCache, &cms, &activity,
+                                          QTransform(), PDFMeshQualitySettings());
+    processor.setOperationControl(&processor);
+
+    QElapsedTimer timer;
+    timer.start();
+    const QList<PDFRenderError> errors = processor.processContents();
+    const qint64 elapsed = timer.elapsed();
+
+    QStringList messages;
+    for (const PDFRenderError& error : errors)
+    {
+        messages << error.message;
+    }
+
+    // No cell is painted, only the black square
+    QVERIFY2(processor.paintedPaths == 1, qPrintable(QStringLiteral("%1 paths painted").arg(processor.paintedPaths)));
+    QCOMPARE(processor.paintedBounds.size(), 1);
+    QCOMPARE(processor.paintedBounds[0], QRectF(160, 160, 20, 20));
+
+    QVERIFY2(errors.size() == 1, qPrintable(messages.join(QStringLiteral(" | "))));
+    QCOMPARE(errors[0].type, RenderErrorType::Warning);
+
+    const qint64 limit = qint64(5000) * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(elapsed < limit, qPrintable(QStringLiteral("%1 ms").arg(elapsed)));
+}
+
 void ContentProcessorTest::negativeFontSize_data()
 {
     QTest::addColumn<QByteArray>("font");
@@ -2967,6 +3356,1028 @@ void ContentProcessorTest::pathsAndGraphicState()
     QCOMPARE(restored->alphaFilling, 1.0);
     QCOMPARE(restored->alphaStroking, 1.0);
     QVERIFY(!restored->hasSoftMask);
+}
+
+void ContentProcessorTest::overprintOfGraphicState_data()
+{
+    // ISO 32000-2, 8.4.5 (the entries of a graphics state parameter dictionary; PDF 1.7 reference,
+    // Table 4.8): OP sets the overprint for stroking - and the one for the other painting
+    // operations too, unless the same dictionary has op; op sets the overprint for the other
+    // painting operations; the results of gs are cumulative, so a dictionary with neither of
+    // them changes neither. An entry, which is not a boolean, is handled as an absent one.
+    //
+    // start: the dictionary of the gs before q, which sets the start state by both keys (empty =
+    // the initial state, both false: 8.4.1); dictionary: the dictionary of the gs after q.
+    QTest::addColumn<QByteArray>("start");
+    QTest::addColumn<bool>("startStroking");
+    QTest::addColumn<bool>("startFilling");
+    QTest::addColumn<QByteArray>("dictionary");
+    QTest::addColumn<bool>("stroking");
+    QTest::addColumn<bool>("filling");
+
+    // << /ca 0.5 >>: neither of the keys, nothing changes
+    QTest::newRow("initial, /ca") << QByteArray() << false << false << QByteArray("GAlpha") << false << false;
+    QTest::newRow("both on, /ca") << QByteArray("GOnFillOn") << true << true << QByteArray("GAlpha") << true << true;
+    QTest::newRow("stroking only, /ca") << QByteArray("GOnFillOff") << true << false << QByteArray("GAlpha") << true << false;
+    QTest::newRow("filling only, /ca") << QByteArray("GOffFillOn") << false << true << QByteArray("GAlpha") << false << true;
+
+    // << /OP true >>: both parameters
+    QTest::newRow("initial, /OP true") << QByteArray() << false << false << QByteArray("GOn") << true << true;
+    QTest::newRow("both on, /OP true") << QByteArray("GOnFillOn") << true << true << QByteArray("GOn") << true << true;
+    QTest::newRow("stroking only, /OP true") << QByteArray("GOnFillOff") << true << false << QByteArray("GOn") << true << true;
+    QTest::newRow("filling only, /OP true") << QByteArray("GOffFillOn") << false << true << QByteArray("GOn") << true << true;
+
+    // << /OP false >>: both parameters
+    QTest::newRow("initial, /OP false") << QByteArray() << false << false << QByteArray("GOff") << false << false;
+    QTest::newRow("both on, /OP false") << QByteArray("GOnFillOn") << true << true << QByteArray("GOff") << false << false;
+    QTest::newRow("stroking only, /OP false") << QByteArray("GOnFillOff") << true << false << QByteArray("GOff") << false << false;
+    QTest::newRow("filling only, /OP false") << QByteArray("GOffFillOn") << false << true << QByteArray("GOff") << false << false;
+
+    // << /op true >>: the other painting operations only, the stroking stays
+    QTest::newRow("initial, /op true") << QByteArray() << false << false << QByteArray("GFillOn") << false << true;
+    QTest::newRow("both on, /op true") << QByteArray("GOnFillOn") << true << true << QByteArray("GFillOn") << true << true;
+    QTest::newRow("stroking only, /op true") << QByteArray("GOnFillOff") << true << false << QByteArray("GFillOn") << true << true;
+    QTest::newRow("filling only, /op true") << QByteArray("GOffFillOn") << false << true << QByteArray("GFillOn") << false << true;
+
+    // << /op false >>: the other painting operations only, the stroking stays
+    QTest::newRow("initial, /op false") << QByteArray() << false << false << QByteArray("GFillOff") << false << false;
+    QTest::newRow("both on, /op false") << QByteArray("GOnFillOn") << true << true << QByteArray("GFillOff") << true << false;
+    QTest::newRow("stroking only, /op false") << QByteArray("GOnFillOff") << true << false << QByteArray("GFillOff") << true << false;
+    QTest::newRow("filling only, /op false") << QByteArray("GOffFillOn") << false << true << QByteArray("GFillOff") << false << false;
+
+    // << /OP true /op false >>: each key sets its parameter
+    QTest::newRow("initial, /OP true /op false") << QByteArray() << false << false << QByteArray("GOnFillOff") << true << false;
+    QTest::newRow("both on, /OP true /op false") << QByteArray("GOnFillOn") << true << true << QByteArray("GOnFillOff") << true << false;
+    QTest::newRow("stroking only, /OP true /op false") << QByteArray("GOnFillOff") << true << false << QByteArray("GOnFillOff") << true << false;
+    QTest::newRow("filling only, /OP true /op false") << QByteArray("GOffFillOn") << false << true << QByteArray("GOnFillOff") << true << false;
+
+    // << /OP false /op true >>: each key sets its parameter
+    QTest::newRow("initial, /OP false /op true") << QByteArray() << false << false << QByteArray("GOffFillOn") << false << true;
+    QTest::newRow("both on, /OP false /op true") << QByteArray("GOnFillOn") << true << true << QByteArray("GOffFillOn") << false << true;
+    QTest::newRow("stroking only, /OP false /op true") << QByteArray("GOnFillOff") << true << false << QByteArray("GOffFillOn") << false << true;
+    QTest::newRow("filling only, /OP false /op true") << QByteArray("GOffFillOn") << false << true << QByteArray("GOffFillOn") << false << true;
+
+    // << /OP /true /op 1 >>: a name and an integer are not booleans, both entries are as if
+    // absent and nothing changes
+    QTest::newRow("initial, both of a wrong type") << QByteArray() << false << false << QByteArray("GBad") << false << false;
+    QTest::newRow("both on, both of a wrong type") << QByteArray("GOnFillOn") << true << true << QByteArray("GBad") << true << true;
+    QTest::newRow("stroking only, both of a wrong type") << QByteArray("GOnFillOff") << true << false << QByteArray("GBad") << true << false;
+    QTest::newRow("filling only, both of a wrong type") << QByteArray("GOffFillOn") << false << true << QByteArray("GBad") << false << true;
+
+    // << /OP true /op 1 >>: op is as if absent, OP sets both parameters
+    QTest::newRow("initial, /OP true, op of a wrong type") << QByteArray() << false << false << QByteArray("GOnBadFill") << true << true;
+    QTest::newRow("both on, /OP true, op of a wrong type") << QByteArray("GOnFillOn") << true << true << QByteArray("GOnBadFill") << true << true;
+    QTest::newRow("stroking only, /OP true, op of a wrong type") << QByteArray("GOnFillOff") << true << false << QByteArray("GOnBadFill") << true << true;
+    QTest::newRow("filling only, /OP true, op of a wrong type") << QByteArray("GOffFillOn") << false << true << QByteArray("GOnBadFill") << true << true;
+
+    // << /OP 1 /op true >>: OP is as if absent, the stroking stays, op sets its parameter
+    QTest::newRow("initial, OP of a wrong type, /op true") << QByteArray() << false << false << QByteArray("GBadFillOn") << false << true;
+    QTest::newRow("both on, OP of a wrong type, /op true") << QByteArray("GOnFillOn") << true << true << QByteArray("GBadFillOn") << true << true;
+    QTest::newRow("stroking only, OP of a wrong type, /op true") << QByteArray("GOnFillOff") << true << false << QByteArray("GBadFillOn") << true << true;
+    QTest::newRow("filling only, OP of a wrong type, /op true") << QByteArray("GOffFillOn") << false << true << QByteArray("GBadFillOn") << false << true;
+}
+
+void ContentProcessorTest::overprintOfGraphicState()
+{
+    QFETCH(QByteArray, start);
+    QFETCH(bool, startStroking);
+    QFETCH(bool, startFilling);
+    QFETCH(QByteArray, dictionary);
+    QFETCH(bool, stroking);
+    QFETCH(bool, filling);
+
+    // The start state by a gs with both keys (none = the initial state), then the tested gs
+    // inside of q ... Q
+    QByteArray content;
+    if (!start.isEmpty())
+    {
+        content += "/" + start + " gs\n";
+    }
+    content += "q\n/" + dictionary + " gs\nQ\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [](PDFDocumentBuilder* builder)
+    {
+        Q_UNUSED(builder);
+
+        // The graphics state parameter dictionaries of the rows, each with its entries only
+        using Documents = ContentTestDocuments;
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({
+            { "GAlpha", Documents::createDictionaryObject({ { "ca", PDFObject::createReal(0.5) } }) },
+            { "GOn", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(true) } }) },
+            { "GOff", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(false) } }) },
+            { "GFillOn", Documents::createDictionaryObject({ { "op", PDFObject::createBool(true) } }) },
+            { "GFillOff", Documents::createDictionaryObject({ { "op", PDFObject::createBool(false) } }) },
+            { "GOnFillOn", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(true) }, { "op", PDFObject::createBool(true) } }) },
+            { "GOnFillOff", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(true) }, { "op", PDFObject::createBool(false) } }) },
+            { "GOffFillOn", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(false) }, { "op", PDFObject::createBool(true) } }) },
+            { "GBad", Documents::createDictionaryObject({ { "OP", PDFObject::createName("true") }, { "op", PDFObject::createInteger(1) } }) },
+            { "GOnBadFill", Documents::createDictionaryObject({ { "OP", PDFObject::createBool(true) }, { "op", PDFObject::createInteger(1) } }) },
+            { "GBadFillOn", Documents::createDictionaryObject({ { "OP", PDFObject::createInteger(1) }, { "op", PDFObject::createBool(true) } }) } }));
+        return resources;
+    }));
+    const Recorder& recorder = *run.processor;
+    QVERIFY2(run.errors.isEmpty(), qPrintable(run.errorText()));
+
+    QStringList expectedTrace = pairs(0, { "q", "gs", "Q" });
+    if (!start.isEmpty())
+    {
+        expectedTrace = pairs(0, { "gs" }) + expectedTrace;
+    }
+    QCOMPARE(recorder.trace(), expectedTrace);
+
+    // The start state, as q saves it
+    const Recorder::Event* saved = recorder.lastEvent(Recorder::EventKind::After, "q");
+    QVERIFY(saved);
+    QCOMPARE(saved->overprintStroking, startStroking);
+    QCOMPARE(saved->overprintFilling, startFilling);
+
+    // The state after the tested gs (the last one of the content)
+    const Recorder::Event* set = recorder.lastEvent(Recorder::EventKind::After, "gs");
+    QVERIFY(set);
+    QCOMPARE(set->overprintStroking, stroking);
+    QCOMPARE(set->overprintFilling, filling);
+
+    // The dictionary was applied: only /GAlpha has /ca, the alpha of the initial state is 1
+    QCOMPARE(set->alphaFilling, dictionary == "GAlpha" ? 0.5 : 1.0);
+
+    // Q restores both parameters of the start state
+    const Recorder::Event* restored = recorder.lastEvent(Recorder::EventKind::After, "Q");
+    QVERIFY(restored);
+    QCOMPARE(restored->overprintStroking, startStroking);
+    QCOMPARE(restored->overprintFilling, startFilling);
+    QCOMPARE(restored->alphaFilling, 1.0);
+}
+
+void ContentProcessorTest::fontOfGraphicState_data()
+{
+    // PDF Reference 1.7, Table 4.8 (the entries of a graphics state parameter dictionary; the
+    // corresponding section of ISO 32000-2 is 8.4.5), Font: "An array of the form [font size],
+    // where font is an indirect reference to a font dictionary and size is a number expressed in
+    // text space units. These two objects correspond to the operands of the Tf operator;
+    // however, the first operand is an indirect object reference instead of a resource name."
+    //
+    // The page sets the font /FB of the size 10 by Tf; the fonts and the dictionaries are those
+    // of createFontStateResources, each dictionary with /LW 3 beside its /Font. font, size: the
+    // font and its size after the gs; error: the only error of the page (empty = none). A wrong
+    // entry leaves the font and its size alone, the operator does not fail and the rest of the
+    // dictionary is applied.
+    QTest::addColumn<QByteArray>("dictionary");
+    QTest::addColumn<QByteArray>("font");
+    QTest::addColumn<double>("size");
+    QTest::addColumn<QString>("error");
+
+    const QString invalid = QStringLiteral("Font of the graphic state is invalid.");
+
+    // The conforming entry
+    QTest::newRow("reference, integer size") << QByteArray("GReference") << QByteArray("FA") << 12.0 << QString();
+    QTest::newRow("reference, real size") << QByteArray("GRealSize") << QByteArray("FA") << 7.5 << QString();
+    QTest::newRow("reference, indirect size") << QByteArray("GIndirectSize") << QByteArray("FA") << 12.0 << QString();
+    QTest::newRow("indirect array") << QByteArray("GIndirectArray") << QByteArray("FA") << 12.0 << QString();
+    QTest::newRow("reference to a simple font") << QByteArray("GSimpleFont") << QByteArray("FS") << 12.0 << QString();
+    QTest::newRow("reference to a font without a resource name") << QByteArray("GUnnamedFont") << QByteArray("FU") << 12.0 << QString();
+
+    // A name of the font resources in place of the reference: accepted (NOTES.txt, 8.4.5)
+    QTest::newRow("name of a resource") << QByteArray("GName") << QByteArray("FA") << 12.0 << QString();
+
+    // Not an array of two items
+    QTest::newRow("no array") << QByteArray("GNoArray") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("empty array") << QByteArray("GEmpty") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("one item") << QByteArray("GOneItem") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("three items") << QByteArray("GThreeItems") << QByteArray("FB") << 10.0 << invalid;
+
+    // The font is neither a reference nor a name
+    QTest::newRow("direct font dictionary") << QByteArray("GDirectFont") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("number in place of the font") << QByteArray("GNumberFont") << QByteArray("FB") << 10.0 << invalid;
+
+    // The size is not a finite number
+    QTest::newRow("size is a name") << QByteArray("GSizeName") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("size is null") << QByteArray("GSizeNull") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("size is infinite") << QByteArray("GSizeInfinite") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("size is not a number") << QByteArray("GSizeNaN") << QByteArray("FB") << 10.0 << invalid;
+    QTest::newRow("name, size is a name") << QByteArray("GNameSizeName") << QByteArray("FB") << 10.0 << invalid;
+
+    // The reference does not lead to a font: the error of the font, as Tf reports it
+    QTest::newRow("reference to a number") << QByteArray("GReferenceToNumber") << QByteArray("FB") << 10.0 << QStringLiteral("Font object must be a dictionary.");
+    QTest::newRow("reference to a dictionary, which is no font") << QByteArray("GReferenceToNoFont") << QByteArray("FB") << 10.0 << QStringLiteral("Invalid font type.");
+    QTest::newRow("reference to no object") << QByteArray("GReferenceToNothing") << QByteArray("FB") << 10.0 << QStringLiteral("Font object must be a dictionary.");
+
+    // The name is not in the font resources: the error of Tf
+    QTest::newRow("name without a resource") << QByteArray("GNameMissing") << QByteArray("FB") << 10.0 << QStringLiteral("Font 'Missing' not found in font dictionary.");
+}
+
+void ContentProcessorTest::fontOfGraphicState()
+{
+    QFETCH(QByteArray, dictionary);
+    QFETCH(QByteArray, font);
+    QFETCH(double, size);
+    QFETCH(QString, error);
+
+    // The font of Tf; the tested gs and a text inside of q ... Q, the same text after it
+    const QByteArray content = "/FB 10 Tf\n"
+                               "q\n"
+                               "/" + dictionary + " gs\n"
+                               "BT 20 100 Td (A) Tj ET\n"
+                               "Q\n"
+                               "BT 20 100 Td (A) Tj ET\n";
+
+    FontStateFonts fonts;
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [&fonts](PDFDocumentBuilder* builder)
+    {
+        return createFontStateResources(builder, &fonts);
+    }));
+    const Recorder& recorder = *run.processor;
+
+    // A wrong entry is one error of the list; no operator fails, also not the gs
+    if (error.isEmpty())
+    {
+        QVERIFY2(run.errors.isEmpty(), qPrintable(run.errorText()));
+    }
+    else
+    {
+        QCOMPARE(run.errors.size(), 1);
+        QCOMPARE(run.errors[0].type, RenderErrorType::Error);
+        QCOMPARE(run.errors[0].message, error);
+    }
+    QVERIFY(recorder.eventsOfKind(Recorder::EventKind::Failed).empty());
+
+    // The fonts of the font dictionaries, as the font cache of the processor holds them
+    const PDFObject& expectedFontObject = font == "FA" ? fonts.fontA : (font == "FS" ? fonts.fontS : (font == "FU" ? fonts.fontU : fonts.fontB));
+    const PDFFont* expectedFontB = run.fontCache.getFont(fonts.fontB, QByteArray()).get();
+    const PDFFont* expectedFont = run.fontCache.getFont(expectedFontObject, QByteArray()).get();
+    QVERIFY(expectedFont && expectedFontB);
+    QCOMPARE(expectedFont == expectedFontB, font == "FB");
+
+    // The identifier of the font is its name in the font resources, also when the gs created
+    // the font by its reference; a font, which the resources do not have, has none
+    QCOMPARE(expectedFont->getFontId(), font == "FU" ? QByteArray() : font);
+
+    // The state after the gs: the font and its size, and the line width of the same dictionary
+    const Recorder::Event* set = recorder.lastEvent(Recorder::EventKind::After, "gs");
+    QVERIFY(set);
+    QCOMPARE(set->font, expectedFont);
+    QCOMPARE(set->fontSize, size);
+    QCOMPARE(set->lineWidth, 3.0);
+
+    // The two texts of the page (a glyph procedure of the fonts shows no text)
+    std::vector<Recorder::Event> shows;
+    for (const Recorder::Event& event : recorder.eventsOfKind(Recorder::EventKind::After))
+    {
+        if (event.text == "Tj")
+        {
+            shows.push_back(event);
+        }
+    }
+    QCOMPARE(shows.size(), size_t(2));
+
+    // The font and the size reach the text. The code 65 has the width 0.6 of the text space in
+    // both Type 3 fonts, the text moves by tx = 0.6 * Tfs (PDF Reference 1.7, 5.3.3); the
+    // advance of the simple font comes from a font of the system, a test cannot know it
+    QCOMPARE(shows[0].font, expectedFont);
+    QCOMPARE(shows[0].fontSize, size);
+    if (font != "FS")
+    {
+        COMPARE_NEAR(shows[0].textMatrix.dx(), 20.0 + 0.6 * size);
+    }
+    else
+    {
+        QVERIFY(shows[0].textMatrix.dx() > 20.0);
+    }
+
+    // Q restores the font, the size and the line width of before q
+    const Recorder::Event* restored = recorder.lastEvent(Recorder::EventKind::After, "Q");
+    QVERIFY(restored);
+    QCOMPARE(restored->font, expectedFontB);
+    QCOMPARE(restored->fontSize, 10.0);
+    QCOMPARE(restored->lineWidth, 1.0);
+    QCOMPARE(shows[1].font, expectedFontB);
+    QCOMPARE(shows[1].fontSize, 10.0);
+    COMPARE_NEAR(shows[1].textMatrix.dx(), 26.0);
+}
+
+void ContentProcessorTest::fontOfGraphicStateOfIgnoredText()
+{
+    // A processor, which ignores the text (isTextIgnored), loads no font: Tf does nothing there,
+    // and the entry Font of a graphics state parameter dictionary is not read either - neither
+    // the conforming one nor a wrong one (no error). The rest of the dictionary is applied.
+    const QByteArray content = "/GReference gs\n"
+                               "/GOneItem gs\n";
+
+    FontStateFonts fonts;
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [&fonts](PDFDocumentBuilder* builder)
+    {
+        return createFontStateResources(builder, &fonts);
+    }), false, false);
+    run.processor->ignoreText = true;
+    run.errors = run.processor->processContents();
+    const Recorder& recorder = *run.processor;
+
+    QVERIFY2(run.errors.isEmpty(), qPrintable(run.errorText()));
+    QCOMPARE(recorder.trace(), pairs(0, { "gs", "gs" }));
+
+    const std::vector<Recorder::Event> after = recorder.eventsOfKind(Recorder::EventKind::After);
+    QCOMPARE(after.size(), size_t(2));
+    for (const Recorder::Event& event : after)
+    {
+        QCOMPARE(event.font, static_cast<const PDFFont*>(nullptr));
+        QCOMPARE(event.fontSize, 0.0);
+        QCOMPARE(event.lineWidth, 3.0);
+    }
+}
+
+void ContentProcessorTest::blendModeOfGraphicState_data()
+{
+    // PDF Reference 1.7, Table 4.8 (BM: name or array; the corresponding section of ISO 32000-2
+    // is 8.4.5) and 7.5.2: the value "is either a name object, designating one of the standard
+    // blend modes [...], or an array of such names. In the latter case, the application should
+    // use the first blend mode in the array that it recognizes (or Normal if it recognizes none
+    // of them)."
+    //
+    // The page sets the blend mode Screen by a gs with a single name; blendMode: the mode after
+    // the tested gs; error: the only error of the page (empty = none). An item of the array,
+    // which is not a name, is skipped; an array without a name changes nothing, as an entry of a
+    // wrong type; an unknown name alone is the mode Normal and an error.
+    QTest::addColumn<QByteArray>("dictionary");
+    QTest::addColumn<int>("blendMode");
+    QTest::addColumn<QString>("error");
+
+    const QString invalidFoo = QStringLiteral("Blend mode 'Foo' is invalid.");
+
+    // A single name, and a value, which is neither a name nor an array
+    QTest::newRow("name") << QByteArray("GName") << int(BlendMode::Multiply) << QString();
+    QTest::newRow("unknown name") << QByteArray("GUnknown") << int(BlendMode::Normal) << invalidFoo;
+    QTest::newRow("number") << QByteArray("GNumber") << int(BlendMode::Screen) << QString();
+
+    // Arrays of names
+    QTest::newRow("[/Multiply /Darken]") << QByteArray("GSupportedFirst") << int(BlendMode::Multiply) << QString();
+    QTest::newRow("[/Foo /Multiply]") << QByteArray("GUnknownFirst") << int(BlendMode::Multiply) << QString();
+    QTest::newRow("[/Foo /Bar /Darken /Multiply]") << QByteArray("GUnknownTwice") << int(BlendMode::Darken) << QString();
+    QTest::newRow("[/Foo /Bar]") << QByteArray("GAllUnknown") << int(BlendMode::Normal) << invalidFoo;
+    QTest::newRow("[]") << QByteArray("GEmpty") << int(BlendMode::Screen) << QString();
+
+    // Items, which are not names
+    QTest::newRow("[1 /Multiply]") << QByteArray("GNumberFirst") << int(BlendMode::Multiply) << QString();
+    QTest::newRow("[1 2.5 true]") << QByteArray("GNoNames") << int(BlendMode::Screen) << QString();
+    QTest::newRow("[1 /Foo]") << QByteArray("GNumberUnknown") << int(BlendMode::Normal) << invalidFoo;
+    QTest::newRow("[reference to /Multiply]") << QByteArray("GIndirectName") << int(BlendMode::Multiply) << QString();
+}
+
+void ContentProcessorTest::blendModeOfGraphicState()
+{
+    QFETCH(QByteArray, dictionary);
+    QFETCH(int, blendMode);
+    QFETCH(QString, error);
+
+    const QByteArray content = "/GStart gs\n"
+                               "q\n"
+                               "/" + dictionary + " gs\n"
+                               "Q\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [](PDFDocumentBuilder* builder)
+    {
+        using Documents = ContentTestDocuments;
+
+        const auto name = [](const char* text)
+        {
+            return PDFObject::createName(text);
+        };
+        const auto state = [](PDFObject value)
+        {
+            return Documents::createDictionaryObject({ { "BM", std::move(value) } });
+        };
+        const PDFObject number = PDFObject::createInteger(1);
+        const PDFObject indirectName = Documents::addObject(builder, name("Multiply"));
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({
+            { "GStart", state(name("Screen")) },
+            { "GName", state(name("Multiply")) },
+            { "GUnknown", state(name("Foo")) },
+            { "GNumber", state(number) },
+            { "GSupportedFirst", state(Documents::createArrayObject({ name("Multiply"), name("Darken") })) },
+            { "GUnknownFirst", state(Documents::createArrayObject({ name("Foo"), name("Multiply") })) },
+            { "GUnknownTwice", state(Documents::createArrayObject({ name("Foo"), name("Bar"), name("Darken"), name("Multiply") })) },
+            { "GAllUnknown", state(Documents::createArrayObject({ name("Foo"), name("Bar") })) },
+            { "GEmpty", state(Documents::createArrayObject({ })) },
+            { "GNumberFirst", state(Documents::createArrayObject({ number, name("Multiply") })) },
+            { "GNoNames", state(Documents::createArrayObject({ number, PDFObject::createReal(2.5), PDFObject::createBool(true) })) },
+            { "GNumberUnknown", state(Documents::createArrayObject({ number, name("Foo") })) },
+            { "GIndirectName", state(Documents::createArrayObject({ indirectName })) } }));
+        return resources;
+    }));
+    const Recorder& recorder = *run.processor;
+
+    // An unknown blend mode is one error of the list; the operator gs does not fail
+    if (error.isEmpty())
+    {
+        QVERIFY2(run.errors.isEmpty(), qPrintable(run.errorText()));
+    }
+    else
+    {
+        QCOMPARE(run.errors.size(), 1);
+        QCOMPARE(run.errors[0].type, RenderErrorType::NotImplemented);
+        QCOMPARE(run.errors[0].message, error);
+    }
+    QCOMPARE(recorder.trace(), pairs(0, { "gs", "q", "gs", "Q" }));
+
+    // The start state, as q saves it; the state after the tested gs; Q restores the start state
+    const Recorder::Event* saved = recorder.lastEvent(Recorder::EventKind::After, "q");
+    const Recorder::Event* set = recorder.lastEvent(Recorder::EventKind::After, "gs");
+    const Recorder::Event* restored = recorder.lastEvent(Recorder::EventKind::After, "Q");
+    QVERIFY(saved && set && restored);
+    QCOMPARE(int(saved->blendMode), int(BlendMode::Screen));
+    QCOMPARE(int(set->blendMode), blendMode);
+    QCOMPARE(int(restored->blendMode), int(BlendMode::Screen));
+}
+
+void ContentProcessorTest::softMaskOfGraphicState_data()
+{
+    // PDF Reference 1.7, Table 4.8 (SMask: dictionary or name; the corresponding section of
+    // ISO 32000-2 is 8.4.5): "altering it with the gs operator completely replaces the old value
+    // with the new one"; and 7.5.3, Mask Shape and Opacity: the current soft mask "contains a
+    // soft-mask dictionary [...]. The name None may be specified in place of a soft-mask
+    // dictionary, denoting the absence of a soft mask." A value, which is neither a dictionary
+    // nor the name None, is handled as an absent entry: the current soft mask stays, nothing is
+    // reported.
+    //
+    // withMask: the page sets the mask "start" (/S /Alpha) by a gs before q; mask: the mask
+    // after the tested gs - "none", "start" or "new" (/S /Luminosity, the mask of the tested
+    // dictionaries).
+    QTest::addColumn<bool>("withMask");
+    QTest::addColumn<QByteArray>("dictionary");
+    QTest::addColumn<QByteArray>("mask");
+
+    // No entry
+    QTest::newRow("no mask, no entry") << false << QByteArray("GAbsent") << QByteArray("none");
+    QTest::newRow("mask, no entry") << true << QByteArray("GAbsent") << QByteArray("start");
+
+    // A soft-mask dictionary, direct and by a reference
+    QTest::newRow("no mask, dictionary") << false << QByteArray("GMask") << QByteArray("new");
+    QTest::newRow("mask, dictionary") << true << QByteArray("GMask") << QByteArray("new");
+    QTest::newRow("no mask, reference to a dictionary") << false << QByteArray("GMaskReference") << QByteArray("new");
+    QTest::newRow("mask, reference to a dictionary") << true << QByteArray("GMaskReference") << QByteArray("new");
+
+    // The name None, direct and by a reference
+    QTest::newRow("no mask, /None") << false << QByteArray("GNone") << QByteArray("none");
+    QTest::newRow("mask, /None") << true << QByteArray("GNone") << QByteArray("none");
+    QTest::newRow("mask, reference to /None") << true << QByteArray("GNoneReference") << QByteArray("none");
+
+    // Values of a wrong type and an unknown name
+    QTest::newRow("no mask, number") << false << QByteArray("GNumber") << QByteArray("none");
+    QTest::newRow("mask, number") << true << QByteArray("GNumber") << QByteArray("start");
+    QTest::newRow("no mask, array") << false << QByteArray("GArray") << QByteArray("none");
+    QTest::newRow("mask, array") << true << QByteArray("GArray") << QByteArray("start");
+    QTest::newRow("no mask, unknown name") << false << QByteArray("GName") << QByteArray("none");
+    QTest::newRow("mask, unknown name") << true << QByteArray("GName") << QByteArray("start");
+    QTest::newRow("no mask, reference to a number") << false << QByteArray("GReferenceToNumber") << QByteArray("none");
+    QTest::newRow("mask, reference to a number") << true << QByteArray("GReferenceToNumber") << QByteArray("start");
+    QTest::newRow("no mask, reference to a stream") << false << QByteArray("GReferenceToStream") << QByteArray("none");
+    QTest::newRow("mask, reference to a stream") << true << QByteArray("GReferenceToStream") << QByteArray("start");
+}
+
+void ContentProcessorTest::softMaskOfGraphicState()
+{
+    QFETCH(bool, withMask);
+    QFETCH(QByteArray, dictionary);
+    QFETCH(QByteArray, mask);
+
+    // The contents of the transparency groups of the two masks: a test sees, which mask the
+    // state holds
+    const QByteArray startGroupContent = "0 g 0 0 10 10 re f";
+    const QByteArray newGroupContent = "1 g 0 0 20 20 re f";
+
+    QByteArray content;
+    if (withMask)
+    {
+        content += "/GStart gs\n";
+    }
+    content += "q\n/" + dictionary + " gs\nQ\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [&startGroupContent, &newGroupContent](PDFDocumentBuilder* builder)
+    {
+        using Documents = ContentTestDocuments;
+
+        const auto addGroup = [builder](const QByteArray& groupContent)
+        {
+            return Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                         { "Subtype", PDFObject::createName("Form") },
+                                                         { "BBox", Documents::createIntegerArrayObject({ 0, 0, 200, 200 }) },
+                                                         { "Group", Documents::createDictionaryObject({ { "S", PDFObject::createName("Transparency") },
+                                                                                                        { "CS", PDFObject::createName("DeviceGray") } }) } }, groupContent);
+        };
+        const auto state = [](PDFObject value)
+        {
+            return Documents::createDictionaryObject({ { "SMask", std::move(value) } });
+        };
+
+        const PDFObject newGroup = addGroup(newGroupContent);
+        const PDFObject startMask = Documents::createDictionaryObject({ { "Type", PDFObject::createName("Mask") },
+                                                                        { "S", PDFObject::createName("Alpha") },
+                                                                        { "G", addGroup(startGroupContent) } });
+        const PDFObject newMask = Documents::createDictionaryObject({ { "Type", PDFObject::createName("Mask") },
+                                                                      { "S", PDFObject::createName("Luminosity") },
+                                                                      { "G", newGroup } });
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({
+            { "GStart", state(startMask) },
+            { "GAbsent", Documents::createDictionaryObject({ { "ca", PDFObject::createReal(0.5) } }) },
+            { "GMask", state(newMask) },
+            { "GMaskReference", state(Documents::addObject(builder, newMask)) },
+            { "GNone", state(PDFObject::createName("None")) },
+            { "GNoneReference", state(Documents::addObject(builder, PDFObject::createName("None"))) },
+            { "GNumber", state(PDFObject::createInteger(1)) },
+            { "GArray", state(Documents::createArrayObject({ PDFObject::createName("None") })) },
+            { "GName", state(PDFObject::createName("Foo")) },
+            { "GReferenceToNumber", state(Documents::addObject(builder, PDFObject::createInteger(1))) },
+            { "GReferenceToStream", state(newGroup) } }));
+        return resources;
+    }));
+    const Recorder& recorder = *run.processor;
+
+    // Nothing is reported, also not a value of a wrong type
+    QVERIFY2(run.errors.isEmpty(), qPrintable(run.errorText()));
+
+    QStringList expectedTrace = pairs(0, { "q", "gs", "Q" });
+    if (withMask)
+    {
+        expectedTrace = pairs(0, { "gs" }) + expectedTrace;
+    }
+    QCOMPARE(recorder.trace(), expectedTrace);
+
+    // The start state, as q saves it; the state after the tested gs; Q restores the start state
+    const Recorder::Event* saved = recorder.lastEvent(Recorder::EventKind::After, "q");
+    const Recorder::Event* set = recorder.lastEvent(Recorder::EventKind::After, "gs");
+    const Recorder::Event* restored = recorder.lastEvent(Recorder::EventKind::After, "Q");
+    QVERIFY(saved && set && restored);
+
+    QCOMPARE(saved->hasSoftMask, withMask);
+    QCOMPARE(saved->isSoftMaskLuminosity, false);
+    QCOMPARE(saved->softMaskContent, withMask ? startGroupContent : QByteArray());
+
+    QCOMPARE(set->hasSoftMask, mask != "none");
+    QCOMPARE(set->isSoftMaskLuminosity, mask == "new");
+    QCOMPARE(set->softMaskContent, mask == "new" ? newGroupContent : (mask == "start" ? startGroupContent : QByteArray()));
+
+    QCOMPARE(restored->hasSoftMask, withMask);
+    QCOMPARE(restored->isSoftMaskLuminosity, false);
+    QCOMPARE(restored->softMaskContent, withMask ? startGroupContent : QByteArray());
+}
+
+void ContentProcessorTest::textEndWithoutBegin_data()
+{
+    // PDF Reference 1.7, 5.3: "A text object begins with the BT operator and ends with the ET
+    // operator"; Table 5.4, ET: "End a text object, discarding the text matrix." An ET without
+    // an open text object ends nothing: it is an error of that operator only, and the text
+    // objects after it are whole.
+    //
+    // errors: the failed ET operators of the page; begins, ends: the text objects, which were
+    // begun and ended (performTextBegin, performTextEnd); shows: the texts shown, each one
+    // inside of an open text object.
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<int>("errors");
+    QTest::addColumn<int>("begins");
+    QTest::addColumn<int>("ends");
+    QTest::addColumn<int>("shows");
+
+    QTest::newRow("BT text ET") << QByteArray("BT /F1 10 Tf 20 100 Td (A) Tj ET") << 0 << 1 << 1 << 1;
+    QTest::newRow("ET") << QByteArray("ET") << 1 << 0 << 0 << 0;
+    QTest::newRow("ET ET BT text ET") << QByteArray("ET ET BT /F1 10 Tf 20 100 Td (A) Tj ET") << 2 << 1 << 1 << 1;
+    QTest::newRow("BT ET ET BT text ET") << QByteArray("BT ET ET BT /F1 10 Tf 20 100 Td (A) Tj ET") << 1 << 2 << 2 << 1;
+    QTest::newRow("ET BT text ET ET BT text ET") << QByteArray("ET BT /F1 10 Tf 20 100 Td (A) Tj ET ET BT 20 50 Td (B) Tj ET") << 2 << 2 << 2 << 2;
+}
+
+void ContentProcessorTest::textEndWithoutBegin()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(int, errors);
+    QFETCH(int, begins);
+    QFETCH(int, ends);
+    QFETCH(int, shows);
+
+    ContentProcessorRun run(ContentTestDocuments::createFontsDocument(content));
+    const Recorder& recorder = *run.processor;
+
+    // Each ET without a text object fails, and nothing else
+    const std::vector<Recorder::Event> failed = recorder.eventsOfKind(Recorder::EventKind::Failed);
+    QCOMPARE(run.errors.size(), errors);
+    QCOMPARE(failed.size(), size_t(errors));
+    for (size_t i = 0; i < failed.size(); ++i)
+    {
+        QCOMPARE(failed[i].op, PDFPageContentProcessor::Operator::TextEnd);
+        QCOMPARE(run.errors[qsizetype(i)].type, RenderErrorType::Error);
+        QCOMPARE(run.errors[qsizetype(i)].message, QStringLiteral("Text object ended more than once."));
+        QVERIFY(!failed[i].isTextObjectOpen);
+    }
+
+    QCOMPARE(recorder.textBeginCount, begins);
+    QCOMPARE(recorder.textEndCount, ends);
+
+    // Each text is shown inside of an open text object; no text object is open at the end
+    int shown = 0;
+    for (const Recorder::Event& event : recorder.eventsOfKind(Recorder::EventKind::After))
+    {
+        if (event.text == "Tj")
+        {
+            ++shown;
+            QVERIFY(event.isTextObjectOpen);
+        }
+    }
+    QCOMPARE(shown, shows);
+    QCOMPARE(recorder.textSequences.size(), size_t(shows));
+    QVERIFY(!recorder.events.back().isTextObjectOpen);
+}
+
+void ContentProcessorTest::textEndWithoutBeginInForm()
+{
+    // The form has two ET without a text object and a whole text object after them; the page
+    // shows a text after the form. The two ET fail, both texts are shown in a text object.
+    const QByteArray formContent = "ET ET BT /F1 10 Tf 5 5 Td (A) Tj ET";
+    const QByteArray content = "/Fm1 Do\n"
+                               "BT /F1 10 Tf 20 100 Td (A) Tj ET\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, [&formContent](PDFDocumentBuilder* builder)
+    {
+        using Documents = ContentTestDocuments;
+
+        const PDFObject fonts = Documents::createDictionaryObject({ { "F1", Documents::addSimpleFontObject(builder) } });
+        PDFObject form = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                               { "Subtype", PDFObject::createName("Form") },
+                                                               { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) },
+                                                               { "Resources", Documents::createDictionaryObject({ { "Font", fonts } }) } }, formContent);
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Font"), fonts);
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "Fm1", std::move(form) } }));
+        return resources;
+    }));
+    const Recorder& recorder = *run.processor;
+
+    QStringList expected;
+    expected << QStringLiteral("0:B:Do")
+             << QStringLiteral("1:B:ET") << QStringLiteral("1:F:ET") << QStringLiteral("1:A:ET")
+             << QStringLiteral("1:B:ET") << QStringLiteral("1:F:ET") << QStringLiteral("1:A:ET")
+             << pairs(1, { "BT", "Tf", "Td", "Tj", "ET" })
+             << QStringLiteral("0:A:Do")
+             << pairs(0, { "BT", "Tf", "Td", "Tj", "ET" });
+    QCOMPARE(recorder.trace(), expected);
+
+    QCOMPARE(run.errors.size(), 2);
+    QCOMPARE(run.errors[0].message, QStringLiteral("Text object ended more than once."));
+    QCOMPARE(run.errors[1].message, QStringLiteral("Text object ended more than once."));
+
+    QCOMPARE(recorder.textBeginCount, 2);
+    QCOMPARE(recorder.textEndCount, 2);
+    QCOMPARE(recorder.textSequences.size(), size_t(2));
+    for (const Recorder::Event& event : recorder.eventsOfKind(Recorder::EventKind::After))
+    {
+        // Open after BT, Tf, Td and Tj of both contents, closed after everything else
+        const bool isInTextObject = event.text == "BT" || event.text == "Tf" || event.text == "Td" || event.text == "Tj";
+        QCOMPARE(event.isTextObjectOpen, isInTextObject);
+    }
+}
+
+void ContentProcessorTest::textEndWithoutBeginInGlyph()
+{
+    // The glyph procedure has two ET without a text object, then a whole (empty) text object,
+    // then its square. A glyph procedure is a content stream of its own (PDF Reference 1.7,
+    // 5.5.4): its two ET fail, its text object is begun and ended, and the text object of the
+    // page, which shows the glyph, is open after the glyph and ended by its own ET.
+    const QByteArray procedure = "60 0 d0 ET ET BT ET 0 0 50 50 re f";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument("BT /T3 10 Tf 20 100 Td (A) Tj ET", [&procedure](PDFDocumentBuilder* builder)
+    {
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Font"), ContentTestDocuments::createDictionaryObject({ { "T3", addGlyphFontObject(builder, procedure) } }));
+        return resources;
+    }));
+    const Recorder& recorder = *run.processor;
+
+    QStringList expected;
+    expected << pairs(0, { "BT", "Tf", "Td" }) << QStringLiteral("0:B:Tj")
+             << QStringLiteral("0:G+65") << pairs(1, { "d0" })
+             << QStringLiteral("1:B:ET") << QStringLiteral("1:F:ET") << QStringLiteral("1:A:ET")
+             << QStringLiteral("1:B:ET") << QStringLiteral("1:F:ET") << QStringLiteral("1:A:ET")
+             << pairs(1, { "BT", "ET", "re", "f" }) << QStringLiteral("0:G-")
+             << QStringLiteral("0:A:Tj") << pairs(0, { "ET" });
+    QCOMPARE(recorder.trace(), expected);
+
+    QCOMPARE(run.errors.size(), 2);
+    QCOMPARE(run.errors[0].message, QStringLiteral("Text object ended more than once."));
+    QCOMPARE(run.errors[1].message, QStringLiteral("Text object ended more than once."));
+
+    // The text object of the page and the one of the procedure
+    QCOMPARE(recorder.textBeginCount, 2);
+    QCOMPARE(recorder.textEndCount, 2);
+
+    const Recorder::Event* innerBegin = recorder.lastEvent(Recorder::EventKind::After, "BT");
+    QVERIFY(innerBegin);
+    QCOMPARE(innerBegin->level, PDFInteger(1));
+    QVERIFY(innerBegin->isTextObjectOpen);
+
+    const std::vector<Recorder::Event> glyphEnds = recorder.eventsOfKind(Recorder::EventKind::GlyphEnd);
+    QCOMPARE(glyphEnds.size(), size_t(1));
+    QVERIFY(glyphEnds[0].isTextObjectOpen);
+    const Recorder::Event* show = recorder.lastEvent(Recorder::EventKind::After, "Tj");
+    QVERIFY(show && show->isTextObjectOpen);
+    COMPARE_NEAR(show->textMatrix.dx(), 26.0);
+    QVERIFY(!recorder.events.back().isTextObjectOpen);
+}
+
+void ContentProcessorTest::pathWithoutCurrentPoint_data()
+{
+    // PDF Reference 1.7, 4.4.1 (the corresponding section of ISO 32000-2 is 8.5.2.1): "If the
+    // current path is empty, the current point is undefined. Most operators that add a segment
+    // to the current path start at the current point; if the current point is undefined, an
+    // error is generated." Table 4.9: l, c, v, y and h append "from the current point"; m begins
+    // a new subpath and re appends a complete subpath - they need no current point. "Once a
+    // path has been painted, it is no longer defined".
+    //
+    // The error is reported (once per page), but the operator still does, what it did before
+    // (owner 2026-11-26, NOTES.txt 8.5.2.1). paths: the painted paths as pathText - for the
+    // rows without a current point this is the KEPT behavior, not the standard: the segment
+    // of l, c and y starts at the origin (0, 0), h does nothing, and v fails as it did (it is
+    // the only one, which throws: failed = 1, no segment).
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<QStringList>("paths");
+    QTest::addColumn<int>("errors");
+    QTest::addColumn<int>("failed");
+
+    // Without a current point
+    QTest::newRow("l") << QByteArray("10 20 l S") << QStringList{ QStringLiteral("M 0 0 L 10 20") } << 1 << 0;
+    QTest::newRow("c") << QByteArray("1 2 3 4 5 6 c S") << QStringList{ QStringLiteral("M 0 0 C 1 2 3 4 5 6") } << 1 << 0;
+    QTest::newRow("y") << QByteArray("1 2 5 6 y S") << QStringList{ QStringLiteral("M 0 0 C 1 2 5 6 5 6") } << 1 << 0;
+    QTest::newRow("h") << QByteArray("h 10 10 m 20 20 l S") << QStringList{ QStringLiteral("M 10 10 L 20 20") } << 1 << 0;
+    QTest::newRow("v") << QByteArray("3 4 5 6 v 10 10 m 20 20 l S") << QStringList{ QStringLiteral("M 10 10 L 20 20") } << 1 << 1;
+
+    // With a current point: after m and after re (the current point after re is its first
+    // corner, as after h)
+    QTest::newRow("after m") << QByteArray("10 10 m 20 20 l 1 2 3 4 5 6 c 3 4 5 6 v 1 2 5 6 y h S")
+                             << QStringList{ QStringLiteral("M 10 10 L 20 20 C 1 2 3 4 5 6 C 5 6 3 4 5 6 C 1 2 5 6 5 6 L 10 10") } << 0 << 0;
+    QTest::newRow("after re") << QByteArray("0 0 10 10 re 20 20 l S")
+                              << QStringList{ QStringLiteral("M 0 0 L 10 0 L 10 10 L 0 10 L 0 0 M 0 0 L 20 20") } << 0 << 0;
+    QTest::newRow("h after m") << QByteArray("10 10 m h 20 20 l S") << QStringList{ QStringLiteral("M 10 10 L 20 20") } << 0 << 0;
+
+    // The current point is gone after a painting operator and after n
+    QTest::newRow("after a painting operator") << QByteArray("10 10 m 20 20 l S 30 30 l S")
+                                               << QStringList{ QStringLiteral("M 10 10 L 20 20"), QStringLiteral("M 0 0 L 30 30") } << 1 << 0;
+    QTest::newRow("after n") << QByteArray("10 10 m 20 20 l n 30 30 l S") << QStringList{ QStringLiteral("M 0 0 L 30 30") } << 1 << 0;
+
+    // KEPT behavior, not the standard: a painting operator paints nothing of a lone m and
+    // leaves its point in the path, so the segment after it starts there and is not reported
+    QTest::newRow("after a painting operator of a lone m") << QByteArray("10 10 m S 20 20 l S") << QStringList{ QStringLiteral("M 10 10 L 20 20") } << 0 << 0;
+
+    // The second segment of a path has the current point of the first one; a page with more
+    // such paths reports once
+    QTest::newRow("reported once") << QByteArray("10 20 l 30 40 l S 50 60 l S 1 2 3 4 5 6 c S")
+                                   << QStringList{ QStringLiteral("M 0 0 L 10 20 L 30 40"), QStringLiteral("M 0 0 L 50 60"), QStringLiteral("M 0 0 C 1 2 3 4 5 6") } << 1 << 0;
+}
+
+void ContentProcessorTest::pathWithoutCurrentPoint()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(QStringList, paths);
+    QFETCH(int, errors);
+    QFETCH(int, failed);
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, &ContentTestDocuments::createNoResources));
+    const Recorder& recorder = *run.processor;
+
+    // The error of the missing current point, reported once per page; only v fails
+    QCOMPARE(run.errors.size(), errors);
+    for (const PDFRenderError& error : run.errors)
+    {
+        QCOMPARE(error.type, RenderErrorType::Error);
+        QCOMPARE(error.message, QStringLiteral("Current point of path is not set. Path is empty."));
+    }
+    const std::vector<Recorder::Event> failedEvents = recorder.eventsOfKind(Recorder::EventKind::Failed);
+    QCOMPARE(failedEvents.size(), size_t(failed));
+    for (const Recorder::Event& event : failedEvents)
+    {
+        QCOMPARE(event.text, QByteArray("v"));
+    }
+
+    // The painted paths
+    QStringList painted;
+    for (const Recorder::PaintedPath& path : recorder.paths)
+    {
+        QVERIFY(path.stroke);
+        QVERIFY(!path.fill);
+        painted << pathText(path.path);
+    }
+    QCOMPARE(painted, paths);
+}
+
+void ContentProcessorTest::uncoloredPatternIgnoresColorOperators()
+{
+    // PDF Reference 1.7, 4.6.2 (PaintType 2; the corresponding section of ISO 32000-2 is
+    // 8.7.3.3): "The content stream must not invoke operators that specify colors or other
+    // color-related parameters in the graphics state; otherwise, an error occurs (see Section
+    // 4.5.7)"; 4.5.7 names CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k, ri, sh, the entries TR,
+    // TR2, BG, BG2, UCR, UCR2, HT of gs, and the painting of an image. The processor ignores
+    // the twelve operators, which set a color or a color space, with one warning: the cell is
+    // painted with the color of the pattern color space (here red), filled and stroked. After
+    // the pattern the color operators of the page work.
+    const QByteArray content = "/Cs cs 1 0 0 /PU scn 2 2 6 6 re f\n"
+                               "0 0 1 rg 20 20 5 5 re f\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, &ContentProcessorTest::createUncoloredPatternResources));
+    const Recorder& recorder = *run.processor;
+
+    QCOMPARE(run.errors.size(), 1);
+    QCOMPARE(run.errors[0].type, RenderErrorType::Warning);
+    QCOMPARE(run.errors[0].message, QStringLiteral("Color operators are not allowed in uncolored tilling pattern."));
+
+    // The painted square [2 2 8 8] is inside of one cell [0 0 10 10]; no operator fails
+    QStringList expected;
+    expected << pairs(0, { "cs", "scn", "re" }) << QStringLiteral("0:B:f")
+             << pairs(1, { "cs", "CS", "sc", "SC", "scn", "SCN", "g", "G", "rg", "RG", "k", "K", "re", "B" })
+             << QStringLiteral("0:A:f") << pairs(0, { "rg", "re", "f" });
+    QCOMPARE(recorder.trace(), expected);
+
+    QCOMPARE(recorder.paths.size(), size_t(2));
+    const Recorder::PaintedPath& cell = recorder.paths[0];
+    QCOMPARE(cell.level, PDFInteger(1));
+    QCOMPARE(cell.bounds, QRectF(0, 0, 5, 5));
+    QVERIFY(cell.fill && cell.stroke);
+    QVERIFY(isSameColor(cell.fillColor, 255, 0, 0));
+    QVERIFY(isSameColor(cell.strokeColor, 255, 0, 0));
+
+    const Recorder::PaintedPath& next = recorder.paths[1];
+    QCOMPARE(next.level, PDFInteger(0));
+    QCOMPARE(next.bounds, QRectF(20, 20, 5, 5));
+    QVERIFY(isSameColor(next.fillColor, 0, 0, 255));
+}
+
+void ContentProcessorTest::coloredPatternInsideUncoloredCell()
+{
+    // The cell of the uncolored pattern /PUN selects the colored pattern /PC by cs and scn. The
+    // standard does not allow it: selecting a pattern is setting a color, which the cell of an
+    // uncolored pattern must not do (PDF Reference 1.7, 4.5.7 and 4.6.2). The KEPT behavior of
+    // the processor: both operators are ignored as every color operator there, so the cell of
+    // /PC is never processed and the square of /PUN is filled with the color of the pattern
+    // color space (red).
+    const QByteArray content = "/Cs cs 1 0 0 /PUN scn 2 2 6 6 re f\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, &ContentProcessorTest::createUncoloredPatternResources));
+    const Recorder& recorder = *run.processor;
+
+    QCOMPARE(run.errors.size(), 1);
+    QCOMPARE(run.errors[0].type, RenderErrorType::Warning);
+
+    QStringList expected;
+    expected << pairs(0, { "cs", "scn", "re" }) << QStringLiteral("0:B:f")
+             << pairs(1, { "cs", "scn", "re", "f" })
+             << QStringLiteral("0:A:f");
+    QCOMPARE(recorder.trace(), expected);
+
+    QCOMPARE(recorder.paths.size(), size_t(1));
+    QCOMPARE(recorder.paths[0].level, PDFInteger(1));
+    QCOMPARE(recorder.paths[0].bounds, QRectF(0, 0, 5, 5));
+    QVERIFY(isSameColor(recorder.paths[0].fillColor, 255, 0, 0));
+}
+
+void ContentProcessorTest::uncoloredPatternInsideColoredCell()
+{
+    // The cell of the colored pattern /PCN fills a square by the uncolored pattern /PU in green
+    // and sets the blue color after it: the color operators are ignored only inside of the
+    // cell of /PU, they work again in the cell of /PCN, when the cell of /PU has ended.
+    const QByteArray content = "/Pattern cs /PCN scn 2 2 6 6 re f\n";
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(content, &ContentProcessorTest::createUncoloredPatternResources));
+    const Recorder& recorder = *run.processor;
+
+    QCOMPARE(run.errors.size(), 1);
+    QCOMPARE(run.errors[0].type, RenderErrorType::Warning);
+
+    QStringList expected;
+    expected << pairs(0, { "cs", "scn", "re" }) << QStringLiteral("0:B:f")
+             << pairs(1, { "cs", "scn", "re" }) << QStringLiteral("1:B:f")
+             << pairs(2, { "cs", "CS", "sc", "SC", "scn", "SCN", "g", "G", "rg", "RG", "k", "K", "re", "B" })
+             << QStringLiteral("1:A:f") << pairs(1, { "rg", "re", "f" })
+             << QStringLiteral("0:A:f");
+    QCOMPARE(recorder.trace(), expected);
+
+    QCOMPARE(recorder.paths.size(), size_t(2));
+    QCOMPARE(recorder.paths[0].level, PDFInteger(2));
+    QCOMPARE(recorder.paths[0].bounds, QRectF(0, 0, 5, 5));
+    QVERIFY(isSameColor(recorder.paths[0].fillColor, 0, 255, 0));
+    QVERIFY(isSameColor(recorder.paths[0].strokeColor, 0, 255, 0));
+    QCOMPARE(recorder.paths[1].level, PDFInteger(1));
+    QCOMPARE(recorder.paths[1].bounds, QRectF(20, 20, 5, 5));
+    QVERIFY(isSameColor(recorder.paths[1].fillColor, 0, 0, 255));
+}
+
+void ContentProcessorTest::uncoloredCellByDescendant_data()
+{
+    // A descendant processes the content of the cell of a tiling pattern by itself, through the
+    // public processForm (Recorder::processCell). Inside of PDFUncoloredTilingPatternGuard the
+    // content is the cell of an uncolored pattern: its color operators are ignored with a
+    // warning, the fill color stays the one of before (the black of the initial state), and
+    // isColorOperatorsIgnored says so at every operation. Without the guard (and with the
+    // guard of a colored pattern) the content sets its color. The guard ends also, when an
+    // operator of the cell fails.
+    QTest::addColumn<bool>("uncolored");
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<int>("failed");
+    QTest::addColumn<bool>("isColorSet");
+
+    QTest::newRow("no guard of an uncolored cell") << false << QByteArray("1 0 0 rg 0 0 10 10 re f") << 0 << true;
+    QTest::newRow("guard") << true << QByteArray("1 0 0 rg 0 0 10 10 re f") << 0 << false;
+    QTest::newRow("guard, an operator fails") << true << QByteArray("/Missing gs 1 0 0 rg 0 0 10 10 re f") << 1 << false;
+}
+
+void ContentProcessorTest::uncoloredCellByDescendant()
+{
+    QFETCH(bool, uncolored);
+    QFETCH(QByteArray, content);
+    QFETCH(int, failed);
+    QFETCH(bool, isColorSet);
+
+    ContentProcessorRun run(ContentTestDocuments::createDocument(QByteArray(), &ContentTestDocuments::createNoResources), false, false);
+    Recorder& recorder = *run.processor;
+    recorder.initializeProcessor();
+    QVERIFY(!recorder.colorOperatorsIgnored());
+
+    recorder.processCell(content, uncolored);
+
+    // The guard has ended
+    QVERIFY(!recorder.colorOperatorsIgnored());
+
+    // The descendant can ask at every operation of the cell
+    QVERIFY(!recorder.events.empty());
+    for (const Recorder::Event& event : recorder.events)
+    {
+        QCOMPARE(event.isColorIgnored, uncolored);
+    }
+    QCOMPARE(recorder.eventsOfKind(Recorder::EventKind::Failed).size(), size_t(failed));
+
+    // The color of the fill: the red of the cell, or the black of before the cell
+    QCOMPARE(recorder.paths.size(), size_t(1));
+    QCOMPARE(recorder.paths[0].bounds, QRectF(0, 0, 10, 10));
+    if (isColorSet)
+    {
+        QVERIFY(isSameColor(recorder.paths[0].fillColor, 255, 0, 0));
+    }
+    else
+    {
+        QVERIFY(isSameColor(recorder.paths[0].fillColor, 0, 0, 0));
+    }
+
+    // The ignored color operator is one warning; the failed operator is one error
+    const QList<PDFRenderError> errors = recorder.renderErrors();
+    QCOMPARE(errors.size(), failed + (uncolored ? 1 : 0));
+    int warnings = 0;
+    for (const PDFRenderError& error : errors)
+    {
+        if (error.type == RenderErrorType::Warning)
+        {
+            ++warnings;
+            QCOMPARE(error.message, QStringLiteral("Color operators are not allowed in uncolored tilling pattern."));
+        }
+    }
+    QCOMPARE(warnings, uncolored ? 1 : 0);
+}
+
+void ContentProcessorTest::uncoloredCellGuardsNest()
+{
+    // The guards nest: inside of the cell of an uncolored pattern every content is without a
+    // color, also the cell of a colored pattern (its guard does nothing) and the cell of
+    // another uncolored one; the end of an inner guard does not end the outer one
+    ContentProcessorRun run(ContentTestDocuments::createDocument(QByteArray(), &ContentTestDocuments::createNoResources), false, false);
+    Recorder& recorder = *run.processor;
+    recorder.initializeProcessor();
+
+    const std::vector<bool> expected = { false, true, true, true, true, true, false };
+    QVERIFY(recorder.colorOperatorsIgnoredInNestedGuards() == expected);
+    QVERIFY(!recorder.colorOperatorsIgnored());
+}
+
+void ContentProcessorTest::uncoloredCellGuardEndsWithException()
+{
+    // An exception, which the processor does not catch (thrown by a hook of the descendant),
+    // leaves processForm through the guard: the color operators are not ignored afterwards
+    ContentProcessorRun run(ContentTestDocuments::createDocument(QByteArray(), &ContentTestDocuments::createNoResources), false, false);
+    Recorder& recorder = *run.processor;
+    recorder.initializeProcessor();
+    recorder.throwInPathPainting = true;
+
+    bool isThrown = false;
+    try
+    {
+        recorder.processCell("1 0 0 rg 0 0 10 10 re f", true);
+    }
+    catch (const Recorder::ProbeException&)
+    {
+        isThrown = true;
+    }
+    QVERIFY(isThrown);
+
+    // The guard was in effect, when the path was painted, and it has ended
+    const Recorder::Event* fill = recorder.lastEvent(Recorder::EventKind::Before, "f");
+    QVERIFY(fill && fill->isColorIgnored);
+    QCOMPARE(recorder.paths.size(), size_t(1));
+    QVERIFY(!recorder.colorOperatorsIgnored());
 }
 
 void ContentProcessorTest::documentSimpleFonts()

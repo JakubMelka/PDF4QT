@@ -1402,6 +1402,299 @@ public:
     {
         return createTilingPatternDocument(tilingPatternPageContent());
     }
+
+    // ---------------------------------------------------------------------------------------
+    //  Documents of the round trip (the gate of stage E0, UnitTestsContentRoundTrip)
+    // ---------------------------------------------------------------------------------------
+
+    /// The eight orientations of a 2 x 2 matrix with the entries 0, 1, -1 (four rotations, not
+    /// mirrored and mirrored), each placed in a cell 50 x 100 of the page: the columns x 0, 50, 100,
+    /// 150, the rows y 0 and 100. "a b c d" of the cell i are orientationEntries()[4 i ... 4 i + 3]:
+    ///   1 0 0 1 (upright), -1 0 0 1 (mirrored left to right), 1 0 0 -1 (mirrored top to bottom),
+    ///   -1 0 0 -1 (turned by 180 degrees), 0 1 -1 0 (turned by 90 degrees), 0 -1 1 0 (turned by
+    ///   270 degrees), 0 1 1 0 and 0 -1 -1 0 (turned and mirrored).
+    /// The old bug reports GE-413, GE-410 and GE-211 (zadani.md 4.5) were images and texts turned
+    /// or mirrored after an edit.
+    static inline std::vector<int> orientationEntries() { return { 1, 0, 0, 1, -1, 0, 0, 1, 1, 0, 0, -1, -1, 0, 0, -1, 0, 1, -1, 0, 0, -1, 1, 0, 0, 1, 1, 0, 0, -1, -1, 0 }; }
+
+    /// The samples of the image /Im1 of createImageOrientationsDocument: 2 x 2 pixels of
+    /// DeviceRGB, 8 bits per component; the upper row red and green, the lower row blue and
+    /// yellow (ISO 32000-2, 8.9.5.2: the first sample is the upper left corner of the unit square).
+    /// No two pixels are equal and no pixel is white, so every orientation is distinguishable.
+    static inline QByteArray orientationImageData() { return QByteArray("\xFF\x00\x00" "\x00\xFF\x00" "\x00\x00\xFF" "\xFF\xFF\x00", 12); }
+
+    /// The content of createImageOrientationsDocument: the image in the eight orientations, the
+    /// unit square scaled to 40 x 20 (a b c d = 40 x the first and 20 x the second column of the
+    /// orientation), e and f chosen so that the box of the image starts 5 points inside its cell
+    /// (x 5 ... 45, y 5 ... 25 for the upright one, x 5 ... 25, y 105 ... 145 for the turned ones).
+    static inline QByteArray imageOrientationsPageContent()
+    {
+        return QByteArray("q 40 0 0 20 5 5 cm /Im1 Do Q\n"
+                          "q -40 0 0 20 95 5 cm /Im1 Do Q\n"
+                          "q 40 0 0 -20 105 25 cm /Im1 Do Q\n"
+                          "q -40 0 0 -20 195 25 cm /Im1 Do Q\n"
+                          "q 0 40 -20 0 25 105 cm /Im1 Do Q\n"
+                          "q 0 -40 20 0 55 145 cm /Im1 Do Q\n"
+                          "q 0 40 20 0 105 105 cm /Im1 Do Q\n"
+                          "q 0 -40 -20 0 175 145 cm /Im1 Do Q\n");
+    }
+
+    /// A page with the image of orientationImageData in the eight orientations
+    /// (imageOrientationsPageContent); /XObject << /Im1 >>, an indirect image XObject /Width 2
+    /// /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8, no filter.
+    static inline pdf::PDFDocument createImageOrientationsDocument()
+    {
+        return createDocument(imageOrientationsPageContent(), [](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject image = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                              { "Subtype", pdf::PDFObject::createName("Image") },
+                                                              { "Width", pdf::PDFObject::createInteger(2) },
+                                                              { "Height", pdf::PDFObject::createInteger(2) },
+                                                              { "ColorSpace", pdf::PDFObject::createName("DeviceRGB") },
+                                                              { "BitsPerComponent", pdf::PDFObject::createInteger(8) } }, orientationImageData());
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Im1", std::move(image) } }));
+            return resources;
+        });
+    }
+
+    /// The glyph procedure of the code 70 (/F) of the Type 3 font of createTextOrientationsDocument:
+    /// the letter F of three rectangles of the glyph space - the stem [0 0 20 100], the upper arm
+    /// [20 80 80 100] and the shorter middle arm [20 40 60 60]. No turn or mirror maps it onto itself.
+    static inline QByteArray orientationGlyphProcedure() { return QByteArray("100 0 d0 0 0 20 100 re f 20 80 60 20 re f 20 40 40 20 re f"); }
+
+    /// The content of createTextOrientationsDocument: the letter F of the Type 3 font /T3 at the
+    /// size 40 (the glyph box [0 0 80 100] of the glyph space is [0 0 32 40] of the text space) in
+    /// the eight orientations as the text matrix Tm; e and f put the glyph 5 points inside its
+    /// cell (x 5 ... 37, y 5 ... 45 for the upright one).
+    static inline QByteArray textOrientationsPageContent()
+    {
+        return QByteArray("BT /T3 40 Tf 1 0 0 1 5 5 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf -1 0 0 1 87 5 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf 1 0 0 -1 105 45 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf -1 0 0 -1 187 45 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf 0 1 -1 0 45 105 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf 0 -1 1 0 55 137 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf 0 1 1 0 105 105 Tm (F) Tj ET\n"
+                          "BT /T3 40 Tf 0 -1 -1 0 195 137 Tm (F) Tj ET\n");
+    }
+
+    /// A page with the letter F in the eight orientations (textOrientationsPageContent). /Font
+    /// << /T3 >> is a Type 3 font written by hand, so the rendering depends on no font of the
+    /// system: /FontMatrix [0.01 0 0 0.01 0 0], /FontBBox [0 0 100 100], /FirstChar 70, /LastChar
+    /// 70, /Widths [100], /Encoding << /Type /Encoding /Differences [70 /F] >>, /CharProcs << /F
+    /// (orientationGlyphProcedure) >>, /Resources << >>.
+    static inline pdf::PDFDocument createTextOrientationsDocument()
+    {
+        return createDocument(textOrientationsPageContent(), [](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject font = addObject(builder, createDictionaryObject({ { "Type", pdf::PDFObject::createName("Font") },
+                                                                              { "Subtype", pdf::PDFObject::createName("Type3") },
+                                                                              { "FontMatrix", createNumberArrayObject({ TYPE3_FONT_MATRIX_SCALE, 0, 0, TYPE3_FONT_MATRIX_SCALE, 0, 0 }) },
+                                                                              { "FontBBox", createIntegerArrayObject({ 0, 0, 100, 100 }) },
+                                                                              { "FirstChar", pdf::PDFObject::createInteger(70) },
+                                                                              { "LastChar", pdf::PDFObject::createInteger(70) },
+                                                                              { "Widths", createIntegerArrayObject({ 100 }) },
+                                                                              { "Encoding", createDictionaryObject({ { "Type", pdf::PDFObject::createName("Encoding") },
+                                                                                                                     { "Differences", createArrayObject({ pdf::PDFObject::createInteger(70), pdf::PDFObject::createName("F") }) } }) },
+                                                                              { "CharProcs", createDictionaryObject({ { "F", addStreamObject(builder, DictionaryEntries(), orientationGlyphProcedure()) } }) },
+                                                                              { "Resources", createDictionaryObject(DictionaryEntries()) } }));
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), createDictionaryObject({ { "T3", std::move(font) } }));
+            return resources;
+        });
+    }
+
+    /// The streams of /Contents of createSplitOperationDocument (ISO 32000-2, 7.8.2: the division
+    /// may be anywhere between two lexical tokens): the operands of re and of rg are split
+    /// between two streams, the stream 2 is empty, the last one holds the painting operator
+    /// alone. Joined by one line feed they are "1 0 0 rg 10 10\n 50 50 re f\n\n\n0 0 1\n rg 100
+    /// 100 20 20 re\n\nf": a red square [10 10 60 60] and a blue square [100 100 120 120].
+    static inline QList<QByteArray> splitOperationStreams() { return { QByteArray("1 0 0 rg 10 10"), QByteArray(" 50 50 re f\n"), QByteArray(), QByteArray("0 0 1"), QByteArray(" rg 100 100 20 20 re\n"), QByteArray("f") }; }
+
+    /// A page, whose content is split over six streams in the middle of operations
+    /// (splitOperationStreams); no resources
+    static inline pdf::PDFDocument createSplitOperationDocument()
+    {
+        return createDocument(splitOperationStreams(), &ContentTestDocuments::createNoResources);
+    }
+
+    /// The shared content stream of the pages 2 and 3 of createPageTreeDocument: a blue square
+    /// [10 10 40 40], then the form /FmA moved by (50, 50)
+    static inline QByteArray pageTreeSharedContent() { return QByteArray("0 0 1 rg 10 10 30 30 re f q 1 0 0 1 50 50 cm /FmA Do Q"); }
+
+    /// The content of the page 4 of createPageTreeDocument: the form /FmA moved by (100, 100),
+    /// then the form /FmB
+    static inline QByteArray pageTreeOwnContent() { return QByteArray("q 1 0 0 1 100 100 cm /FmA Do Q /FmB Do"); }
+
+    /// A document of four pages, which share objects:
+    ///   page 1  no /Contents (nothing is painted) and no /Resources;
+    ///   page 2  /Contents is the stream of pageTreeSharedContent, no /Resources;
+    ///   page 3  /Contents is the same stream object as of the page 2, no /Resources;
+    ///   page 4  its own stream pageTreeOwnContent and its own /Resources << /XObject << /FmA /FmB >> >>.
+    /// The page tree root has /Resources << /XObject << /FmA >> /ProcSet [/PDF] >>, which the
+    /// pages 1 - 3 inherit (ISO 32000-2, 7.7.3.4). Two forms, each an indirect stream:
+    ///   /FmA  /BBox [0 0 60 30], /Resources << /XObject << /FmB >> >>, the content "1 0 0 rg 0 0
+    ///         20 20 re f /FmB Do": a red square and the form /FmB inside of the form;
+    ///   /FmB  /BBox [0 0 20 20], /Matrix [1 0 0 1 30 0], no /Resources, the content "0 1 0 rg
+    ///         5 5 10 10 re f": a green square [35 5 45 15] of the space it is painted in.
+    /// /FmA is used by three pages, /FmB by the form /FmA and by the page 4.
+    static inline pdf::PDFDocument createPageTreeDocument()
+    {
+        pdf::PDFDocumentBuilder builder;
+        pdf::PDFObject formB = addStreamObject(&builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                           { "Subtype", pdf::PDFObject::createName("Form") },
+                                                           { "BBox", createIntegerArrayObject({ 0, 0, 20, 20 }) },
+                                                           { "Matrix", createIntegerArrayObject({ 1, 0, 0, 1, 30, 0 }) } }, QByteArray("0 1 0 rg 5 5 10 10 re f"));
+        pdf::PDFObject formA = addStreamObject(&builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                           { "Subtype", pdf::PDFObject::createName("Form") },
+                                                           { "BBox", createIntegerArrayObject({ 0, 0, 60, 30 }) },
+                                                           { "Resources", createDictionaryObject({ { "XObject", createDictionaryObject({ { "FmB", formB } }) } }) } }, QByteArray("1 0 0 rg 0 0 20 20 re f /FmB Do"));
+        pdf::PDFObject sharedContents = addStreamObject(&builder, DictionaryEntries(), pageTreeSharedContent());
+
+        builder.appendPage(QRectF(0, 0, PAGE_SIZE, PAGE_SIZE));
+        for (int i = 0; i < 2; ++i)
+        {
+            builder.mergeTo(builder.appendPage(QRectF(0, 0, PAGE_SIZE, PAGE_SIZE)), createDictionaryObject({ { "Contents", sharedContents } }));
+        }
+        builder.mergeTo(builder.appendPage(QRectF(0, 0, PAGE_SIZE, PAGE_SIZE)),
+                        createDictionaryObject({ { "Contents", addStreamObject(&builder, DictionaryEntries(), pageTreeOwnContent()) },
+                                                 { "Resources", createDictionaryObject({ { "XObject", createDictionaryObject({ { "FmA", formA }, { "FmB", formB } }) } }) } }));
+
+        const pdf::PDFObject& catalog = builder.getObjectByReference(builder.getCatalogReference());
+        const pdf::PDFObjectReference pageTreeRoot = catalog.getDictionary()->get("Pages").getReference();
+        builder.mergeTo(pageTreeRoot, createDictionaryObject({ { "Resources", createDictionaryObject({ { "XObject", createDictionaryObject({ { "FmA", formA } }) },
+                                                                                                       { "ProcSet", createArrayObject({ pdf::PDFObject::createName("PDF") }) } }) } }));
+        return builder.build();
+    }
+
+    /// The content of createTwoTilingPatternsDocument: the square [10 10 90 90] filled by the
+    /// uncolored pattern /PU in dark green, the square [110 10 190 90] filled by the colored
+    /// pattern /PC, the rectangle [20 120 180 180] stroked by /PU in red with the line width 8
+    static inline QByteArray twoTilingPatternsPageContent()
+    {
+        return QByteArray("/CsP cs 0 0.5 0 /PU scn 10 10 80 80 re f\n"
+                          "/Pattern cs /PC scn 110 10 80 80 re f\n"
+                          "/CsP CS 1 0 0 /PU SCN 8 w 20 120 160 60 re S\n");
+    }
+
+    /// A page filling and stroking with a colored and an uncolored tiling pattern (ISO 32000-2,
+    /// 8.7.3.2 and 8.7.3.3; twoTilingPatternsPageContent). The resources: /ColorSpace << /CsP
+    /// [/Pattern /DeviceRGB] >> (the underlying space of the uncolored pattern) and /Pattern <<
+    /// /PU /PC >>, both indirect streams /PatternType 1 /TilingType 1 /BBox [0 0 10 10] /XStep 10
+    /// /YStep 10 /Resources << >>:
+    ///   /PU  /PaintType 2 (uncolored), /Matrix [1 0 0 1 3 3], the cell "0 0 6 6 re f" - a square
+    ///        of the color of the use;
+    ///   /PC  /PaintType 1 (colored), no /Matrix, the cell "1 0 0 rg 0 0 5 5 re f 0 0 1 rg 5 5 5
+    ///        5 re f" - a red and a blue square.
+    static inline pdf::PDFDocument createTwoTilingPatternsDocument()
+    {
+        return createDocument(twoTilingPatternsPageContent(), [](pdf::PDFDocumentBuilder* builder)
+        {
+            DictionaryEntries uncolored = { { "Type", pdf::PDFObject::createName("Pattern") },
+                                            { "PatternType", pdf::PDFObject::createInteger(1) },
+                                            { "PaintType", pdf::PDFObject::createInteger(2) },
+                                            { "TilingType", pdf::PDFObject::createInteger(1) },
+                                            { "BBox", createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                            { "XStep", pdf::PDFObject::createInteger(10) },
+                                            { "YStep", pdf::PDFObject::createInteger(10) },
+                                            { "Matrix", createIntegerArrayObject({ 1, 0, 0, 1, 3, 3 }) },
+                                            { "Resources", createDictionaryObject(DictionaryEntries()) } };
+            pdf::PDFObject patternUncolored = addStreamObject(builder, std::move(uncolored), QByteArray("0 0 6 6 re f"));
+            pdf::PDFObject patternColored = addTilingPatternObject(builder, 10, 10, 10, { }, QByteArray("1 0 0 rg 0 0 5 5 re f 0 0 1 rg 5 5 5 5 re f"));
+
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "CsP", createArrayObject({ pdf::PDFObject::createName("Pattern"), pdf::PDFObject::createName("DeviceRGB") }) } }));
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Pattern"), createDictionaryObject({ { "PU", std::move(patternUncolored) }, { "PC", std::move(patternColored) } }));
+            return resources;
+        });
+    }
+
+    /// The content of createSoftMaskImageDocument: the soft mask of /GS1 is set under the identity,
+    /// then the image /Im1 is drawn under the matrix [100 0 0 50 50 60] (x 50 ... 150, y 60 ... 110)
+    static inline QByteArray softMaskImagePageContent() { return QByteArray("/GS1 gs q 100 0 0 50 50 60 cm /Im1 Do Q\n"); }
+
+    /// A page with an image under a soft mask set in another space than the image (R-6, ISO
+    /// 32000-2, 11.6.5.1: the mask stays where the CTM of its gs put it): softMaskImagePageContent.
+    /// The resources: /ExtGState << /GS1 << /Type /ExtGState /SMask << /Type /Mask /S /Luminosity /G
+    /// (form) >> >> >>, the form a transparency group as in createSoftMaskDocument (the gray 0.5 on
+    /// the left half [0 0 100 200]), and /XObject << /Im1 >>, the image of
+    /// createImageOrientationsDocument (2 x 2 pixels, DeviceRGB).
+    static inline pdf::PDFDocument createSoftMaskImageDocument()
+    {
+        return createDocument(softMaskImagePageContent(), [](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject form = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                             { "Subtype", pdf::PDFObject::createName("Form") },
+                                                             { "BBox", createIntegerArrayObject({ 0, 0, 200, 200 }) },
+                                                             { "Group", createDictionaryObject({ { "S", pdf::PDFObject::createName("Transparency") },
+                                                                                                { "CS", pdf::PDFObject::createName("DeviceGray") } }) } }, softMaskGroupContent());
+            pdf::PDFObject softMask = createDictionaryObject({ { "Type", pdf::PDFObject::createName("Mask") },
+                                                               { "S", pdf::PDFObject::createName("Luminosity") },
+                                                               { "G", std::move(form) } });
+            pdf::PDFObject image = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                              { "Subtype", pdf::PDFObject::createName("Image") },
+                                                              { "Width", pdf::PDFObject::createInteger(2) },
+                                                              { "Height", pdf::PDFObject::createInteger(2) },
+                                                              { "ColorSpace", pdf::PDFObject::createName("DeviceRGB") },
+                                                              { "BitsPerComponent", pdf::PDFObject::createInteger(8) } }, orientationImageData());
+
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"), createDictionaryObject({ { "GS1", createDictionaryObject({ { "Type", pdf::PDFObject::createName("ExtGState") },
+                                                                                                                                  { "SMask", std::move(softMask) } }) } }));
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Im1", std::move(image) } }));
+            return resources;
+        });
+    }
+
+    /// The content of createClippingDocument, four groups:
+    ///   1  a clipping path [10 10 90 90], then the red square [0 0 100 100] painted through it;
+    ///   2  a chain of three q: the first two end together (Q Q), the third later - a blue square
+    ///      [115 15 145 45] (moved by the cm) and a green square [150 10 180 40] after them;
+    ///   3  a path, which paints and clips (re W f): the yellow square [20 110 80 170], then the
+    ///      black square [0 100 100 200] painted through it;
+    ///   4  a text, which clips (7 Tr: ISO 32000-2, 9.3.6 - add to the clipping path, paint
+    ///      nothing), then the magenta square [100 100 200 200] painted through the glyphs;
+    ///   5  a clipping path [150 50 190 90], then the shading /Sh1 painted through it (sh paints
+    ///      the whole clip region, 8.7.4.2).
+    static inline QByteArray clippingPageContent()
+    {
+        return QByteArray("q 10 10 80 80 re W n 1 0 0 rg 0 0 100 100 re f Q\n"
+                          "q q q 0 0 1 rg 1 0 0 1 5 5 cm 110 10 30 30 re f Q Q 0 1 0 rg 150 10 30 30 re f Q\n"
+                          "q 1 1 0 rg 20 110 60 60 re W f 0 0 0 rg 0 100 100 100 re f Q\n"
+                          "q BT /F1 48 Tf 7 Tr 110 150 Td (AB) Tj ET 1 0 1 rg 100 100 100 100 re f Q\n"
+                          "q 150 50 40 40 re W n /Sh1 sh Q\n");
+    }
+
+    /// A page with clipping paths, a chain of q, a clipping text and a shading
+    /// (clippingPageContent). The resources: /Font << /F1 (addStandardFontObject, Helvetica) >>,
+    /// /Shading << /Sh1 << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [150 50 190 90] /Function
+    /// << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >> (an axial shading from
+    /// red to blue) and /ColorSpace << /DefaultRGB [/CalRGB << /WhitePoint [0.9505 1 1.089] >>] >>
+    /// - a default space, which no operator names (ISO 32000-2, 8.6.5.6: rg paints in it); the
+    /// entry must survive every rewrite (R-4).
+    static inline pdf::PDFDocument createClippingDocument()
+    {
+        return createDocument(clippingPageContent(), [](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject calRGB = createArrayObject({ pdf::PDFObject::createName("CalRGB"),
+                                                        createDictionaryObject({ { "WhitePoint", createNumberArrayObject({ 0.9505, 1.0, 1.089 }) } }) });
+            pdf::PDFObject function = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                               { "Domain", createIntegerArrayObject({ 0, 1 }) },
+                                                               { "C0", createIntegerArrayObject({ 1, 0, 0 }) },
+                                                               { "C1", createIntegerArrayObject({ 0, 0, 1 }) },
+                                                               { "N", pdf::PDFObject::createInteger(1) } });
+            pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
+                                                              { "ColorSpace", pdf::PDFObject::createName("DeviceRGB") },
+                                                              { "Coords", createIntegerArrayObject({ 150, 50, 190, 90 }) },
+                                                              { "Function", std::move(function) } });
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), createDictionaryObject({ { "F1", addStandardFontObject(builder, "Helvetica") } }));
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Shading"), createDictionaryObject({ { "Sh1", std::move(shading) } }));
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "DefaultRGB", std::move(calRGB) } }));
+            return resources;
+        });
+    }
 };
 
 }   // namespace pdftest

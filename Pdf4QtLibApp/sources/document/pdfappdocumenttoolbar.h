@@ -28,6 +28,7 @@
 #include "pdfthemecolors.h"
 
 #include <QAccessibleWidget>
+#include <QMenu>
 #include <QPointer>
 #include <QToolButton>
 #include <QWidget>
@@ -36,7 +37,6 @@
 #include <vector>
 
 class QHBoxLayout;
-class QMenu;
 
 namespace pdf
 {

@@ -27,6 +27,7 @@
 #include "pdfrenderer.h"
 
 #include <QCoreApplication>
+#include <QPainterPath>
 
 #include <optional>
 #include <vector>

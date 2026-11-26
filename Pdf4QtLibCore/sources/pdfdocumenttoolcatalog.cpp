@@ -203,7 +203,9 @@ PDFDocumentToolResultKind PDFDocumentToolCatalogEntry::getResultKind() const
 /// analysis of the catalog) or adds them as annotations (mode add, ChangeDocument - bit 6 by
 /// PDFDocumentTool::getRequiredPermissions of the tool); Compare gives a summary or the XML of the
 /// differences (the analysis) or the report PDF (output report, a new document of its inputs - the
-/// rule of Merge by PDFDocumentTool::isNewDocumentOfInputs of the tool).
+/// rule of Merge by PDFDocumentTool::isNewDocumentOfInputs of the tool). Edit Content changes the
+/// document (mode apply) or lists the objects of its pages (mode list, the analysis - it asks the
+/// permission to copy the content, PDFDocumentToolContent::getRequiredPermissions).
 class PDFDocumentToolResultKindsRow
 {
 public:
@@ -218,6 +220,7 @@ static constexpr PDFDocumentToolResultKindsRow TOOL_OTHER_RESULT_KINDS[] =
     { "pages.manage", PDFDocumentToolResultKind::Files },
     { "review.compare", PDFDocumentToolResultKind::NewDocument },
     { "review.measure", PDFDocumentToolResultKind::ChangeDocument },
+    { "edit.content", PDFDocumentToolResultKind::Analysis },
 };
 
 /// Inputs of a tool, which differ from the default of its input kind (K41 of the plan of step 3

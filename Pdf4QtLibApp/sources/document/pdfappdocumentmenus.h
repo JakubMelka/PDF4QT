@@ -28,6 +28,8 @@
 #include <QAbstractButton>
 #include <QMenu>
 #include <QPointer>
+#include <QScrollArea>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include <map>
@@ -36,9 +38,7 @@
 class QButtonGroup;
 class QCheckBox;
 class QPushButton;
-class QScrollArea;
 class QToolButton;
-class QVBoxLayout;
 
 namespace pdf
 {

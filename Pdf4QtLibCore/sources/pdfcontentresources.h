@@ -28,7 +28,9 @@
 
 #include <QByteArray>
 
+#include <array>
 #include <map>
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -119,10 +121,25 @@ public:
     PDFObject write(PDFDocumentBuilder* builder) const;
 
 private:
-    PDFObject m_originalResources;
-    std::map<PDFContentResourceCategory, std::vector<Entry>> m_entries;
-    std::map<PDFContentResourceCategory, std::set<QByteArray>> m_undefinedNames;
-    bool m_isChanged = false;
+    /// The data of one category (defined in the source file). The data held by more copies of
+    /// the resources are never changed: a copy, which adds or removes an entry, makes its own
+    /// copy of this one category first, so the copy of the resources made by every command
+    /// costs seven pointers.
+    struct CategoryData;
+    using CategoryDataPointer = std::shared_ptr<CategoryData>;
+
+    static constexpr size_t CATEGORY_COUNT = 7;
+
+    /// The data of a category, nullptr for a category without data and for a value, which is
+    /// no category
+    const CategoryData* getCategoryData(PDFContentResourceCategory category) const;
+
+    /// The data of a category for writing: owned by this copy only afterwards; nullptr for
+    /// a value, which is no category
+    CategoryData* detachCategoryData(PDFContentResourceCategory category);
+
+    PDFObject m_originalResources;  ///< The dictionary /Resources as it was read (dereferenced); null, when there was none
+    std::array<CategoryDataPointer, CATEGORY_COUNT> m_categories;
 };
 
 }   // namespace pdf

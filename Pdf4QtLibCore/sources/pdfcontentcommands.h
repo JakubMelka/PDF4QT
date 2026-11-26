@@ -75,8 +75,16 @@ struct PDFContentChange
 /// model only by commands. A command holds the difference, not a snapshot of a page (the old and
 /// the new versions of the containers share their unchanged nodes).
 ///
-/// A command over a read-only container or over an Opaque node is refused by apply. The lock and
-/// the "hidden in the editor" flag of a node are no commands (no work, no undo, no JSON).
+/// A command over a read-only container or over an Opaque node is refused by apply. A command,
+/// which changes nothing, is refused with a text too (for example a reorder of a node to the
+/// place where it stands); isRefusedAsUnchanged tells this refusal from every other one. The
+/// identifiers a command is given are distinct: a command, which names a node twice, is refused.
+/// The lock and the "hidden in the editor" flag of a node are no commands (no work, no undo, no
+/// JSON).
+///
+/// A command object is executed once (PDFContentEditSession::execute); afterwards only undo and
+/// redo apply and revert it. A second execute of the same object is refused, unless the model is
+/// again the one it was applied to first (after an undo).
 ///
 /// Threads and ownership: lives in the thread of its session (the GUI thread, or the thread of a
 /// tool run with its own session); owned by the undo stack after it was executed, by the caller
@@ -84,6 +92,24 @@ struct PDFContentChange
 class PDF4QTLIBCORESHARED_EXPORT PDFContentCommand
 {
 public:
+    /// Limits against growth (zadani_overeni.md 6.2). A command over a limit is refused with a
+    /// text and the model stays unchanged; a limit never makes a page unreadable.
+    ///
+    /// MAXIMUM_NODES_OF_COMMAND: the nodes one command names, and the nodes one command creates
+    /// (the copies with their subtrees, state runs, groups, wraps). Without it one operation of a
+    /// script multiplies a page (a copy of a group of 1 000 objects named 100 000 times). The value
+    /// is the limit of the clipboard, the other way to duplicate content.
+    static constexpr size_t MAXIMUM_NODES_OF_COMMAND = 100000;
+
+    /// MAXIMUM_NODES_OF_CONTAINER: the nodes of a container after a command. A command is
+    /// refused, when a container would have more nodes after it than this limit and more nodes
+    /// than before it. Without it repeated copies double a container until the memory runs out
+    /// (60 operations of a script reach 2^30 nodes). A container loaded above the limit (the tree
+    /// builder allows up to PDFContentContainer::MAXIMUM_OPERATION_COUNT operations) can still be
+    /// edited by every command, which does not make it grow: a delete, a move, a restyle, which
+    /// put a state run in the place of the removed nodes.
+    static constexpr size_t MAXIMUM_NODES_OF_CONTAINER = 1000000;
+
     explicit PDFContentCommand() = default;
     virtual ~PDFContentCommand();
 
@@ -93,10 +119,26 @@ public:
     /// Applies the command to the model of the session (PDFContentEditSession::setContainer,
     /// setStructure; identifiers of new nodes from allocateNodeId). Called by the session only.
     /// Applying it again after revert gives the same model, the same identifiers included.
+    /// An implementation, which refuses a command only because it changes nothing, calls
+    /// setRefusedAsUnchanged(true) before it returns false, and setRefusedAsUnchanged(false) on
+    /// every other way out.
     /// \param session The session
     /// \param errorText Translated reason of a refusal
     /// \returns false, when the command is refused; the model is unchanged then
     virtual bool apply(PDFContentEditSession* session, QString* errorText) = 0;
+
+    /// The last apply refused the command for the one reason that it changes nothing: the model
+    /// is what the command asks for already (a reorder of nodes to the place where they are
+    /// painted, a Clear Page of a page without content, a transform or a change of the
+    /// appearance of objects, which hold nothing the command changes).
+    /// False before the first apply, after an apply, which succeeded, and after every other
+    /// refusal (an object, which does not exist, a rule of the content, a limit). In the GUI such
+    /// a command is refused with its text like any other; the replay of a script takes it for a
+    /// success without an effect: no undo step, no change of the model, the script goes on.
+    /// Read it right after PDFContentEditSession::execute of this command returned false (execute
+    /// refuses a null command and a command inside of another change without calling apply: the
+    /// value is the one of the last apply then).
+    bool isRefusedAsUnchanged() const { return m_isRefusedAsUnchanged; }
 
     /// Returns the model to the state before apply. Called by the session only.
     virtual void revert(PDFContentEditSession* session) = 0;
@@ -125,8 +167,12 @@ public:
 protected:
     void setChange(PDFContentChange change) { m_change = std::move(change); }
 
+    /// For apply: what isRefusedAsUnchanged answers
+    void setRefusedAsUnchanged(bool isRefusedAsUnchanged) { m_isRefusedAsUnchanged = isRefusedAsUnchanged; }
+
 private:
     PDFContentChange m_change;
+    bool m_isRefusedAsUnchanged = false;
 };
 
 using PDFContentCommandPointer = std::shared_ptr<PDFContentCommand>;
@@ -199,36 +245,49 @@ public:
         KeepLayerAndTag     ///< Bring to Front / Send to Back / alignment: the layer and the tag stay (zadani_jadro.md 4.4 R-2, 4.12)
     };
 
-    /// Removes nodes (R-3 residual state; consistency of the structure)
+    /// Removes nodes (R-3 residual state; consistency of the structure). A direct delete of a
+    /// StateRun is refused: it is not an object, it goes with its parent or its group.
     static PDFContentCommandPointer createDelete(std::vector<PDFContentNodeReference> nodes);
 
     /// Transforms nodes by a matrix of the default space of their container (the override of
-    /// R-1; R-5 patterns, R-6 soft mask; nodes with a clipping effect by a canonical rewrite)
+    /// R-1; R-5 patterns, R-6 soft mask; nodes with a clipping effect by a canonical rewrite).
+    /// A Group or a MarkedContent gives the change to its leaves inside of the one command.
     static PDFContentCommandPointer createTransform(std::vector<PDFContentNodeReference> nodes, const QTransform& matrix);
 
     /// Moves nodes of one container to another place of its tree (R-2)
     /// \param nodes Nodes of one container, kept in their mutual order
     /// \param parent The new parent
-    /// \param index Index among the children of the parent, -1 = at the end
+    /// \param index Index among the children of the parent as they are before the command (the
+    ///        moved nodes are skipped), -1 = at the end; content, which must stay the last one,
+    ///        stays the last one (PDFContentContainer::getAppendIndex)
     /// \param mode Layer and tag
     static PDFContentCommandPointer createReorder(std::vector<PDFContentNodeReference> nodes, PDFContentNodeReference parent, PDFInteger index, ReorderMode mode);
 
     /// Copies subtrees, also to another container (Duplicate, Paste; R-2, R-4, R-5; the copy has
-    /// no structure tags and keeps its layer inside of the same document)
+    /// no structure tags and keeps its layer inside of the same document: the optional content
+    /// wraps around the source, which are not around the target place, are copied around the
+    /// copy). Refused: a place inside of tagged content (the copy would become content of that
+    /// structure element); the use of a form placed into that form or into a form it draws.
     /// \param nodes Nodes of one container
     /// \param parent The parent of the copies
-    /// \param index Index among the children of the parent, -1 = at the end
+    /// \param index Index among the children of the parent as they are before the command, -1 =
+    ///        at the end; content, which must stay the last one, stays the last one
+    ///        (PDFContentContainer::getAppendIndex)
     /// \param matrix A move of the copies in the default space of the target container
     static PDFContentCommandPointer createCopy(std::vector<PDFContentNodeReference> nodes, PDFContentNodeReference parent, PDFInteger index, const QTransform& matrix);
 
     /// Sets properties of the appearance (fill, stroke, line width, dash, cap, join, miter limit;
-    /// R-1: on leaves only, a container gives the change to its leaves)
+    /// R-1: on leaves only; a Group or a MarkedContent gives the change to its leaves inside of
+    /// the one command)
     static PDFContentCommandPointer createSetAppearance(std::vector<PDFContentNodeReference> nodes, std::map<PDFContentStateProperty, PDFContentStateValue> properties);
 
-    /// Sets the alphas and the blend mode (an ExtGState with exactly these keys, never /SMask)
+    /// Sets the alphas and the blend mode (an ExtGState with exactly these keys, never /SMask).
+    /// A Group or a MarkedContent gives the change to its leaves inside of the one command.
     static PDFContentCommandPointer createSetTransparency(std::vector<PDFContentNodeReference> nodes, std::optional<PDFReal> alphaStroking, std::optional<PDFReal> alphaFilling, std::optional<QByteArray> blendMode);
 
-    /// Wraps nodes of one parent into a new Group q ... Q (state runs between them stay in place)
+    /// Wraps nodes of one parent into a new Group q ... Q (state runs between them stay in place).
+    /// Refused for a node, which sets a clipping path for content behind it, which stays outside
+    /// of the group (q ... Q would end the clip for that content).
     static PDFContentCommandPointer createGroup(std::vector<PDFContentNodeReference> nodes);
 
     /// Removes a Group and moves its children out by R-2 (refused for a group with a clip)

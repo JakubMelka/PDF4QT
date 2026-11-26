@@ -54,15 +54,25 @@ namespace pdf
 /// Run (apply): the snapshot of session, or a session of its own over the input document, which
 /// loads the touched containers in this thread and replays the script. Every container of the
 /// snapshot and every page named in the revisions of the script is compared with the document of
-/// the run by its fingerprint; a mismatch is Failed "The document changed in the meantime". An
-/// error of an operation of the script is Failed with its path, nothing is written. A page, which
-/// cannot be written, makes the run Failed with the structured errors of the pages in the data
-/// (DATA_PAGE_ERRORS); the GUI offers to skip the page. The result is the changed document with
-/// PDFModifiedDocument::Reset (KE.9).
+/// the run by its fingerprint - a page of a script by its revision, which covers also the forms
+/// its identifiers can name (PDFContentJson::getPageRevision, computed in a session of the page
+/// alone, as the mode list computes it, also when the script names more pages); a mismatch is
+/// Failed "The document changed in the meantime". An error of an operation of the script is
+/// Failed with its path, nothing is written. An operation of a script, which changes nothing (a
+/// reorder of an object to the place where it stands, clear_page of a page without content;
+/// PDFContentCommand::isRefusedAsUnchanged), is no error: the script
+/// goes on and the result lists it (DATA_OPERATIONS_WITHOUT_EFFECT); a script of only such
+/// operations is NothingToDo. A page, which cannot be written, makes the run Failed with the
+/// structured errors of the pages in the data (DATA_PAGE_ERRORS); the GUI offers to skip the
+/// page. A skipped page stays as it is: a changed form, which it shares with a written page, is
+/// not written either, and the result says so (DATA_FORMS_NOT_WRITTEN, FACT_FORMS_NOT_WRITTEN).
+/// The result is the changed document with PDFModifiedDocument::Reset (KE.9).
 ///
-/// Permission: Modify (bit 4 of ISO 32000-2, Table 22) for apply, none for list. apply is a change
-/// of the pages (isPageChange): a certified document loses its certification with a warning; a
-/// signed one is saved incrementally (QE.3). The declarations of PDF/A and PDF/UA are removed and
+/// Permission: Modify (bit 4 of ISO 32000-2, Table 22) for apply; CopyContent (bit 5, "copy or
+/// otherwise extract text and graphics") for list, because the listing returns the text of the
+/// pages (as convert.extract-text; owner 2026-11-26). apply is a change of the pages
+/// (isPageChange): a certified document loses its certification with a warning; a signed one is
+/// saved incrementally (QE.3). The declarations of PDF/A and PDF/UA are removed and
 /// the result says so (QE.2).
 ///
 /// Threads and ownership: one instance serves all runs (PDFDocumentTool): every function is const
@@ -104,6 +114,9 @@ public:
     static constexpr const char* DATA_FONTS = "fonts";
     static constexpr const char* DATA_PAGE_ERRORS = "pageErrors";           ///< Failed run of apply: [ { page, errors: [ { id, text } ] } ]
     static constexpr const char* DATA_PAGES = "pages";                      ///< list: the listings of the pages (PDFContentJson::writePage)
+    static constexpr const char* DATA_PAGES_NOT_LISTED = "pagesNotListed";  ///< list: numbers of the pages from 1, which the limits of the call (maximumObjects, PDFContentJson::MAXIMUM_LIST_TEXT_LENGTH) did not reach
+    static constexpr const char* DATA_OPERATIONS_WITHOUT_EFFECT = "operationsWithoutEffect";    ///< apply with a script: the operations, which changed nothing: [ { index (in "items", from 0), type } ]; also in a NothingToDo result
+    static constexpr const char* DATA_FORMS_NOT_WRITTEN = "formsNotWritten";    ///< apply: the changed forms and patterns left as they are, because a skipped page uses them: [ { object (the number of the stream object), kind ("form", "pattern"), skippedPages (numbers from 1) } ]
 
     /// Names of the facts of the result dialog (the frame edit-content-v2-done)
     static constexpr const char* FACT_PAGES_CHANGED = "pagesChanged";
@@ -113,13 +126,15 @@ public:
     static constexpr const char* FACT_FONTS = "fonts";
     static constexpr const char* FACT_CONFORMANCE = "conformance";          ///< The removed declarations of PDF/A and PDF/UA
     static constexpr const char* FACT_NOT_TAGGED = "notTagged";             ///< Objects without a tag in a tagged document
+    static constexpr const char* FACT_FORMS_NOT_WRITTEN = "formsNotWritten";    ///< Changed forms left as they are, because a skipped page uses them
 
     PDFDocumentToolContent() = default;
 
     virtual QString getId() const override;
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual PDFDocumentToolResultKind getResultKind(const QVariantMap& parameters) const override;
-    virtual std::vector<PDFDocumentToolResultKind> getPossibleResultKinds() const override;
+    virtual PDFDocumentToolPreselectedResult getPreselectedResult(const QVariantMap& parameters) const override;
+    virtual PDFDocumentToolSignatureImpact getSignatureImpact(const QVariantMap& parameters) const override;
     virtual bool isPageChange(const QVariantMap& parameters) const override;
     virtual std::vector<PDFSecurityHandler::Permission> getRequiredPermissions(const QVariantMap& parameters) const override;
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;

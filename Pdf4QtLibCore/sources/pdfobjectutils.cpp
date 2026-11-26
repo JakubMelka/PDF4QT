@@ -1314,11 +1314,19 @@ PDFDictionaryBuilder PDFObjectUtils::copyDictionary(const PDFObjectStorage* stor
     return PDFDictionaryBuilder();
 }
 
-std::vector<std::pair<PDFInteger, PDFObject>> PDFObjectUtils::readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth)
+std::vector<std::pair<PDFInteger, PDFObject>> PDFObjectUtils::readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth, bool* isLimitReached)
 {
     std::vector<std::pair<PDFInteger, PDFObject>> entries;
     PDFObjectWalk walk(maximumDepth);
     readNumberTreeNode(storage, root, 0, &walk, entries);
+
+    if (isLimitReached)
+    {
+        // A node refused by the depth or by the budget was not read (a node refused as read
+        // already does not count): the entries are a part of the tree only
+        *isLimitReached = walk.isLimitReached();
+    }
+
     return entries;
 }
 
@@ -1341,6 +1349,16 @@ void PDFObjectUtils::readNumberTreeNode(const PDFObjectStorage* storage, const P
         const PDFArray* array = numbers.getArray();
         for (size_t i = 0; i + 1 < array->getCount(); i += 2)
         {
+            // Every pair spends the budget of the walk as a node does: an indirect /Nums array is
+            // no node of the walk, so many direct nodes, which name one array, read it once each
+            // (review G2-1). The budget bounds the work and the entries of the whole reading;
+            // when it is spent, the reading stops (the walk refuses every node from then on) and
+            // the walk reports the limit.
+            if (!walk->enter(PDFObject(), depth))
+            {
+                return;
+            }
+
             const PDFObject& key = storage->getObject(array->getItem(i));
             if (key.isInt())
             {

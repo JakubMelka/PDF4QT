@@ -49,9 +49,9 @@ class PDFDocument;
 /// value owned by the caller (implicitly shared JSON objects); it points to nothing.
 struct PDFContentScript
 {
-    /// Page number from 1 -> the revision (fingerprint) of the page, which the caller read by
-    /// the mode list. An operation over an existing node of a page without its revision is
-    /// refused.
+    /// Page number from 1 -> the revision of the page (PDFContentJson::getPageRevision), which
+    /// the caller read by the mode list. An operation over an existing node of a page without
+    /// its revision is refused.
     std::map<PDFInteger, QByteArray> revisions;
 
     /// The operations in their order ("type" and the fields of the command)
@@ -83,6 +83,16 @@ public:
     static constexpr int DEFAULT_LIST_DEPTH = 4;
     static constexpr int MAXIMUM_LIST_DEPTH = 16;
     static constexpr int MAXIMUM_LIST_PAGE_COUNT = 20;
+
+    /// Most characters (UTF-16 code units) of the texts of the document one listing returns: the
+    /// values of "text" and "actualText" of its objects together. A densely printed page has
+    /// about 50 000 characters and they are listed twice (by the text object and by its runs), so
+    /// a call takes several such pages; and a document cannot make a call return more (2000
+    /// objects with 2 * MAXIMUM_TEXT_LENGTH characters each would be 262 million). The listing
+    /// ends before the object, whose texts do not fit any more, and "nextOffset" continues there;
+    /// the first object of a call is always listed (its texts have at most 2 * MAXIMUM_TEXT_LENGTH
+    /// characters).
+    static constexpr qint64 MAXIMUM_LIST_TEXT_LENGTH = 1048576;
 
     /// Keys of a script
     static constexpr const char* KEY_REVISIONS = "revisions";
@@ -137,11 +147,49 @@ public:
         int depth = DEFAULT_LIST_DEPTH;                     ///< 1 ... MAXIMUM_LIST_DEPTH
         PDFInteger offset = 0;                              ///< Objects of the page to skip (paging)
         int maximumObjects = DEFAULT_LIST_OBJECT_COUNT;     ///< 1 ... MAXIMUM_LIST_OBJECT_COUNT
+        qint64 maximumTextLength = MAXIMUM_LIST_TEXT_LENGTH;    ///< Characters of the texts of the document, which the listing may still return (0 ... MAXIMUM_LIST_TEXT_LENGTH; the first listed object is not limited by it)
     };
+
+    /// The revision of a page: what the mode list returns as "revision" and a script gives back
+    /// in "revisions". It covers everything an identifier of a node of the page can name and the
+    /// patterns its objects are painted with: a SHA-256 hash of the fingerprint of the container
+    /// of the page and, for every loaded container of a form the page reaches through its form
+    /// uses (also through forms in forms) and for every tiling pattern named by the /Pattern
+    /// resources of the page and of those forms, of its key and its fingerprint. So "p3:57/12"
+    /// stops being valid, when the form of the node 57 was rewritten, though nothing of the page
+    /// itself changed. The walk over the forms has one visited set and the nesting limit of the
+    /// session; it reads only containers, which are loaded, so its value depends on what the
+    /// session holds: a form another page has loaded beyond the limits of the loader of this page
+    /// is hashed too, a form the session has refused because another page reached it too deep is
+    /// missing. The listing and the replay of a script therefore compute it in a session, which
+    /// holds the page alone, loaded by the same loader (the forms of a page beyond its limits are
+    /// in neither and no identifier can name their nodes).
+    /// \param session The session
+    /// \param pageIndex Index of the page from 0; its container must be loaded
+    /// \returns the revision (32 bytes); empty, when the container of the page is not loaded
+    static QByteArray getPageRevision(const PDFContentEditSession* session, PDFInteger pageIndex);
 
     /// The listing of one page for the mode list: { page, revision, width, height, rotation,
     /// userUnit, objects: [ { id, kind, rect, text?, appearance?, layer?, tag?, readOnly?,
     /// children? } ], nextOffset? }. Text of the document carries "origin": "document".
+    ///
+    /// "revision" is getPageRevision in hexadecimal digits.
+    ///
+    /// "rect" is in points of the unrotated default user space of the page, also for an object
+    /// inside of a form: such an object is listed below one use of its form, and its box in the
+    /// space of the form is mapped by the matrix of that use (the box of the mapped corners: for
+    /// a rotated or skewed use it is larger than the object). The object of a form use carries
+    /// "matrix": the six numbers [a, b, c, d, e, f], which map the space of the form to the space
+    /// of the page (/Matrix of the form, then the current transformation matrix of the use, then
+    /// the same of the forms around it). The matrices of the operations stay in the space of the
+    /// container of their node: for a node inside of a form the space of that form, so a move in
+    /// the page space is converted by "matrix". When the matrix of a use is not known (its node
+    /// has no state), the use has no "matrix" and the objects below it carry "space": "form" -
+    /// their "rect" is in the space of the form then.
+    ///
+    /// The window of the listing ends after ListOptions::maximumObjects objects or before the
+    /// object, whose texts do not fit into ListOptions::maximumTextLength any more;
+    /// "nextOffset" is the offset of the next call then.
     /// \param session The session: it gives the document, the container of the page and the
     ///        loaded containers of the forms (a form, which is not loaded, is listed without
     ///        children)

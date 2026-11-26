@@ -78,6 +78,18 @@ struct PDFContentStreamWriteResult
 ///   PDFContentStreamText::isSeparatorNeeded); original neighbors are joined unchanged. A missing
 ///   Q, ET or EMC is not added.
 /// - Modified and generated nodes are written canonically (PDFContentStreamText), one operator a line.
+/// - Every kind of node is written from its operations: new content needs operations in the pool
+///   (PDFContentOperation::createGenerated / createCopy; a new Group has a generated q and Q).
+///   The only exception is a Path with isModified, written from Data::path and Data::paint.
+/// - A residual state run (R-3) is a node of the kind StateRun with an override: its operations
+///   (if any), then the operators of the override, no q / Q.
+/// - An override (also an empty one) on Root, Group, MarkedContent, MarkedPoint, TextShow or Opaque
+///   is an error of the node; so is a TextObject with a clipping effect and a non-empty override.
+/// - The soft mask matrix of an override (PDFContentStateValue::matrix) is the absolute matrix,
+///   which must be in effect at the gs of the mask; the writer computes X from it and from the
+///   state of the node, which must be the state of the place where the node is written.
+/// - The tail of the content is written last and may end inside a comment: bytes appended to the
+///   result must start with a line feed.
 ///
 /// Threads and ownership: static and reentrant; reads the immutable container only.
 class PDF4QTLIBCORESHARED_EXPORT PDFContentStreamWriter

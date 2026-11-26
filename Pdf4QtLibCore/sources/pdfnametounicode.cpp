@@ -4843,4 +4843,163 @@ QChar PDFNameToUnicode::getUnicodeUsingResolvedName(const QByteArray& name)
     return character;
 }
 
+QString PDFNameToUnicode::getUnicodeTextForName(const QByteArray& name, bool isZapfDingbats)
+{
+    return getUnicodeTextForName(name, isZapfDingbats ? ZapfDingbatsLookup::First : ZapfDingbatsLookup::Last);
+}
+
+QString PDFNameToUnicode::getUnicodeTextForName(const QByteArray& name, ZapfDingbatsLookup zapfDingbatsLookup)
+{
+    QString text;
+
+    // Step 1: everything from the first period on is dropped (the whole name .notdef)
+    const char* data = name.constData();
+    qsizetype size = name.indexOf('.');
+    if (size < 0)
+    {
+        size = name.size();
+    }
+
+    // Step 2 and 3: the rest is split at the underscores and the strings of the components
+    // are joined. One pass over the name; a component is looked at in place.
+    qsizetype componentStart = 0;
+    for (qsizetype i = 0; i <= size; ++i)
+    {
+        if (i == size || data[i] == '_')
+        {
+            appendUnicodeTextForComponent(QByteArray::fromRawData(data + componentStart, i - componentStart), zapfDingbatsLookup, text);
+            componentStart = i + 1;
+        }
+    }
+
+    return text;
+}
+
+void PDFNameToUnicode::appendUnicodeTextForComponent(const QByteArray& component, ZapfDingbatsLookup zapfDingbatsLookup, QString& text)
+{
+    const char* data = component.constData();
+    const qsizetype size = component.size();
+
+    if (size == 0)
+    {
+        // No list has an empty name and it is of no form of a code point
+        return;
+    }
+
+    // A name of the ZapfDingbats list, when the font is ZapfDingbats
+    if (zapfDingbatsLookup == ZapfDingbatsLookup::First)
+    {
+        const QChar character = getUnicodeForNameZapfDingbats(component);
+        if (!character.isNull())
+        {
+            text.append(character);
+            return;
+        }
+    }
+
+    // A name of the glyph list
+    const QChar character = getUnicodeForName(component);
+    if (!character.isNull())
+    {
+        text.append(character);
+        return;
+    }
+
+    // "uni" and groups of four hexadecimal digits, each a value of 0000 - D7FF or E000 - FFFF.
+    // One wrong digit, one group of a surrogate or a number of digits, which is not a multiple
+    // of four, and the component is not of this form at all. (The specification asks for
+    // upper case digits; the lower case ones are accepted too - getHexadecimalDigit.)
+    if (size >= 3 && data[0] == 'u' && data[1] == 'n' && data[2] == 'i' && (size - 3) % 4 == 0)
+    {
+        const qsizetype originalTextSize = text.size();
+        bool isValid = true;
+        for (qsizetype i = 3; i < size && isValid; i += 4)
+        {
+            char16_t value = 0;
+            for (qsizetype j = 0; j < 4 && isValid; ++j)
+            {
+                const int digit = getHexadecimalDigit(data[i + j]);
+                isValid = digit >= 0;
+                value = static_cast<char16_t>(value * 16 + (isValid ? digit : 0));
+            }
+
+            isValid = isValid && !QChar::isSurrogate(value);
+            if (isValid)
+            {
+                text.append(QChar(value));
+            }
+        }
+
+        if (isValid)
+        {
+            return;
+        }
+
+        text.truncate(originalTextSize);
+    }
+
+    // "u" and four to six hexadecimal digits of a value of 0000 - D7FF or E000 - 10FFFF
+    if (size >= 5 && size <= 7 && data[0] == 'u')
+    {
+        char32_t value = 0;
+        bool isValid = true;
+        for (qsizetype i = 1; i < size && isValid; ++i)
+        {
+            const int digit = getHexadecimalDigit(data[i]);
+            isValid = digit >= 0;
+            value = value * 16 + static_cast<char32_t>(isValid ? digit : 0);
+        }
+
+        if (isValid && value <= 0x10FFFFu && !QChar::isSurrogate(value))
+        {
+            if (QChar::requiresSurrogates(value))
+            {
+                text.append(QChar(QChar::highSurrogate(value)));
+                text.append(QChar(QChar::lowSurrogate(value)));
+            }
+            else
+            {
+                text.append(QChar(static_cast<char16_t>(value)));
+            }
+            return;
+        }
+    }
+
+    // A name of the ZapfDingbats list in a simple font, which is not ZapfDingbats: the
+    // specification gives it nothing, the library keeps the character it always gave to such
+    // a name (a deliberate deviation, NOTES.txt 9.10.2). Never in a Type 3 font: it had no
+    // texts of names before, and pdfTeX and dvips name the glyphs of their bitmap fonts
+    // a<code> (a65, a66, ...) - they would turn to dingbats.
+    if (zapfDingbatsLookup == ZapfDingbatsLookup::Last)
+    {
+        const QChar zapfDingbatsCharacter = getUnicodeForNameZapfDingbats(component);
+        if (!zapfDingbatsCharacter.isNull())
+        {
+            text.append(zapfDingbatsCharacter);
+        }
+    }
+
+    // Any other component gives nothing
+}
+
+int PDFNameToUnicode::getHexadecimalDigit(char character)
+{
+    if (character >= '0' && character <= '9')
+    {
+        return character - '0';
+    }
+    if (character >= 'A' && character <= 'F')
+    {
+        return character - 'A' + 10;
+    }
+
+    // Lower case digits are not of the specification (a deliberate deviation, NOTES.txt 9.10.2)
+    if (character >= 'a' && character <= 'f')
+    {
+        return character - 'a' + 10;
+    }
+
+    return -1;
+}
+
 }   // namespace pdf

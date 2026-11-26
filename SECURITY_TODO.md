@@ -458,3 +458,38 @@ Each entry: where, the attack, the proposed fix. An entry is never removed, also
 - **Attack:** not an attack on the user: a document made by the application carries the outlines of a font, whose license forbids it (a legal risk of the user and of the project).
 - **Fix:** read `fsType` of the system font in the shared code (the restricted-license bit: the font is skipped, the next font of the cascade is tried), so the old Editor and Sign by Hand get the check too; the new font provider of Edit Content (`PDFContentFontProvider`, stage E2) checks it from its first version.
 - **Status:** open.
+
+### 70. `PDFObjectStorage::setObject` writes by the object number without a check of the range
+
+- **Where:** `PDFObjectStorage::setObject` (`Pdf4QtLibCore/sources/pdfdocument.cpp`): `m_objects[reference.objectNumber] = ...` on a `std::vector`, the number is not compared with the size of the storage (a negative number becomes a huge index). `PDFDocumentBuilder::setObject` passes its reference through. Found by package P04 of Edit Content (2026-11-26), read from the code; the about 130 callers in the core were **not** examined - whether one of them passes a reference taken from the data of a document without a check is open. `PDFStructureTreeWriter` checks every reference before it writes.
+- **Attack:** a document, whose reference (to a page, an annotation, a structure element ...) names an object number beyond its cross-reference table, reaches a caller, which rewrites "the object of this reference": a write outside of the storage (memory corruption).
+- **Fix:** `setObject` refuses a reference outside of the storage (an exception of the library, as a missing object gives elsewhere), and the callers, which take a reference from a document, are walked once.
+- **Status:** open.
+
+### 71. A number tree read only in part is written back whole by three tools
+
+- **Where:** `PDFObjectUtils::readNumberTree` stops at its depth limit (32) and at the node budget of the walk; since 2026-11-26 it tells so by `isLimitReached`, but only the structure model of Edit Content asks. Callers, which write the tree again from the entries they got (read from the code by package P04, not tested): the joining of structures in `PDFDocumentMerger` (`pdfdocumentmerger.cpp`, `/ParentTree`: the unread keys of an input are missing in the output), `PDFDocumentPageRemoval::rewritePageLabels` (`pdfdocumentpageoperations.cpp`: a kept label, whose entry was not read, becomes `<< /S /D >>`), `PDFScanPreparation` (`pdfscanpreparation.cpp`, `/PageLabels` written whole). `PDFDocumentBuilder::addObjectStructureElement` only extends the tree in place, but can give a key a second time.
+- **Attack:** not memory safety: a document with a number tree deeper than the limit (or made so on purpose) silently loses page labels or the parent tree of its structure, when a tool saves it.
+- **Fix:** the three callers ask the flag and keep the original tree (or refuse the part of the operation), when the reading was not complete.
+- **Status:** open.
+
+### 72. A range of `/W` (`/W2`) of a Type 0 font is expanded CID by CID without a limit
+
+- **Where:** `PDFFont::createFont`, the case of a Type 0 font (`Pdf4QtLibCore/sources/pdffont.cpp`, the reading of `/W` / `/W2` of the descendant font): the form `first last width` writes one entry of `std::unordered_map<CID, PDFReal>` for every CID of the range; `first` and `last` come from the document and are not compared with anything (a negative `first` becomes a huge unsigned CID). Found by the reviews of stage E0 of Edit Content (2026-11-26), verified in the code; not tested.
+- **Attack:** a font dictionary with `/W [0 4294967295 500]` (a few bytes) makes the loading of the font write four billion entries: the memory of the process runs out, or the loading takes minutes, as soon as the page that uses the font is rendered, searched or opened by a tool.
+- **Fix:** keep the ranges as ranges (a sorted list of `first, last, width` with a lookup by a binary search) or cap the CID at 65535 (a CID is at most two bytes with the predefined CMaps; the limit for an embedded CMap is the widest code space range) and stop at a budget of entries.
+- **Status:** open.
+
+### 73. A `/Nums` array shared by many nodes of a number tree is read once per node
+
+- **Where:** `PDFObjectUtils::readNumberTreeNode` (`Pdf4QtLibCore/sources/pdfobjectutils.cpp`): the walk counts and remembers the **nodes** (one visited set, a budget of nodes), but `/Nums` of a node is dereferenced and copied into the entries for every node; many distinct node dictionaries can name the same indirect array. Found by the fix package FD of Edit Content (2026-11-26), verified in the code; not tested. The same multiplication inside the structure model of Edit Content (a `/K` or a parent tree array shared by many elements) is bounded there by a budget of stored items (review finding A5L1-2).
+- **Attack:** a number tree (`/PageLabels`, `/ParentTree`) of 100 000 small nodes, which all name one `/Nums` array of 100 000 pairs, is a file of a few megabytes and gives ten billion entries: the memory of the process runs out, when the page labels or the structure are read.
+- **Fix:** a budget of entries for one reading (the limit reached is told by `isLimitReached`, as the node budget is), or the indirect `/Nums` arrays go through the visited set too.
+- **Status:** fixed in phase 2, stage E0 of Edit Content (2026-11-26; the review of the fixes rated it high, finding G2-1: the structure model reads `/ParentTree` in a worker): every pair of `/Nums` spends one item of the budget of the walk (`PDFObjectWalk::DEFAULT_MAXIMUM_NODES`, shared by the nodes and the pairs; a pair whose key is no integer counts too); when it runs out the reading stops and `isLimitReached` is true. Test `numberTreeSharedNums` of `UnitTestsObjectWalk` (40 000 nodes naming one array of 4 096 pairs). The callers that write a tree read only in part back are item 71.
+
+### 74. A new object gets the number that a dangling reference of the document already names
+
+- **Where:** `PDFObjectStorage::addObject` (`Pdf4QtLibCore/sources/pdfdocument.cpp`; `PDFDocumentBuilder::addObject` passes through): the new object gets the number `m_objects.size()` with the generation 0. A document may hold a reference to an object number at or beyond the size of its storage (a reference to a missing object, which is the null object by ISO 32000-2 7.3.10). Found by the fix package FC of Edit Content (2026-11-26), verified in the code; the writer of Edit Content avoids it only for the `/Resources` entry of the form streams it rewrites (it drops an entry that says nothing).
+- **Attack:** a document names `/Resources 900 0 R` (or an annotation, an action, a destination) with 900 beyond its cross-reference table; the viewer treats it as absent. After any tool adds objects and saves, object 900 exists and the old reference means the new object: content of the document starts using an object it never named (a wrong rendering, or a dictionary of one kind read as another one).
+- **Fix:** when a document is opened for a change (the builder is made), find the largest object number named by any reference and start the storage of the builder behind it, or turn the dangling references into null once.
+- **Status:** open.

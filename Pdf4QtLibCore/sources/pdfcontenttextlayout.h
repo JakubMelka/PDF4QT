@@ -76,18 +76,18 @@ struct PDFContentTextItem
     QByteArray codeBytes;                   ///< The bytes of the code (1 to 4)
     unsigned int code = 0;                  ///< The bytes as a big-endian number
     CID cid = 0;                            ///< Type 0: the CID of the code; else the code
-    QString unicode;                        ///< Text of the glyph: /ToUnicode (one or more code units), else the encoding; empty = no Unicode value
+    QString unicode;                        ///< Text of the glyph (getUnicode); empty = no Unicode value
     std::optional<PDFReal> width;           ///< w0 of the font dictionary in text space units for the font size 1 (/Widths, /MissingWidth; /W, /DW; Type 3: /Widths through /FontMatrix); no value = the dictionary gives none
     bool isWordSpace = false;               ///< The single-byte code 32 (9.3.3)
     bool hasOutline = false;                ///< The font program has the glyph
-    const PDFGlyphOutline* outline = nullptr;   ///< Its outline in glyph space; nullptr for a Type 3 glyph and a missing one
+    const PDFGlyphOutline* outline = nullptr;   ///< Its outline in the space of the realized font (text space scaled by the absolute font size, as PDFPageContentProcessor::drawText uses it); nullptr for a Type 3 glyph and a missing one
 
     // Spacer
     PDFReal adjustment = 0.0;               ///< The number of TJ (thousandths of text space, subtracted)
 
     // Both
     QTransform textMatrix;                  ///< Tm before the item (text space to the space of the text object)
-    PDFReal advance = 0.0;                  ///< tx of 9.4.4 (the move of Tm along x): ((w0 - Tj / 1000) * Tfs + Tc + Tw) * Th; 0 for a glyph without a width
+    PDFReal advance = 0.0;                  ///< tx of 9.4.4 (the move of Tm along x): ((w0 - Tj / 1000) * Tfs + Tc + Tw) * Th; (Tc + Tw) * Th for a glyph without a width; 0 in the vertical writing mode (Tm moves along y there, read the move from the text matrices)
 };
 
 /// The text matrices of one text object by ISO 32000-2, 9.4.2 - 9.4.4, and the layout of the
@@ -124,6 +124,8 @@ public:
 
     /// Every glyph shown so far had a width in the font dictionary: the positions are the ones
     /// of the standard. Otherwise the text is only movable as a whole (no editing of glyphs).
+    /// Also false after: a vertical font, a string without a font, trailing bytes that are no
+    /// whole code of the CMap, a move that is not finite (such a move is not made).
     bool isComplete() const { return m_isComplete; }
 
     /// The character codes of a string: one byte each in a simple and a Type 3 font, the codes
@@ -150,8 +152,10 @@ public:
     /// dictionary (a vertical font, a font without widths: the text is moved as a whole only)
     static bool isEditable(const PDFFont* font);
 
-    /// The text of a code: /ToUnicode (PDFFont::getToUnicodeText), else the encoding of a simple
-    /// font; empty = no Unicode value
+    /// The text of a code: /ToUnicode (PDFFont::getToUnicodeText), else the glyph name of a simple
+    /// or Type 3 font (PDFFont::getEncodingText), else the Unicode CMap of the predefined character
+    /// collection of a Type 0 font; empty = no Unicode value (also for an undefined code of a
+    /// base encoding)
     static QString getUnicode(const PDFFont* font, const Code& code);
 
 private:

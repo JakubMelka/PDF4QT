@@ -72,6 +72,19 @@ public:
     /// Two ExtGState dictionaries of the editor set the same keys to the same values (an equal
     /// dictionary is shared inside of a container)
     static bool isEqual(const PDFObject& left, const PDFObject& right);
+
+    /// A key of an ExtGState dictionary for a map: two objects have the same key exactly when
+    /// isEqual calls them equal (the entries, which the dictionary sets, sorted by their keys,
+    /// /Type and null values left out, the first one of a key written twice, each value by
+    /// getObjectKey). Empty for an object, which isEqual calls equal to nothing: an object, which
+    /// is not a dictionary, or a dictionary with a value, which is not equal to itself (a NaN).
+    static QByteArray getEqualityKey(const PDFObject& dictionary);
+
+    /// A key of an object for a map: two objects have the same key exactly when they are equal by
+    /// PDFObject::operator== (the same type and value; a real 0 and -0 are equal; the items of an
+    /// array and the entries of a dictionary in their order). Empty for an object, which is equal
+    /// to nothing, also to itself (a real NaN in it).
+    static QByteArray getObjectKey(const PDFObject& object);
 };
 
 }   // namespace pdf

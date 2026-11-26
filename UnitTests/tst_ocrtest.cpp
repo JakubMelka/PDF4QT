@@ -348,6 +348,7 @@ private slots:
     void renderedGeometryRoundTrip();
     void idempotentApplyAndRemove();
     void pageAnalysisAndPolicy();
+    void pageAnalysisUnmappedCharacters();
     void annotationsAndRedactions();
     void jobCancellation();
     void pageErrorAndRetry();
@@ -2152,6 +2153,103 @@ void OCRTest::pageAnalysisAndPolicy()
 
     // Page labels
     QCOMPARE(PDFOCRPagePreparer::getPageLabel(&document, 0), QString());
+}
+
+void OCRTest::pageAnalysisUnmappedCharacters()
+{
+    // A character without a unicode mapping is a glyph, whose code has no text. The font is the
+    // embedded TrueType program LiberationSans-Regular of the resources of the library, without
+    // /ToUnicode; its "post" table has the glyphs four.sups and alt_plussign. /Differences names
+    // them for the codes 65 and 66: the text of four.sups is 4 (the suffix is dropped, Adobe
+    // Glyph List Specification) though the name is no key of a glyph - it is mapped; neither
+    // "alt" nor "plussign" is a name of a glyph list - the code 66 is not mapped. The code 67 is
+    // C of the base encoding.
+    QFile fontFile(QStringLiteral(":/fonts/liberation-fonts-ttf/LiberationSans-Regular.ttf"));
+    QVERIFY(fontFile.open(QFile::ReadOnly));
+    QByteArray fontProgram = fontFile.readAll();
+    QVERIFY(!fontProgram.isEmpty());
+
+    auto dictionaryObject = [](std::initializer_list<std::pair<const char*, PDFObject>> entries)
+    {
+        PDFDictionaryBuilder dictionary;
+        for (const auto& [key, value] : entries)
+        {
+            dictionary.addEntry(PDFInplaceOrMemoryString(key), PDFObject(value));
+        }
+        return PDFObject::createDictionary(std::move(dictionary));
+    };
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference pageReference = builder.appendPage(QRectF(0, 0, 300, 200));
+
+    PDFDictionaryBuilder fontFileDictionary;
+    fontFileDictionary.addEntry(PDFInplaceOrMemoryString("Length1"), PDFObject::createInteger(fontProgram.size()));
+    fontFileDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(fontProgram.size()));
+    const PDFObjectReference fontFileReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(fontFileDictionary), std::move(fontProgram))));
+
+    PDFArrayBuilder fontBox;
+    for (const PDFInteger value : { -544, -303, 1302, 980 })
+    {
+        fontBox.appendItem(PDFObject::createInteger(value));
+    }
+
+    PDFArrayBuilder differences;
+    differences.appendItem(PDFObject::createInteger(65));
+    differences.appendItem(PDFObject::createName("four.sups"));
+    differences.appendItem(PDFObject::createName("alt_plussign"));
+
+    PDFArrayBuilder widths;
+    for (int i = 0; i < 3; ++i)
+    {
+        widths.appendItem(PDFObject::createInteger(600));
+    }
+
+    const PDFObject fontDescriptor = dictionaryObject({ { "Type", PDFObject::createName("FontDescriptor") },
+                                                        { "FontName", PDFObject::createName("LiberationSans") },
+                                                        { "Flags", PDFObject::createInteger(32) },
+                                                        { "FontBBox", PDFObject::createArray(std::move(fontBox)) },
+                                                        { "ItalicAngle", PDFObject::createInteger(0) },
+                                                        { "Ascent", PDFObject::createInteger(905) },
+                                                        { "Descent", PDFObject::createInteger(-212) },
+                                                        { "CapHeight", PDFObject::createInteger(729) },
+                                                        { "StemV", PDFObject::createInteger(80) },
+                                                        { "FontFile2", PDFObject::createReference(fontFileReference) } });
+    const PDFObject encoding = dictionaryObject({ { "Type", PDFObject::createName("Encoding") },
+                                                  { "BaseEncoding", PDFObject::createName("WinAnsiEncoding") },
+                                                  { "Differences", PDFObject::createArray(std::move(differences)) } });
+    const PDFObject font = dictionaryObject({ { "Type", PDFObject::createName("Font") },
+                                              { "Subtype", PDFObject::createName("TrueType") },
+                                              { "BaseFont", PDFObject::createName("LiberationSans") },
+                                              { "FirstChar", PDFObject::createInteger(65) },
+                                              { "LastChar", PDFObject::createInteger(67) },
+                                              { "Widths", PDFObject::createArray(std::move(widths)) },
+                                              { "FontDescriptor", fontDescriptor },
+                                              { "Encoding", encoding } });
+    const PDFObjectReference fontReference = builder.addObject(font);
+
+    // Three glyphs four.sups, one glyph alt_plussign, one letter C
+    QByteArray content = "BT /F1 12 Tf 20 150 Td (AAABC) Tj ET";
+    PDFDictionaryBuilder contentDictionary;
+    contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
+    const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
+
+    PDFDictionaryBuilder resources;
+    resources.addEntry(PDFInplaceOrMemoryString("Font"), dictionaryObject({ { "F1", PDFObject::createReference(fontReference) } }));
+    PDFDictionaryBuilder pageUpdate;
+    pageUpdate.addEntry(PDFInplaceOrMemoryString("Contents"), PDFObject::createReference(contentReference));
+    pageUpdate.addEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::move(resources)));
+    builder.mergeTo(pageReference, PDFObject::createDictionary(std::move(pageUpdate)));
+
+    PDFDocument document = builder.build();
+    RenderingContext context(&document);
+    PDFOCRPagePreparer preparer = context.createPreparer(&document);
+
+    const PDFOCRPageAnalysis analysis = preparer.analyze(0, nullptr);
+
+    // The characters of the page: 4, 4, 4 and C; the glyph alt_plussign has no text
+    QCOMPARE(analysis.visibleCharacterCount, 4);
+    QCOMPARE(analysis.unmappedCharacterCount, 1);
+    QVERIFY(analysis.contentClass == PDFOCRPageContentClass::Ambiguous);
 }
 
 // -------------------------------------------------------------------------

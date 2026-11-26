@@ -92,6 +92,7 @@
 #include <QStyledItemDelegate>
 #include <QStyleOptionSpinBox>
 #include <QStyleOptionTab>
+#include <QToolButton>
 #include <QToolTip>
 #include <QTreeView>
 #include <QTranslator>

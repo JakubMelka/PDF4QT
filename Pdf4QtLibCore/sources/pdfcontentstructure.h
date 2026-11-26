@@ -32,6 +32,8 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace pdf
@@ -106,7 +108,7 @@ struct PDFContentParentTreeItem
 
     Kind kind = Kind::Foreign;
     std::vector<PDFContentStructureElementId> elements;
-    PDFObject raw;              ///< The original value (kept for Foreign; for the others the original, until the item is changed)
+    PDFObject raw;              ///< The original value (kept for Foreign; for the others the original, kept also after the item is changed - isModified tells)
     bool isModified = false;
 };
 
@@ -137,8 +139,9 @@ using PDFContentStructureModelPointer = std::shared_ptr<const PDFContentStructur
 
 /// The structure tree of a document as the editor needs it: every child of /K including the
 /// integer MCIDs, the parent tree with its nulls and its foreign items. Read from the raw objects
-/// by one PDFObjectWalk (one visited set for the whole walk, a depth limit, iterative): an element
-/// shared by two parents appears once, a cycle ends.
+/// by two walks, of the elements and of the nodes of the parent tree (each with one visited set for
+/// its whole walk, a depth limit, iterative): an element shared by two parents appears once, a
+/// cycle ends.
 ///
 /// Threads and ownership: immutable (a change gives a new model, which shares nothing mutable with
 /// the old one); held by shared pointers of the session, of undo and of snapshots; read by any
@@ -214,12 +217,62 @@ public:
     bool isModified() const;
 
 private:
+    friend class PDFContentStructureModelHelper;    ///< Reading and the changes (pdfcontentstructure.cpp)
+    friend class PDFStructureTreeWriterHelper;      ///< Writing (pdfstructuretreewriter.cpp)
+
+    /// An item of /K the model does not read as a child (null, a wrong type, a direct structure
+    /// element dictionary, a marked content or object reference with other keys than those of
+    /// ISO 32000-2 Tables 357 and 358, a reference the walk refused: an element of another
+    /// parent, a cycle, the depth limit). It is written back unchanged at its place, unless it
+    /// names exactly one marked content of a page (a marked-content reference with other keys or
+    /// a direct structure element dictionary, whose /K is one marked content): when the last
+    /// content of that sequence is deleted, the reference is removed and the direct element loses
+    /// its /K (as an element of the model loses its child).
+    struct ForeignChild
+    {
+        size_t position = 0;        ///< Number of the children of the element in front of it
+        PDFObject object;           ///< The item as it is
+        PDFInteger key = -1;        ///< The key of the marked content the item names exactly, -1 for none
+        PDFInteger mcid = -1;       ///< Its marked content identifier
+        bool isElement = false;     ///< A direct structure element dictionary (not a marked-content reference)
+    };
+
+    /// A page or a content stream and a marked content identifier
+    using ContentKey = std::pair<PDFInteger, PDFInteger>;
+
     std::vector<PDFContentStructureElement> m_elements;
     std::map<PDFInteger, PDFContentParentTreeItem> m_parentTree;
     PDFInteger m_nextParentTreeKey = 0;
     std::vector<QString> m_issues;
     PDFObjectReference m_structureTreeRoot;
     bool m_isModified = false;
+
+    /// No limit stopped the reading of the elements or of the parent tree. An incomplete
+    /// model refuses the changes of the structure: what it writes would lose the unread part.
+    bool m_isComplete = true;
+
+    /// Element -> its foreign children, in the order of /K
+    std::map<PDFContentStructureElementId, std::vector<ForeignChild>> m_foreignChildren;
+
+    /// The elements, whose /K was one object and not an array (written back the same way,
+    /// while they have one child)
+    std::set<PDFContentStructureElementId> m_singleChildElements;
+
+    /// (key, index) of the items of the arrays of the parent tree, which are neither null nor
+    /// an element of the model: -1 in PDFContentParentTreeItem::elements, written back from raw
+    std::set<ContentKey> m_foreignParentTreeItems;
+
+    /// A page or a content stream named by a child -> its /StructParents
+    std::map<PDFObjectReference, PDFInteger> m_structuralParentKeys;
+
+    /// (key, MCID), whose items in /K do not agree with the parent tree (a child of more
+    /// elements, of another element than the parent tree says, or twice in one element; an item
+    /// of the parent tree, whose element does not list it; a foreign child names it). Its
+    /// deletion removes it from every element; it cannot be split (it cannot be tagged anew).
+    std::set<ContentKey> m_irregularContent;
+
+    /// Key -> the largest MCID a child of an element names for it
+    std::map<PDFInteger, PDFInteger> m_largestChildContentId;
 };
 
 }   // namespace pdf

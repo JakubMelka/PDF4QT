@@ -162,7 +162,9 @@ protected:
 
         for (const TextSequenceItem& item : textSequence.items)
         {
-            if (item.isCharacter() && item.character.isNull())
+            // The character of the code for the text (a glyph name of /Differences with a suffix
+            // has it, though it gives no key of a glyph)
+            if (item.isCharacter() && item.textCharacter.isNull())
             {
                 ++unmappedCharacterCount;
             }

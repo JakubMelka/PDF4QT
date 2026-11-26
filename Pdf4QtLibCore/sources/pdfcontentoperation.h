@@ -31,6 +31,7 @@
 #include <QByteArray>
 
 #include <compare>
+#include <memory>
 #include <vector>
 
 namespace pdf
@@ -229,10 +230,22 @@ public:
     void finishOriginal(QByteArray tail);
 
 private:
-    // P01 replaces this storage by one that shares the operations between copies (a container
-    // holds the list by value and every command makes a new container)
-    std::vector<PDFContentOperation> m_operations;
-    size_t m_originalCount = 0;
+    /// A block of at most CHUNK_SIZE operations (defined in the source file). A block held by more
+    /// lists is never changed: a list, which appends to it or changes a flag in it, makes its own
+    /// copy of this one block first. The blocks before stay shared, so a copy of a list costs one
+    /// pointer per block and a change costs one block, whatever the number of the operations is.
+    struct Chunk;
+    using ChunkPointer = std::shared_ptr<Chunk>;
+
+    static constexpr size_t CHUNK_SIZE = 1024;
+
+    /// The block of an index for writing: owned by this list only afterwards
+    Chunk* detachChunk(size_t chunkIndex);
+
+    std::vector<ChunkPointer> m_chunks;     ///< All blocks except the last one are full
+    size_t m_count = 0;
+    size_t m_originalCount = 0;             ///< Set by finishOriginal
+    bool m_isOriginalFinished = false;
     QByteArray m_tail;
 };
 

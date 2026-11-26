@@ -47,6 +47,8 @@
 #include <atomic>
 #include <map>
 #include <memory>
+#include <numeric>
+#include <queue>
 
 #include "pdfdbgheap.h"
 
@@ -1749,6 +1751,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 {
                     const Glyph& glyph = getGlyph(glyphIndex);
                     textSequence.items.emplace_back(&glyph.outline, font->getUnicode(cid), glyph.advance, cid);
+                    textSequence.items.back().textCharacter = font->getTextUnicode(cid);
                     textSequence.items.back().code = cid;
                     textSequence.items.back().codeLength = 1;
                 }
@@ -1888,7 +1891,7 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
                 {
                     CharacterInfo info;
                     info.gid = glyphIndex;
-                    info.character = font->getUnicode(static_cast<CID>(i));
+                    info.character = font->getTextUnicode(static_cast<CID>(i));
                     result.emplace_back(qMove(info));
                 }
             }
@@ -2466,6 +2469,134 @@ QString PDFFont::getToUnicodeText(unsigned int code, unsigned int codeLength) co
     return (toUnicode && toUnicode->isValid()) ? toUnicode->getToUnicodeText(code, byteCount) : QString();
 }
 
+QString PDFFont::getEncodingText(unsigned int code, unsigned int codeLength) const
+{
+    // A font without an encoding of glyph names (a Type 0 font)
+    Q_UNUSED(code);
+    Q_UNUSED(codeLength);
+    return QString();
+}
+
+/// Texts of the character codes by the glyph names of the encoding of a simple or of a Type 3
+/// font (Adobe Glyph List Specification, section 2)
+class PDFFontEncodingTextHelper
+{
+public:
+    PDFFontEncodingTextHelper() = delete;
+
+    /// The font is ZapfDingbats by its PostScript name. The tag of a font subset (six upper case
+    /// letters and a plus sign, ISO 32000-2, 9.9.2) is not a part of the name.
+    static bool isZapfDingbats(const QByteArray& fontName);
+
+    /// Text of a glyph name: the character string of the specification without U+0000 (a null
+    /// character is "no character" through the library); a text longer than
+    /// PDFFont::MAXIMUM_ENCODING_TEXT_LENGTH is no text
+    static QString getTextOfName(const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup);
+
+    /// Sets the text of a code by its glyph name of /Differences. The name decides alone: a name,
+    /// which maps to nothing, gives no text. The text layout has one character per glyph, so
+    /// for a text of more code units it gets the character, which the glyph list of the library
+    /// has for the whole name (the ligatures f_f, f_i, f_f_i and f_f_l), or none.
+    static void setTextOfName(PDFFontEncodingTexts& encodingTexts, size_t code, const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup);
+
+    /// Adds the text of a code by a glyph name of the built-in encoding of a font program. A name,
+    /// which no glyph list has as a whole (\p isNameUnknown), gives the character of its text, if
+    /// the text has one code unit; otherwise the code keeps the character it has (of the glyph
+    /// list, of the standard encoding). A text of more code units is kept for getEncodingText.
+    static void addTextOfBuiltInName(PDFFontEncodingTexts& encodingTexts, size_t code, const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup, bool isNameUnknown);
+
+    /// Text of a code (PDFFont::getEncodingText of a font with the texts)
+    static QString getText(const PDFFontEncodingTexts& encodingTexts, unsigned int code);
+};
+
+bool PDFFontEncodingTextHelper::isZapfDingbats(const QByteArray& fontName)
+{
+    constexpr qsizetype SUBSET_TAG_LENGTH = 6;
+
+    QByteArrayView name(fontName);
+    if (name.size() > SUBSET_TAG_LENGTH && name[SUBSET_TAG_LENGTH] == '+')
+    {
+        bool isSubsetTag = true;
+        for (qsizetype i = 0; i < SUBSET_TAG_LENGTH; ++i)
+        {
+            isSubsetTag = isSubsetTag && name[i] >= 'A' && name[i] <= 'Z';
+        }
+
+        if (isSubsetTag)
+        {
+            name = name.sliced(SUBSET_TAG_LENGTH + 1);
+        }
+    }
+
+    return name == QByteArrayView("ZapfDingbats");
+}
+
+QString PDFFontEncodingTextHelper::getTextOfName(const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup)
+{
+    QString text = PDFNameToUnicode::getUnicodeTextForName(glyphName, zapfDingbatsLookup);
+    text.remove(QChar(u'\0'));
+
+    if (text.size() > PDFFont::MAXIMUM_ENCODING_TEXT_LENGTH)
+    {
+        text.clear();
+    }
+
+    return text;
+}
+
+void PDFFontEncodingTextHelper::setTextOfName(PDFFontEncodingTexts& encodingTexts, size_t code, const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup)
+{
+    Q_ASSERT(code < encodingTexts.characters.size());
+
+    QString text = getTextOfName(glyphName, zapfDingbatsLookup);
+    encodingTexts.texts.erase(static_cast<unsigned int>(code));
+
+    if (text.size() <= 1)
+    {
+        encodingTexts.characters[code] = text.isEmpty() ? QChar() : text.front();
+    }
+    else
+    {
+        encodingTexts.characters[code] = PDFNameToUnicode::getUnicodeForName(glyphName);
+        encodingTexts.texts[static_cast<unsigned int>(code)] = qMove(text);
+    }
+}
+
+void PDFFontEncodingTextHelper::addTextOfBuiltInName(PDFFontEncodingTexts& encodingTexts, size_t code, const QByteArray& glyphName, PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup, bool isNameUnknown)
+{
+    Q_ASSERT(code < encodingTexts.characters.size());
+
+    QString text = getTextOfName(glyphName, zapfDingbatsLookup);
+    if (text.size() == 1)
+    {
+        if (isNameUnknown)
+        {
+            encodingTexts.characters[code] = text.front();
+        }
+    }
+    else if (!text.isEmpty())
+    {
+        encodingTexts.texts[static_cast<unsigned int>(code)] = qMove(text);
+    }
+}
+
+QString PDFFontEncodingTextHelper::getText(const PDFFontEncodingTexts& encodingTexts, unsigned int code)
+{
+    if (code >= encodingTexts.characters.size())
+    {
+        return QString();
+    }
+
+    auto it = encodingTexts.texts.find(code);
+    if (it != encodingTexts.texts.cend())
+    {
+        return it->second;
+    }
+
+    const QChar character = encodingTexts.characters[code];
+    return character.isNull() ? QString() : QString(character);
+}
+
 PDFEncodedText PDFFont::encodeText(const QString& text) const
 {
     PDFEncodedText result;
@@ -2530,7 +2661,9 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
     QByteArray baseFont = fontLoader.readNameFromDictionary(fontDictionary, "BaseFont");
     const PDFInteger firstChar = fontLoader.readIntegerFromDictionary(fontDictionary, "FirstChar", 0);
     const PDFInteger lastChar = fontLoader.readIntegerFromDictionary(fontDictionary, "LastChar", 255);
-    std::vector<PDFInteger> widths = fontLoader.readIntegerArrayFromDictionary(fontDictionary, "Widths");
+    // ISO 32000-2, 9.6.2.1, Table 109: an array of numbers (a real number is a width too; an array
+    // with an item, which is no number, gives no widths, as before)
+    std::vector<PDFReal> widths = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
 
     // Read standard font
     static constexpr std::array standardFonts = {
@@ -2592,6 +2725,13 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
     bool hasToUnicode = false;
     GlyphIndices glyphIndexArray = { };
     GlyphNames glyphNameArray = { };
+
+    // The texts of the codes are apart from the encoding table: the table (and the glyph names)
+    // select the glyphs, and a name like one.oldstyle selects the glyph of that name, never
+    // the glyph of the character 1, which is its text
+    PDFFontEncodingTexts simpleFontEncodingTexts;
+    bool hasSimpleFontEncodingTexts = false;
+
     switch (fontType)
     {
         case FontType::Type1:
@@ -2602,6 +2742,9 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
             encoding::EncodingTable differences = { };
             GlyphNames differenceGlyphNames = { };
             bool useEmbeddedBuiltInEncoding = false;
+            std::array<bool, 256> isBuiltInGlyphNameUnknown = { };
+            const bool isZapfDingbatsFont = PDFFontEncodingTextHelper::isZapfDingbats(!baseFont.isEmpty() ? baseFont : fontDescriptor.fontName);
+            const PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup = isZapfDingbatsFont ? PDFNameToUnicode::ZapfDingbatsLookup::First : PDFNameToUnicode::ZapfDingbatsLookup::Last;
 
             if (fontDictionary->hasKey("Encoding"))
             {
@@ -2775,7 +2918,8 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
                 // code always (ISO 32000-2, 9.6.5.1, Table 112), also a name, which gives no
                 // character (a name of no glyph list, .notdef): such a code has no character
                 // (9.10.2) and, where the glyph is found by the character, no glyph - never
-                // the character and the glyph of the base encoding.
+                // the character and the glyph of the base encoding. (A font, which is not
+                // embedded, gets the character of the text of such a name below.)
                 if (hasDifferences)
                 {
                     for (size_t i = 0; i < differences.size(); ++i)
@@ -2802,6 +2946,46 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
                         simpleFontEncodingTable[i] = standardEncoding[i];
                     }
                 }
+
+                // The texts of the codes: the characters of the finished table, but the text of
+                // a code with a glyph name comes from the name by the rules of the Adobe Glyph
+                // List Specification (ISO 32000-2, 9.10.2) - also from a name, which the table
+                // does not know as a whole (a name with a suffix, of more components, of a code
+                // point outside of the basic multilingual plane). The table is not touched: it
+                // is the key of the glyphs.
+                simpleFontEncodingTexts.characters = simpleFontEncodingTable;
+                for (size_t i = 0; i < differenceGlyphNames.size(); ++i)
+                {
+                    if (!differenceGlyphNames[i].isEmpty())
+                    {
+                        PDFFontEncodingTextHelper::setTextOfName(simpleFontEncodingTexts, i, differenceGlyphNames[i], zapfDingbatsLookup);
+                    }
+                    else if (useEmbeddedBuiltInEncoding && !glyphNameArray[i].isEmpty())
+                    {
+                        // A name of the built-in encoding of the font program
+                        PDFFontEncodingTextHelper::addTextOfBuiltInName(simpleFontEncodingTexts, i, glyphNameArray[i], zapfDingbatsLookup, isBuiltInGlyphNameUnknown[i]);
+                    }
+                }
+
+                // A font without an embedded font program (no /FontFile, /FontFile2, /FontFile3
+                // with data - the condition, by which the realized font takes a substitute): its
+                // glyphs come from the substitute, which is asked by characters and has no
+                // glyph named one.oldstyle. A name of /Differences without a character in the
+                // table, whose text is one character, takes that character as the key of its
+                // glyph - the substitute paints its "1" (owner 2026-11-26). An embedded font
+                // stays strict: the glyph of the name in its program, or none.
+                if (!fontDescriptor.isEmbedded())
+                {
+                    for (size_t i = 0; i < differenceGlyphNames.size(); ++i)
+                    {
+                        if (!differenceGlyphNames[i].isEmpty() && simpleFontEncodingTable[i].isNull() && !simpleFontEncodingTexts.characters[i].isNull())
+                        {
+                            simpleFontEncodingTable[i] = simpleFontEncodingTexts.characters[i];
+                        }
+                    }
+                }
+
+                hasSimpleFontEncodingTexts = simpleFontEncodingTexts.characters != simpleFontEncodingTable || !simpleFontEncodingTexts.texts.empty();
             };
 
             if (fontDescriptor.isEmbedded())
@@ -2869,6 +3053,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
                                                             encoding = PDFEncoding::Encoding::Custom;
                                                             simpleFontEncodingTable[iTable] = character;
                                                         }
+
+                                                        // A name of no glyph list: the table keeps what it has, the
+                                                        // text of the code is looked up by the name (finishFont)
+                                                        isBuiltInGlyphNameUnknown[iTable] = useEmbeddedBuiltInEncoding && character.isNull();
                                                     }
                                                 }
                                             }
@@ -3026,7 +3214,9 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
                 cmap = PDFFontCMap::createFromData(decodedStream);
             }
 
-            if (!cmap.isValid())
+            // The CMap divides the shown strings into codes (9.7.6.2): a map without a code entry
+            // (texts of a ToUnicode CMap only) cannot do that
+            if (!cmap.hasCodeEntries())
             {
                 throw PDFException(PDFTranslationContext::tr("Invalid CMAP in CID-keyed font."));
             }
@@ -3170,6 +3360,14 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
 
             std::map<int, QByteArray> characterContentStreams;
 
+            // The texts of the codes by their glyph names (ISO 32000-2, 9.10.2), as in a simple
+            // font; the last name of a code decides. The ZapfDingbats list is never asked for
+            // a Type 3 font: pdfTeX and dvips name the glyphs of their bitmap fonts a<code>
+            // (a65, a66, ...), which are names of that list - their text would be dingbats.
+            PDFFontEncodingTexts type3EncodingTexts;
+            bool hasType3EncodingTexts = false;
+            const PDFNameToUnicode::ZapfDingbatsLookup type3ZapfDingbatsLookup = PDFNameToUnicode::ZapfDingbatsLookup::Never;
+
             const PDFArray* differencesArray = differences.getArray();
             size_t currentOffset = 0;
             for (size_t i = 0, count = differencesArray->getCount(); i < count; ++i)
@@ -3194,6 +3392,9 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
                         characterContentStreams[static_cast<int>(currentOffset)] = qMove(contentStream);
                     }
 
+                    PDFFontEncodingTextHelper::setTextOfName(type3EncodingTexts, currentOffset, characterName, type3ZapfDingbatsLookup);
+                    hasType3EncodingTexts = true;
+
                     ++currentOffset;
                 }
                 else
@@ -3216,7 +3417,13 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
             }
 
             std::vector<PDFReal> widthsF3 = fontLoader.readNumberArrayFromDictionary(fontDictionary, "Widths");
-            return PDFFontPointer(new PDFType3Font(qMove(fontDescriptor), qMove(fontId), firstCharF3, lastCharF3, fontMatrix, qMove(characterContentStreams), qMove(widthsF3), document->getObject(fontDictionary->get("Resources")), qMove(toUnicodeCMap)));
+            PDFType3Font* type3Font = new PDFType3Font(qMove(fontDescriptor), qMove(fontId), firstCharF3, lastCharF3, fontMatrix, qMove(characterContentStreams), qMove(widthsF3), document->getObject(fontDictionary->get("Resources")), qMove(toUnicodeCMap));
+            PDFFontPointer type3FontPointer(type3Font);
+            if (hasType3EncodingTexts)
+            {
+                type3Font->setEncodingTexts(qMove(type3EncodingTexts));
+            }
+            return type3FontPointer;
         }
 
         default:
@@ -3237,6 +3444,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
             {
                 font->setToUnicodeTextMap(qMove(simpleFontToUnicodeTextMap));
             }
+            if (hasSimpleFontEncodingTexts)
+            {
+                font->setEncodingTexts(qMove(simpleFontEncodingTexts));
+            }
             return fontPointer;
         }
 
@@ -3247,6 +3458,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
             if (hasToUnicode)
             {
                 font->setToUnicodeTextMap(qMove(simpleFontToUnicodeTextMap));
+            }
+            if (hasSimpleFontEncodingTexts)
+            {
+                font->setEncodingTexts(qMove(simpleFontEncodingTexts));
             }
             return fontPointer;
         }
@@ -3268,7 +3483,7 @@ PDFSimpleFont::PDFSimpleFont(CIDSystemInfo cidSystemInfo,
                              QByteArray baseFont,
                              PDFInteger firstChar,
                              PDFInteger lastChar,
-                             std::vector<PDFInteger> widths,
+                             std::vector<PDFReal> widths,
                              PDFEncoding::Encoding encodingType,
                              encoding::EncodingTable encoding,
                              encoding::EncodingTable toUnicode,
@@ -3323,7 +3538,48 @@ QChar PDFSimpleFont::getUnicode(CID cid) const
     return QChar();
 }
 
-PDFInteger PDFSimpleFont::getGlyphAdvance(size_t index) const
+QChar PDFSimpleFont::getTextUnicode(CID cid) const
+{
+    // The priority of getUnicode: a character of /ToUnicode first
+    if (cid < m_toUnicode.size() && m_hasToUnicode && !m_toUnicode[cid].isNull())
+    {
+        return m_toUnicode[cid];
+    }
+    if (m_encodingTexts && cid < m_encodingTexts->characters.size())
+    {
+        return m_encodingTexts->characters[cid];
+    }
+    if (cid < m_encoding.size())
+    {
+        return m_encoding[cid];
+    }
+
+    return QChar();
+}
+
+QString PDFSimpleFont::getEncodingText(unsigned int code, unsigned int codeLength) const
+{
+    // A code of a simple font is one byte (9.4.3)
+    if (codeLength > 1 || code >= m_encoding.size())
+    {
+        return QString();
+    }
+
+    if (m_encodingTexts)
+    {
+        return PDFFontEncodingTextHelper::getText(*m_encodingTexts, code);
+    }
+
+    const QChar character = m_encoding[code];
+    return character.isNull() ? QString() : QString(character);
+}
+
+void PDFSimpleFont::setEncodingTexts(PDFFontEncodingTexts encodingTexts)
+{
+    m_encodingTexts = QSharedPointer<const PDFFontEncodingTexts>(new PDFFontEncodingTexts(qMove(encodingTexts)));
+}
+
+PDFReal PDFSimpleFont::getGlyphAdvance(size_t index) const
 {
     const size_t min = m_firstChar;
     const size_t max = m_lastChar;
@@ -3435,7 +3691,7 @@ PDFType1Font::PDFType1Font(FontType fontType,
                            QByteArray baseFont,
                            PDFInteger firstChar,
                            PDFInteger lastChar,
-                           std::vector<PDFInteger> widths,
+                           std::vector<PDFReal> widths,
                            PDFEncoding::Encoding encodingType,
                            encoding::EncodingTable encoding,
                            encoding::EncodingTable toUnicode,
@@ -4085,6 +4341,7 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
 
     PDFFontCMap result(qMove(entries), vertical, false);
     result.m_textEntries = qMove(textEntries);
+    result.initializeLookup();
     return result;
 }
 
@@ -4158,6 +4415,9 @@ PDFFontCMap PDFFontCMap::deserialize(const QByteArray& byteArray)
     }
     std::stable_sort(result.m_textEntries.begin(), result.m_textEntries.end());
 
+    // The lookups are not serialized: they are made of the entries and the texts again
+    result.initializeLookup();
+
     return result;
 }
 
@@ -4178,6 +4438,13 @@ std::vector<CID> PDFFontCMap::interpret(const QByteArray& byteArray) const
 std::vector<PDFFontCMap::MappedCode> PDFFontCMap::interpretWithCode(const QByteArray& byteArray) const
 {
     std::vector<MappedCode> result;
+    if (m_maxKeyLength == 0)
+    {
+        // A map without a code entry (texts of a ToUnicode CMap only, or no mapping) divides no
+        // string into codes
+        return result;
+    }
+
     result.reserve(byteArray.size() / m_maxKeyLength);
 
     unsigned int value = 0;
@@ -4248,18 +4515,13 @@ QChar PDFFontCMap::getToUnicode(CID cid) const
 
 QChar PDFFontCMap::getToUnicode(CID cid, unsigned int byteCount) const
 {
-    if (isValid())
+    // The first entry in the order of m_entries, which maps the code with the byte count (any
+    // byte count for 0), as a scan of the entries would find it
+    const Entry* entry = findEntry((byteCount == 0) ? m_anyByteCountLookup : m_entryLookup, byteCount, cid);
+    if (entry)
     {
-        auto it = std::find_if(m_entries.cbegin(), m_entries.cend(), [cid, byteCount](const Entry& entry) {
-            const bool byteCountMatches = byteCount == 0 || entry.byteCount == byteCount;
-            return byteCountMatches && entry.from <= cid && entry.to >= cid;
-        });
-        if (it != m_entries.cend())
-        {
-            const Entry& entry = *it;
-            const CID unicodeCID = cid - entry.from + entry.cid;
-            return QChar(unicodeCID);
-        }
+        const CID unicodeCID = cid - entry->from + entry->cid;
+        return QChar(unicodeCID);
     }
 
     return QChar();
@@ -4281,10 +4543,11 @@ QString PDFFontCMap::getToUnicodeText(unsigned int code, unsigned int byteCount)
     }
     else
     {
-        auto it = std::find_if(m_textEntries.cbegin(), m_textEntries.cend(), [code](const TextEntry& textEntry) { return textEntry.code == code; });
-        if (it != m_textEntries.cend())
+        // The first text of the code in the order of m_textEntries (of the smallest byte count)
+        auto it = std::lower_bound(m_textEntryCodeOrder.cbegin(), m_textEntryCodeOrder.cend(), code, [this](size_t index, unsigned int value) { return m_textEntries[index].code < value; });
+        if (it != m_textEntryCodeOrder.cend() && m_textEntries[*it].code == code)
         {
-            return it->text;
+            return m_textEntries[*it].text;
         }
     }
 
@@ -4352,6 +4615,125 @@ PDFFontCMap::PDFFontCMap(Entries&& entries, bool vertical, bool unicodeEncoded) 
     m_unicodeEncoded(unicodeEncoded)
 {
     m_maxKeyLength = std::accumulate(m_entries.cbegin(), m_entries.cend(), 0, [](unsigned int a, const Entry& b) { return qMax(a, b.byteCount); });
+}
+
+void PDFFontCMap::initializeLookup()
+{
+    // A lookup gives for each code the entry, which a scan of m_entries in their order finds
+    // first (the entries may overlap: ranges of a CMap, a code mapped twice). The order of
+    // m_entries is not assumed (the data of a serialization): the index decides.
+    m_entryLookup.clear();
+    m_anyByteCountLookup.clear();
+
+    std::vector<size_t> order(m_entries.size());
+    std::iota(order.begin(), order.end(), size_t(0));
+
+    // The entries of each byte count, each group sorted by the first code
+    std::stable_sort(order.begin(), order.end(), [this](size_t left, size_t right) { return std::tie(m_entries[left].byteCount, m_entries[left].from) < std::tie(m_entries[right].byteCount, m_entries[right].from); });
+    std::vector<size_t> group;
+    for (size_t begin = 0; begin < order.size();)
+    {
+        const unsigned int byteCount = m_entries[order[begin]].byteCount;
+        size_t end = begin;
+        while (end < order.size() && m_entries[order[end]].byteCount == byteCount)
+        {
+            ++end;
+        }
+
+        group.assign(order.begin() + begin, order.begin() + end);
+        appendEntryLookupPieces(m_entries, group, byteCount, m_entryLookup);
+        begin = end;
+    }
+
+    // All entries together, sorted by the first code
+    std::stable_sort(order.begin(), order.end(), [this](size_t left, size_t right) { return m_entries[left].from < m_entries[right].from; });
+    appendEntryLookupPieces(m_entries, order, 0, m_anyByteCountLookup);
+
+    // The texts by their code; of one code in their order (the order of m_textEntries)
+    m_textEntryCodeOrder.resize(m_textEntries.size());
+    std::iota(m_textEntryCodeOrder.begin(), m_textEntryCodeOrder.end(), size_t(0));
+    std::stable_sort(m_textEntryCodeOrder.begin(), m_textEntryCodeOrder.end(), [this](size_t left, size_t right) { return m_textEntries[left].code < m_textEntries[right].code; });
+}
+
+void PDFFontCMap::appendEntryLookupPieces(const Entries& entries, const std::vector<size_t>& group, unsigned int byteCount, EntryLookup& lookup)
+{
+    // The codes are divided at the first code of each entry and after its last code. Between two
+    // such points the same entries map every code, and the one of the smallest index is the one
+    // a scan finds first: a sweep over the points with the entries, which map the codes there,
+    // in a heap by their index. An entry of a reversed range maps no code.
+    std::vector<quint64> points;
+    points.reserve(2 * group.size());
+    for (const size_t index : group)
+    {
+        const Entry& entry = entries[index];
+        if (entry.from <= entry.to)
+        {
+            points.push_back(entry.from);
+            points.push_back(quint64(entry.to) + 1);
+        }
+    }
+    std::sort(points.begin(), points.end());
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+
+    std::priority_queue<size_t, std::vector<size_t>, std::greater<size_t>> activeEntries;
+    size_t nextEntry = 0;
+    for (size_t i = 0; i + 1 < points.size(); ++i)
+    {
+        const quint64 point = points[i];
+        while (nextEntry < group.size() && entries[group[nextEntry]].from <= point)
+        {
+            const size_t index = group[nextEntry++];
+            if (entries[index].from <= entries[index].to)
+            {
+                activeEntries.push(index);
+            }
+        }
+
+        while (!activeEntries.empty() && quint64(entries[activeEntries.top()].to) < point)
+        {
+            activeEntries.pop();
+        }
+
+        if (activeEntries.empty())
+        {
+            continue;
+        }
+
+        // No point lies inside of the piece, so the entry maps all its codes
+        const size_t entryIndex = activeEntries.top();
+        const unsigned int pieceTo = static_cast<unsigned int>(points[i + 1] - 1);
+        if (!lookup.empty() && lookup.back().byteCount == byteCount && lookup.back().entryIndex == entryIndex && quint64(lookup.back().to) + 1 == point)
+        {
+            lookup.back().to = pieceTo;
+        }
+        else
+        {
+            EntryLookupPiece piece;
+            piece.byteCount = byteCount;
+            piece.from = static_cast<unsigned int>(point);
+            piece.to = pieceTo;
+            piece.entryIndex = entryIndex;
+            lookup.push_back(piece);
+        }
+    }
+}
+
+const PDFFontCMap::Entry* PDFFontCMap::findEntry(const EntryLookup& lookup, unsigned int byteCount, unsigned int code) const
+{
+    // The last piece, which begins at the code or before it
+    auto it = std::upper_bound(lookup.cbegin(), lookup.cend(), std::make_pair(byteCount, code), [](const std::pair<unsigned int, unsigned int>& key, const EntryLookupPiece& piece) { return key < std::make_pair(piece.byteCount, piece.from); });
+    if (it == lookup.cbegin())
+    {
+        return nullptr;
+    }
+
+    --it;
+    if (it->byteCount != byteCount || code < it->from || code > it->to || it->entryIndex >= m_entries.size())
+    {
+        return nullptr;
+    }
+
+    return &m_entries[it->entryIndex];
 }
 
 PDFFontCMap::Entries PDFFontCMap::optimize(const PDFFontCMap::Entries& entries)
@@ -4730,6 +5112,33 @@ const QByteArray* PDFType3Font::getContentStream(int characterIndex) const
     return nullptr;
 }
 
+QChar PDFType3Font::getTextUnicode(int characterIndex) const
+{
+    const QChar character = getUnicode(characterIndex);
+    if (!character.isNull() || !m_encodingTexts || characterIndex < 0 || static_cast<size_t>(characterIndex) >= m_encodingTexts->characters.size())
+    {
+        return character;
+    }
+
+    return m_encodingTexts->characters[static_cast<size_t>(characterIndex)];
+}
+
+QString PDFType3Font::getEncodingText(unsigned int code, unsigned int codeLength) const
+{
+    // A code of a Type 3 font is one byte (9.4.3)
+    if (codeLength > 1 || !m_encodingTexts)
+    {
+        return QString();
+    }
+
+    return PDFFontEncodingTextHelper::getText(*m_encodingTexts, code);
+}
+
+void PDFType3Font::setEncodingTexts(PDFFontEncodingTexts encodingTexts)
+{
+    m_encodingTexts = QSharedPointer<const PDFFontEncodingTexts>(new PDFFontEncodingTexts(qMove(encodingTexts)));
+}
+
 QByteArray PDFType3Font::encodeCharacter(char32_t codePoint) const
 {
     if (codePoint == 0 || codePoint > 0xFFFF)
@@ -4775,6 +5184,7 @@ void PDFRealizedType3FontImpl::fillTextSequence(const QByteArray& byteArray, Tex
         if (contentStream)
         {
             textSequence.items.emplace_back(contentStream, character, width, index);
+            textSequence.items.back().textCharacter = parentFont->getTextUnicode(index);
             textSequence.items.back().code = static_cast<unsigned int>(index);
             textSequence.items.back().codeLength = 1;
         }
@@ -4809,7 +5219,7 @@ CharacterInfos PDFRealizedType3FontImpl::getCharacterInfos() const
     {
         CharacterInfo info;
         info.gid = contentStreamItem.first;
-        info.character = parentFont->getUnicode(contentStreamItem.first);
+        info.character = parentFont->getTextUnicode(contentStreamItem.first);
         result.emplace_back(qMove(info));
     }
 

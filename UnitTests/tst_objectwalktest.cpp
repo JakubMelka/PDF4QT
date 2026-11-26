@@ -203,6 +203,8 @@ private slots:
     void walkEntersReferenceOnce();
     void walkLimits();
     void numberTree();
+    void numberTreeLimit();
+    void numberTreeSharedNums();
     void pageLabelsTree();
     void nameTree();
     void structureTree();
@@ -286,6 +288,129 @@ void ObjectWalkTest::numberTree()
 
     // The depth limit of the caller holds: the leaf of the chain lies at the depth 20
     QCOMPARE(WalkTestHelper::getKeys(PDFObjectUtils::readNumberTree(&document.getStorage(), PDFObject::createReference(PDFObjectReference(30, 0)), 19)), QString());
+}
+
+void ObjectWalkTest::numberTreeLimit()
+{
+    // PDFObjectUtils::readNumberTree tells its caller, when a limit stopped its walk: the entries
+    // are a part of the tree only then, and a caller, which writes the tree again from them, would
+    // lose the rest (the structure model of Edit Content must not write such a parent tree back).
+    // A node read already is no limit: its entries are in the result. Each call starts with the
+    // flag set to the opposite of the expected value, so a flag, which is not written, fails.
+    WalkTestPdf pdf = WalkTestPdf::createPages(1);
+
+    // A cycle: a node, which is its own kid, and a kid, which leads back to the root
+    pdf.set(20, "<< /Kids [20 0 R 21 0 R] >>");
+    pdf.set(21, "<< /Nums [1 (a) 2 (b)] /Kids [20 0 R 21 0 R] >>");
+
+    // A node shared by two paths: 20 levels, each lists the next one twice; the leaf with the
+    // key 7 is the object 50 at the depth 20
+    pdf.setSharedChain(30, 20, "Kids", QByteArray(), "<< /Nums [7 (x)] >>");
+
+    // A tree with a leaf at the depth 1 (the key 3) and a leaf at the depth 2 (the key 4)
+    pdf.set(60, "<< /Kids [61 0 R 62 0 R] >>");
+    pdf.set(61, "<< /Nums [3 (c)] >>");
+    pdf.set(62, "<< /Kids [63 0 R] >>");
+    pdf.set(63, "<< /Nums [4 (d)] >>");
+
+    // A root, which is no dictionary, and a root, which does not exist
+    pdf.set(70, "[1 (a)]");
+    const PDFDocument document = pdf.read();
+    const PDFObjectStorage* storage = &document.getStorage();
+
+    struct Row
+    {
+        const char* name;
+        int root;
+        int maximumDepth;
+        const char* keys;
+        bool isLimitReached;
+    };
+
+    const Row rows[] =
+    {
+        { "cycle", 20, 32, "1 2", false },
+        { "node shared by two paths", 30, 32, "7", false },
+        { "shared node at the depth limit", 30, 20, "7", false },
+        { "shared node one level too deep", 30, 19, "", true },
+        { "both leaves in the depth", 60, 2, "3 4", false },
+        { "one leaf too deep, the other read", 60, 1, "3", true },
+        { "kids too deep", 60, 0, "", true },
+        { "root is not a dictionary", 70, 32, "", false },
+        { "root does not exist", 99, 32, "", false },
+    };
+
+    for (const Row& row : rows)
+    {
+        bool isLimitReached = !row.isLimitReached;
+        const std::vector<std::pair<PDFInteger, PDFObject>> entries = PDFObjectUtils::readNumberTree(storage, PDFObject::createReference(PDFObjectReference(row.root, 0)), row.maximumDepth, &isLimitReached);
+        QVERIFY2(WalkTestHelper::getKeys(entries) == QLatin1String(row.keys), row.name);
+        QVERIFY2(isLimitReached == row.isLimitReached, row.name);
+
+        // The entries do not depend on the question
+        QVERIFY2(WalkTestHelper::getKeys(PDFObjectUtils::readNumberTree(storage, PDFObject::createReference(PDFObjectReference(row.root, 0)), row.maximumDepth)) == QLatin1String(row.keys), row.name);
+    }
+}
+
+void ObjectWalkTest::numberTreeSharedNums()
+{
+    // Many nodes of a number tree, which name one indirect /Nums array (review G2-1): the visited
+    // set of the walk holds references only, so each direct node reads the whole array again. The
+    // reading has one budget for the whole tree, PDFObjectWalk::DEFAULT_MAXIMUM_NODES, which every
+    // entered node and every pair of /Nums read spends; when it is spent, the reading stops and
+    // the limit is reported (the caller must not take the entries for the whole tree).
+    //
+    // The root 80 lists KID_COUNT direct nodes << /Nums 81 0 R >>; the array 81 has PAIR_COUNT
+    // pairs, of which only the first one has an integer key (the others have the key 0.5, which
+    // is no key of a number tree, ISO 32000-2, 7.9.7): the result stays small (one entry per
+    // node read), the work is KID_COUNT x PAIR_COUNT = 163 840 000 pairs without the budget.
+    constexpr int KID_COUNT = 40000;
+    constexpr int PAIR_COUNT = 4096;
+
+    WalkTestPdf pdf = WalkTestPdf::createPages(1);
+    QByteArray kids;
+    kids.reserve(KID_COUNT * 20);
+    for (int i = 0; i < KID_COUNT; ++i)
+    {
+        kids += "<< /Nums 81 0 R >> ";
+    }
+    pdf.set(80, "<< /Kids [" + kids + "] >>");
+
+    QByteArray numbers("0 (first)");
+    for (int i = 1; i < PAIR_COUNT; ++i)
+    {
+        numbers += " 0.5 null";
+    }
+    pdf.set(81, "[" + numbers + "]");
+
+    // Within the budget the same tree is read whole, each node with the shared array
+    pdf.set(90, "<< /Kids [<< /Nums 91 0 R >> << /Nums 91 0 R >> << /Nums 91 0 R >>] >>");
+    pdf.set(91, "[1 (a) 2 (b)]");
+    const PDFDocument document = pdf.read();
+    const PDFObjectStorage* storage = &document.getStorage();
+
+    bool isLimitReached = true;
+    QCOMPARE(WalkTestHelper::getKeys(PDFObjectUtils::readNumberTree(storage, PDFObject::createReference(PDFObjectReference(90, 0)), 32, &isLimitReached)), QStringLiteral("1 2 1 2 1 2"));
+    QVERIFY(!isLimitReached);
+
+    // The budget B: the root spends 1, each node 1 + PAIR_COUNT. The nodes read whole are the
+    // largest k with 1 + k x (1 + PAIR_COUNT) <= B: (B - 1) / 4097 = 4095 (16 777 215 / 4097 is
+    // exactly 4095), so the budget is spent with the last pair of the node 4095 and the node
+    // 4096 is refused. Each node read gives its first pair: 4095 entries with the key 0.
+    const qint64 budget = PDFObjectWalk::DEFAULT_MAXIMUM_NODES;
+    const qint64 nodesRead = (budget - 1) / (1 + PAIR_COUNT);
+    QCOMPARE(nodesRead, qint64(4095));
+
+    QElapsedTimer timer;
+    timer.start();
+    isLimitReached = false;
+    const std::vector<std::pair<PDFInteger, PDFObject>> entries = PDFObjectUtils::readNumberTree(storage, PDFObject::createReference(PDFObjectReference(80, 0)), 32, &isLimitReached);
+    const qint64 elapsed = timer.elapsed();
+
+    QVERIFY(isLimitReached);
+    QCOMPARE(qint64(entries.size()), nodesRead);
+    QVERIFY(std::all_of(entries.cbegin(), entries.cend(), [](const auto& entry) { return entry.first == 0 && entry.second.isString(); }));
+    QVERIFY2(elapsed < WalkTestHelper::getTimeLimit(), qPrintable(QString::number(elapsed)));
 }
 
 void ObjectWalkTest::pageLabelsTree()

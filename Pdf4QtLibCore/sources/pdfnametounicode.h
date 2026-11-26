@@ -26,6 +26,7 @@
 #include "pdfglobal.h"
 
 #include <QChar>
+#include <QString>
 #include <QByteArray>
 
 namespace pdf
@@ -55,7 +56,48 @@ public:
     /// Tries to resolve unicode name
     static QChar getUnicodeUsingResolvedName(const QByteArray& name);
 
+    /// Maps a glyph name to its character string by the Adobe Glyph List Specification, section 2
+    /// (The mapping): everything from the first period of the name is dropped, the rest is split
+    /// to components at the underscores and the strings of the components are joined. A component
+    /// is a name of the ZapfDingbats list (first for the font ZapfDingbats), a name of the glyph
+    /// list, "uni" with groups of four hexadecimal digits (each group a value of 0000 - D7FF or
+    /// E000 - FFFF) or "u" with four to six hexadecimal digits (a value of 0000 - D7FF or
+    /// E000 - 10FFFF); any other component gives nothing. The result is a string of UTF-16
+    /// code units, not a character: it is empty (.notdef, an unknown name), it has one code
+    /// unit, or more of them (f_i, uni00410042, a surrogate pair of u1F600). The name is data
+    /// of a document: any bytes of any length are accepted, the time and the memory are linear
+    /// to the length of the name.
+    ///
+    /// Two deliberate deviations from the specification (NOTES.txt, 9.10.2), which keep the texts
+    /// the library gave before it followed the specification: lower case hexadecimal digits are
+    /// accepted (uni20ac), and a component, which is neither a name of the glyph list nor of
+    /// the form "uni" / "u", is looked up in the ZapfDingbats list in every simple font (the
+    /// specification asks that list only for the font ZapfDingbats). A Type 3 font never asks
+    /// that list - ZapfDingbatsLookup::Never of the other overload.
+    /// \param name Glyph name
+    /// \param isZapfDingbats The font is ZapfDingbats (its PostScript name is ZapfDingbats):
+    ///        ZapfDingbatsLookup::First, otherwise ZapfDingbatsLookup::Last
+    static QString getUnicodeTextForName(const QByteArray& name, bool isZapfDingbats);
+
+    /// When a component of a glyph name is looked up in the ZapfDingbats list
+    enum class ZapfDingbatsLookup
+    {
+        First,  ///< Before the glyph list: the font ZapfDingbats (the specification)
+        Last,   ///< After the glyph list and the forms "uni" / "u": another simple font (the deviation of getUnicodeTextForName)
+        Never   ///< A Type 3 font: the names a<code> of its glyphs (bitmap fonts of TeX) are no dingbats
+    };
+
+    /// Maps a glyph name to its character string as getUnicodeTextForName(name, isZapfDingbats),
+    /// with the say, when the ZapfDingbats list is asked
+    static QString getUnicodeTextForName(const QByteArray& name, ZapfDingbatsLookup zapfDingbatsLookup);
+
 private:
+    /// Appends the character string of one component of a glyph name (getUnicodeTextForName)
+    static void appendUnicodeTextForComponent(const QByteArray& component, ZapfDingbatsLookup zapfDingbatsLookup, QString& text);
+
+    /// Value of a hexadecimal digit (upper or lower case), -1 for any other character
+    static int getHexadecimalDigit(char character);
+
     struct Comparator
     {
         inline bool operator()(const QByteArray& left, const std::pair<QChar, const char*>& right)

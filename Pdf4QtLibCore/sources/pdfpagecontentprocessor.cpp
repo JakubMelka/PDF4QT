@@ -37,6 +37,77 @@
 namespace pdf
 {
 
+/// Helper of the operators of the page content processor
+class PDFPageContentProcessorHelper
+{
+public:
+    /// Reports, that an operator, which appends a segment from the current point (l, c, y, h),
+    /// has no current point: the current path is empty (PDF Reference 1.7, 4.4.1: "if the current
+    /// point is undefined, an error is generated"; the corresponding section of ISO 32000-2 is
+    /// 8.5.2.1). The error is reported once for the whole content of the processor - a damaged
+    /// page has thousands of such operators. Nothing else happens here: the operator builds its
+    /// segment as before (from the origin; h does nothing), which is a deliberate deviation
+    /// (NOTES.txt, 8.5.2.1). The operator v finds no current point by itself and fails
+    /// (PDFPageContentProcessor::getCurrentPoint).
+    /// \param reporter Error reporter (the processor)
+    /// \param currentPath Current path of the processor
+    static void reportMissingCurrentPoint(PDFRenderErrorReporter* reporter, const QPainterPath& currentPath);
+
+    /// The largest number of the cells of a tiling pattern along one axis, which the lattice
+    /// counts (PDFPageContentProcessor::getTilingCellRange): the product of two counts fits
+    /// PDFInteger
+    static constexpr PDFReal MAXIMUM_TILING_CELL_COUNT = 2147483647.0;
+
+    /// The tolerance of the edges of the cells (a billionth of the step, getTilingCellBounds)
+    static constexpr PDFReal TILING_CELL_TOLERANCE = 1e-9;
+
+    /// The largest absolute value of the index of a cell, which is processed
+    static constexpr PDFReal MAXIMUM_TILING_CELL_INDEX = 4.0e18;
+
+    /// The indices of the first and of the last cell of the lattice of a tiling pattern along
+    /// one axis, whose box reaches into the painted area (the parameters of
+    /// PDFPageContentProcessor::getTilingCellRange). False: no cell, or an index, which is not
+    /// finite or larger than MAXIMUM_TILING_CELL_INDEX.
+    static bool getTilingCellBounds(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step, PDFReal* first, PDFReal* last);
+
+    /// The number of the cells of getTilingCellBounds, not limited (0 = none): a number larger
+    /// than MAXIMUM_TILING_CELL_COUNT cannot be counted
+    static PDFReal getTilingCellCount(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step);
+};
+
+void PDFPageContentProcessorHelper::reportMissingCurrentPoint(PDFRenderErrorReporter* reporter, const QPainterPath& currentPath)
+{
+    if (currentPath.elementCount() == 0)
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Current point of path is not set. Path is empty."));
+    }
+}
+
+bool PDFPageContentProcessorHelper::getTilingCellBounds(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step, PDFReal* first, PDFReal* last)
+{
+    if (!(step > 0.0) || !(areaMax >= areaMin) || !(boxMax >= boxMin))
+    {
+        return false;
+    }
+
+    // The cell k covers [boxMin + k * step, boxMax + k * step]. It reaches into the area, when
+    // boxMin + k * step < areaMax and boxMax + k * step > areaMin; a cell, which only touches the
+    // area by its edge, paints nothing in it. The tolerance (a billionth of the step) keeps such
+    // a cell out, when its edge is off by a rounding error of the matrices.
+    *first = std::floor((areaMin - boxMax) / step + TILING_CELL_TOLERANCE) + 1.0;
+    *last = std::ceil((areaMax - boxMin) / step - TILING_CELL_TOLERANCE) - 1.0;
+
+    return std::isfinite(*first) && std::isfinite(*last) && *last >= *first &&
+           std::abs(*first) <= MAXIMUM_TILING_CELL_INDEX && std::abs(*last) <= MAXIMUM_TILING_CELL_INDEX;
+}
+
+PDFReal PDFPageContentProcessorHelper::getTilingCellCount(PDFReal areaMin, PDFReal areaMax, PDFReal boxMin, PDFReal boxMax, PDFReal step)
+{
+    PDFReal first = 0.0;
+    PDFReal last = 0.0;
+    return getTilingCellBounds(areaMin, areaMax, boxMin, boxMax, step, &first, &last) ? last - first + 1.0 : 0.0;
+}
+
 // Graphic state operators - mapping from PDF name to the enum, splitted into groups.
 // Please see Table 4.1 in PDF Reference 1.7, chapter 4.1 - Graphic Objects.
 //
@@ -1392,7 +1463,7 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     updateGraphicState();
 
     // Mark uncolored flag, if we drawing uncolored color pattern
-    PDFTemporaryValueChange guard2(&m_drawingUncoloredTilingPatternState, m_drawingUncoloredTilingPatternState + uncoloredTilingPatternFlag);
+    PDFUncoloredTilingPatternGuard guard2(this, uncoloredTilingPatternFlag != 0);
 
     // Tiling parameters
     const QRectF tilingArea = pathTransformationMatrix.map(path).boundingRect();
@@ -1411,6 +1482,18 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     // the cells overlap - or smaller - there are gaps). A negative step only reverses the
     // direction of the lattice, the cells are the same, so the absolute value is used; a zero
     // step is refused, when the pattern is loaded.
+    //
+    // A lattice, which is too fine to be counted (more than MAXIMUM_TILING_CELL_COUNT cells of one
+    // direction - 10^20 cells of a hostile pattern), is not painted: no count, which a descendant
+    // could refuse by isTilingPatternProcessingAllowed, describes it.
+    const PDFReal columnCount = PDFPageContentProcessorHelper::getTilingCellCount(tilingArea.left(), tilingArea.right(), boundingBox.left(), boundingBox.right(), xStep);
+    const PDFReal rowCount = PDFPageContentProcessorHelper::getTilingCellCount(tilingArea.top(), tilingArea.bottom(), boundingBox.top(), boundingBox.bottom(), yStep);
+    if (columnCount > PDFPageContentProcessorHelper::MAXIMUM_TILING_CELL_COUNT || rowCount > PDFPageContentProcessorHelper::MAXIMUM_TILING_CELL_COUNT)
+    {
+        reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Tiling pattern is too complex (%1 tiles) and it was not painted.").arg(columnCount * rowCount));
+        return;
+    }
+
     const PDFTilingCellRange columnRange = getTilingCellRange(tilingArea.left(), tilingArea.right(), boundingBox.left(), boundingBox.right(), xStep);
     const PDFTilingCellRange rowRange = getTilingCellRange(tilingArea.top(), tilingArea.bottom(), boundingBox.top(), boundingBox.bottom(), yStep);
     const PDFInteger columns = columnRange.count;
@@ -1462,35 +1545,20 @@ PDFPageContentProcessor::PDFTilingCellRange PDFPageContentProcessor::getTilingCe
 {
     PDFTilingCellRange range;
 
-    if (!(step > 0.0) || !(areaMax >= areaMin) || !(boxMax >= boxMin))
+    PDFReal first = 0.0;
+    PDFReal last = 0.0;
+    if (!PDFPageContentProcessorHelper::getTilingCellBounds(areaMin, areaMax, boxMin, boxMax, step, &first, &last))
     {
         return range;
     }
 
-    // The cell k covers [boxMin + k * step, boxMax + k * step]. It reaches into the area, when
-    // boxMin + k * step < areaMax and boxMax + k * step > areaMin; a cell, which only touches the
-    // area by its edge, paints nothing in it. The tolerance (a billionth of the step) keeps such
-    // a cell out, when its edge is off by a rounding error of the matrices.
-    constexpr PDFReal TOLERANCE = 1e-9;
-    const PDFReal first = std::floor((areaMin - boxMax) / step + TOLERANCE) + 1.0;
-    const PDFReal last = std::ceil((areaMax - boxMin) / step - TOLERANCE) - 1.0;
-
-    if (!std::isfinite(first) || !std::isfinite(last) || last < first)
-    {
-        return range;
-    }
-
-    // An area of billions of cells is never painted (isTilingPatternProcessingAllowed, the
-    // cancellation): the count is limited, so the product of the two counts cannot overflow
-    constexpr PDFReal MAXIMUM_COUNT = 2147483647.0;
-    constexpr PDFReal MAXIMUM_INDEX = 4.0e18;
-    if (std::abs(first) > MAXIMUM_INDEX || std::abs(last) > MAXIMUM_INDEX)
-    {
-        return range;
-    }
-
+    // The count is limited, so the product of the two counts cannot overflow. There is no limit
+    // of the work here: processTillingPatternPainting does not paint a lattice of a larger count
+    // (getTilingCellCount), a smaller count is painted unless a descendant refuses it
+    // (isTilingPatternProcessingAllowed - the default allows every count) or the processing is
+    // canceled.
     range.first = PDFInteger(first);
-    range.count = PDFInteger(qMin(last - first + 1.0, MAXIMUM_COUNT));
+    range.count = PDFInteger(qMin(last - first + 1.0, PDFPageContentProcessorHelper::MAXIMUM_TILING_CELL_COUNT));
     return range;
 }
 
@@ -2274,6 +2342,91 @@ void PDFPageContentProcessor::reportRenderErrorOnce(RenderErrorType type, QStrin
 void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* graphicStateDictionary)
 {
     PDFDocumentDataLoaderDecorator loader(m_document);
+
+    // "Font" (PDF Reference 1.7, Table 4.8; the corresponding section of ISO 32000-2 is 8.4.5): an array
+    // [font size], where font is an indirect reference to a font dictionary and size is a number - the
+    // operands of Tf without a resource name. A name in place of the reference is accepted too and looked
+    // up in the font resources as Tf does (a deliberate deviation, NOTES.txt). The font is resolved here,
+    // before anything of the dictionary is applied. A wrong entry (not an array of two items, a font,
+    // which is neither a reference nor a name or cannot be created, a size, which is not a finite number)
+    // adds an error and is handled as an absent one: the font and its size stay, the other entries are
+    // applied. A processor, which ignores the text, does not read the entry (as Tf).
+    PDFFontPointer textFont;
+    PDFReal textFontSize = 0.0;
+    if (graphicStateDictionary->hasKey("Font") && !isTextIgnored())
+    {
+        QString fontError = PDFTranslationContext::tr("Font of the graphic state is invalid.");
+
+        const PDFObject& fontArrayObject = m_document->getObject(graphicStateDictionary->get("Font"));
+        const PDFArray* fontArray = (fontArrayObject.isArray() && fontArrayObject.getArray()->getCount() == 2) ? fontArrayObject.getArray() : nullptr;
+        const PDFObject& fontSizeObject = fontArray ? m_document->getObject(fontArray->getItem(1)) : fontArrayObject;
+        if (fontArray && (fontSizeObject.isInt() || fontSizeObject.isReal()) && std::isfinite(loader.readNumber(fontSizeObject, 0.0)))
+        {
+            const PDFObject& fontItem = fontArray->getItem(0);
+            const PDFObject* fontObject = nullptr;
+            QByteArray fontId;
+
+            if (fontItem.isReference())
+            {
+                fontObject = &fontItem;
+
+                // The identifier of the font is its name in the font resources, as Tf gives it, when the
+                // resources have the font (the old content editor writes the font under its identifier)
+                for (size_t i = 0, count = m_fontDictionary ? m_fontDictionary->getCount() : 0; i < count; ++i)
+                {
+                    const PDFObject& resourceFontObject = m_fontDictionary->getValue(i);
+                    if (resourceFontObject.isReference() && resourceFontObject.getReference() == fontItem.getReference())
+                    {
+                        fontId = m_fontDictionary->getKey(i).getString();
+                        break;
+                    }
+                }
+            }
+            else if (fontItem.isName())
+            {
+                fontId = fontItem.getString();
+                if (!m_fontDictionary)
+                {
+                    fontError = PDFTranslationContext::tr("Invalid font dictionary.");
+                }
+                else if (!m_fontDictionary->hasKey(fontId))
+                {
+                    fontError = PDFTranslationContext::tr("Font '%1' not found in font dictionary.").arg(QString::fromLatin1(fontId));
+                }
+                else
+                {
+                    fontObject = &m_fontDictionary->get(fontId);
+                }
+            }
+
+            if (fontObject)
+            {
+                try
+                {
+                    textFont = m_fontCache->getFont(*fontObject, fontId);
+                    if (textFont)
+                    {
+                        textFontSize = loader.readNumber(fontSizeObject, 0.0);
+                        if (textFont->getFontType() == FontType::Type3)
+                        {
+                            rememberType3FontBox(textFont, *fontObject);
+                        }
+                    }
+                }
+                catch (const PDFException& exception)
+                {
+                    textFont = PDFFontPointer();
+                    fontError = exception.getMessage();
+                }
+            }
+        }
+
+        if (!textFont)
+        {
+            m_errorList.append(PDFRenderError(RenderErrorType::Error, fontError));
+        }
+    }
+
     const PDFReal lineWidth = loader.readNumberFromDictionary(graphicStateDictionary, "LW", m_graphicState.getLineWidth());
     const Qt::PenCapStyle penCapStyle = convertLineCapToPenCapStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LC", convertPenCapStyleToLineCap(m_graphicState.getLineCapStyle())));
     const Qt::PenJoinStyle penJoinStyle = convertLineJoinToPenJoinStyle(loader.readNumberFromDictionary(graphicStateDictionary, "LJ", convertPenJoinStyleToLineJoin(m_graphicState.getLineJoinStyle())));
@@ -2300,17 +2453,52 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     QByteArray renderingIntentName = loader.readNameFromDictionary(graphicStateDictionary, "RI");
     const bool alphaIsShape = loader.readBooleanFromDictionary(graphicStateDictionary, "AIS", m_graphicState.getAlphaIsShape());
     const bool strokeAdjustment = loader.readBooleanFromDictionary(graphicStateDictionary, "SA", m_graphicState.getStrokeAdjustment());
-    const PDFDictionary* softMask = graphicStateDictionary->hasKey("SMask") ? m_document->getDictionaryFromObject(graphicStateDictionary->get("SMask")) : m_graphicState.getSoftMask();
 
-    // We will try to get blend mode name from the array (if BM is array). First supported blend mode should
-    // be used. In PDF 2.0, array is deprecated, so for backward compatibility, we extract first blend mode
-    // name from the array and try to use it.
+    // "SMask" (PDF Reference 1.7, Table 4.8: a dictionary or a name): a soft-mask dictionary is the new
+    // soft mask, the name None removes the current one. Any other value (a number, an array, another
+    // name, a stream) is handled as an absent entry, silently as the other entries of a wrong type here:
+    // the current soft mask stays.
+    const PDFDictionary* softMask = m_graphicState.getSoftMask();
+    const PDFObject& softMaskObject = m_document->getObject(graphicStateDictionary->get("SMask"));
+    if (softMaskObject.isDictionary())
+    {
+        softMask = softMaskObject.getDictionary();
+    }
+    else if (softMaskObject.isName() && softMaskObject.getString() == "None")
+    {
+        softMask = nullptr;
+    }
+
+    // "BM" (PDF Reference 1.7, Table 4.8 and 7.5.2): a name, or an array of names - then the first blend
+    // mode of the array, which is recognized, is used (the array is deprecated in PDF 2.0). An item,
+    // which is not a name, is skipped. An array of names, none of which is recognized, behaves as a single
+    // unknown name (below, with the first name of the array); an array without a name changes nothing.
     if (blendModeName.isEmpty())
     {
-        std::vector<QByteArray> blendModeNames = loader.readNameArrayFromDictionary(graphicStateDictionary, "BM");
-        if (!blendModeNames.empty())
+        const PDFObject& blendModeObject = m_document->getObject(graphicStateDictionary->get("BM"));
+        if (blendModeObject.isArray())
         {
-            blendModeName = qMove(blendModeNames.front());
+            const PDFArray* blendModeArray = blendModeObject.getArray();
+            for (size_t i = 0, count = blendModeArray->getCount(); i < count; ++i)
+            {
+                const PDFObject& blendModeItem = m_document->getObject(blendModeArray->getItem(i));
+                if (!blendModeItem.isName())
+                {
+                    continue;
+                }
+
+                const QByteArray blendModeItemName = blendModeItem.getString();
+                if (PDFBlendModeInfo::getBlendMode(blendModeItemName) != BlendMode::Invalid)
+                {
+                    blendModeName = blendModeItemName;
+                    break;
+                }
+
+                if (blendModeName.isEmpty())
+                {
+                    blendModeName = blendModeItemName;
+                }
+            }
         }
     }
 
@@ -2334,9 +2522,22 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     PDFOverprintMode overprintMode = m_graphicState.getOverprintMode();
     overprintMode.overprintMode = loader.readIntegerFromDictionary(graphicStateDictionary, "OPM", overprintMode.overprintMode);
 
-    // Overprint for filling is ruled by overprint for stroking, if "op" is not present, according to the specification
-    overprintMode.overprintStroking = loader.readBooleanFromDictionary(graphicStateDictionary, "OP", overprintMode.overprintStroking);
-    overprintMode.overprintFilling = loader.readBooleanFromDictionary(graphicStateDictionary, "op", overprintMode.overprintStroking);
+    // ISO 32000-2, 8.4.5 (entries of a graphics state parameter dictionary): "OP" sets the overprint
+    // for stroking, and the overprint for the other painting operations too, unless the dictionary
+    // also has "op"; "op" sets the overprint for the other painting operations. A dictionary with
+    // neither of them changes neither parameter (the results of gs are cumulative). An entry, which
+    // is not a boolean, is handled as an absent one.
+    const PDFObject& overprintStrokingObject = m_document->getObject(graphicStateDictionary->get("OP"));
+    const PDFObject& overprintFillingObject = m_document->getObject(graphicStateDictionary->get("op"));
+    if (overprintStrokingObject.isBool())
+    {
+        overprintMode.overprintStroking = overprintStrokingObject.getBool();
+        overprintMode.overprintFilling = overprintMode.overprintStroking;
+    }
+    if (overprintFillingObject.isBool())
+    {
+        overprintMode.overprintFilling = overprintFillingObject.getBool();
+    }
 
     constexpr std::array blackPointCompensationModes = {
         std::pair<const char*, BlackPointCompensationMode>{ "Default", BlackPointCompensationMode::Default },
@@ -2411,22 +2612,12 @@ void PDFPageContentProcessor::processApplyGraphicState(const PDFDictionary* grap
     m_graphicState.setTransferFunction(qMove(transferFunctionObject));
     m_graphicState.setHalftone(qMove(halftoneObject));
     m_graphicState.setHalftoneOrigin(halftoneOrigin);
-    updateGraphicState();
-
-    if (graphicStateDictionary->hasKey("Font"))
+    if (textFont)
     {
-        const PDFObject& fontObject = m_document->getObject(graphicStateDictionary->get("Font"));
-        if (fontObject.isArray())
-        {
-            const PDFArray* fontObjectArray = fontObject.getArray();
-            if (fontObjectArray->getCount() == 2)
-            {
-                PDFOperandName operandName;
-                operandName.name = loader.readName(fontObjectArray->getItem(0));
-                operatorTextSetFontAndFontSize(operandName, loader.readNumber(fontObjectArray->getItem(1), 1.0));
-            }
-        }
+        m_graphicState.setTextFont(textFont);
+        m_graphicState.setTextFontSize(textFontSize);
     }
+    updateGraphicState();
 }
 
 void PDFPageContentProcessor::operatorSetGraphicState(PDFOperandName dictionaryName)
@@ -2609,11 +2800,13 @@ void PDFPageContentProcessor::operatorMoveCurrentPoint(PDFReal x, PDFReal y)
 
 void PDFPageContentProcessor::operatorLineTo(PDFReal x, PDFReal y)
 {
+    PDFPageContentProcessorHelper::reportMissingCurrentPoint(this, m_currentPath);
     m_currentPath.lineTo(x, y);
 }
 
 void PDFPageContentProcessor::operatorBezier123To(PDFReal x1, PDFReal y1, PDFReal x2, PDFReal y2, PDFReal x3, PDFReal y3)
 {
+    PDFPageContentProcessorHelper::reportMissingCurrentPoint(this, m_currentPath);
     m_currentPath.cubicTo(x1, y1, x2, y2, x3, y3);
 }
 
@@ -2625,11 +2818,13 @@ void PDFPageContentProcessor::operatorBezier23To(PDFReal x2, PDFReal y2, PDFReal
 
 void PDFPageContentProcessor::operatorBezier13To(PDFReal x1, PDFReal y1, PDFReal x3, PDFReal y3)
 {
+    PDFPageContentProcessorHelper::reportMissingCurrentPoint(this, m_currentPath);
     m_currentPath.cubicTo(x1, y1, x3, y3, x3, y3);
 }
 
 void PDFPageContentProcessor::operatorEndSubpath()
 {
+    PDFPageContentProcessorHelper::reportMissingCurrentPoint(this, m_currentPath);
     m_currentPath.closeSubpath();
 }
 
@@ -3073,10 +3268,14 @@ void PDFPageContentProcessor::operatorTextBegin()
 
 void PDFPageContentProcessor::operatorTextEnd()
 {
-    if (--m_textBeginEndState < 0)
+    // An ET without an open text object ends nothing: it fails and the counter stays, where it is,
+    // so the text objects after it are whole (a counter below zero made every later ET of the same
+    // content fail)
+    if (m_textBeginEndState <= 0)
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Text object ended more than once."));
     }
+    --m_textBeginEndState;
 
     performTextEnd(ProcessOrder::BeforeOperation);
     if (!m_textClippingPath.isEmpty())
@@ -3753,11 +3952,12 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                             }
                         }
 
-                        if (!item.character.isNull())
+                        if (!item.textCharacter.isNull())
                         {
-                            // Output character
+                            // Output character: the character of the code for the text (the item
+                            // has another one as the key of the glyph for the real text drawing above)
                             PDFTextCharacterInfo info;
-                            info.character = item.character;
+                            info.character = item.textCharacter;
                             info.isVerticalWritingSystem = !isHorizontalWritingSystem;
                             info.advance = item.advance;
                             info.fontSize = fontSize;
@@ -3919,15 +4119,16 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                         finishType3GlyphTextObject();
                     }
 
-                    if (!item.character.isNull())
+                    if (!item.textCharacter.isNull())
                     {
-                        // Output character. The matrix maps the glyph space (9.6.4: the font matrix, the
+                        // Output character (the character of the code for the text). The matrix maps
+                        // the glyph space (9.6.4: the font matrix, the
                         // font size, the text and the current transformation matrix), so the box and the
                         // font size are of the glyph space: one unit of the text space is the font
                         // matrix inverted (B147)
                         const QLineF unitLine = fontMatrix.map(QLineF(0.0, 0.0, 0.0, 1.0));
                         PDFTextCharacterInfo info;
-                        info.character = item.character;
+                        info.character = item.textCharacter;
                         info.isVerticalWritingSystem = !isHorizontalWritingSystem;
                         info.advance = item.advance;
                         info.fontSize = unitLine.length() > 0.0 ? 1.0 / unitLine.length() : fontSize;
@@ -4653,6 +4854,29 @@ PDFPageContentProcessor::PDFTransparencyGroupGuard::~PDFTransparencyGroupGuard()
     PDFTransparencyGroup group = qMove(m_processor->m_transparencyGroupStack.top());
     m_processor->m_transparencyGroupStack.pop();
     m_processor->performEndTransparencyGroup(ProcessOrder::AfterOperation, group);
+}
+
+PDFPageContentProcessor::PDFUncoloredTilingPatternGuard::PDFUncoloredTilingPatternGuard(PDFPageContentProcessor* processor, bool isUncolored) :
+    m_processor(processor),
+    m_isUncolored(isUncolored)
+{
+    if (m_isUncolored)
+    {
+        ++m_processor->m_drawingUncoloredTilingPatternState;
+    }
+}
+
+PDFPageContentProcessor::PDFUncoloredTilingPatternGuard::~PDFUncoloredTilingPatternGuard()
+{
+    if (m_isUncolored)
+    {
+        --m_processor->m_drawingUncoloredTilingPatternState;
+    }
+}
+
+bool PDFPageContentProcessor::isColorOperatorsIgnored() const
+{
+    return m_drawingUncoloredTilingPatternState > 0;
 }
 
 PDFLineDashPattern::PDFLineDashPattern(const std::vector<PDFReal>& dashArray, PDFReal dashOffset) :

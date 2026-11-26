@@ -166,6 +166,10 @@ public:
 
 private:
     std::vector<Segment> m_segments;
+
+    /// The rectangle, when the path is exactly one rectangle of addRectangle (the operands of
+    /// "re" as they were given: the width and the height are not computed back from the points)
+    std::optional<QRectF> m_rectangle;
 };
 
 /// How a path is painted
@@ -195,8 +199,9 @@ using PDFContentNodePointer = std::shared_ptr<const PDFContentNode>;
 ///
 /// A node owns its opening operations (\p getPrefix: q of a Group, BDC of a MarkedContent, BT of a
 /// TextObject; all operations of a leaf) and its closing operations (\p getSuffix: Q, EMC, ET;
-/// empty for a leaf and for a node, whose end is missing in the content). Its children are written
-/// between them. The order of writing is the order of the tree.
+/// empty for a leaf and for a node, whose end is missing in the content - an unclosed node,
+/// PDFContentContainer::isUnclosed). Its children are written between them. The order of writing
+/// is the order of the tree.
 ///
 /// Zoom, selection, the lock and the "hidden in the editor" flag are not in the node: they are
 /// the state of the session (PDFContentEditSession), outside of undo.
@@ -266,7 +271,17 @@ public:
     const PDFContentOperationSpan& getPrefix() const { return m_data.prefix; }
     const PDFContentOperationSpan& getSuffix() const { return m_data.suffix; }
     const QRectF& getBoundingBox() const { return m_data.boundingBox; }
+
+    /// The state of the place, where the node is written (before its first operation, without
+    /// its own override). The stream writer relies on it: the matrices of a soft mask (R-6) and
+    /// the value of /op written beside /OP are computed from this state. The builder sets it
+    /// for every node. The editor does not: insertNode, setNodeData and moveNode keep the states
+    /// of the data as they are given, so a command, which moves a node or inserts one, gives it
+    /// the state and the symbolic state of its new place (setNodeData) - and the same to the
+    /// nodes, whose state its change reaches (the nodes after a removed or inserted state run).
     const PDFContentResolvedStatePointer& getState() const { return m_data.state; }
+
+    /// The symbolic state of the same place as getState
     const PDFContentSymbolicStatePointer& getSymbolicState() const { return m_data.symbolicState; }
     const PDFContentStateLeak& getLeak() const { return m_data.leak; }
     const PDFContentStateOverride* getOverride() const { return m_data.override ? &*m_data.override : nullptr; }
@@ -303,7 +318,9 @@ struct PDFContentIssue
         UnreadableTail,         ///< The end of the content cannot be split into operations
         UndecodableStream,      ///< A stream of /Contents cannot be decoded: the container is read-only
         InvalidMarkedContentId, ///< MCID out of range or used twice
-        UndefinedResource       ///< An operation names a resource, which the dictionary does not define
+        UndefinedResource,      ///< An operation names a resource, which the dictionary does not define
+        InvalidContainer,       ///< The key names nothing of the document, or the build cannot start (a form or a pattern without its page, no font cache or color management): there is no container
+        IgnoredColorOperator    ///< A color operator in the cell of an uncolored tiling pattern (/PaintType 2), ignored by the standard (ISO 32000-2, 8.7.3.3): one issue per container, at the first such operator; the operation is not flagged Failed (it stays in the tree, sets no color and is the source of none)
     };
 
     Kind kind = Kind::OperatorFailed;
@@ -346,6 +363,8 @@ public:
         QByteArray fingerprint;                         ///< Hash of the decoded bytes of the streams and of the references of the resource dictionaries (zadani_jadro.md 4.6); of a form or a pattern: its own stream and its own /Resources only, never the resources it inherits from a page
         std::vector<PDFContentIssue> issues;
         bool isReadOnly = false;                        ///< A stream could not be decoded: shown, never changed, never written
+        bool isColorIgnored = false;                    ///< The cell of an uncolored tiling pattern (/PaintType 2): color operators written into it have no effect
+        PDFInteger inheritedResourcesPageIndex = -1;    ///< A form or a pattern cell without /Resources of its own: the index of the page, whose resources it was built with; -1 for a page and for a container with its own /Resources
     };
 
     explicit PDFContentContainer(Data data);
@@ -362,6 +381,20 @@ public:
     const QByteArray& getFingerprint() const { return m_data.fingerprint; }
     const std::vector<PDFContentIssue>& getIssues() const { return m_data.issues; }
     bool isReadOnly() const { return m_data.isReadOnly; }
+
+    /// The container of the cell of an uncolored tiling pattern (/PaintType 2; ISO 32000-2,
+    /// 8.7.3.3): color operators written into it have no effect - a command or a panel, which
+    /// sets a color, uses it to refuse the change or to explain it. False for a page, a form and
+    /// the cell of a colored tiling pattern.
+    bool isColorIgnored() const { return m_data.isColorIgnored; }
+
+    /// The index of the page, whose resources the container was built with, when the container
+    /// (a form or a pattern cell) has no /Resources of its own (ISO 32000-2, 7.8.3: it uses the
+    /// resources of the page it is drawn on); -1 for a page and for a container with its own
+    /// /Resources. The document writer materializes exactly these resources, when a name was
+    /// added to such a container (R-4).
+    PDFInteger getInheritedResourcesPageIndex() const { return m_data.inheritedResourcesPageIndex; }
+
     const Data& getData() const { return m_data; }
 
     /// The node of an identifier, nullptr when there is none
@@ -379,13 +412,69 @@ public:
     /// Number of the nodes
     size_t getNodeCount() const;
 
+    /// The index (of PDFContentContainerEditor::insertNode) at which new content is appended to
+    /// the children of a node, so that it is the last content, which is still read as content:
+    /// the number of the children without the children at the end, which must stay behind
+    /// everything else. Such a child is
+    ///  - the tail node: an Opaque node without operations, which the builder puts at the end
+    ///    of the root, when the bytes after the last operation are more than white space and
+    ///    comments (an unfinished string, operands without an operator; the bytes themselves
+    ///    are PDFContentOperationList::getTail and are written after everything else);
+    ///  - the rest of a content after an inline image without an end (an Opaque node, which
+    ///    holds the refused operation BI): whatever is written after it, is image data;
+    ///  - an unclosed node (isUnclosed), whose own last child is such a rest or a node of this
+    ///    kind again (a group, a marked content or a text object, which the content does not
+    ///    close before the image).
+    /// A content can have both a rest of an inline image and a tail node behind it: new content
+    /// goes before both (the index is the number of the children less two then).
+    ///
+    /// An unclosed node with nothing wrong inside is no such child: new content follows it. "At
+    /// the end" means behind its missing closing operators then - the state of that place is the
+    /// state behind the node (of a Group: the state before its q), and
+    /// PDFContentContainerEditor::build gives the node its closing operators, as soon as
+    /// something is written behind it.
+    ///
+    /// "Insert at the end" of the root is this index, never -1.
+    /// \returns -1 for an unknown node and for a leaf
+    PDFInteger getAppendIndex(PDFContentNodeId parentId) const;
+
+    /// The content does not close the node: a Group without its Q (of a chain of q: without any
+    /// of them), a MarkedContent without its EMC, a TextObject without its ET - the content ends
+    /// inside of the node, or an inline image without an end swallows the rest of it. Such
+    /// a node has opening operations and no closing ones (PDFContentNode::getSuffix is empty).
+    /// The answer is about the node itself: the nodes inside of an unclosed node are not unclosed
+    /// by that, the caller walks up, when it needs it.
+    ///
+    /// What the model does with it (zadani_jadro.md 4.4, R-7: a missing Q, ET or EMC is not added
+    /// until the node is changed):
+    ///  - a container, which is not changed, is written byte for byte: nothing is added;
+    ///  - PDFContentContainerEditor::build gives an unclosed node its closing operators as
+    ///    generated operations of its suffix (ET, EMC, one Q for each q of the chain), when the
+    ///    new container writes an operation behind the end of the node - a node inserted or moved
+    ///    behind it in the same parent or in a node above - or when the node has an override (its
+    ///    wrap must not end inside of it). The node is closed in that container: isUnclosed is
+    ///    false there. An unclosed node, whose last child is the rest of an inline image without
+    ///    an end (or an unclosed node with such a rest, and so on), is never closed so: whatever is
+    ///    written behind the rest is image data, new content goes before the node (getAppendIndex);
+    ///  - the editor does not refuse anything because of an unclosed node: a command, which would
+    ///    move, transform or reorder such a node, asks this function and refuses itself.
+    /// \returns false for the root, a leaf, a closed node, a node without opening operations
+    ///          (nothing is open) and an unknown identifier
+    bool isUnclosed(PDFContentNodeId id) const;
+
     /// Nothing of the container differs from the content it was loaded from: no node is modified,
     /// has an override or has moved, no operation is generated or suppressed, no resource added.
     /// Such a container is never written.
     bool isUnchanged() const;
 
 private:
+    class Index;
+
     Data m_data;
+
+    /// The nodes by their identifiers. It is built by the constructor and never changed (so
+    /// every thread reads it without a lock); it points to nodes, which m_data.root owns.
+    std::shared_ptr<const Index> m_index;
 };
 
 /// Changes a container into a new one (the old one stays as it is - undo keeps it). Used by the
@@ -415,30 +504,60 @@ public:
     PDFContentResources& getResources();
 
     /// The data of the container except its root, operations and resources (key, states, boxes,
-    /// fingerprint, issues, read-only flag). The editor owns the root, the operations
+    /// fingerprint, issues, read-only flag, color-ignored flag, page of the inherited resources;
+    /// a new version keeps them as they were in the container it was made from, an empty
+    /// container of a key has the defaults). The editor owns the root, the operations
     /// (getOperations) and the resources (getResources): the fields root, operations and
     /// resources of the returned value are ignored by build(), whatever the caller writes there.
     PDFContentContainer::Data& getContainerData();
 
-    /// The current node of an identifier (nullptr, when there is none)
+    /// The current node of an identifier (nullptr, when there is none): an immutable node with
+    /// its current children. The node of a place, which has not changed since the last call, is
+    /// the same object again (the editor keeps the nodes it has made and forgets a node, when it
+    /// or something below it changes), so a call costs the node itself and the changed nodes
+    /// below it, which were not asked for since their change - not the whole changed subtree
+    /// every time. A node returned earlier stays valid and unchanged, whatever the editor does.
     PDFContentNodePointer getNode(PDFContentNodeId id) const;
 
-    /// Inserts a new node under a parent at an index of its children (-1 = at the end). The
-    /// identifier of \p data must be valid and unused, its parentId is set by the call.
-    /// \returns false, when the parent does not exist, is a leaf or the identifier is used
+    /// Inserts a new node under a parent at an index of its children: -1 (at the end), or
+    /// 0 ... the number of the children (the node gets this index). The identifier of \p data
+    /// must be valid and unused, its parentId is set by the call; its states are kept as they
+    /// are given (PDFContentNode::getState). New content at the end of a parent goes to
+    /// PDFContentContainer::getAppendIndex, which is before the tail node of the root.
+    /// \returns false, when the parent does not exist or is a leaf, the identifier is not valid
+    ///          or used, the data are of the kind Root, the index is out of range, or the node
+    ///          would be deeper than PDFContentContainer::MAXIMUM_DEPTH + 1 below the root (as
+    ///          deep as the builder goes: MAXIMUM_DEPTH nested nodes with children and their leaves)
     bool insertNode(PDFContentNode::Data data, PDFContentNodeId parentId, PDFInteger index);
 
     /// Replaces the data of a node (its identifier, parent and children stay)
+    /// \returns false for an unknown node, for a leaf kind given to a node with children, for
+    ///          another kind than Root given to the root and for the kind Root given to another node
     bool setNodeData(PDFContentNodeId id, PDFContentNode::Data data);
 
     /// Removes a node with its subtree
     bool removeNode(PDFContentNodeId id);
 
     /// Moves a node with its subtree under another parent (or to another index of the same one).
-    /// \returns false for a move under itself or its own subtree, under a leaf, or of the root
+    /// The index is -1 (at the end) or 0 ... the number of the children of the new parent
+    /// **without the moved node**: inside of one parent the node is taken out first, then put
+    /// at the index of the children, which are left. The data of the node stay, except its
+    /// parent identifier: the caller gives the node the state of its new place
+    /// (PDFContentNode::getState).
+    /// \returns false for a move under itself or its own subtree, under a leaf, of the root, of
+    ///          or under an unknown node, for an index out of range, and when a node of the
+    ///          subtree would be deeper than PDFContentContainer::MAXIMUM_DEPTH + 1 below the
+    ///          root; nothing changes then
     bool moveNode(PDFContentNodeId id, PDFContentNodeId newParentId, PDFInteger index);
 
     /// The new container. The editor must not be used afterwards.
+    ///
+    /// An unclosed node (PDFContentContainer::isUnclosed), behind whose end the new container
+    /// writes an operation, or which has an override, gets its closing operators here: generated
+    /// operations (ET, EMC, one Q for each q) appended to the operations and named by the suffix
+    /// of the node. getNode of the editor does not show them before. A container, in which
+    /// nothing is written behind its unclosed nodes, keeps them unclosed (the container of the
+    /// builder and every unchanged one: they are written byte for byte).
     PDFContentContainerPointer build();
 
 private:

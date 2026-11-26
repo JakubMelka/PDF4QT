@@ -951,6 +951,36 @@ protected:
     /// Process form using form stream
     void processForm(const PDFStream* stream);
 
+    /// The content processed during the life of the guard is the content of the cell of an
+    /// uncolored tiling pattern (/PaintType 2; PDF Reference 1.7, 4.5.7 and 4.6.2, the
+    /// corresponding section of ISO 32000-2 is 8.7.3.3): it specifies no color, so the
+    /// operators CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K and k do nothing there but a
+    /// warning, and the colors and the color spaces of the graphic state stay those, which
+    /// were set before. The processor creates the guard around the cells it paints; a
+    /// descendant, which processes such a cell by itself (processForm), creates one around its
+    /// call. The guards nest: a content processed inside of such a cell (a form, the cell of
+    /// another pattern) specifies no color either. The destructor ends the guard, also when an
+    /// exception leaves the content.
+    class PDF4QTLIBCORESHARED_EXPORT PDFUncoloredTilingPatternGuard
+    {
+    public:
+        /// \param processor Processor
+        /// \param isUncolored false = the guard does nothing (the cell of a colored pattern)
+        explicit PDFUncoloredTilingPatternGuard(PDFPageContentProcessor* processor, bool isUncolored = true);
+        ~PDFUncoloredTilingPatternGuard();
+
+        PDFUncoloredTilingPatternGuard(const PDFUncoloredTilingPatternGuard&) = delete;
+        PDFUncoloredTilingPatternGuard& operator=(const PDFUncoloredTilingPatternGuard&) = delete;
+
+    private:
+        PDFPageContentProcessor* m_processor;
+        bool m_isUncolored;
+    };
+
+    /// Returns true, if the color operators are ignored now: the content being processed is
+    /// (or is inside of) the cell of an uncolored tiling pattern (PDFUncoloredTilingPatternGuard)
+    bool isColorOperatorsIgnored() const;
+
     const PDFDictionary* getColorSpaceDictionary() const { return m_colorSpaceDictionary; }
     const PDFDictionary* getFontDictionary() const { return m_fontDictionary; }
     const PDFDictionary* getXObjectDictionary() const { return m_xobjectDictionary; }

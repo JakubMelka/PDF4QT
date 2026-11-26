@@ -25,17 +25,21 @@
 #include "pdffont.h"
 #include "pdfnametounicode.h"
 #include "pdfparser.h"
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFontDatabase>
 #include <QRect>
 #include <QThread>
 
+#include <algorithm>
 #include <barrier>
 #include <map>
 #include <tuple>
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumenttextflow.h"
 #include "pdfeditorfallbackfont.h"
+#include "contenttestdocuments.h"
 
 class FontEncodingTest : public QObject
 {
@@ -71,6 +75,31 @@ private slots:
     void test_differences_type1_embedded();
     void test_differences_tounicode_character();
     void test_differences_type3();
+    void test_glyph_name_text_data();
+    void test_glyph_name_text();
+    void test_glyph_name_text_zapf_dingbats_lookup_data();
+    void test_glyph_name_text_zapf_dingbats_lookup();
+    void test_type3_names_text_extraction_data();
+    void test_type3_names_text_extraction();
+    void test_glyph_name_text_hostile_data();
+    void test_glyph_name_text_hostile();
+    void test_differences_text_data();
+    void test_differences_text();
+    void test_differences_text_type1_embedded();
+    void test_differences_text_truetype_embedded();
+    void test_differences_text_tounicode();
+    void test_differences_text_type3();
+    void test_builtin_encoding_text();
+    void test_differences_text_not_embedded_data();
+    void test_differences_text_not_embedded();
+    void test_differences_text_extraction_data();
+    void test_differences_text_extraction();
+    void test_type0_encoding_cmap_without_codes();
+    void test_tounicode_cmap_of_texts_only();
+    void test_cmap_without_codes_interprets_nothing();
+    void test_simple_font_real_widths();
+    void test_tounicode_lookup_many_entries();
+    void test_tounicode_lookup_first_entry();
 
 private:
     /// A font of a hand-written font dictionary with its document, and the text sequence of the shown codes
@@ -104,9 +133,32 @@ private:
     static QByteArray createType1Glyph(int width, const QRect& rectangle);
 
     /// A Type 1 font program with the built-in encoding StandardEncoding and the glyphs .notdef,
-    /// B, C, four.sups and uni20AC (rectangles of different sizes), as it is stored in /FontFile:
-    /// the clear text and the binary encrypted part
+    /// B, C, four.sups, uni20AC, one, one.oldstyle, f_i, uni00410042 and uni0041.smcp (rectangles
+    /// of different sizes), as it is stored in /FontFile: the clear text and the binary
+    /// encrypted part
     static QByteArray createType1FontProgram(qsizetype* clearTextLength);
+
+    /// The same font program with another built-in encoding: \p encoding is the PostScript text,
+    /// which follows "/Encoding " in the font dictionary of the program
+    static QByteArray createType1FontProgram(qsizetype* clearTextLength, const QByteArray& encoding);
+
+    /// The string of one code point (a surrogate pair outside of the basic multilingual plane)
+    static QString codePointText(char32_t codePoint);
+
+    /// The font dictionary text of the embedded Type 1 test font with /Differences from the code
+    /// 65 on; "@1" is the reference to the font program
+    static QByteArray type1TestFontDictionary(const QByteArray& differences, int codeCount);
+
+    /// The stream of the font program for createTestFont
+    static TestStream type1TestFontStream(const QByteArray& fontProgram, qsizetype clearTextLength);
+
+    /// A font of a hand-written font dictionary, in which "@1" is the reference to a stream with
+    /// \p streamData, in \p document; null and the message of the exception, when createFont refuses it
+    static pdf::PDFFontPointer createFontWithStream(pdf::PDFDocument* document, QByteArray fontDictionary, const QByteArray& streamData, QString* errorMessage);
+
+    /// The font dictionary of a Type 0 font of the collection Adobe-Identity, whose /Encoding is
+    /// "@1" (createFontWithStream)
+    static QByteArray type0FontDictionaryWithEncodingStream();
 };
 
 void FontEncodingTest::test_cmap_encode_roundtrip()
@@ -795,7 +847,7 @@ void FontEncodingTest::test_simple_font_encode()
     toUnicode[66] = QChar('B');
 
     pdf::PDFTrueTypeFont font(pdf::CIDSystemInfo(), "F1", pdf::FontDescriptor(), "Font", "Font", 0, 255,
-                              std::vector<pdf::PDFInteger>(256, 500), pdf::PDFEncoding::Encoding::Custom,
+                              std::vector<pdf::PDFReal>(256, 500.0), pdf::PDFEncoding::Encoding::Custom,
                               encoding, toUnicode, true, pdf::StandardFontType::Invalid, glyphIndices, glyphNames);
 
     // getUnicode(65) is U+00C1, so U+00C1 must encode to code 65
@@ -1294,6 +1346,11 @@ QByteArray FontEncodingTest::createType1Glyph(int width, const QRect& rectangle)
 
 QByteArray FontEncodingTest::createType1FontProgram(qsizetype* clearTextLength)
 {
+    return createType1FontProgram(clearTextLength, "StandardEncoding def\n");
+}
+
+QByteArray FontEncodingTest::createType1FontProgram(qsizetype* clearTextLength, const QByteArray& encoding)
+{
     const QByteArray clearText =
         "%!PS-AdobeFont-1.0: PDF4QTTestFont 001.000\n"
         "11 dict begin\n"
@@ -1306,7 +1363,7 @@ QByteArray FontEncodingTest::createType1FontProgram(qsizetype* clearTextLength)
         "/PaintType 0 def\n"
         "/FontType 1 def\n"
         "/FontMatrix [0.001 0 0 0.001 0 0] readonly def\n"
-        "/Encoding StandardEncoding def\n"
+        "/Encoding " + encoding +
         "/FontBBox {0 0 1000 1000} readonly def\n"
         "currentdict end\n"
         "currentfile eexec\n";
@@ -1318,7 +1375,12 @@ QByteArray FontEncodingTest::createType1FontProgram(qsizetype* clearTextLength)
         { "B", createType1Glyph(500, QRect(100, 0, 300, 700)) },
         { "C", createType1Glyph(600, QRect(100, 0, 400, 300)) },
         { "four.sups", createType1Glyph(400, QRect(100, 400, 200, 300)) },
-        { "uni20AC", createType1Glyph(700, QRect(100, 0, 500, 500)) }
+        { "uni20AC", createType1Glyph(700, QRect(100, 0, 500, 500)) },
+        { "one", createType1Glyph(500, QRect(100, 0, 150, 650)) },
+        { "one.oldstyle", createType1Glyph(500, QRect(100, 0, 250, 450)) },
+        { "f_i", createType1Glyph(500, QRect(100, 0, 350, 750)) },
+        { "uni00410042", createType1Glyph(500, QRect(100, 0, 450, 350)) },
+        { "uni0041.smcp", createType1Glyph(500, QRect(100, 0, 550, 250)) }
     };
 
     // Four leading bytes of the encryption, then the private dictionary with the charstrings
@@ -1356,49 +1418,60 @@ QByteArray FontEncodingTest::createType1FontProgram(qsizetype* clearTextLength)
 
 void FontEncodingTest::test_differences_name_character_data()
 {
+    // The character of the lookup of the whole name (getUnicodeUsingResolvedName) and the
+    // character of the code in a font, which is not embedded. They differ, where the lookup
+    // gives nothing and the text of the name (PDFNameToUnicode::getUnicodeTextForName) is one
+    // character: such a font takes it as the key of the glyph (owner 2026-11-26).
     QTest::addColumn<QByteArray>("name");
     QTest::addColumn<QChar>("character");
+    QTest::addColumn<QChar>("fontCharacter");
 
     // Names of the Adobe Glyph List and of the font ZapfDingbats (ISO 32000-2, 9.10.2, D.6)
-    QTest::newRow("A") << QByteArray("A") << QChar(u'A');
-    QTest::newRow("Euro") << QByteArray("Euro") << QChar(0x20AC);
-    QTest::newRow("foursuperior") << QByteArray("foursuperior") << QChar(0x2074);
-    QTest::newRow("a20") << QByteArray("a20") << QChar(0x2714);
-    QTest::newRow("u") << QByteArray("u") << QChar(u'u');
-    QTest::newRow("uacute") << QByteArray("uacute") << QChar(0x00FA);
+    QTest::newRow("A") << QByteArray("A") << QChar(u'A') << QChar(u'A');
+    QTest::newRow("Euro") << QByteArray("Euro") << QChar(0x20AC) << QChar(0x20AC);
+    QTest::newRow("foursuperior") << QByteArray("foursuperior") << QChar(0x2074) << QChar(0x2074);
+    QTest::newRow("a20") << QByteArray("a20") << QChar(0x2714) << QChar(0x2714);
+    QTest::newRow("u") << QByteArray("u") << QChar(u'u') << QChar(u'u');
+    QTest::newRow("uacute") << QByteArray("uacute") << QChar(0x00FA) << QChar(0x00FA);
 
     // The names of a code point of the glyph naming convention of the glyph list: "uni" with
     // four and "u" with four to six upper case hexadecimal digits
-    QTest::newRow("uni20AC") << QByteArray("uni20AC") << QChar(0x20AC);
-    QTest::newRow("u20AC") << QByteArray("u20AC") << QChar(0x20AC);
-    QTest::newRow("u0041") << QByteArray("u0041") << QChar(u'A');
-    QTest::newRow("u020AC") << QByteArray("u020AC") << QChar(0x20AC);
-    QTest::newRow("u0020AC") << QByteArray("u0020AC") << QChar(0x20AC);
-    QTest::newRow("uFFFD") << QByteArray("uFFFD") << QChar(0xFFFD);
+    QTest::newRow("uni20AC") << QByteArray("uni20AC") << QChar(0x20AC) << QChar(0x20AC);
+    QTest::newRow("u20AC") << QByteArray("u20AC") << QChar(0x20AC) << QChar(0x20AC);
+    QTest::newRow("u0041") << QByteArray("u0041") << QChar(u'A') << QChar(u'A');
+    QTest::newRow("u020AC") << QByteArray("u020AC") << QChar(0x20AC) << QChar(0x20AC);
+    QTest::newRow("u0020AC") << QByteArray("u0020AC") << QChar(0x20AC) << QChar(0x20AC);
+    QTest::newRow("uFFFD") << QByteArray("uFFFD") << QChar(0xFFFD) << QChar(0xFFFD);
 
     // A code point outside of the basic multilingual plane has no character of one code unit,
     // a surrogate is no code point of a name
-    QTest::newRow("u1F600") << QByteArray("u1F600") << QChar();
-    QTest::newRow("u01F600") << QByteArray("u01F600") << QChar();
-    QTest::newRow("uD83D") << QByteArray("uD83D") << QChar();
+    QTest::newRow("u1F600") << QByteArray("u1F600") << QChar() << QChar();
+    QTest::newRow("u01F600") << QByteArray("u01F600") << QChar() << QChar();
+    QTest::newRow("uD83D") << QByteArray("uD83D") << QChar() << QChar();
 
     // No name of a code point
-    QTest::newRow("u20A") << QByteArray("u20A") << QChar();
-    QTest::newRow("u00020AC") << QByteArray("u00020AC") << QChar();
-    QTest::newRow("u20ac") << QByteArray("u20ac") << QChar();
-    QTest::newRow("u20AG") << QByteArray("u20AG") << QChar();
+    QTest::newRow("u20A") << QByteArray("u20A") << QChar() << QChar();
+    QTest::newRow("u00020AC") << QByteArray("u00020AC") << QChar() << QChar();
+    QTest::newRow("u20AG") << QByteArray("u20AG") << QChar() << QChar();
 
-    // Names of no glyph list
-    QTest::newRow("four.sups") << QByteArray("four.sups") << QChar();
-    QTest::newRow("nonexistent.name") << QByteArray("nonexistent.name") << QChar();
-    QTest::newRow(".notdef") << QByteArray(".notdef") << QChar();
-    QTest::newRow("empty") << QByteArray() << QChar();
+    // Lower case digits: no name of a code point for the lookup; the text of the name accepts
+    // them (a deliberate deviation from the Adobe Glyph List Specification), so the font,
+    // which is not embedded, has the character
+    QTest::newRow("u20ac") << QByteArray("u20ac") << QChar() << QChar(0x20AC);
+
+    // Names of no glyph list: four.sups has the text 4 (the suffix is dropped), the font, which
+    // is not embedded, takes it as its character
+    QTest::newRow("four.sups") << QByteArray("four.sups") << QChar() << QChar(u'4');
+    QTest::newRow("nonexistent.name") << QByteArray("nonexistent.name") << QChar() << QChar();
+    QTest::newRow(".notdef") << QByteArray(".notdef") << QChar() << QChar();
+    QTest::newRow("empty") << QByteArray() << QChar() << QChar();
 }
 
 void FontEncodingTest::test_differences_name_character()
 {
     QFETCH(QByteArray, name);
     QFETCH(QChar, character);
+    QFETCH(QChar, fontCharacter);
 
     // The character of a font created from a dictionary: a font, which is not embedded, with the
     // name at the code 65 (the base encoding has A there)
@@ -1412,19 +1485,19 @@ void FontEncodingTest::test_differences_name_character()
     QVERIFY(simpleFont);
     if (!name.isEmpty())
     {
-        QCOMPARE(simpleFont->getUnicode(65), character);
+        QCOMPARE(simpleFont->getUnicode(65), fontCharacter);
         QCOMPARE(testFont.sequence.items.size(), size_t(1));
 
         // A code without a character has no glyph of a font, which is not embedded; an item with
         // a glyph has the character (the substitute need not have a glyph of every character)
-        if (character.isNull())
+        if (fontCharacter.isNull())
         {
             QVERIFY(!testFont.sequence.items[0].glyph);
             QVERIFY(testFont.sequence.items[0].character.isNull());
         }
         else if (testFont.sequence.items[0].glyph)
         {
-            QCOMPARE(testFont.sequence.items[0].character, character);
+            QCOMPARE(testFont.sequence.items[0].character, fontCharacter);
         }
     }
 
@@ -1453,11 +1526,12 @@ void FontEncodingTest::test_differences_font_not_embedded()
                    { }, "ABCDEF");
     QVERIFY(testFont.realizedFont);
 
-    // The glyphs of the letters A, B and of the Euro sign (the code 128 of WinAnsiEncoding, D.2)
+    // The glyphs of the letters A, B, of the Euro sign (the code 128 of WinAnsiEncoding, D.2)
+    // and of the digit 4
     TestFont reference;
-    createTestFont(&reference, "<< /Type /Font " + fontEntries + " /FirstChar 65 /LastChar 128 /Encoding /WinAnsiEncoding >>", { }, "AB\x80");
+    createTestFont(&reference, "<< /Type /Font " + fontEntries + " /FirstChar 65 /LastChar 128 /Encoding /WinAnsiEncoding >>", { }, "AB\x80" "4");
     QVERIFY(reference.realizedFont);
-    QCOMPARE(reference.sequence.items.size(), size_t(3));
+    QCOMPARE(reference.sequence.items.size(), size_t(4));
     for (const pdf::TextSequenceItem& item : reference.sequence.items)
     {
         QVERIFY(item.glyph && !item.glyph->isEmpty());
@@ -1465,9 +1539,13 @@ void FontEncodingTest::test_differences_font_not_embedded()
     const QRectF glyphA = reference.sequence.items[0].glyph->getBoundingRect();
     const QRectF glyphB = reference.sequence.items[1].glyph->getBoundingRect();
     const QRectF glyphEuro = reference.sequence.items[2].glyph->getBoundingRect();
+    const QRectF glyphFour = reference.sequence.items[3].glyph->getBoundingRect();
     QVERIFY(glyphA != glyphB);
     QVERIFY(glyphB != glyphEuro);
+    QVERIFY(glyphFour != glyphB);
+    QVERIFY(glyphFour != glyphEuro);
     QCOMPARE(reference.sequence.items[2].character, QChar(0x20AC));
+    QCOMPARE(reference.sequence.items[3].character, QChar(u'4'));
 
     const std::vector<pdf::TextSequenceItem>& items = testFont.sequence.items;
     QCOMPARE(items.size(), size_t(6));
@@ -1482,10 +1560,21 @@ void FontEncodingTest::test_differences_font_not_embedded()
     QVERIFY(items[0].glyph);
     QCOMPARE(items[0].glyph->getBoundingRect(), glyphB);
 
-    // Names of no glyph list and .notdef: the font has no such glyph (the glyph .notdef, 9.6.5.2),
-    // so nothing of the base encoding is painted and the code has no character (9.10.2); the
-    // advance is the width of the dictionary (610, 620 and 650 thousandths of the size 20)
-    const std::vector<std::pair<size_t, double>> codesWithoutGlyph = { { 1, 12.2 }, { 2, 12.4 }, { 5, 13.0 } };
+    // four.sups: the font is not embedded, its substitute is asked by characters and has no
+    // glyph of that name for the code. The text of the name is 4 (the suffix is dropped), one
+    // character: it is the character of the code and the key of its glyph - the digit 4 of the
+    // substitute, not the letter B of the base encoding (owner 2026-11-26; an embedded font
+    // stays strict - test_differences_truetype_embedded, test_differences_type1_embedded)
+    QCOMPARE(items[1].character, QChar(u'4'));
+    QCOMPARE(items[1].textCharacter, QChar(u'4'));
+    QVERIFY(items[1].glyph);
+    QCOMPARE(items[1].glyph->getBoundingRect(), glyphFour);
+
+    // A name of no glyph list without a text and .notdef: the font has no such glyph (the glyph
+    // .notdef, 9.6.5.2), so nothing of the base encoding is painted and the code has no
+    // character (9.10.2); the advance is the width of the dictionary (620 and 650 thousandths
+    // of the size 20)
+    const std::vector<std::pair<size_t, double>> codesWithoutGlyph = { { 2, 12.4 }, { 5, 13.0 } };
     for (const auto& [index, advance] : codesWithoutGlyph)
     {
         QVERIFY2(!items[index].glyph, qPrintable(QString::number(index)));
@@ -1655,8 +1744,11 @@ void FontEncodingTest::test_differences_tounicode_character()
     QCOMPARE(simpleFont->getUnicode(65), QChar(u'X'));
     QCOMPARE(simpleFont->getUnicode(66), QChar(u'Y'));
 
-    // No /ToUnicode of the code and a name of no glyph list: no character
-    QVERIFY(simpleFont->getUnicode(67).isNull());
+    // No /ToUnicode of the code and a name of no glyph list: the lookup of the whole name gives
+    // no character; the font is not embedded, so the character of the code is the text of the
+    // name, the digit 4 (owner 2026-11-26)
+    QVERIFY(pdf::PDFNameToUnicode::getUnicodeUsingResolvedName("four.sups").isNull());
+    QCOMPARE(simpleFont->getUnicode(67), QChar(u'4'));
 }
 
 void FontEncodingTest::test_differences_type3()
@@ -1701,6 +1793,1359 @@ void FontEncodingTest::test_differences_type3()
     QVERIFY(!items[2].glyph);
     QVERIFY(items[2].character.isNull());
     QCOMPARE(items[2].advance, 700.0);
+}
+
+// ----------------------------------------------------------------------------
+// The text of a glyph name (ISO 32000-2, 9.10.2) by the Adobe Glyph List Specification
+// (https://github.com/adobe-type-tools/agl-specification), section 2 "The mapping":
+//  1. everything from the first period of the name on is dropped;
+//  2. the rest is split to components at the underscores;
+//  3. each component is mapped and the strings are joined: a name of the ZapfDingbats list, if
+//     the font is ZapfDingbats; else a name of the glyph list; else "uni" and groups of four
+//     upper case hexadecimal digits, each of 0000 - D7FF or E000 - FFFF; else "u" and four to
+//     six upper case hexadecimal digits of 0000 - D7FF or E000 - 10FFFF; else nothing.
+// The result is a string of UTF-16 code units. The text and the glyph of a code are two
+// things: the glyph of one.oldstyle is the glyph of that name, never the glyph of the
+// character 1, which is its text. The text layout has one character per glyph, a text of more
+// code units is given by PDFFont::getEncodingText only.
+// ----------------------------------------------------------------------------
+
+QString FontEncodingTest::codePointText(char32_t codePoint)
+{
+    return QString::fromUcs4(&codePoint, 1);
+}
+
+QByteArray FontEncodingTest::type1TestFontDictionary(const QByteArray& differences, int codeCount)
+{
+    QByteArray widths;
+    for (int i = 0; i < codeCount; ++i)
+    {
+        widths += "500 ";
+    }
+
+    QByteArray dictionary = "<< /Type /Font /Subtype /Type1 /BaseFont /PDF4QTTestFont /FirstChar 65 /LastChar " + QByteArray::number(64 + codeCount) + " /Widths [" + widths + "] "
+                            "/FontDescriptor << /Type /FontDescriptor /FontName /PDF4QTTestFont /Flags 32 /FontBBox [0 0 1000 1000] "
+                            "/ItalicAngle 0 /Ascent 700 /Descent 0 /CapHeight 700 /StemV 80 /FontFile @1 >> ";
+    if (!differences.isEmpty())
+    {
+        dictionary += "/Encoding << /Type /Encoding /Differences [65 " + differences + "] >> ";
+    }
+    dictionary += ">>";
+    return dictionary;
+}
+
+FontEncodingTest::TestStream FontEncodingTest::type1TestFontStream(const QByteArray& fontProgram, qsizetype clearTextLength)
+{
+    return TestStream{ fontProgram, "/Length1 " + QByteArray::number(clearTextLength) + " /Length2 " + QByteArray::number(fontProgram.size() - clearTextLength) + " /Length3 0" };
+}
+
+void FontEncodingTest::test_glyph_name_text_data()
+{
+    QTest::addColumn<QByteArray>("name");
+    QTest::addColumn<bool>("isZapfDingbats");
+    QTest::addColumn<QString>("text");
+
+    const QString none;
+
+    // U+1040C is D801 DC0C in UTF-16 (the specification says so); U+1F600 - 10000 = F600:
+    // D800 + (F600 >> 10) = D83D, DC00 + (F600 & 3FF) = DE00; U+10FFFF is DBFF DFFF, U+10000
+    // is D800 DC00
+    const QString u1040C = QString(QChar(0xD801)) + QChar(0xDC0C);
+    const QString u1F600 = QString(QChar(0xD83D)) + QChar(0xDE00);
+    const QString u10FFFF = QString(QChar(0xDBFF)) + QChar(0xDFFF);
+    const QString u10000 = QString(QChar(0xD800)) + QChar(0xDC00);
+
+    // The examples of the specification (section 3)
+    QTest::newRow("example Lcommaaccent") << QByteArray("Lcommaaccent") << false << QString(QChar(0x013B));
+    QTest::newRow("example uni20AC0308") << QByteArray("uni20AC0308") << false << (QString(QChar(0x20AC)) + QChar(0x0308));
+    QTest::newRow("example u1040C") << QByteArray("u1040C") << false << u1040C;
+    QTest::newRow("example uniD801DC0C") << QByteArray("uniD801DC0C") << false << none;
+
+    // The specification maps uni20ac to an empty string (lower case digits). The library accepts
+    // lower case digits: a deliberate deviation (NOTES.txt 9.10.2, owner 2026-11-26)
+    QTest::newRow("example uni20ac") << QByteArray("uni20ac") << false << QString(QChar(0x20AC));
+    QTest::newRow("example three components") << QByteArray("Lcommaaccent_uni20AC0308_u1040C.alternate") << false << (QString(QChar(0x013B)) + QChar(0x20AC) + QChar(0x0308) + u1040C);
+    QTest::newRow("example uni013B") << QByteArray("uni013B") << false << QString(QChar(0x013B));
+    QTest::newRow("example u013B") << QByteArray("u013B") << false << QString(QChar(0x013B));
+    QTest::newRow("example foo") << QByteArray("foo") << false << none;
+    QTest::newRow("example .notdef") << QByteArray(".notdef") << false << none;
+
+    // Step 1: a suffix is dropped, from the first period on
+    QTest::newRow("suffix one.oldstyle") << QByteArray("one.oldstyle") << false << QStringLiteral("1");
+    QTest::newRow("suffix a.sc") << QByteArray("a.sc") << false << QStringLiteral("a");
+    QTest::newRow("suffix f.alt") << QByteArray("f.alt") << false << QStringLiteral("f");
+    QTest::newRow("suffix uni0041.smcp") << QByteArray("uni0041.smcp") << false << QStringLiteral("A");
+    QTest::newRow("suffix u0041.smcp") << QByteArray("u0041.smcp") << false << QStringLiteral("A");
+    QTest::newRow("suffix two periods") << QByteArray("A.B.one") << false << QStringLiteral("A");
+    QTest::newRow("suffix empty") << QByteArray("one.") << false << QStringLiteral("1");
+    QTest::newRow("suffix with an underscore") << QByteArray("A_B.alt_one") << false << QStringLiteral("AB");
+    QTest::newRow("suffix only") << QByteArray(".alt") << false << none;
+    QTest::newRow("period only") << QByteArray(".") << false << none;
+
+    // Step 2: components. The glyph list of the library has the whole names f_i, f_f, f_f_i and
+    // f_f_l (ligatures): a component has no underscore, so they are never looked up as a whole.
+    QTest::newRow("components f_i") << QByteArray("f_i") << false << QStringLiteral("fi");
+    QTest::newRow("components f_f_l") << QByteArray("f_f_l") << false << QStringLiteral("ffl");
+    QTest::newRow("components f_f_i") << QByteArray("f_f_i") << false << QStringLiteral("ffi");
+    QTest::newRow("components T_h") << QByteArray("T_h") << false << QStringLiteral("Th");
+    QTest::newRow("components of code points") << QByteArray("uni0041_u0042") << false << QStringLiteral("AB");
+    QTest::newRow("components, unknown among known") << QByteArray("f_foo_i") << false << QStringLiteral("fi");
+    QTest::newRow("components, unknown first") << QByteArray("foo_A") << false << QStringLiteral("A");
+    QTest::newRow("components, wrong code point among known") << QByteArray("A_uniD800_B") << false << QStringLiteral("AB");
+    QTest::newRow("components, empty in the middle") << QByteArray("A__B") << false << QStringLiteral("AB");
+    QTest::newRow("components, empty first") << QByteArray("_A") << false << QStringLiteral("A");
+    QTest::newRow("components, empty last") << QByteArray("A_") << false << QStringLiteral("A");
+    QTest::newRow("underscores only") << QByteArray("___") << false << none;
+    QTest::newRow("underscores and a period") << QByteArray("_._") << false << none;
+    QTest::newRow("empty name") << QByteArray() << false << none;
+
+    // "uni": groups of four upper case hexadecimal digits
+    QTest::newRow("uni one group") << QByteArray("uni0041") << false << QStringLiteral("A");
+    QTest::newRow("uni two groups") << QByteArray("uni00410042") << false << QStringLiteral("AB");
+    QTest::newRow("uni three groups") << QByteArray("uni004100420043") << false << QStringLiteral("ABC");
+    QTest::newRow("uniD7FF") << QByteArray("uniD7FF") << false << QString(QChar(0xD7FF));
+    QTest::newRow("uniE000") << QByteArray("uniE000") << false << QString(QChar(0xE000));
+    QTest::newRow("uniFFFF") << QByteArray("uniFFFF") << false << QString(QChar(0xFFFF));
+    QTest::newRow("uni0000") << QByteArray("uni0000") << false << QString(QChar(0x0000));
+    QTest::newRow("uni surrogate D800") << QByteArray("uniD800") << false << none;
+    QTest::newRow("uni surrogate DFFF") << QByteArray("uniDFFF") << false << none;
+    QTest::newRow("uni surrogate after a group") << QByteArray("uni0041D800") << false << none;
+    QTest::newRow("uni surrogate before a group") << QByteArray("uniDC000041") << false << none;
+    QTest::newRow("uni no digit") << QByteArray("uni") << false << none;
+    QTest::newRow("uni three digits") << QByteArray("uni004") << false << none;
+    QTest::newRow("uni five digits") << QByteArray("uni00410") << false << none;
+    QTest::newRow("uni six digits") << QByteArray("uni004100") << false << none;
+    QTest::newRow("uni seven digits") << QByteArray("uni0041004") << false << none;
+    QTest::newRow("uni lower case digits") << QByteArray("uni00e9") << false << QString(QChar(0x00E9));
+    QTest::newRow("uni lower case digit in the second group") << QByteArray("uni0041004a") << false << QStringLiteral("AJ");
+    QTest::newRow("uni lower case surrogate") << QByteArray("unid800") << false << none;
+    QTest::newRow("uni lower case digits, three") << QByteArray("uni0e9") << false << none;
+    QTest::newRow("uni wrong digit") << QByteArray("uni00G1") << false << none;
+    QTest::newRow("Uni upper case prefix") << QByteArray("Uni0041") << false << none;
+
+    // "u": four to six upper case hexadecimal digits
+    QTest::newRow("u four digits") << QByteArray("u0041") << false << QStringLiteral("A");
+    QTest::newRow("u five digits") << QByteArray("u1F600") << false << u1F600;
+    QTest::newRow("u six digits") << QByteArray("u01F600") << false << u1F600;
+    QTest::newRow("u six digits of a character of one code unit") << QByteArray("u000041") << false << QStringLiteral("A");
+    QTest::newRow("u0000") << QByteArray("u0000") << false << QString(QChar(0x0000));
+    QTest::newRow("uD7FF") << QByteArray("uD7FF") << false << QString(QChar(0xD7FF));
+    QTest::newRow("uE000") << QByteArray("uE000") << false << QString(QChar(0xE000));
+    QTest::newRow("uFFFF") << QByteArray("uFFFF") << false << QString(QChar(0xFFFF));
+    QTest::newRow("u10000") << QByteArray("u10000") << false << u10000;
+    QTest::newRow("u10FFFF") << QByteArray("u10FFFF") << false << u10FFFF;
+    QTest::newRow("u surrogate D800") << QByteArray("uD800") << false << none;
+    QTest::newRow("u surrogate DFFF") << QByteArray("u00DFFF") << false << none;
+    QTest::newRow("u above 10FFFF") << QByteArray("u110000") << false << none;
+    QTest::newRow("u FFFFFF") << QByteArray("uFFFFFF") << false << none;
+    QTest::newRow("u three digits") << QByteArray("u041") << false << none;
+    QTest::newRow("u seven digits") << QByteArray("u0000041") << false << none;
+    QTest::newRow("u eight digits") << QByteArray("u00410042") << false << none;
+    QTest::newRow("u lower case digits") << QByteArray("u00e9") << false << QString(QChar(0x00E9));
+    QTest::newRow("u lower case digits, five") << QByteArray("u1f600") << false << u1F600;
+    QTest::newRow("u lower case surrogate") << QByteArray("ud83d") << false << none;
+    QTest::newRow("u lower case, above 10FFFF") << QByteArray("u11ffff") << false << none;
+    QTest::newRow("u wrong digit") << QByteArray("u00G1") << false << none;
+    QTest::newRow("u alone is the letter of the glyph list") << QByteArray("u") << false << QStringLiteral("u");
+
+    // The ZapfDingbats list (a20 is U+2714 and a1 is U+2701 in the list of ISO 32000-2, D.6) is
+    // the first one for the font ZapfDingbats; the font has the names of the glyph list too.
+    // The specification gives a name of that list nothing in another font. The library asks the
+    // list there too, after the glyph list and the forms of a code point: a deliberate deviation
+    // (NOTES.txt 9.10.2, owner 2026-11-26). No name is in both lists, so the two orders give
+    // the same texts.
+    QTest::newRow("ZapfDingbats a20") << QByteArray("a20") << true << QString(QChar(0x2714));
+    QTest::newRow("another font a20") << QByteArray("a20") << false << QString(QChar(0x2714));
+    QTest::newRow("ZapfDingbats components") << QByteArray("a1_a20.alt") << true << (QString(QChar(0x2701)) + QChar(0x2714));
+    QTest::newRow("another font components") << QByteArray("a1_a20.alt") << false << (QString(QChar(0x2701)) + QChar(0x2714));
+    QTest::newRow("ZapfDingbats, a name of the glyph list") << QByteArray("A") << true << QStringLiteral("A");
+    QTest::newRow("ZapfDingbats, both lists") << QByteArray("a20_A_uni0042") << true << (QString(QChar(0x2714)) + QStringLiteral("AB"));
+    QTest::newRow("another font, both lists") << QByteArray("a20_A_uni0042") << false << (QString(QChar(0x2714)) + QStringLiteral("AB"));
+    QTest::newRow("another font, unknown and ZapfDingbats") << QByteArray("foo_a20") << false << QString(QChar(0x2714));
+
+    // Any bytes: a name is data of a document
+    QTest::newRow("bytes above 127") << QByteArray("\xFF\xFE\x80") << false << none;
+    QTest::newRow("zero byte in the name") << QByteArray("A\0B", 3) << false << none;
+    QTest::newRow("zero byte in a component") << QByteArray("A_\0_B", 5) << false << QStringLiteral("AB");
+    QTest::newRow("space in the name") << QByteArray("A B") << false << none;
+
+    // A name without a terminating zero byte (a part of a longer buffer): nothing behind the
+    // name is read - "uni00410" has five digits, though "042" follows in the buffer
+    QTest::newRow("part of a buffer, uni") << QByteArray::fromRawData("uni00410042", 8) << false << none;
+    QTest::newRow("part of a buffer, u") << QByteArray::fromRawData("u004142", 5) << false << QStringLiteral("A");
+    QTest::newRow("part of a buffer, component") << QByteArray::fromRawData("f_i", 1) << false << QStringLiteral("f");
+    QTest::newRow("part of a buffer, suffix") << QByteArray::fromRawData("one.oldstyle", 3) << false << QStringLiteral("1");
+}
+
+void FontEncodingTest::test_glyph_name_text()
+{
+    QFETCH(QByteArray, name);
+    QFETCH(bool, isZapfDingbats);
+    QFETCH(QString, text);
+
+    QCOMPARE(pdf::PDFNameToUnicode::getUnicodeTextForName(name, isZapfDingbats), text);
+}
+
+void FontEncodingTest::test_glyph_name_text_zapf_dingbats_lookup_data()
+{
+    using Lookup = pdf::PDFNameToUnicode::ZapfDingbatsLookup;
+
+    QTest::addColumn<QByteArray>("name");
+    QTest::addColumn<int>("lookup");
+    QTest::addColumn<QString>("text");
+
+    const QString checkMark = QString(QChar(0x2714));
+
+    // a20 (U+2714), a65 and a66 are names of the ZapfDingbats list only (ISO 32000-2, D.6). The
+    // font ZapfDingbats asks the list first, another simple font last (a deviation from the
+    // specification, NOTES.txt 9.10.2), a Type 3 font never: a65, a66 are the names pdfTeX and
+    // dvips give to the glyphs of the codes 65, 66 of a bitmap font - no dingbats.
+    QTest::newRow("a20, first") << QByteArray("a20") << int(Lookup::First) << checkMark;
+    QTest::newRow("a20, last") << QByteArray("a20") << int(Lookup::Last) << checkMark;
+    QTest::newRow("a20, never") << QByteArray("a20") << int(Lookup::Never) << QString();
+    QTest::newRow("a65, never") << QByteArray("a65") << int(Lookup::Never) << QString();
+    QTest::newRow("a66.alt, never") << QByteArray("a66.alt") << int(Lookup::Never) << QString();
+    QTest::newRow("components, never") << QByteArray("a20_A_a65") << int(Lookup::Never) << QStringLiteral("A");
+    QTest::newRow("components, last") << QByteArray("a20_A") << int(Lookup::Last) << (checkMark + QStringLiteral("A"));
+
+    // The glyph list and the forms of a code point do not depend on it (lower case digits too)
+    QTest::newRow("A, never") << QByteArray("A") << int(Lookup::Never) << QStringLiteral("A");
+    QTest::newRow("one.oldstyle, never") << QByteArray("one.oldstyle") << int(Lookup::Never) << QStringLiteral("1");
+    QTest::newRow("f_i, never") << QByteArray("f_i") << int(Lookup::Never) << QStringLiteral("fi");
+    QTest::newRow("uni20AC, never") << QByteArray("uni20AC") << int(Lookup::Never) << QString(QChar(0x20AC));
+    QTest::newRow("uni20ac, never") << QByteArray("uni20ac") << int(Lookup::Never) << QString(QChar(0x20AC));
+    QTest::newRow("u0041, never") << QByteArray("u0041") << int(Lookup::Never) << QStringLiteral("A");
+}
+
+void FontEncodingTest::test_glyph_name_text_zapf_dingbats_lookup()
+{
+    QFETCH(QByteArray, name);
+    QFETCH(int, lookup);
+    QFETCH(QString, text);
+
+    const pdf::PDFNameToUnicode::ZapfDingbatsLookup zapfDingbatsLookup = static_cast<pdf::PDFNameToUnicode::ZapfDingbatsLookup>(lookup);
+    QCOMPARE(pdf::PDFNameToUnicode::getUnicodeTextForName(name, zapfDingbatsLookup), text);
+
+    // The overload of a simple font: the font ZapfDingbats is "first", another font "last"
+    if (zapfDingbatsLookup != pdf::PDFNameToUnicode::ZapfDingbatsLookup::Never)
+    {
+        QCOMPARE(pdf::PDFNameToUnicode::getUnicodeTextForName(name, zapfDingbatsLookup == pdf::PDFNameToUnicode::ZapfDingbatsLookup::First), text);
+    }
+}
+
+void FontEncodingTest::test_type3_names_text_extraction_data()
+{
+    QTest::addColumn<QByteArray>("differences");
+    QTest::addColumn<QString>("expectedText");
+
+    // A bitmap font of pdfTeX / dvips: the glyphs of the codes 65 and 66 are named a65 and a66,
+    // no /ToUnicode. The names are in no glyph list but in the ZapfDingbats one (U+2746, U+2747),
+    // which a Type 3 font never asks: the page has no text, as before the texts of the names.
+    QTest::newRow("pdfTeX names") << QByteArray("/a65 /a66") << QString();
+
+    // A name of the glyph list gives its text in a Type 3 font
+    QTest::newRow("a name of the glyph list") << QByteArray("/A /a66") << QStringLiteral("A");
+    QTest::newRow("names of the glyph list") << QByteArray("/A /B") << QStringLiteral("AB");
+}
+
+void FontEncodingTest::test_type3_names_text_extraction()
+{
+    QFETCH(QByteArray, differences);
+    QFETCH(QString, expectedText);
+
+    using D = pdftest::ContentTestDocuments;
+
+    // A document of one page, which shows the codes 65 and 66 of a Type 3 font with a glyph
+    // procedure of each name of /Differences [65 ...]
+    auto createResources = [&differences](pdf::PDFDocumentBuilder* builder)
+    {
+        QByteArray charProcs;
+        for (const QByteArray& glyphName : differences.split(' '))
+        {
+            const pdf::PDFObject procedure = D::addStreamObject(builder, D::DictionaryEntries(), QByteArray("500 0 0 0 400 700 d1 0 0 400 700 re f"));
+            charProcs += glyphName + " " + QByteArray::number(procedure.getReference().objectNumber) + " " + QByteArray::number(procedure.getReference().generation) + " R ";
+        }
+
+        const QByteArray fontDictionary = "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] "
+                                          "/CharProcs << " + charProcs + ">> /Encoding << /Type /Encoding /Differences [65 " + differences + "] >> "
+                                          "/FirstChar 65 /LastChar 66 /Widths [500 500] /Resources << >> >>";
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), D::createDictionaryObject({ { "F1", D::addObject(builder, parser.getObject()) } }));
+        return resources;
+    };
+
+    const pdf::PDFDocument document = D::createDocument(QByteArray("BT /F1 20 Tf 20 100 Td (AB) Tj ET"), createResources);
+
+    for (const pdf::PDFDocumentTextFlowFactory::Algorithm algorithm : { pdf::PDFDocumentTextFlowFactory::Algorithm::Layout, pdf::PDFDocumentTextFlowFactory::Algorithm::Content })
+    {
+        pdf::PDFDocumentTextFlowFactory factory;
+        factory.setStructureExport(true);
+        const pdf::PDFDocumentTextFlow flow = factory.create(&document, algorithm);
+
+        QString text;
+        for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+        {
+            if (item.isText())
+            {
+                for (const QChar character : item.text)
+                {
+                    if (!character.isSpace())
+                    {
+                        text += character;
+                    }
+                }
+            }
+        }
+        QCOMPARE(text, expectedText);
+    }
+}
+
+void FontEncodingTest::test_glyph_name_text_hostile_data()
+{
+    QTest::addColumn<QByteArray>("name");
+    QTest::addColumn<QString>("text");
+
+    // A million components or groups: a pass over the name for each of them would be 1e12 steps
+    constexpr qsizetype COUNT = 1000000;
+
+    // Components, each a letter: as many letters
+    QTest::newRow("many components") << QByteArray("A_").repeated(COUNT) << QString(COUNT, QChar(u'A'));
+
+    // Groups of "uni": as many letters; one digit more, or a surrogate, and it is no such name
+    QTest::newRow("many groups") << (QByteArray("uni") + QByteArray("0042").repeated(COUNT)) << QString(COUNT, QChar(u'B'));
+    QTest::newRow("many groups and a digit") << (QByteArray("uni") + QByteArray("0042").repeated(COUNT) + "0") << QString();
+    QTest::newRow("many groups, the last one a surrogate") << (QByteArray("uni") + QByteArray("0042").repeated(COUNT) + "D800") << QString();
+
+    // Only separators, only periods, one long unknown component, a long suffix
+    QTest::newRow("underscores only") << QByteArray(COUNT, '_') << QString();
+    QTest::newRow("periods only") << QByteArray(COUNT, '.') << QString();
+    QTest::newRow("one long component") << QByteArray(COUNT, 'x') << QString();
+    QTest::newRow("many digits of u") << (QByteArray("u") + QByteArray(COUNT, '0')) << QString();
+    QTest::newRow("a long suffix") << (QByteArray("one.") + QByteArray("_A").repeated(COUNT)) << QStringLiteral("1");
+    QTest::newRow("long components around a letter") << (QByteArray(COUNT, 'x') + "_A_" + QByteArray(COUNT, 'y')) << QStringLiteral("A");
+}
+
+void FontEncodingTest::test_glyph_name_text_hostile()
+{
+    QFETCH(QByteArray, name);
+    QFETCH(QString, text);
+
+    // The time is linear to the length of the name: a name of a few megabytes is a matter of
+    // milliseconds (a pass over the name per component would not end within the limit)
+    QElapsedTimer timer;
+    timer.start();
+    const QString result = pdf::PDFNameToUnicode::getUnicodeTextForName(name, false);
+    const qint64 elapsed = timer.elapsed();
+
+    QCOMPARE(result.size(), text.size());
+    QVERIFY(result == text);
+
+    const qint64 limit = qint64(10000) * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(elapsed < limit, qPrintable(QStringLiteral("%1 ms").arg(elapsed)));
+}
+
+void FontEncodingTest::test_differences_text_data()
+{
+    QTest::addColumn<QByteArray>("baseFont");
+    QTest::addColumn<QByteArray>("name");
+    QTest::addColumn<QChar>("key");
+    QTest::addColumn<QChar>("textCharacter");
+    QTest::addColumn<QString>("text");
+
+    const QByteArray helvetica = "Helvetica";
+    const QChar none;
+
+    // A name of the glyph list: one character for the glyph and for the text
+    QTest::newRow("A") << helvetica << QByteArray("A") << QChar(u'A') << QChar(u'A') << QStringLiteral("A");
+    QTest::newRow("uni20AC") << helvetica << QByteArray("uni20AC") << QChar(0x20AC) << QChar(0x20AC) << QString(QChar(0x20AC));
+
+    // A name with a suffix: the text of the name without the suffix. The lookup of the whole
+    // name gives no key of a glyph; the font of this test is not embedded (its substitute is
+    // asked by characters), so the one character of the text is the key of the glyph too
+    // (owner 2026-11-26). An embedded font has no key for such a name - the glyph is the one of
+    // the whole name (test_differences_text_type1_embedded, test_differences_text_truetype_embedded).
+    QTest::newRow("one.oldstyle") << helvetica << QByteArray("one.oldstyle") << QChar(u'1') << QChar(u'1') << QStringLiteral("1");
+    QTest::newRow("a.sc") << helvetica << QByteArray("a.sc") << QChar(u'a') << QChar(u'a') << QStringLiteral("a");
+    QTest::newRow("f.alt") << helvetica << QByteArray("f.alt") << QChar(u'f') << QChar(u'f') << QStringLiteral("f");
+    QTest::newRow("uni0041.smcp") << helvetica << QByteArray("uni0041.smcp") << QChar(u'A') << QChar(u'A') << QStringLiteral("A");
+    QTest::newRow("u0041.smcp") << helvetica << QByteArray("u0041.smcp") << QChar(u'A') << QChar(u'A') << QStringLiteral("A");
+    QTest::newRow("nonexistent.name") << helvetica << QByteArray("nonexistent.name") << none << none << QString();
+    QTest::newRow(".notdef") << helvetica << QByteArray(".notdef") << none << none << QString();
+
+    // A name of one component among empty ones is a text of one code unit
+    QTest::newRow("_A") << helvetica << QByteArray("_A") << QChar(u'A') << QChar(u'A') << QStringLiteral("A");
+
+    // A font, which is not one of the standard 14 fonts and is not embedded, by the same rule
+    QTest::newRow("one.oldstyle, another font") << QByteArray("PDF4QTNoSuchFont") << QByteArray("one.oldstyle") << QChar(u'1') << QChar(u'1') << QStringLiteral("1");
+    QTest::newRow("T_h, another font") << QByteArray("PDF4QTNoSuchFont") << QByteArray("T_h") << none << none << QStringLiteral("Th");
+
+    // Names of more code units: the whole text by getEncodingText only; the text layout has
+    // one character per glyph - none, or the ligature, which the glyph list of the library
+    // has for the whole name (f_i, f_f, f_f_i, f_f_l), as before
+    QTest::newRow("T_h") << helvetica << QByteArray("T_h") << none << none << QStringLiteral("Th");
+    QTest::newRow("uni00410042") << helvetica << QByteArray("uni00410042") << none << none << QStringLiteral("AB");
+    QTest::newRow("u1F600") << helvetica << QByteArray("u1F600") << none << none << (QString(QChar(0xD83D)) + QChar(0xDE00));
+    QTest::newRow("f_i") << helvetica << QByteArray("f_i") << QChar(0xFB01) << QChar(0xFB01) << QStringLiteral("fi");
+    QTest::newRow("f_f") << helvetica << QByteArray("f_f") << QChar(0xFB00) << QChar(0xFB00) << QStringLiteral("ff");
+    QTest::newRow("f_f_i") << helvetica << QByteArray("f_f_i") << QChar(0xFB03) << QChar(0xFB03) << QStringLiteral("ffi");
+    QTest::newRow("f_f_l") << helvetica << QByteArray("f_f_l") << QChar(0xFB04) << QChar(0xFB04) << QStringLiteral("ffl");
+    QTest::newRow("f_f_l.alt") << helvetica << QByteArray("f_f_l.alt") << none << none << QStringLiteral("ffl");
+
+    // The specification gives no text to these names (lower case digits, a name of the
+    // ZapfDingbats list in a font, which is not ZapfDingbats). The library keeps their texts: two
+    // deliberate deviations (NOTES.txt 9.10.2, owner 2026-11-26)
+    QTest::newRow("uni20ac") << helvetica << QByteArray("uni20ac") << QChar(0x20AC) << QChar(0x20AC) << QString(QChar(0x20AC));
+    QTest::newRow("a20, Helvetica") << helvetica << QByteArray("a20") << QChar(0x2714) << QChar(0x2714) << QString(QChar(0x2714));
+    QTest::newRow("a20, ZapfDingbats") << QByteArray("ZapfDingbats") << QByteArray("a20") << QChar(0x2714) << QChar(0x2714) << QString(QChar(0x2714));
+    QTest::newRow("a20, subset of ZapfDingbats") << QByteArray("ABCDEF+ZapfDingbats") << QByteArray("a20") << QChar(0x2714) << QChar(0x2714) << QString(QChar(0x2714));
+
+    // A surrogate value is no code point of a name: the lookup of the whole name gives the
+    // surrogate as before (the key), the text is none
+    QTest::newRow("uniD800") << helvetica << QByteArray("uniD800") << QChar(0xD800) << none << QString();
+
+    // U+0000 is "no character" through the library
+    QTest::newRow("u0000") << helvetica << QByteArray("u0000") << none << none << QString();
+    QTest::newRow("uni00000041") << helvetica << QByteArray("uni00000041") << QChar(u'A') << QChar(u'A') << QStringLiteral("A");
+
+    // The longest text of a code (PDFFont::MAXIMUM_ENCODING_TEXT_LENGTH is 256 code units): a
+    // name of a longer text gives no text
+    QTest::newRow("256 code units") << helvetica << (QByteArray("uni") + QByteArray("0041").repeated(256)) << none << none << QString(256, QChar(u'A'));
+    QTest::newRow("257 code units") << helvetica << (QByteArray("uni") + QByteArray("0041").repeated(257)) << none << none << QString();
+    QTest::newRow("129 surrogate pairs") << helvetica << (QByteArray("u1F600_").repeated(129)) << none << none << QString();
+}
+
+void FontEncodingTest::test_differences_text()
+{
+    QFETCH(QByteArray, baseFont);
+    QFETCH(QByteArray, name);
+    QFETCH(QChar, key);
+    QFETCH(QChar, textCharacter);
+    QFETCH(QString, text);
+
+    QCOMPARE(pdf::PDFFont::MAXIMUM_ENCODING_TEXT_LENGTH, qsizetype(256));
+
+    // A font, which is not embedded, of a hand-written dictionary: the name at the code 65,
+    // the code 66 is left to the base encoding
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFDocument document = builder.build();
+
+    const QByteArray fontDictionary = "<< /Type /Font /Subtype /Type1 /BaseFont /" + baseFont + " /FirstChar 65 /LastChar 66 /Widths [600 600] "
+                                      "/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [65 /" + name + "] >> >>";
+    pdf::PDFFontPointer font;
+    try
+    {
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        font = pdf::PDFFont::createFont(parser.getObject(), "F1", &document);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        QFAIL(qPrintable(exception.getMessage()));
+    }
+
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.get());
+    QVERIFY(simpleFont);
+
+    // The key of the glyph is the character of the encoding table, as before
+    QCOMPARE(simpleFont->getUnicode(65), key);
+    QCOMPARE((*simpleFont->getEncoding())[65], key);
+    QCOMPARE((*simpleFont->getGlyphNames())[65], name);
+
+    // The text of the code
+    QCOMPARE(simpleFont->getTextUnicode(65), textCharacter);
+    QCOMPARE(font->getEncodingText(65, 1), text);
+    QCOMPARE(font->getEncodingText(65, 0), text);
+
+    // The code without a name of /Differences: B of the base encoding for the glyph and for the text
+    QCOMPARE(simpleFont->getUnicode(66), QChar(u'B'));
+    QCOMPARE(simpleFont->getTextUnicode(66), QChar(u'B'));
+    QCOMPARE(font->getEncodingText(66, 1), QStringLiteral("B"));
+
+    // A code of a simple font is one byte (9.4.3); no /ToUnicode is in the font
+    QVERIFY(font->getEncodingText(65, 2).isEmpty());
+    QVERIFY(font->getEncodingText(65 + 256, 1).isEmpty());
+    QVERIFY(font->getToUnicodeText(65, 1).isEmpty());
+    QVERIFY(simpleFont->getTextUnicode(65 + 256).isNull());
+}
+
+void FontEncodingTest::test_differences_text_type1_embedded()
+{
+    // The hand-written Type 1 font program: its glyphs are rectangles of different shapes -
+    // B 300 x 700, one 150 x 650, one.oldstyle 250 x 450, f_i 350 x 750, uni00410042 450 x 350,
+    // uni0041.smcp 550 x 250
+    qsizetype clearTextLength = 0;
+    const QByteArray fontProgram = createType1FontProgram(&clearTextLength);
+
+    // The codes A ... G by /Differences, no /ToUnicode
+    TestFont testFont;
+    createTestFont(&testFont, type1TestFontDictionary("/B /one /one.oldstyle /f_i /uni00410042 /uni0041.smcp /four.sups", 7),
+                   { type1TestFontStream(fontProgram, clearTextLength) }, "ABCDEFG");
+    QVERIFY(testFont.realizedFont);
+
+    const std::vector<pdf::TextSequenceItem>& items = testFont.sequence.items;
+    QCOMPARE(items.size(), size_t(7));
+
+    // The glyph B (300 x 700) of the first item is the measure of the rectangles
+    QVERIFY(items[0].glyph && !items[0].glyph->isEmpty());
+    const QRectF glyphB = items[0].glyph->getBoundingRect();
+    QVERIFY(glyphB.width() > 0.0 && glyphB.height() > 0.0);
+    auto isRectangle = [&glyphB](const pdf::TextSequenceItem& item, double width, double height)
+    {
+        if (!item.glyph || item.glyph->isEmpty())
+        {
+            return false;
+        }
+
+        const QRectF rectangle = item.glyph->getBoundingRect();
+        return qAbs(rectangle.width() / glyphB.width() - width / 300.0) < 0.03 && qAbs(rectangle.height() / glyphB.height() - height / 700.0) < 0.03;
+    };
+
+    // one: a name of the glyph list - its glyph, the character 1 as the key and as the text
+    QVERIFY(isRectangle(items[1], 150.0, 650.0));
+    QCOMPARE(items[1].character, QChar(u'1'));
+    QCOMPARE(items[1].textCharacter, QChar(u'1'));
+
+    // one.oldstyle: the glyph of that name (9.6.5.2), not the glyph of one; the text is 1 and the
+    // key of the glyph is not: the item has no character for the real text drawing, which
+    // would paint the glyph of 1
+    QVERIFY2(isRectangle(items[2], 250.0, 450.0), isRectangle(items[2], 150.0, 650.0) ? "the glyph of one" : "another glyph");
+    QVERIFY2(items[2].character.isNull(), qPrintable(QString::number(items[2].character.unicode(), 16)));
+    QCOMPARE(items[2].textCharacter, QChar(u'1'));
+
+    // f_i: its glyph; the text is "fi", the text layout gets the ligature of the glyph list of
+    // the library (one character per glyph)
+    QVERIFY(isRectangle(items[3], 350.0, 750.0));
+    QCOMPARE(items[3].character, QChar(0xFB01));
+    QCOMPARE(items[3].textCharacter, QChar(0xFB01));
+    QCOMPARE(testFont.font->getEncodingText(68, 1), QStringLiteral("fi"));
+
+    // uni00410042: its glyph; the text "AB" has no single character
+    QVERIFY(isRectangle(items[4], 450.0, 350.0));
+    QVERIFY(items[4].character.isNull());
+    QVERIFY(items[4].textCharacter.isNull());
+    QCOMPARE(testFont.font->getEncodingText(69, 1), QStringLiteral("AB"));
+
+    // uni0041.smcp: its glyph, the text A
+    QVERIFY(isRectangle(items[5], 550.0, 250.0));
+    QVERIFY(items[5].character.isNull());
+    QCOMPARE(items[5].textCharacter, QChar(u'A'));
+
+    // four.sups: its glyph (200 x 300), the text 4
+    QVERIFY(isRectangle(items[6], 200.0, 300.0));
+    QVERIFY(items[6].character.isNull());
+    QCOMPARE(items[6].textCharacter, QChar(u'4'));
+
+    // The table and the names, by which the glyphs are selected, are those of the dictionary
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(testFont.font.get());
+    QVERIFY(simpleFont);
+    QVERIFY(simpleFont->getUnicode(67).isNull());
+    QVERIFY((*simpleFont->getEncoding())[67].isNull());
+    QCOMPARE((*simpleFont->getGlyphNames())[67], QByteArray("one.oldstyle"));
+    QCOMPARE(simpleFont->getTextUnicode(67), QChar(u'1'));
+
+    // The glyphs of the codes 66 and 67 are two glyphs of the font program
+    QVERIFY((*simpleFont->getGlyphIndices())[66] != 0);
+    QVERIFY((*simpleFont->getGlyphIndices())[67] != 0);
+    QVERIFY((*simpleFont->getGlyphIndices())[66] != (*simpleFont->getGlyphIndices())[67]);
+
+    // The character map of the font (Document Report) shows the texts: 1 for the glyph one of
+    // the built-in encoding (the code 49), of the code 66 and for the glyph one.oldstyle
+    // of the code 67, each with its glyph
+    const pdf::CharacterInfos characterInfos = testFont.realizedFont->getCharacterInfos();
+    std::vector<pdf::GID> glyphsOfOne;
+    for (const pdf::CharacterInfo& info : characterInfos)
+    {
+        if (info.character == QChar(u'1'))
+        {
+            glyphsOfOne.push_back(info.gid);
+        }
+    }
+    std::sort(glyphsOfOne.begin(), glyphsOfOne.end());
+    std::vector<pdf::GID> expectedGlyphsOfOne = { (*simpleFont->getGlyphIndices())[49], (*simpleFont->getGlyphIndices())[66], (*simpleFont->getGlyphIndices())[67] };
+    std::sort(expectedGlyphsOfOne.begin(), expectedGlyphsOfOne.end());
+    QCOMPARE((*simpleFont->getGlyphIndices())[49], (*simpleFont->getGlyphIndices())[66]);
+    QVERIFY(glyphsOfOne == expectedGlyphsOfOne);
+}
+
+void FontEncodingTest::test_differences_text_truetype_embedded()
+{
+    // LiberationSans-Regular of the resources of the library: a (3, 1) "cmap", a "post" table
+    // with the glyph names; it has the glyph one, no glyph one.oldstyle
+    QFile file(QStringLiteral(":/fonts/liberation-fonts-ttf/LiberationSans-Regular.ttf"));
+    QVERIFY(file.open(QFile::ReadOnly));
+    const QByteArray fontProgram = file.readAll();
+    QVERIFY(!fontProgram.isEmpty());
+
+    // The codes A ... D of a nonsymbolic font (9.6.5.4): one, one.oldstyle, four.sups (a name of
+    // the "post" table of the font) and uni0041.smcp
+    TestFont testFont;
+    createTestFont(&testFont, "<< /Type /Font /Subtype /TrueType /BaseFont /LiberationSans /FirstChar 65 /LastChar 68 /Widths [600 610 620 630] "
+                              "/FontDescriptor << /Type /FontDescriptor /FontName /LiberationSans /Flags 32 /FontBBox [-544 -303 1302 980] "
+                              "/ItalicAngle 0 /Ascent 905 /Descent -212 /CapHeight 729 /StemV 80 /FontFile2 @1 >> "
+                              "/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding "
+                              "/Differences [65 /one /one.oldstyle /four.sups /uni0041.smcp] >> >>",
+                   { TestStream{ fontProgram, "/Length1 " + QByteArray::number(fontProgram.size()) } }, "ABCD");
+    QVERIFY(testFont.realizedFont);
+
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(testFont.font.get());
+    QVERIFY(simpleFont);
+
+    const std::vector<pdf::TextSequenceItem>& items = testFont.sequence.items;
+    QCOMPARE(items.size(), size_t(4));
+
+    // one: the glyph list gives 1, the "cmap" its glyph
+    QVERIFY(items[0].glyph && !items[0].glyph->isEmpty());
+    QCOMPARE(items[0].character, QChar(u'1'));
+    QCOMPARE(items[0].textCharacter, QChar(u'1'));
+
+    // one.oldstyle: the text is 1, but the name is not mapped to the "cmap" through its text -
+    // the font has no glyph of that name, so the code has no glyph (never the glyph of one);
+    // the width of the dictionary (610 thousandths of the size 20)
+    QVERIFY(simpleFont->getUnicode(66).isNull());
+    QCOMPARE(simpleFont->getTextUnicode(66), QChar(u'1'));
+    QCOMPARE((*simpleFont->getGlyphIndices())[66], pdf::GID(0));
+    QVERIFY2(!items[1].glyph, items[1].glyph == items[0].glyph ? "the glyph of one" : "another glyph");
+    QVERIFY(items[1].character.isNull());
+    QCOMPARE(items[1].advance, 12.2);
+
+    // four.sups: the glyph of the "post" table - not the glyph of the character 4, which is
+    // its text; no key of a glyph
+    TestFont reference;
+    createTestFont(&reference, "<< /Type /Font /Subtype /TrueType /BaseFont /LiberationSans /FirstChar 52 /LastChar 52 /Widths [600] "
+                               "/FontDescriptor << /Type /FontDescriptor /FontName /LiberationSans /Flags 32 /FontBBox [-544 -303 1302 980] "
+                               "/ItalicAngle 0 /Ascent 905 /Descent -212 /CapHeight 729 /StemV 80 /FontFile2 @1 >> /Encoding /WinAnsiEncoding >>",
+                   { TestStream{ fontProgram, "/Length1 " + QByteArray::number(fontProgram.size()) } }, "4");
+    QVERIFY(reference.realizedFont);
+    QCOMPARE(reference.sequence.items.size(), size_t(1));
+    QVERIFY(reference.sequence.items[0].glyph && !reference.sequence.items[0].glyph->isEmpty());
+    QCOMPARE(reference.sequence.items[0].character, QChar(u'4'));
+
+    QVERIFY(items[2].glyph && !items[2].glyph->isEmpty());
+    QVERIFY(items[2].glyph->getBoundingRect() != reference.sequence.items[0].glyph->getBoundingRect());
+    QVERIFY(items[2].character.isNull());
+    QCOMPARE(items[2].textCharacter, QChar(u'4'));
+
+    // uni0041.smcp: no glyph of that name, the text A is no key of a glyph
+    QVERIFY(simpleFont->getUnicode(68).isNull());
+    QCOMPARE(simpleFont->getTextUnicode(68), QChar(u'A'));
+    QVERIFY(!items[3].glyph);
+    QCOMPARE(items[3].advance, 12.6);
+}
+
+void FontEncodingTest::test_differences_text_tounicode()
+{
+    // /ToUnicode is the first method (9.10.2) and the priority stays as it was: a character of
+    // /ToUnicode wins over the name; a text of /ToUnicode of more code units gives no character
+    // (getToUnicodeText gives it) and the character of the code is the one of the encoding
+    TestFont testFont;
+    createTestFont(&testFont, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 65 /LastChar 67 /Widths [600 610 620] "
+                              "/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [65 /one.oldstyle /one.oldstyle /one.oldstyle] >> "
+                              "/ToUnicode @1 >>",
+                   { TestStream{ "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n2 beginbfchar\n<41> <0058>\n<43> <006600660069>\nendbfchar\n", QByteArray() } },
+                   "ABC");
+    QVERIFY(testFont.realizedFont);
+
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(testFont.font.get());
+    QVERIFY(simpleFont);
+
+    // The code 65: X of /ToUnicode; the text of the encoding alone is 1
+    QCOMPARE(simpleFont->getUnicode(65), QChar(u'X'));
+    QCOMPARE(simpleFont->getTextUnicode(65), QChar(u'X'));
+    QCOMPARE(testFont.font->getToUnicodeText(65, 1), QStringLiteral("X"));
+    QCOMPARE(testFont.font->getEncodingText(65, 1), QStringLiteral("1"));
+
+    // The code 66: no /ToUnicode, the text of the name (the font is not embedded: it is the key
+    // of the glyph too)
+    QCOMPARE(simpleFont->getUnicode(66), QChar(u'1'));
+    QCOMPARE(simpleFont->getTextUnicode(66), QChar(u'1'));
+    QVERIFY(testFont.font->getToUnicodeText(66, 1).isEmpty());
+
+    // The code 67: "ffi" of /ToUnicode has no single character, the character of the code is
+    // the one of the encoding
+    QCOMPARE(simpleFont->getUnicode(67), QChar(u'1'));
+    QCOMPARE(simpleFont->getTextUnicode(67), QChar(u'1'));
+    QCOMPARE(testFont.font->getToUnicodeText(67, 1), QStringLiteral("ffi"));
+    QCOMPARE(testFont.font->getEncodingText(67, 1), QStringLiteral("1"));
+}
+
+void FontEncodingTest::test_differences_text_type3()
+{
+    // The names of a Type 3 font give its texts as the names of /Differences of a simple font;
+    // /ToUnicode (the code 65 only) is first. The font is not ZapfDingbats.
+    const QByteArray procedure = "500 0 0 0 100 100 d1 0 0 100 100 re f";
+    TestFont testFont;
+    createTestFont(&testFont, "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] "
+                              "/CharProcs << /A @1 /one.oldstyle @1 /f_i @1 /uni00410042 @1 /my.glyph @1 /a20 @1 /B @1 >> "
+                              "/Encoding << /Type /Encoding /Differences [65 /A /one.oldstyle /f_i /uni00410042 /my.glyph /a20 /B /one] >> "
+                              "/FirstChar 65 /LastChar 72 /Widths [500 500 500 500 500 500 500 500] /Resources << >> /ToUnicode @2 >>",
+                   { TestStream{ procedure, QByteArray() },
+                     TestStream{ "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n1 beginbfchar\n<41> <0058>\nendbfchar\n", QByteArray() } },
+                   "ABCDEFGHI");
+    QVERIFY(testFont.realizedFont);
+
+    const pdf::PDFType3Font* type3Font = dynamic_cast<const pdf::PDFType3Font*>(testFont.font.get());
+    QVERIFY(type3Font);
+
+    const std::vector<pdf::TextSequenceItem>& items = testFont.sequence.items;
+    QCOMPARE(items.size(), size_t(8));
+    for (size_t i = 0; i < 7; ++i)
+    {
+        QVERIFY(items[i].isContentStream());
+        QCOMPARE(items[i].code, static_cast<unsigned int>(65 + i));
+    }
+
+    // A: X of /ToUnicode; the text of the name alone is A
+    QCOMPARE(items[0].character, QChar(u'X'));
+    QCOMPARE(items[0].textCharacter, QChar(u'X'));
+    QCOMPARE(type3Font->getEncodingText(65, 1), QStringLiteral("A"));
+
+    // one.oldstyle: the text 1; getUnicode and the character of the item stay those of
+    // /ToUnicode (encodeCharacter turns that one back to the code)
+    QVERIFY(type3Font->getUnicode(66).isNull());
+    QVERIFY(items[1].character.isNull());
+    QCOMPARE(type3Font->getTextUnicode(66), QChar(u'1'));
+    QCOMPARE(items[1].textCharacter, QChar(u'1'));
+    QCOMPARE(type3Font->getEncodingText(66, 1), QStringLiteral("1"));
+    QCOMPARE(type3Font->getEncodingText(66, 0), QStringLiteral("1"));
+    QVERIFY(type3Font->getEncodingText(66, 2).isEmpty());
+    QVERIFY(type3Font->encodeCharacter(U'1').isEmpty());
+
+    // f_i: the text "fi", the ligature for the text layout
+    QVERIFY(items[2].character.isNull());
+    QCOMPARE(items[2].textCharacter, QChar(0xFB01));
+    QCOMPARE(type3Font->getEncodingText(67, 1), QStringLiteral("fi"));
+
+    // uni00410042: the text "AB", no single character
+    QVERIFY(items[3].textCharacter.isNull());
+    QCOMPARE(type3Font->getEncodingText(68, 1), QStringLiteral("AB"));
+
+    // my.glyph: "my" is in no glyph list. a20 is a name of the ZapfDingbats list only: that list
+    // is never asked for a Type 3 font (pdfTeX and dvips name the glyphs of their bitmap fonts
+    // a<code>; a simple font asks it - test_differences_text, row "a20, Helvetica")
+    QVERIFY(items[4].textCharacter.isNull());
+    QVERIFY(type3Font->getEncodingText(69, 1).isEmpty());
+    QVERIFY(items[5].character.isNull());
+    QVERIFY2(items[5].textCharacter.isNull(), qPrintable(QString::number(items[5].textCharacter.unicode(), 16)));
+    QVERIFY(type3Font->getEncodingText(70, 1).isEmpty());
+
+    // B
+    QVERIFY(items[6].character.isNull());
+    QCOMPARE(items[6].textCharacter, QChar(u'B'));
+
+    // The character map of the font (Document Report) shows the texts; the identifier of a glyph
+    // of a Type 3 font is its code: X of /ToUnicode for 65, 1 for 66, the ligature for 67, none for 68
+    std::map<pdf::GID, QChar> charactersOfGlyphs;
+    for (const pdf::CharacterInfo& info : testFont.realizedFont->getCharacterInfos())
+    {
+        charactersOfGlyphs[info.gid] = info.character;
+    }
+    QCOMPARE(charactersOfGlyphs.size(), size_t(7));
+    QCOMPARE(charactersOfGlyphs[65], QChar(u'X'));
+    QCOMPARE(charactersOfGlyphs[66], QChar(u'1'));
+    QCOMPARE(charactersOfGlyphs[67], QChar(0xFB01));
+    QVERIFY(charactersOfGlyphs[68].isNull());
+
+    // The last name of a code decides (Table 112): the code 65 is named T_h and then A, the code
+    // 66 f_i and then one.oldstyle - nothing of the first names is left
+    TestFont renamedFont;
+    createTestFont(&renamedFont, "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] "
+                                 "/CharProcs << /A @1 /one.oldstyle @1 /T_h @1 /f_i @1 >> "
+                                 "/Encoding << /Type /Encoding /Differences [65 /T_h /f_i 65 /A /one.oldstyle] >> "
+                                 "/FirstChar 65 /LastChar 66 /Widths [500 500] /Resources << >> >>",
+                   { TestStream{ procedure, QByteArray() } }, "AB");
+    QVERIFY(renamedFont.realizedFont);
+    QCOMPARE(renamedFont.sequence.items.size(), size_t(2));
+    QCOMPARE(renamedFont.sequence.items[0].textCharacter, QChar(u'A'));
+    QCOMPARE(renamedFont.font->getEncodingText(65, 1), QStringLiteral("A"));
+    QCOMPARE(renamedFont.sequence.items[1].textCharacter, QChar(u'1'));
+    QCOMPARE(renamedFont.font->getEncodingText(66, 1), QStringLiteral("1"));
+
+    // one is not a key of /CharProcs: no glyph is painted, the item has no character; the
+    // text of the code is known all the same. The code 73 has no name.
+    QVERIFY(!items[7].isContentStream());
+    QVERIFY(items[7].textCharacter.isNull());
+    QCOMPARE(type3Font->getEncodingText(72, 1), QStringLiteral("1"));
+    QVERIFY(type3Font->getEncodingText(73, 1).isEmpty());
+    QVERIFY(type3Font->getTextUnicode(73).isNull());
+    QVERIFY(type3Font->getTextUnicode(-1).isNull());
+    QVERIFY(type3Font->getTextUnicode(256).isNull());
+    QVERIFY(type3Font->getEncodingText(256 + 66, 1).isEmpty());
+}
+
+void FontEncodingTest::test_builtin_encoding_text()
+{
+    // The Type 1 font program with its own built-in encoding: one.oldstyle at the code 65, B at 66,
+    // f_i at 67, uni0041.smcp at 68. The font dictionary has no /Encoding, so the built-in
+    // encoding of the program is used (9.6.5.1).
+    qsizetype clearTextLength = 0;
+    const QByteArray fontProgram = createType1FontProgram(&clearTextLength, "256 array\n"
+                                                                            "0 1 255 {1 index exch /.notdef put} for\n"
+                                                                            "dup 65 /one.oldstyle put\n"
+                                                                            "dup 66 /B put\n"
+                                                                            "dup 67 /f_i put\n"
+                                                                            "dup 68 /uni0041.smcp put\n"
+                                                                            "readonly def\n");
+
+    TestFont testFont;
+    createTestFont(&testFont, type1TestFontDictionary(QByteArray(), 4), { type1TestFontStream(fontProgram, clearTextLength) }, "ABCD");
+    QVERIFY(testFont.realizedFont);
+
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(testFont.font.get());
+    QVERIFY(simpleFont);
+
+    const std::vector<pdf::TextSequenceItem>& items = testFont.sequence.items;
+    QCOMPARE(items.size(), size_t(4));
+
+    // B (300 x 700) is the measure of the rectangles
+    QVERIFY(items[1].glyph && !items[1].glyph->isEmpty());
+    QCOMPARE(items[1].character, QChar(u'B'));
+    QCOMPARE(items[1].textCharacter, QChar(u'B'));
+    const QRectF glyphB = items[1].glyph->getBoundingRect();
+    auto isRectangle = [&glyphB](const pdf::TextSequenceItem& item, double width, double height)
+    {
+        if (!item.glyph || item.glyph->isEmpty())
+        {
+            return false;
+        }
+
+        const QRectF rectangle = item.glyph->getBoundingRect();
+        return qAbs(rectangle.width() / glyphB.width() - width / 300.0) < 0.03 && qAbs(rectangle.height() / glyphB.height() - height / 700.0) < 0.03;
+    };
+
+    // one.oldstyle (250 x 450) of the built-in encoding: the text is 1. The encoding table keeps
+    // the character it had (A of the standard encoding for the code 65) - it is not touched.
+    QVERIFY(isRectangle(items[0], 250.0, 450.0));
+    QCOMPARE(items[0].character, QChar(u'A'));
+    QCOMPARE(items[0].textCharacter, QChar(u'1'));
+    QCOMPARE(simpleFont->getEncodingText(65, 1), QStringLiteral("1"));
+
+    // f_i (350 x 750): the glyph list of the library has the whole name, the character stays;
+    // the text of more code units is given by getEncodingText
+    QVERIFY(isRectangle(items[2], 350.0, 750.0));
+    QCOMPARE(items[2].character, QChar(0xFB01));
+    QCOMPARE(items[2].textCharacter, QChar(0xFB01));
+    QCOMPARE(simpleFont->getEncodingText(67, 1), QStringLiteral("fi"));
+
+    // uni0041.smcp (550 x 250): the text is A
+    QVERIFY(isRectangle(items[3], 550.0, 250.0));
+    QCOMPARE(items[3].character, QChar(u'D'));
+    QCOMPARE(items[3].textCharacter, QChar(u'A'));
+    QCOMPARE(simpleFont->getEncodingText(68, 1), QStringLiteral("A"));
+}
+
+void FontEncodingTest::test_differences_text_not_embedded_data()
+{
+    QTest::addColumn<QByteArray>("fontEntries");
+    QTest::addColumn<bool>("isStandardFont");
+
+    // Standard fonts: their substitute is a font of the resources of the library. Verdana is
+    // not one of them: its substitute is a font of the system (the test of the glyphs and
+    // of the extracted text is skipped, when the system gives none).
+    QTest::newRow("Type 1, Helvetica") << QByteArray("/Subtype /Type1 /BaseFont /Helvetica") << true;
+    QTest::newRow("TrueType, ArialMT") << QByteArray("/Subtype /TrueType /BaseFont /ArialMT") << true;
+    QTest::newRow("Type 1, Verdana") << QByteArray("/Subtype /Type1 /BaseFont /Verdana /FontDescriptor << /Type /FontDescriptor /FontName /Verdana /Flags 32 "
+                                                   "/FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 700 /Descent 0 /CapHeight 700 /StemV 80 >>") << false;
+    QTest::newRow("TrueType, Verdana") << QByteArray("/Subtype /TrueType /BaseFont /Verdana /FontDescriptor << /Type /FontDescriptor /FontName /Verdana /Flags 32 "
+                                                     "/FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 700 /Descent 0 /CapHeight 700 /StemV 80 >>") << false;
+}
+
+void FontEncodingTest::test_differences_text_not_embedded()
+{
+    QFETCH(QByteArray, fontEntries);
+    QFETCH(bool, isStandardFont);
+
+    using D = pdftest::ContentTestDocuments;
+
+    // A font without an embedded font program: its glyphs come from a substitute, which is asked
+    // by characters. A name of /Differences, which the lookup of the whole name does not know and
+    // whose text is one character, takes that character as the key of its glyph (owner
+    // 2026-11-26): one.oldstyle paints the glyph of 1 and its text is 1. The codes A ... F:
+    // one, one.oldstyle, T_h (a text of two characters: no key), A, uni0041.smcp and a name of
+    // nothing.
+    const QByteArray fontDictionary = "<< /Type /Font " + fontEntries + " /FirstChar 65 /LastChar 70 /Widths [600 610 620 630 640 650] "
+                                      "/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding "
+                                      "/Differences [65 /one /one.oldstyle /T_h /A /uni0041.smcp /nonexistent.name] >> >>";
+
+    // The font itself (it does not depend on the substitute)
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFDocument fontDocument = builder.build();
+
+    pdf::PDFFontPointer font;
+    try
+    {
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        font = pdf::PDFFont::createFont(parser.getObject(), "F1", &fontDocument);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        QFAIL(qPrintable(exception.getMessage()));
+    }
+
+    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.get());
+    QVERIFY(simpleFont);
+    QVERIFY(!simpleFont->getFontDescriptor()->isEmbedded());
+
+    QCOMPARE(simpleFont->getUnicode(65), QChar(u'1'));
+    QCOMPARE(simpleFont->getUnicode(66), QChar(u'1'));
+    QCOMPARE((*simpleFont->getEncoding())[66], QChar(u'1'));
+    QCOMPARE((*simpleFont->getGlyphNames())[66], QByteArray("one.oldstyle"));
+    QCOMPARE(simpleFont->getTextUnicode(66), QChar(u'1'));
+    QVERIFY(simpleFont->getUnicode(67).isNull());
+    QVERIFY(simpleFont->getTextUnicode(67).isNull());
+    QCOMPARE(simpleFont->getEncodingText(67, 1), QStringLiteral("Th"));
+    QCOMPARE(simpleFont->getUnicode(68), QChar(u'A'));
+    QCOMPARE(simpleFont->getUnicode(69), QChar(u'A'));
+    QCOMPARE(simpleFont->getTextUnicode(69), QChar(u'A'));
+    QVERIFY(simpleFont->getUnicode(70).isNull());
+
+    // The glyphs of the substitute
+    pdf::PDFRealizedFontPointer realizedFont;
+    pdf::TextSequence sequence;
+    try
+    {
+        pdf::PDFRenderErrorReporterDummy reporter;
+        realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+        realizedFont->fillTextSequence("ABCDEF", sequence, &reporter);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        if (isStandardFont)
+        {
+            QFAIL(qPrintable(exception.getMessage()));
+        }
+        QSKIP(qPrintable(QStringLiteral("No substitute of the font: %1").arg(exception.getMessage())));
+    }
+
+    const std::vector<pdf::TextSequenceItem>& items = sequence.items;
+    QCOMPARE(items.size(), size_t(6));
+
+    // one and one.oldstyle: the same glyph of the substitute, the character 1
+    QVERIFY(items[0].glyph && !items[0].glyph->isEmpty());
+    QCOMPARE(items[0].character, QChar(u'1'));
+    QCOMPARE(items[1].glyph, items[0].glyph);
+    QCOMPARE(items[1].character, QChar(u'1'));
+    QCOMPARE(items[1].textCharacter, QChar(u'1'));
+
+    // T_h: no key, no glyph; the width of the dictionary (620 thousandths of the size 20)
+    QVERIFY(!items[2].glyph);
+    QCOMPARE(items[2].advance, 12.4);
+
+    // A and uni0041.smcp: the same glyph, another one than of the digit
+    QVERIFY(items[3].glyph && !items[3].glyph->isEmpty());
+    QVERIFY(items[3].glyph != items[0].glyph);
+    QCOMPARE(items[4].glyph, items[3].glyph);
+    QCOMPARE(items[4].character, QChar(u'A'));
+    QCOMPARE(items[4].textCharacter, QChar(u'A'));
+
+    // A name of nothing: no glyph, the width of the dictionary (650 thousandths)
+    QVERIFY(!items[5].glyph);
+    QCOMPARE(items[5].advance, 13.0);
+
+    // The text of a page, which shows the six codes
+    auto createResources = [&fontDictionary](pdf::PDFDocumentBuilder* documentBuilder)
+    {
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), D::createDictionaryObject({ { "F1", D::addObject(documentBuilder, parser.getObject()) } }));
+        return resources;
+    };
+    const pdf::PDFDocument document = D::createDocument(QByteArray("BT /F1 20 Tf 20 100 Td (ABCDEF) Tj ET"), createResources);
+
+    pdf::PDFDocumentTextFlowFactory factory;
+    const pdf::PDFDocumentTextFlow flow = factory.create(&document, pdf::PDFDocumentTextFlowFactory::Algorithm::Layout);
+
+    QString text;
+    for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+    {
+        if (item.isText())
+        {
+            for (const QChar character : item.text)
+            {
+                if (!character.isSpace())
+                {
+                    text += character;
+                }
+            }
+        }
+    }
+    QCOMPARE(text, QStringLiteral("11AA"));
+}
+
+void FontEncodingTest::test_differences_text_extraction_data()
+{
+    QTest::addColumn<bool>("isType3");
+    QTest::addColumn<int>("algorithm");
+
+    QTest::newRow("Type 1, layout") << false << int(pdf::PDFDocumentTextFlowFactory::Algorithm::Layout);
+    QTest::newRow("Type 1, content") << false << int(pdf::PDFDocumentTextFlowFactory::Algorithm::Content);
+    QTest::newRow("Type 3, layout") << true << int(pdf::PDFDocumentTextFlowFactory::Algorithm::Layout);
+    QTest::newRow("Type 3, content") << true << int(pdf::PDFDocumentTextFlowFactory::Algorithm::Content);
+}
+
+void FontEncodingTest::test_differences_text_extraction()
+{
+    QFETCH(bool, isType3);
+    QFETCH(int, algorithm);
+
+    using D = pdftest::ContentTestDocuments;
+
+    // A document of one page, which shows the codes A ... F of one font without /ToUnicode:
+    // /Differences [65 /one.oldstyle /f_i /uni00410042 /B /uni0041.smcp /nonexistent.name]. The
+    // font is the embedded Type 1 test font (it has a glyph of each name but the last one), or a
+    // Type 3 font with a glyph procedure of each name.
+    const QByteArray differences = "/one.oldstyle /f_i /uni00410042 /B /uni0041.smcp /nonexistent.name";
+
+    qsizetype clearTextLength = 0;
+    const QByteArray fontProgram = createType1FontProgram(&clearTextLength);
+
+    auto createResources = [&](pdf::PDFDocumentBuilder* builder)
+    {
+        QByteArray fontDictionary;
+        if (isType3)
+        {
+            QByteArray charProcs;
+            for (const char* glyphName : { "one.oldstyle", "f_i", "uni00410042", "B", "uni0041.smcp", "nonexistent.name" })
+            {
+                const pdf::PDFObject procedure = D::addStreamObject(builder, D::DictionaryEntries(), QByteArray("500 0 0 0 400 700 d1 0 0 400 700 re f"));
+                charProcs += "/" + QByteArray(glyphName) + " " + QByteArray::number(procedure.getReference().objectNumber) + " " + QByteArray::number(procedure.getReference().generation) + " R ";
+            }
+
+            fontDictionary = "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] "
+                             "/CharProcs << " + charProcs + ">> /Encoding << /Type /Encoding /Differences [65 " + differences + "] >> "
+                             "/FirstChar 65 /LastChar 70 /Widths [500 500 500 500 500 500] /Resources << >> >>";
+        }
+        else
+        {
+            const pdf::PDFObject fontFile = D::addStreamObject(builder, { { "Length1", pdf::PDFObject::createInteger(clearTextLength) },
+                                                                          { "Length2", pdf::PDFObject::createInteger(fontProgram.size() - clearTextLength) },
+                                                                          { "Length3", pdf::PDFObject::createInteger(0) } }, fontProgram);
+            fontDictionary = type1TestFontDictionary(differences, 6);
+            fontDictionary.replace("@1", QByteArray::number(fontFile.getReference().objectNumber) + " " + QByteArray::number(fontFile.getReference().generation) + " R");
+        }
+
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), D::createDictionaryObject({ { "F1", D::addObject(builder, parser.getObject()) } }));
+        return resources;
+    };
+
+    const pdf::PDFDocument document = D::createDocument(QByteArray("BT /F1 20 Tf 20 100 Td (ABCDEF) Tj ET"), createResources);
+
+    // The text of the page by the text flow (Extract Text, the search and the selection read
+    // the same characters); the algorithm Content gives the text of an untagged page for an export
+    pdf::PDFDocumentTextFlowFactory factory;
+    factory.setStructureExport(true);
+    const pdf::PDFDocumentTextFlow flow = factory.create(&document, static_cast<pdf::PDFDocumentTextFlowFactory::Algorithm>(algorithm));
+
+    QString text;
+    for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+    {
+        if (item.isText())
+        {
+            for (const QChar character : item.text)
+            {
+                if (!character.isSpace())
+                {
+                    text += character;
+                }
+            }
+        }
+    }
+
+    // one.oldstyle is 1; f_i is the ligature (its text "fi" has two code units and the text
+    // layout one character per glyph - the character of the glyph list of the library, as
+    // before); uni00410042 ("AB") has no single character; B; uni0041.smcp is A; the last name
+    // is nothing
+    QCOMPARE(text, QStringLiteral("1") + QChar(0xFB01) + QStringLiteral("BA"));
+}
+
+pdf::PDFFontPointer FontEncodingTest::createFontWithStream(pdf::PDFDocument* document, QByteArray fontDictionary, const QByteArray& streamData, QString* errorMessage)
+{
+    using D = pdftest::ContentTestDocuments;
+
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFObject stream = D::addStreamObject(&builder, D::DictionaryEntries(), streamData);
+    fontDictionary.replace("@1", QByteArray::number(stream.getReference().objectNumber) + " " + QByteArray::number(stream.getReference().generation) + " R");
+    *document = builder.build();
+
+    try
+    {
+        pdf::PDFParser parser(fontDictionary, nullptr, pdf::PDFParser::None);
+        return pdf::PDFFont::createFont(parser.getObject(), "F1", document);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        *errorMessage = exception.getMessage();
+    }
+
+    return pdf::PDFFontPointer();
+}
+
+QByteArray FontEncodingTest::type0FontDictionaryWithEncodingStream()
+{
+    return "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding @1 "
+           "/DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test "
+           "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> >>] >>";
+}
+
+void FontEncodingTest::test_type0_encoding_cmap_without_codes()
+{
+    // A5L1-1. The /Encoding CMap of a Type 0 font maps the character codes of the shown strings
+    // to CIDs (ISO 32000-2, 9.7.5; 9.7.6.2: the CMap divides a string into codes). A bfrange,
+    // whose destination string has more than one code unit, maps no code to a CID - it gives
+    // only the texts, which a /ToUnicode CMap uses (9.10.3). A CMap of only such ranges decodes
+    // no code: the font is refused when it is created, with the error of a CMap without any
+    // mapping, and nothing divides by its longest code length, which is 0.
+    const QByteArray noMappingCMap = "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n";
+    const QByteArray textsOnlyCMap = "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+                                     "2 beginbfrange\n<00> <7F> <00410042>\n<80> <FF> <D835DC00>\nendbfrange\n";
+    const QByteArray codesCMap = "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+                                 "1 begincidrange\n<00> <FF> 0\nendcidrange\n";
+
+    // The same font with a CMap of codes is created and decodes the codes A and B (a check,
+    // that nothing else of the font dictionary is refused)
+    {
+        pdf::PDFDocument document;
+        QString errorMessage;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, type0FontDictionaryWithEncodingStream(), codesCMap, &errorMessage);
+        QVERIFY2(font, qPrintable(errorMessage));
+        const std::vector<pdf::PDFFontCMap::MappedCode> codes = font->getCMap()->interpretWithCode(QByteArray("AB"));
+        QCOMPARE(codes.size(), size_t(2));
+        QCOMPARE(codes[0].cid, pdf::CID(0x41));
+        QCOMPARE(codes[1].cid, pdf::CID(0x42));
+    }
+
+    // A CMap without any mapping: the error the texts-only CMap is compared with
+    QString noMappingError;
+    {
+        pdf::PDFDocument document;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, type0FontDictionaryWithEncodingStream(), noMappingCMap, &noMappingError);
+        QVERIFY(!font);
+        QCOMPARE(noMappingError, QStringLiteral("Invalid CMAP in CID-keyed font."));
+    }
+
+    pdf::PDFDocument document;
+    QString textsOnlyError;
+    const pdf::PDFFontPointer font = createFontWithStream(&document, type0FontDictionaryWithEncodingStream(), textsOnlyCMap, &textsOnlyError);
+    if (font)
+    {
+        // A font, which should have been refused: a shown string goes the way of every renderer
+        // (PDFRealizedFontImpl::fillTextSequence of a Type 0 font decodes it so)
+        const std::vector<pdf::PDFFontCMap::MappedCode> codes = font->getCMap()->interpretWithCode(QByteArray("AB"));
+        QVERIFY2(false, qPrintable(QStringLiteral("The font is created, its CMap decodes %1 codes").arg(codes.size())));
+    }
+    QCOMPARE(textsOnlyError, noMappingError);
+}
+
+void FontEncodingTest::test_tounicode_cmap_of_texts_only()
+{
+    // A /ToUnicode CMap, whose only mappings are destinations of more code units (ISO 32000-2,
+    // 9.10.3: a bfrange with one destination string maps the codes of the range to strings,
+    // whose last byte grows with the code), is a mapping: its texts are the texts of the codes
+    const QByteArray textsOnlyCMap = "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+                                     "1 beginbfrange\n<41> <42> <00660069>\nendbfrange\n";
+
+    // A simple font: <41> is "fi", <42> is "fj", another code has no text
+    {
+        pdf::PDFDocument document;
+        QString errorMessage;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 65 /LastChar 66 /Widths [500 500] /ToUnicode @1 >>", textsOnlyCMap, &errorMessage);
+        QVERIFY2(font, qPrintable(errorMessage));
+        QCOMPARE(font->getToUnicodeText(0x41, 1), QStringLiteral("fi"));
+        QCOMPARE(font->getToUnicodeText(0x42, 1), QStringLiteral("fj"));
+        QVERIFY(font->getToUnicodeText(0x43, 1).isEmpty());
+    }
+
+    // A Type 0 font (Identity-H, codes of two bytes): the same texts for <0041> and <0042>
+    {
+        const QByteArray type0TextsOnlyCMap = "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
+                                              "1 beginbfrange\n<0041> <0042> <00660069>\nendbfrange\n";
+        pdf::PDFDocument document;
+        QString errorMessage;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-H "
+                                                                         "/DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test "
+                                                                         "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> >>] /ToUnicode @1 >>",
+                                                              type0TextsOnlyCMap, &errorMessage);
+        QVERIFY2(font, qPrintable(errorMessage));
+        QCOMPARE(font->getToUnicodeText(0x41, 2), QStringLiteral("fi"));
+        QCOMPARE(font->getToUnicodeText(0x42, 2), QStringLiteral("fj"));
+        QVERIFY(font->getToUnicodeText(0x41, 1).isEmpty());
+    }
+}
+
+void FontEncodingTest::test_cmap_without_codes_interprets_nothing()
+{
+    // A CMap without a code (a default one, or one of only texts of more code units) has the
+    // longest code length 0 and decodes no code of any string
+    const pdf::PDFFontCMap emptyCMap;
+    QCOMPARE(emptyCMap.getMaxKeyLength(), 0u);
+    QVERIFY(emptyCMap.interpretWithCode(QByteArray("AB")).empty());
+    QVERIFY(emptyCMap.interpretWithCode(QByteArray()).empty());
+    QVERIFY(emptyCMap.interpret(QByteArray("AB")).empty());
+
+    const pdf::PDFFontCMap textsOnlyCMap = pdf::PDFFontCMap::createFromData("1 beginbfrange\n<00> <FF> <00410042>\nendbfrange\n");
+    QCOMPARE(textsOnlyCMap.getMaxKeyLength(), 0u);
+    QCOMPARE(textsOnlyCMap.getToUnicodeText(0x00, 1), QStringLiteral("AB"));
+    QVERIFY(textsOnlyCMap.interpretWithCode(QByteArray("AB")).empty());
+    QVERIFY(textsOnlyCMap.interpret(QByteArray("\x00\x01", 2)).empty());
+}
+
+void FontEncodingTest::test_simple_font_real_widths()
+{
+    // A2L2-3. ISO 32000-2, 9.6.2.1, Table 109: /Widths of a simple font is an array of numbers -
+    // a real number is a width as well as an integer. The codes 65, 66 and 67 have the widths
+    // 500, 600 and 722.5; 68 is past /LastChar.
+    {
+        pdf::PDFDocument document;
+        QString errorMessage;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 65 /LastChar 67 /Widths [500 600.0 722.5] /ToUnicode @1 >>",
+                                                              QByteArray("1 beginbfchar\n<41> <0041>\nendbfchar\n"), &errorMessage);
+        const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.get());
+        QVERIFY2(simpleFont, qPrintable(errorMessage));
+
+        QVERIFY(simpleFont->hasGlyphAdvance(65));
+        QVERIFY(simpleFont->hasGlyphAdvance(66));
+        QVERIFY(simpleFont->hasGlyphAdvance(67));
+        QVERIFY(!simpleFont->hasGlyphAdvance(68));
+        QCOMPARE(double(simpleFont->getGlyphAdvance(65)), 500.0);
+        QCOMPARE(double(simpleFont->getGlyphAdvance(66)), 600.0);
+        QCOMPARE(double(simpleFont->getGlyphAdvance(67)), 722.5);
+        QCOMPARE(double(simpleFont->getGlyphAdvance(68)), 0.0);
+    }
+
+    // A name among the numbers: the value is no array of numbers, the font has no width of the
+    // dictionary for any code (as before: /MissingWidth applies, the advance is 0)
+    {
+        pdf::PDFDocument document;
+        QString errorMessage;
+        const pdf::PDFFontPointer font = createFontWithStream(&document, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 65 /LastChar 67 /Widths [500 /Wide 722.5] /ToUnicode @1 >>",
+                                                              QByteArray("1 beginbfchar\n<41> <0041>\nendbfchar\n"), &errorMessage);
+        const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.get());
+        QVERIFY2(simpleFont, qPrintable(errorMessage));
+
+        for (size_t code = 65; code <= 67; ++code)
+        {
+            QVERIFY(!simpleFont->hasGlyphAdvance(code));
+            QCOMPARE(double(simpleFont->getGlyphAdvance(code)), 0.0);
+        }
+    }
+}
+
+void FontEncodingTest::test_tounicode_lookup_many_entries()
+{
+    // A5L1-4. A /ToUnicode CMap of 50 000 two-byte codes, each mapped to one code unit: the code
+    // c is U+1000 + (c xor 1), so no two neighbors can be merged into a range; and 50 000 texts
+    // of two code units of the three-byte codes 0x010000 + c: "A" and U+1000 + (c xor 1) (each
+    // also an entry of the map of the character 0, as every bfchar of a destination, which is
+    // not one code unit). Every code is asked by its byte count and by any byte count (0, as a
+    // simple and a Type 3 font ask): the time of the whole is linear in the number of the codes
+    // and logarithmic in the size of the map.
+    constexpr int COUNT = 50000;
+    QByteArray data = "2 begincodespacerange\n<0000> <FFFF>\n<000000> <FFFFFF>\nendcodespacerange\n";
+    data += QByteArray::number(2 * COUNT) + " beginbfchar\n";
+    for (int c = 0; c < COUNT; ++c)
+    {
+        const QByteArray unit = QByteArray::number(0x1000 + (c ^ 1), 16).rightJustified(4, '0');
+        data += "<" + QByteArray::number(c, 16).rightJustified(4, '0') + "> <" + unit + ">\n";
+        data += "<" + QByteArray::number(0x10000 + c, 16).rightJustified(6, '0') + "> <0041" + unit + ">\n";
+    }
+    data += "endbfchar\n";
+
+    const pdf::PDFFontCMap cmap = pdf::PDFFontCMap::createFromData(data);
+
+    QElapsedTimer timer;
+    timer.start();
+
+    int failures = 0;
+    QString firstFailure;
+    for (int c = 0; c < COUNT; ++c)
+    {
+        const QChar character(char16_t(0x1000 + (c ^ 1)));
+        const QString text = QStringLiteral("A") + character;
+        const unsigned int code = unsigned(c);
+        const unsigned int textCode = unsigned(0x10000 + c);
+
+        const bool isRight = cmap.getToUnicodeText(code, 2) == QString(character) &&
+                             cmap.getToUnicodeText(code, 0) == QString(character) &&
+                             cmap.getToUnicode(code, 2) == character &&
+                             cmap.getToUnicode(code) == character &&
+                             cmap.getToUnicodeText(textCode, 3) == text &&
+                             cmap.getToUnicodeText(textCode, 0) == text &&
+                             cmap.getToUnicodeText(code, 3).isEmpty() &&
+                             cmap.getToUnicodeText(textCode, 2).isEmpty();
+        if (!isRight)
+        {
+            if (failures == 0)
+            {
+                firstFailure = QStringLiteral("code %1").arg(c);
+            }
+            ++failures;
+        }
+    }
+
+    const qint64 elapsed = timer.elapsed();
+    QVERIFY2(failures == 0, qPrintable(QStringLiteral("%1 codes are wrong, the first one: %2").arg(failures).arg(firstFailure)));
+
+    const qint64 limit = qint64(1000) * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(elapsed < limit, qPrintable(QStringLiteral("%1 ms").arg(elapsed)));
+}
+
+void FontEncodingTest::test_tounicode_lookup_first_entry()
+{
+    // Two mappings of one code: the one found is the first one in the order of the map - the
+    // entries by their byte count, then by their first code; the texts by their byte count, then
+    // by their code, two texts of one code in the order of the CMap. Any byte count (0) finds
+    // the first one of all byte counts.
+    //
+    //   1-byte entries: [10 .. 30] -> U+0100.., [20 .. 7E] -> U+0020.., <41> -> X, <42> -> 0
+    //                   (the destination of more code units), the same <42> once more
+    //   2-byte entries: <0005> -> Z, <0042> -> 0
+    //   texts:          <42> "fi" and "fl" (in this order), <0042> "ff"
+    const QByteArray data = "2 begincodespacerange\n<00> <FF>\n<0000> <FFFF>\nendcodespacerange\n"
+                            "2 beginbfrange\n<10> <30> <0100>\n<20> <7E> <0020>\nendbfrange\n"
+                            "5 beginbfchar\n<0042> <00660066>\n<41> <0058>\n<42> <00660069>\n<0005> <005A>\n<42> <0066006C>\nendbfchar\n";
+
+    const pdf::PDFFontCMap parsedCMap = pdf::PDFFontCMap::createFromData(data);
+
+    // The same answers after a serialization (the font cache of the predefined CMaps keeps them so)
+    const pdf::PDFFontCMap deserializedCMap = pdf::PDFFontCMap::deserialize(parsedCMap.serialize());
+
+    for (const pdf::PDFFontCMap* cmap : { &parsedCMap, &deserializedCMap })
+    {
+        // 0x25 is in both ranges: the range of the first code 10 is first
+        QCOMPARE(cmap->getToUnicode(0x25, 1), QChar(0x0115));
+        QCOMPARE(cmap->getToUnicode(0x25, 0), QChar(0x0115));
+        QCOMPARE(cmap->getToUnicodeText(0x25, 0), QString(QChar(0x0115)));
+
+        // 0x35 is in the second range only
+        QCOMPARE(cmap->getToUnicode(0x35, 1), QChar(0x0035));
+
+        // 0x41 is in the second range and in its own entry: the range is first (first code 20)
+        QCOMPARE(cmap->getToUnicode(0x41, 1), QChar('A'));
+        QCOMPARE(cmap->getToUnicodeText(0x41, 0), QStringLiteral("A"));
+
+        // 0x05: no one-byte entry, the two-byte one for any byte count, nothing for one byte
+        QCOMPARE(cmap->getToUnicode(0x05, 0), QChar('Z'));
+        QCOMPARE(cmap->getToUnicode(0x05, 2), QChar('Z'));
+        QVERIFY(cmap->getToUnicode(0x05, 1).isNull());
+
+        // Codes of no entry
+        QVERIFY(cmap->getToUnicode(0x0F, 0).isNull());
+        QVERIFY(cmap->getToUnicode(0x7F, 1).isNull());
+        QVERIFY(cmap->getToUnicodeText(0x7F, 0).isEmpty());
+
+        // The texts of 0x42: the first one of the CMap of one byte for one byte and for any byte
+        // count, the one of two bytes for two bytes
+        QCOMPARE(cmap->getToUnicodeText(0x42, 1), QStringLiteral("fi"));
+        QCOMPARE(cmap->getToUnicodeText(0x42, 0), QStringLiteral("fi"));
+        QCOMPARE(cmap->getToUnicodeText(0x42, 2), QStringLiteral("ff"));
+
+        // The character of 0x42 is the one of the second range, which is before the entry <42>
+        QCOMPARE(cmap->getToUnicode(0x42, 1), QChar('B'));
+    }
 }
 
 QTEST_MAIN(FontEncodingTest)

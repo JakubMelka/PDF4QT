@@ -31,13 +31,13 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
+#include <QWidget>
 
 #include <functional>
 #include <vector>
 
 class QFileDialog;
 class QMimeData;
-class QWidget;
 
 namespace pdf
 {

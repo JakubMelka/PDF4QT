@@ -106,6 +106,14 @@ public:
     /// can collide with a node of the session.
     static constexpr quint64 FIRST_SESSION_NODE_ID = quint64(1) << 32;
 
+    /// The generation of every provisional reference of a new object (addNewObject). It is the
+    /// generation of the head of the free list of a cross-reference table (ISO 32000-2, 7.5.4):
+    /// no object in use of a document can have it, so a reference of the document - also one to
+    /// an object, which does not exist - is never taken for a new object of the session by its
+    /// number. The document writer replaces exactly the references with this generation, which
+    /// are keys of PDFContentEditSnapshot::newObjects.
+    static constexpr PDFInteger NEW_OBJECT_GENERATION = 65535;
+
     /// \param document The document being edited (held)
     /// \param cms Color management (held; may be nullptr: the generic one is used)
     /// \param parent Parent object
@@ -132,7 +140,9 @@ public:
 
     /// Applies a command and pushes it onto the undo stack; emits modelChanged last.
     /// \returns false with \p errorText, when the command is refused (also inside of another
-    ///          command or of an emission of modelChanged); the model is unchanged then
+    ///          command or of an emission of modelChanged); the model is unchanged then, and
+    ///          PDFContentCommand::isRefusedAsUnchanged of the command tells, whether it was
+    ///          refused only because it changes nothing
     bool execute(const PDFContentCommandPointer& command, QString* errorText);
 
     /// Reverts / applies again one step of the undo stack; emits modelChanged last.
@@ -180,11 +190,12 @@ public:
 
     /// Keeps a new object, which must be an indirect object of the written document (the copy
     /// of a tiling pattern for R-5; later images, fonts, forms), and returns its provisional
-    /// reference: an object number above every object of the document of the session, the
-    /// generation 0, unique for the life of the session and never reused. Undo does not remove
-    /// the object: an object nothing refers to is simply not written. The values of an
-    /// override, the resources and other new objects may hold provisional references; the
-    /// document writer replaces them by the real ones.
+    /// reference: object numbers counted from 1 with the generation NEW_OBJECT_GENERATION, unique
+    /// for the life of the session. Undo does not remove the object: an object nothing refers to
+    /// is simply not written. The one exception: the objects a refused command has added are
+    /// dropped with it by execute (nothing refers to them), and their numbers are given again.
+    /// The values of an override, the resources and other new objects may hold provisional
+    /// references; the document writer replaces them by the real ones.
     PDFObjectReference addNewObject(const PDFObject& object);
 
     /// The new object of a provisional reference; a null object for any other reference

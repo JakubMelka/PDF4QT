@@ -33,6 +33,20 @@ Section 7: Issues
 
 Section 8: Issues
  - 8.3.2.3 In user space, 1 / 72 inch is used, no UserUnit entry is used
+ - 8.4.5 The entry Font of a graphics state parameter dictionary is accepted
+   also with a name of the font resources in place of the indirect reference
+   to the font dictionary ([/F1 12], looked up as by Tf); the specification
+   allows the reference only (owner 2026-11-26: what was accepted before stays)
+ - 8.4.5 The entries LC and LJ of a graphics state parameter dictionary are
+   read as numbers (the specification says integers) and OPM is not limited
+   to 0 and 1 (read from the code on 2026-11-26, not fixed)
+ - 8.5.2.1 A path construction operator, which appends a segment from the
+   current point (l, c, y, h), and has no current point, is reported (once per
+   page), but the segment is still built from the origin (0, 0) and h does
+   nothing; v fails and appends nothing. Deliberate until the owner tries the
+   change of the rendering on the corpus (owner 2026-11-26). A painting
+   operator after a lone m leaves the point of that m in the path, so a
+   segment after it starts there and is not reported
  - 8.6.3 transfer functions and halftones are not used at all, color
    management system is used to convert colors
  - 8.6.5.6 No device to default color space is performed. Device color
@@ -52,6 +66,12 @@ Section 8: Issues
    takes the space of the content, which shows the glyph, as the base of its
    matrix, not the glyph space (read from the code on 2026-11-25, not tested).
    A pattern matrix, which cannot be inverted, is not refused
+ - 8.7.3.3 In the cell of an uncolored tiling pattern (PaintType 2) only the
+   twelve color operators (CS cs SC SCN sc scn G g RG rg K k) are ignored
+   (with one warning); ri, sh, the color-related entries of a graphics state
+   parameter dictionary (TR, TR2, BG, BG2, UCR, UCR2, HT) and the painting of
+   an image, which the specification forbids there too, are applied (read
+   from the code on 2026-11-26, not tested)
  - 7.8.2, 8.4.2 Nested contents (a form XObject, a cell of a tiling pattern, a
    glyph procedure of a Type 3 font) share the stack of q / Q, the marked
    content stack and the level of BX / EX with the content, which uses them:
@@ -80,17 +100,43 @@ Section 9: Issues
    by its width and the spacings since 2026-11-25)
  - 9.6.5.2, 9.6.5.4 A name of /Differences replaces the base encoding of its
    code always (since 2026-11-25: a name without a glyph paints nothing and
-   has no character). What remains: for an embedded font a code, whose name
+   has no character). A font without an embedded font program has no glyphs
+   by names: a name, which the glyph list does not know as a whole and whose
+   text (9.10.2) is one character, paints the glyph of that character in the
+   substitute (one.oldstyle paints "1"; owner 2026-11-26) - an embedded font
+   paints the glyph of the name or nothing. What remains: for an embedded
+   font a code, whose name
    has no glyph, still gets the glyph of its /ToUnicode character, when
    /ToUnicode maps the code (strictly it is .notdef; it rescues documents with
    made-up glyph names); a known name, which the embedded program has only
    under another name (Euro / uni20AC), paints that glyph; an embedded
    TrueType font with only a (1, 0) "cmap" takes its glyphs by the character
    code and does not use /Differences (read from the code, not tested)
- - 9.10.2 A glyph name with a suffix or of several components (one.oldstyle,
-   f_i) and a name uXXXXXX outside of the basic multilingual plane give no
-   character; the names of the glyphs of a Type 3 font are not looked up in
-   the glyph list for their characters (only /ToUnicode gives them)
+ - 9.10.2 The text of a glyph name of /Differences (of a simple and of a
+   Type 3 font, and of the built-in encoding of an embedded Type 1 program)
+   follows the Adobe Glyph List Specification since 2026-11-26 (a suffix,
+   components, uniXXXX, uXXXXXX). Two deliberate deviations from that
+   specification keep texts the library gave before (owner 2026-11-26): lower
+   case hexadecimal digits are accepted in uniXXXX and uXXXX[XX] (uni20ac; the
+   specification maps it to nothing), and a component, which is neither in
+   the glyph list nor of the form uni / u, is looked up in the ZapfDingbats
+   list in every simple font (the specification asks that list only for the
+   font ZapfDingbats, where it stays the first one; a Type 3 font never asks
+   it - the names a65, a66 of the bitmap fonts of pdfTeX and dvips are no
+   dingbats). What remains: a name, whose text has more
+   than one UTF-16 code unit (T_h, uni00410042, uXXXXXX outside of the basic
+   multilingual plane), has no character in the text layout and in the
+   extracted text (one QChar per glyph, as 9.10.3) - only f_f, f_i, f_f_i and
+   f_f_l keep the ligature character of the glyph list of the library there;
+   PDFFont::getEncodingText gives the whole text (Edit Content). A code
+   without a glyph has no text (an embedded font without a glyph of the
+   name; a font, which is not embedded, for a text of more characters). A
+   name, whose text is longer than 256 code
+   units, has no text (a limit of the implementation). A name of the built-in
+   encoding of a font program, which maps to nothing, keeps the character of
+   the standard encoding of its code. A name of the glyph list with a sequence
+   of characters (dalethatafpatah) gives one character (the list of the
+   library has one character per name)
  - 9.6.4 Glyph procedures of Type 3 fonts are processed at most 8 deep and
    never inside of themselves (a limit of the implementation against a stack
    overflow, SECURITY_TODO.md item 67); the refused glyph is not painted
@@ -239,6 +285,12 @@ Section 14: Issues
    of /ParentTree since 2026-11-25, SECURITY_TODO.md item 66); a
    marked-content reference or an object reference without /Pg reports no
    page instead of the page of its element (Tables 357, 358)
+ - 14.7.2, 14.7.3 The structure model of Edit Content (PDFContentStructureModel,
+   since 2026-11-26): the role map is followed at most 32 steps (a limit of
+   the implementation); /RoleMapNS is not read, an element with /NS keeps its
+   type as written; a structure element, which is a direct dictionary in /K
+   (not an indirect object), is not modeled - it is kept and written back
+   unchanged and reported as an issue of the document
  - 14.9 Accessibility support not implemented
  - 14.10 Web capture not implemented
  - 14.11 Prepress support not implemented at all, only

@@ -30,6 +30,7 @@
 #include <QByteArray>
 #include <QTransform>
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -73,7 +74,7 @@ enum class PDFContentStateProperty
     AlphaStroking,          ///< /CA
     AlphaFilling,           ///< /ca
     BlendMode,              ///< /BM
-    SoftMask,               ///< /SMask (with the matrix, in whose space it was set - R-6)
+    SoftMask,               ///< /SMask (with the matrix, in whose space it was set - R-6; in an override: PDFContentStateValue::matrix, an absolute matrix)
     AlphaIsShape,           ///< /AIS
     StrokeAdjustment,       ///< /SA
     OverprintStroking,      ///< /OP
@@ -147,7 +148,7 @@ struct PDFContentStateValue
         Name,       ///< \p name: RenderingIntent, BlendMode, BlackPointCompensation (ON, OFF, Default); also Default for a property, which the standard lets reset so (BlackGeneration, UndercolorRemoval, Transfer: written by the keys BG2, UCR2, TR2)
         Dash,       ///< \p dash: DashPattern
         Color,      ///< \p color: StrokeColor, FillColor
-        Font,       ///< \p object (the font, a reference) and \p real (its size)
+        Font,       ///< \p object (the font: the reference of a font dictionary, never the array [font size] of an ExtGState - it is written as "/name size Tf" with a resource name of this object) and \p real (its size)
         Object      ///< \p object: a value written into an ExtGState by reference, taken from the symbolic state of the source (SoftMask, BlackGeneration, UndercolorRemoval, Transfer, Halftone, HalftoneOrigin, a BlendMode array); \p matrix for SoftMask
     };
 
@@ -160,8 +161,15 @@ struct PDFContentStateValue
     PDFContentColorValue color;
     PDFObject object;
 
-    /// SoftMask only: the current transformation matrix of the moment the mask was set by gs
-    /// (the space of the mask is the matrix of its group x this matrix, ISO 32000-2, 11.6.5.1)
+    /// SoftMask only: the current transformation matrix, which must be in effect at the gs of the
+    /// mask (the space of the mask is the matrix of its group x this matrix, ISO 32000-2,
+    /// 11.6.5.1). It is an absolute matrix of the container, as
+    /// PDFContentSymbolicState::getSoftMaskMatrix - not a matrix relative to the node or to the
+    /// override. The stream writer computes X = matrix x (override.transform x the current
+    /// transformation matrix of the state of the node)^-1 and writes "X cm, gs, X^-1 cm" (only
+    /// gs, when X is the identity). So a mask, which must stay where it was, has the matrix of
+    /// the symbolic state; a mask, which must move with the object by D (in the space of the
+    /// container), has that matrix x D (R-6).
     QTransform matrix;
 };
 
@@ -190,6 +198,46 @@ public:
     /// of the processor is the only writer of the flag.
     bool hasSoftMask() const { return m_hasSoftMask; }
 
+    /// The properties, whose value differs between two resolved states: what a node leaks (R-3,
+    /// the builder) and what a moved node has to bake (R-2, "every differing property"). One
+    /// comparison for both, so they cannot drift apart.
+    ///
+    /// Every property of PDFContentStateProperty is compared by its value in the state of the
+    /// processor:
+    ///  - numbers, flags and names by equality (the rendering intent by its name and its value,
+    ///    the three overprint properties each by its own value);
+    ///  - StrokeColor / FillColor by the color space object (the same object, not an equal one:
+    ///    the processor shares one object per name of the resources and per device space, but
+    ///    makes a new one for every scn / SCN with a pattern, which therefore always differs),
+    ///    by the components as the content gave them and by the converted color;
+    ///  - Font by the font object (the same object of the font cache, so two builds with two
+    ///    caches never have the same font) and by the size;
+    ///  - BlackGeneration, UndercolorRemoval, Transfer, Halftone by their objects: the same
+    ///    object of the document (the same array, dictionary, stream or string) is equal; two
+    ///    different objects are compared by value only as far as a small fixed budget goes (some
+    ///    tens of values, short strings, never the data of a stream) and count as different
+    ///    beyond it - the cost of the comparison must not depend on a size the document chooses,
+    ///    and a difference, which is none, only makes a property be set once more;
+    ///  - DashPattern by value: the builder never makes a state with a dash array longer than
+    ///    its limit (the content, in which such a pattern is in effect, is an opaque node; the
+    ///    state behind such a node at the end of a content has a marker of not-a-number values,
+    ///    which is different from every pattern, itself included - PDFContentStateLeak::endState);
+    ///  - SoftMask only by "a mask is set" (hasSoftMask): a resolved state does not know, which
+    ///    mask it is. Two states with a mask each are equal here, also when the masks or their
+    ///    spaces differ - that is told by the symbolic states (the source of SoftMask and
+    ///    getSoftMaskMatrix), which the caller compares itself.
+    /// Not compared: the current transformation matrix (it is no property - compare
+    /// getCurrentTransformationMatrix), the clipping path (a state does not have it) and the
+    /// text matrices (they are no part of a resolved state: the builder resets them to the
+    /// identity, the positions of a text are in its glyphs).
+    static PDFContentStatePropertySet getDifference(const PDFContentResolvedState& left, const PDFContentResolvedState& right);
+
+    /// The same comparison of two states of the processor, without SoftMask (the soft mask of
+    /// a state of the processor is a pointer into the document, which the caller compares
+    /// itself, when both states are live ones). The builder compares the state of its processor
+    /// with its last resolved state so.
+    static PDFContentStatePropertySet getDifference(const PDFPageContentProcessorState& left, const PDFPageContentProcessorState& right);
+
 private:
     PDFPageContentProcessorState m_state;
     bool m_hasSoftMask = false;
@@ -210,7 +258,7 @@ struct PDFContentPropertySource
     Origin origin = Origin::Inherited;
     QByteArray resourceName;        ///< Operator: the resource the operator names (the font of Tf, the color space of cs / CS); ExtGState: the name of the ExtGState of gs
     QByteArray extGStateKey;        ///< ExtGState: the key of the ExtGState, which set it - BG or BG2, UCR or UCR2, TR or TR2 (the one key of every other property); empty otherwise
-    PDFObject object;               ///< The object the property was set to: the font (a reference), the color space, the value of the ExtGState key (kept by reference, never copied)
+    PDFObject object;               ///< The object the property was set to: the font (a reference), the color space, the value of the ExtGState key (kept by reference, never copied). Font set by gs (/Font [font size], ISO 32000-2, Table 57): the font of the array - its first item, the reference of the font dictionary (for the tolerated name in its place: the value of that name in the font resources) - never the array; the size is the font size of the resolved state
     QByteArray patternName;         ///< StrokeColor / FillColor: the pattern of scn / SCN
     PDFObject patternObject;        ///< The pattern object of the resources
     size_t operationIndex = 0;      ///< Index of the operation, which set it (valid unless Inherited)
@@ -241,7 +289,10 @@ public:
     PDFContentSymbolicState withSoftMaskMatrix(const QTransform& matrix) const;
 
 private:
-    std::map<PDFContentStateProperty, PDFContentPropertySource> m_sources;
+    /// The sources of the properties, which are not inherited (nullptr = inherited). A source is
+    /// immutable and shared by all states, in which the property has it, so a copy of a state
+    /// copies pointers only (the builder makes one state for each change of a property).
+    std::array<std::shared_ptr<const PDFContentPropertySource>, size_t(PDFContentStateProperty::Count)> m_sources;
     QTransform m_softMaskMatrix;
 };
 
@@ -258,7 +309,11 @@ struct PDFContentStateLeak
     bool isTransformChanged = false;            ///< The current transformation matrix differs (cm outside of q ... Q)
     bool isClipChanged = false;                 ///< The clipping path differs (W, W*, text rendering modes 4 to 7); never replaced by a residual run
     bool isUnknown = false;                     ///< Opaque: nothing is known
-    PDFContentResolvedStatePointer endState;    ///< The state at the end of the node (nullptr, when nothing leaks)
+    /// The state at the end of the node (nullptr, when nothing leaks). Behind an Opaque node, in
+    /// which a dash pattern over the limit of the builder is still in effect at the end of the
+    /// content, it is the state there with a marker as its dash pattern (not a number in every
+    /// element and the phase): equal to no pattern, so a node placed behind sets its own (R-2).
+    PDFContentResolvedStatePointer endState;
     PDFContentSymbolicStatePointer endSymbolicState;
 
     bool isEmpty() const { return properties.isEmpty() && !isTransformChanged && !isClipChanged && !isUnknown; }

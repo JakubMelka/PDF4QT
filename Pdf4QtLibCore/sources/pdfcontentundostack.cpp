@@ -20,27 +20,73 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Edit Content, stage E0. This file belongs to package P03 (session, undo, basic commands). The
-// bodies below are stubs of the skeleton PE0SKEL: each one ends the process with the name of its
-// function (qFatal), until the package implements it. Real code of the skeleton: the constructor
-// and the destructor (an empty Impl).
+// Edit Content, stage E0, package P03 (session, undo, basic commands): the undo stack. It stores
+// the executed commands and the position only; applying and reverting is done by the session.
 
 #include "pdfcontentundostack.h"
 
-#include <QtGlobal>
-
-#include <cstdlib>  // std::abort after qFatal: Qt does not declare qFatal noreturn for MSVC (error C4716)
 #include <memory>
+#include <optional>
+#include <utility>
 
 namespace pdf
 {
 
-/// The state of the undo stack: empty in the skeleton, the package fills it (the steps, the
-/// position, the clean point, the open macros)
+/// The state of the undo stack.
+///
+/// Ownership: owned by its stack and destroyed with it; it co-owns the commands of its steps and
+/// of the open macro (shared pointers), a command dropped from it is destroyed, unless somebody
+/// else holds it.
 class PDFContentUndoStack::Impl
 {
 public:
     Impl() = default;
+
+    /// Drops the steps, which were undone. The clean point is lost, when it was among them.
+    void dropUndoneSteps()
+    {
+        if (position < steps.size())
+        {
+            steps.erase(std::next(steps.begin(), position), steps.end());
+
+            if (cleanPosition && *cleanPosition > position)
+            {
+                cleanPosition = std::nullopt;
+            }
+        }
+    }
+
+    /// Adds a step at the position (the undone steps are dropped already) and keeps the limit
+    void addStep(Step step)
+    {
+        steps.push_back(std::move(step));
+        ++position;
+
+        while (steps.size() > MAXIMUM_COMMAND_COUNT)
+        {
+            // The oldest step is dropped: the state before it cannot be reached any more
+            steps.erase(steps.begin());
+            --position;
+
+            if (cleanPosition)
+            {
+                if (*cleanPosition == 0)
+                {
+                    cleanPosition = std::nullopt;
+                }
+                else
+                {
+                    --*cleanPosition;
+                }
+            }
+        }
+    }
+
+    std::vector<Step> steps;
+    size_t position = 0;                        ///< Steps before it are done
+    std::optional<size_t> cleanPosition = 0;    ///< No value: the clean state cannot be reached any more
+    int macroDepth = 0;                         ///< Number of the open macros
+    Step macro;                                 ///< The commands of the outermost open macro
 };
 
 PDFContentUndoStack::PDFContentUndoStack() :
@@ -53,106 +99,149 @@ PDFContentUndoStack::~PDFContentUndoStack() = default;
 
 void PDFContentUndoStack::push(PDFContentCommandPointer command)
 {
-    Q_UNUSED(command);
-    qFatal("PDFContentUndoStack::push is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    if (!command)
+    {
+        return;
+    }
+
+    // The command changed the model after the current position: the undone steps can never be
+    // applied again
+    m_impl->dropUndoneSteps();
+
+    if (m_impl->macroDepth > 0)
+    {
+        m_impl->macro.commands.push_back(std::move(command));
+        return;
+    }
+
+    // Merging: only into a single command (a macro is a closed gesture), and never at the clean
+    // point (the merged command would change the state the clean point stands for)
+    const bool isAtCleanPoint = m_impl->cleanPosition && *m_impl->cleanPosition == m_impl->position;
+    if (!m_impl->steps.empty() && !isAtCleanPoint)
+    {
+        Step& lastStep = m_impl->steps.back();
+        if (lastStep.commands.size() == 1 && lastStep.commands.front()->mergeWith(*command))
+        {
+            lastStep.text = lastStep.commands.front()->getText();
+            return;
+        }
+    }
+
+    Step step;
+    step.text = command->getText();
+    step.commands.push_back(std::move(command));
+    m_impl->addStep(std::move(step));
 }
 
 void PDFContentUndoStack::beginMacro(const QString& text)
 {
-    Q_UNUSED(text);
-    qFatal("PDFContentUndoStack::beginMacro is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    if (m_impl->macroDepth == 0)
+    {
+        m_impl->macro = Step();
+        m_impl->macro.text = text;
+    }
+
+    ++m_impl->macroDepth;
 }
 
 void PDFContentUndoStack::endMacro()
 {
-    qFatal("PDFContentUndoStack::endMacro is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    if (m_impl->macroDepth == 0)
+    {
+        return;
+    }
+
+    --m_impl->macroDepth;
+
+    if (m_impl->macroDepth == 0)
+    {
+        Step macro = std::move(m_impl->macro);
+        m_impl->macro = Step();
+
+        if (!macro.commands.empty())
+        {
+            m_impl->addStep(std::move(macro));
+        }
+    }
 }
 
 bool PDFContentUndoStack::isMacroOpen() const
 {
-    qFatal("PDFContentUndoStack::isMacroOpen is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return m_impl->macroDepth > 0;
 }
 
 bool PDFContentUndoStack::canUndo() const
 {
-    qFatal("PDFContentUndoStack::canUndo is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return m_impl->macroDepth == 0 && m_impl->position > 0;
 }
 
 bool PDFContentUndoStack::canRedo() const
 {
-    qFatal("PDFContentUndoStack::canRedo is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return m_impl->macroDepth == 0 && m_impl->position < m_impl->steps.size();
 }
 
 QString PDFContentUndoStack::getUndoText() const
 {
-    qFatal("PDFContentUndoStack::getUndoText is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    const Step* step = getUndoStep();
+    return step ? step->text : QString();
 }
 
 QString PDFContentUndoStack::getRedoText() const
 {
-    qFatal("PDFContentUndoStack::getRedoText is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    const Step* step = getRedoStep();
+    return step ? step->text : QString();
 }
 
 const PDFContentUndoStack::Step* PDFContentUndoStack::getUndoStep() const
 {
-    qFatal("PDFContentUndoStack::getUndoStep is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return canUndo() ? &m_impl->steps[m_impl->position - 1] : nullptr;
 }
 
 const PDFContentUndoStack::Step* PDFContentUndoStack::getRedoStep() const
 {
-    qFatal("PDFContentUndoStack::getRedoStep is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return canRedo() ? &m_impl->steps[m_impl->position] : nullptr;
 }
 
 void PDFContentUndoStack::moveToPreviousStep()
 {
-    qFatal("PDFContentUndoStack::moveToPreviousStep is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    if (canUndo())
+    {
+        --m_impl->position;
+    }
 }
 
 void PDFContentUndoStack::moveToNextStep()
 {
-    qFatal("PDFContentUndoStack::moveToNextStep is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    if (canRedo())
+    {
+        ++m_impl->position;
+    }
 }
 
 size_t PDFContentUndoStack::getCount() const
 {
-    qFatal("PDFContentUndoStack::getCount is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return m_impl->steps.size();
 }
 
 size_t PDFContentUndoStack::getPosition() const
 {
-    qFatal("PDFContentUndoStack::getPosition is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    return m_impl->position;
 }
 
 void PDFContentUndoStack::setClean()
 {
-    qFatal("PDFContentUndoStack::setClean is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    m_impl->cleanPosition = m_impl->position;
 }
 
 bool PDFContentUndoStack::isClean() const
 {
-    qFatal("PDFContentUndoStack::isClean is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    // The commands of an open macro are work, which is not a step yet
+    return m_impl->cleanPosition && *m_impl->cleanPosition == m_impl->position && m_impl->macro.commands.empty();
 }
 
 void PDFContentUndoStack::clear()
 {
-    qFatal("PDFContentUndoStack::clear is not implemented (stage E0 skeleton, package P03)");
-    std::abort();
+    m_impl = std::make_unique<Impl>();
 }
 
 }   // namespace pdf

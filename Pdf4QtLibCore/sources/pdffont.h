@@ -127,9 +127,9 @@ private:
 struct TextSequenceItem
 {
     inline explicit TextSequenceItem() = default;
-    inline explicit TextSequenceItem(const PDFGlyphOutline* glyph, QChar character, PDFReal advance, CID cid) : glyph(glyph), character(character), advance(advance), cid(cid) { }
+    inline explicit TextSequenceItem(const PDFGlyphOutline* glyph, QChar character, PDFReal advance, CID cid) : glyph(glyph), character(character), textCharacter(character), advance(advance), cid(cid) { }
     inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
-    inline explicit TextSequenceItem(const QByteArray* characterContentStream, QChar character, PDFReal advance, uint cid) : characterContentStream(characterContentStream), character(character), advance(advance), cid(cid) { }
+    inline explicit TextSequenceItem(const QByteArray* characterContentStream, QChar character, PDFReal advance, uint cid) : characterContentStream(characterContentStream), character(character), textCharacter(character), advance(advance), cid(cid) { }
 
     inline bool isContentStream() const { return characterContentStream; }
     inline bool isCharacter() const { return glyph; }
@@ -141,7 +141,23 @@ struct TextSequenceItem
     /// shared by all threads, which use the font.
     const PDFGlyphOutline* glyph = nullptr;
     const QByteArray* characterContentStream = nullptr;
+
+    /// Character of the code by /ToUnicode, else by the encoding of the font. It is also a key
+    /// of the glyph: the real text drawing paints the glyph of this character and
+    /// PDFFont::encodeCharacter turns it back to the code. For the text of the page use
+    /// \p textCharacter.
     QChar character;
+
+    /// Character of the code for the text of the page (the text layout, the extracted text).
+    /// It is \p character, except for a code with a glyph name of /Differences (or of the built-in
+    /// encoding of a font program), which the encoding does not know as a whole, but which
+    /// the Adobe Glyph List Specification maps (one.oldstyle is 1, uni0041.smcp is A): such a
+    /// name is no key of a glyph, it only says the text - PDFSimpleFont::getTextUnicode,
+    /// PDFType3Font::getTextUnicode. One code unit as \p character: a text of more code units
+    /// is given by PDFFont::getEncodingText only (such a code has no character here, or the
+    /// ligature of the names f_f, f_i, f_f_i, f_f_l).
+    QChar textCharacter;
+
     PDFReal advance = 0;
     CID cid = 0;
 
@@ -316,6 +332,20 @@ class PDFFont;
 
 using PDFFontPointer = QSharedPointer<PDFFont>;
 
+/// Texts of the character codes of a simple or of a Type 3 font by the glyph names of its
+/// encoding (Adobe Glyph List Specification, section 2). Plain data, which PDFFont::createFont
+/// fills and nobody changes afterwards.
+struct PDFFontEncodingTexts
+{
+    /// Character of each code for the text of the page (TextSequenceItem::textCharacter),
+    /// a null character = none
+    encoding::EncodingTable characters = { };
+
+    /// Texts of the codes, whose glyph name maps to more than one UTF-16 code unit
+    /// (PDFFont::getEncodingText)
+    std::map<unsigned int, QString> texts;
+};
+
 class PDFRealizedFont;
 class IRealizedFontImpl;
 
@@ -395,6 +425,27 @@ public:
     /// \param codeLength Number of bytes of the code (TextSequenceItem::codeLength), 0 = any
     virtual QString getToUnicodeText(unsigned int code, unsigned int codeLength) const;
 
+    /// Text of a character code by the encoding of a simple or of a Type 3 font; /ToUnicode is not
+    /// asked here (the text of a code is the one of getToUnicodeText and, when that is empty,
+    /// this one - ISO 32000-2, 9.10.2). A code with a glyph name of /Differences has the character
+    /// string of the name by the Adobe Glyph List Specification, section 2
+    /// (PDFNameToUnicode::getUnicodeTextForName): one or more UTF-16 code units - one.oldstyle
+    /// is "1", f_i is "fi", u1F600 is a surrogate pair. Another code of a simple font has the
+    /// character of its base encoding. Empty: no text - a name, which maps to nothing (.notdef,
+    /// a made-up name), a code without a name in a Type 3 font, every code of a Type 0 font, and
+    /// a text longer than MAXIMUM_ENCODING_TEXT_LENGTH. The text layout and the extracted text
+    /// have one character per glyph (TextSequenceItem::textCharacter), only this function gives
+    /// a text of more code units. The result does not depend on the realized font, the function
+    /// is safe for more threads.
+    /// \param code Character code (TextSequenceItem::code)
+    /// \param codeLength Number of bytes of the code (TextSequenceItem::codeLength), 0 = any
+    virtual QString getEncodingText(unsigned int code, unsigned int codeLength) const;
+
+    /// The longest text of one character code by its glyph name, in UTF-16 code units (a limit
+    /// against a hostile name, not a limit of a standard - as
+    /// PDFFontCMap::MAXIMUM_TO_UNICODE_TEXT_LENGTH): a name of a longer text gives no text
+    static constexpr qsizetype MAXIMUM_ENCODING_TEXT_LENGTH = 256;
+
     /// Returns cmap for font character encoding
     virtual const PDFFontCMap* getCMap() const { return nullptr; }
 
@@ -454,7 +505,7 @@ public:
                            QByteArray baseFont,
                            PDFInteger firstChar,
                            PDFInteger lastChar,
-                           std::vector<PDFInteger> widths,
+                           std::vector<PDFReal> widths,
                            PDFEncoding::Encoding encodingType,
                            encoding::EncodingTable encoding,
                            encoding::EncodingTable toUnicode,
@@ -468,10 +519,31 @@ public:
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
     const GlyphNames* getGlyphNames() const { return &m_glyphNames; }
+
+    /// Character of the code by /ToUnicode, else by the encoding table (getEncoding). It is
+    /// the character of TextSequenceItem::character and a key of the glyph: where the glyph
+    /// of a code is found by its character (a font, which is not embedded, a "cmap" of
+    /// a TrueType font, the real text drawing), it is found by this one, and encodeCharacter
+    /// turns it back to the code. For the text of the page use getTextUnicode (the two differ
+    /// only in an embedded font).
     QChar getUnicode(CID cid) const;
 
-    /// Returns the glyph advance (or zero, if glyph advance is invalid)
-    PDFInteger getGlyphAdvance(size_t index) const;
+    /// Character of the code for the text of the page (TextSequenceItem::textCharacter):
+    /// /ToUnicode, else the glyph name of /Differences mapped by the Adobe Glyph List
+    /// Specification (getEncodingText, when it has one code unit), else the encoding table. It
+    /// differs from getUnicode for a name of an embedded font, which the encoding table does
+    /// not know as a whole: one.oldstyle is 1 here and no character there (the glyph of the
+    /// code is the one named one.oldstyle of the font program, never the glyph of the
+    /// character 1). In a font, which is not embedded, the two are the same: its substitute is
+    /// asked by characters, so the character 1 is the key of the glyph too. A name, whose
+    /// text has more code
+    /// units, has no character here - but the ligature of the glyph list of the library for
+    /// the whole names f_f, f_i, f_f_i and f_f_l (their texts are "ff", "fi", "ffi", "ffl").
+    QChar getTextUnicode(CID cid) const;
+
+    /// Returns the glyph advance (or zero, if glyph advance is invalid): the item of /Widths, a
+    /// number (ISO 32000-2, 9.6.2.1, Table 109 - a real number is a width as well as an integer)
+    PDFReal getGlyphAdvance(size_t index) const;
 
     /// The font dictionary has a width for the character code: the code is inside of /FirstChar
     /// ... /LastChar and /Widths has an item for it - the condition, under which getGlyphAdvance
@@ -505,12 +577,18 @@ public:
     /// reads it as "no mapping of its own").
     void setToUnicodeTextMap(PDFFontCMap toUnicodeTextMap);
 
+    virtual QString getEncodingText(unsigned int code, unsigned int codeLength) const override;
+
+    /// Sets the texts of the codes by the glyph names (createFont). Without them the texts are
+    /// the characters of the encoding table given to the constructor.
+    void setEncodingTexts(PDFFontEncodingTexts encodingTexts);
+
 protected:
     QByteArray m_name;
     QByteArray m_baseFont;
     PDFInteger m_firstChar;
     PDFInteger m_lastChar;
-    std::vector<PDFInteger> m_widths;
+    std::vector<PDFReal> m_widths;
     PDFEncoding::Encoding m_encodingType;
     encoding::EncodingTable m_encoding;
     encoding::EncodingTable m_toUnicode;
@@ -519,6 +597,7 @@ protected:
     GlyphNames m_glyphNames;
     StandardFontType m_standardFontType; ///< Type of the standard font (or invalid, if it is not a standard font)
     QSharedPointer<const PDFFontCMap> m_toUnicodeTextMap; ///< /ToUnicode of the font dictionary for getToUnicodeText, nullptr = none; immutable after createFont
+    QSharedPointer<const PDFFontEncodingTexts> m_encodingTexts; ///< Texts of the codes by the glyph names, nullptr = the characters of m_encoding; immutable after createFont
 };
 
 class PDFType1Font : public PDFSimpleFont
@@ -534,7 +613,7 @@ public:
                           QByteArray baseFont,
                           PDFInteger firstChar,
                           PDFInteger lastChar,
-                          std::vector<PDFInteger> widths,
+                          std::vector<PDFReal> widths,
                           PDFEncoding::Encoding encodingType,
                           encoding::EncodingTable encoding,
                           encoding::EncodingTable toUnicode,
@@ -760,8 +839,15 @@ public:
         unsigned int byteCount = 0;
     };
 
-    /// Returns true, if mapping is valid
+    /// Returns true, if the map maps anything: a code to a CID or to a character (an entry), or
+    /// a code to a text of more code units (a ToUnicode CMap, getToUnicodeText). The encoding
+    /// CMap of a Type 0 font needs codes: hasCodeEntries.
     bool isValid() const { return !m_entries.empty() || !m_textEntries.empty(); }
+
+    /// Returns true, if the map has an entry of a code (cidrange, cidchar, a bfrange or a bfchar
+    /// of one code unit): only such a map divides a string into codes (interpretWithCode), a map of
+    /// texts of more code units only decodes no code (its longest code length is 0)
+    bool hasCodeEntries() const { return !m_entries.empty(); }
 
     /// Returns true, if vertical writing mode is on
     bool isVertical() const { return m_vertical; }
@@ -883,8 +969,40 @@ private:
     /// requires, that entries are sorted.
     static Entries optimize(const Entries& entries);
 
+    /// Codes of one byte count, whose first entry in the order of m_entries (the entry, which
+    /// a scan of m_entries finds first) is one and the same entry
+    struct EntryLookupPiece
+    {
+        unsigned int byteCount = 0;     ///< Byte count of the codes; 0 in m_anyByteCountLookup
+        unsigned int from = 0;          ///< First code
+        unsigned int to = 0;            ///< Last code
+        size_t entryIndex = 0;          ///< Index of the entry in m_entries
+    };
+
+    /// Pieces sorted by the byte count and the first code, the pieces of one byte count do not overlap
+    using EntryLookup = std::vector<EntryLookupPiece>;
+
+    /// Builds m_entryLookup, m_anyByteCountLookup and m_textEntryCodeOrder from the entries and
+    /// the texts. It is called, when they are complete (createFromData, deserialize), never
+    /// later: the map is immutable data shared by threads.
+    void initializeLookup();
+
+    /// Appends the pieces of the entries of a group to the lookup
+    /// \param entries Entries
+    /// \param group Indices of the entries of the group, sorted by their first code
+    /// \param byteCount Byte count of the pieces
+    /// \param lookup Lookup
+    static void appendEntryLookupPieces(const Entries& entries, const std::vector<size_t>& group, unsigned int byteCount, EntryLookup& lookup);
+
+    /// The first entry in the order of m_entries, which maps the code; nullptr = none
+    /// \param lookup m_entryLookup (a byte count), or m_anyByteCountLookup (the byte count 0)
+    const Entry* findEntry(const EntryLookup& lookup, unsigned int byteCount, unsigned int code) const;
+
     Entries m_entries;
     TextEntries m_textEntries; ///< Sorted, at most MAXIMUM_TO_UNICODE_TEXT_COUNT
+    EntryLookup m_entryLookup; ///< The entries of each byte count (getToUnicode with a byte count)
+    EntryLookup m_anyByteCountLookup; ///< The entries of all byte counts (getToUnicode with the byte count 0)
+    std::vector<size_t> m_textEntryCodeOrder; ///< Indices of m_textEntries sorted by the code, of one code in their order (getToUnicodeText with the byte count 0)
     unsigned int m_maxKeyLength = 0;
     bool m_vertical = false;
     bool m_unicodeEncoded = false;
@@ -931,6 +1049,19 @@ public:
     /// present, empty (null) character is returned.
     QChar getUnicode(int characterIndex) const { return m_toUnicode.getToUnicode(characterIndex); }
 
+    /// Character of the code for the text of the page (TextSequenceItem::textCharacter):
+    /// /ToUnicode (getUnicode), else the glyph name of /Differences mapped by the Adobe Glyph
+    /// List Specification (getEncodingText, when it has one code unit; for a text of more code
+    /// units none, or the ligature of the glyph list of the library for the whole names f_f, f_i,
+    /// f_f_i and f_f_l). getUnicode stays the character of TextSequenceItem::character, which
+    /// encodeCharacter turns back to the code.
+    QChar getTextUnicode(int characterIndex) const;
+
+    virtual QString getEncodingText(unsigned int code, unsigned int codeLength) const override;
+
+    /// Sets the texts of the codes by the glyph names of /Differences (createFont)
+    void setEncodingTexts(PDFFontEncodingTexts encodingTexts);
+
     virtual QByteArray encodeCharacter(char32_t codePoint) const override;
 
 private:
@@ -941,6 +1072,7 @@ private:
     std::vector<double> m_widths;
     PDFObject m_resources;
     PDFFontCMap m_toUnicode;
+    QSharedPointer<const PDFFontEncodingTexts> m_encodingTexts; ///< Texts of the codes by the glyph names, nullptr = none; immutable after createFont
 };
 
 /// Composite font (CID-keyed font)

@@ -94,6 +94,22 @@ struct PDFContentBuildResult
 /// hidden content too). Nothing of the content is refused: what the builder does not understand
 /// is an Opaque node, a page with a stream it cannot decode is read-only.
 ///
+/// Neither function throws: a key, whose dictionary cannot be read (a form or a pattern with
+/// a /Matrix, which is not six numbers), gives no container and an issue (InvalidContainer), an
+/// empty fingerprint; the Do of such a form is an Opaque node of the content, which uses it.
+///
+/// Two limits beside those of PDFContentContainer, both private to the builder:
+///  - the decoded bytes of all streams of a content together (every item of /Contents counts,
+///    also one, which names a stream again): above 512 MB the content is not read - the
+///    container is empty and read-only, with an issue (a container keeps every byte of its
+///    content, and /Contents can name one stream any number of times);
+///  - the dash array of a state of a node: 128 elements. The content, in which a longer array is
+///    in effect (set by d or by /D of gs), is one Opaque node with an issue, from the operation,
+///    which sets it - or from the outermost open node around it -, up to the operation, after
+///    which the pattern is within the limit again and every bracket opened in between is closed
+///    (the states are compared after every operation and kept by the nodes: their cost must
+///    not grow with a length the content chooses).
+///
 /// Threads and ownership: build is reentrant and runs in a worker thread (one task per container,
 /// PDFExecutionPolicy::startTask); it reads the document and the caches only. The result is
 /// immutable and independent of the builder.
