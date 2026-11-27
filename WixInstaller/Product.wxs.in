@@ -137,6 +137,12 @@
       <Component Id="cmpqmodernwindowsstyle" Directory="dir_styles" Guid="{1A418DAB-7A24-4695-A773-4DC161926350}">
         <File Id="filqmodernwindowsstyle" KeyPath="yes" Source="$(var.MyInstallDir)\styles\qmodernwindowsstyle.dll" />
       </Component>
+      <Component Id="cmpqschannelbackend" Directory="dir_tls" Guid="{6B0E1F4A-3C2D-4E85-9A71-D4F25C8E0B13}">
+        <File Id="filqschannelbackend" KeyPath="yes" Source="$(var.MyInstallDir)\tls\qschannelbackend.dll" />
+      </Component>
+      <Component Id="cmpqcertonlybackend" Directory="dir_tls" Guid="{C93A7D52-0E8B-4F16-B2D4-71A6E3F95C28}">
+        <File Id="filqcertonlybackend" KeyPath="yes" Source="$(var.MyInstallDir)\tls\qcertonlybackend.dll" />
+      </Component>
       <Component Id="cmpqtexttospeech_sapi" Directory="dir_texttospeech" Guid="{305900CC-4483-4E0F-B611-C32FD9E01021}">
         <File Id="filqtexttospeech_sapi" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_sapi.dll" />
       </Component>
@@ -385,6 +391,12 @@ ${PDF4QT_WIX_OCR_DIRECTORIES}<?endif?>
   <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
       <Directory Id="dir_texttospeech" Name="texttospeech" />
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="dir_tls" Name="tls" />
     </DirectoryRef>
   </Fragment>
 

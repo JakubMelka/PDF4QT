@@ -226,3 +226,19 @@ jobs:
         working-directory: pdf4qt
         run: |
           cmake --install build --config Release
+
+      # Issue #436: the Linux libraries must not export the symbols of the statically linked dependencies
+      # (they would interpose the system libraries), the Windows package must contain the TLS backend of Qt
+      - name: Check package
+        working-directory: pdf4qt/build
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            files="$(find install/usr/lib -maxdepth 2 -type f \( -name 'libPdf4Qt*.so*' -o -path '*/pdf4qt/*.so*' \) | sort | paste -sd ';')"
+            if [ -z "$files" ]; then echo "::error::No library of PDF4QT was found in install/usr/lib"; exit 1; fi
+            cmake -DFILES="$files" -P ../cmake/CheckExportedSymbols.cmake
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            if [ ! -f install/usr/bin/tls/qschannelbackend.dll ]; then
+              echo "::error::The TLS backend of Qt (tls/qschannelbackend.dll) is missing in the package"
+              exit 1
+            fi
+          fi
