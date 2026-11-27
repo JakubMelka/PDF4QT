@@ -112,6 +112,18 @@ public:
     /// Drops everything; the stack is clean
     void clear();
 
+    /// The sum of PDFContentCommand::getStoredItemCount of every command of the stack: what the
+    /// undo history keeps, in items (see there)
+    size_t getStoredItemCount() const;
+
+    /// The new objects (PDFContentCommand::getNewObjects) of the commands, which push has
+    /// dropped from behind the position since the last call (the undone steps a new command
+    /// replaces); the list is emptied by the call. The model does not show the change of those
+    /// commands, so nothing refers to the objects any more and the session drops them. The
+    /// objects of a step dropped at the limit of the count are not among them: its change is
+    /// a part of the model.
+    std::vector<PDFObjectReference> takeDroppedNewObjects();
+
 private:
     class Impl;
     std::unique_ptr<Impl> m_impl;

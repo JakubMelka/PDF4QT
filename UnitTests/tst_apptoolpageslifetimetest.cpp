@@ -2888,10 +2888,13 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     // The close of the victim and the checks of the retired victim (deferred and retire modes)
     pdftest::LifetimeVictimCheck victimCheck(&fixture);
+    // A close queued from a signal of a destructor (the deferred mode, below) runs only while the check lives
+    const std::shared_ptr<bool> isVictimCheckAlive = std::make_shared<bool>(true);
+    const auto victimCheckEnd = qScopeGuard([isVictimCheckAlive]() { *isVictimCheckAlive = false; });
     ToolPagesLifetimeRecorder recorder(mode);
     if (mode == ToolPagesLifetimeRecorder::Mode::Replay && victim != ToolPagesLifetimeVictim::End)
     {
-        recorder.setTarget(target, [&run, &victimCheck, victim](const ToolPagesLifetimeRecorder::Site& site)
+        recorder.setTarget(target, [&run, &victimCheck, isVictimCheckAlive, victim](const ToolPagesLifetimeRecorder::Site& site)
         {
             QObject* object = nullptr;
 
@@ -2929,6 +2932,24 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
             // until the step returns, no deferred site or state is needed)
             if (pdftest::LifetimeDeletionMode::isRetiring())
             {
+                // A signal of a destructor (isDeferredSite: PDFAppToolModeLayout::partDestroyed, aboutToBeDestroyed):
+                // its receivers only queue what follows (pdfapptoolmodelayout.h), so the close of the application
+                // comes from the event loop too. A close inside of the destruction of a part deleted alone (the order
+                // (2) step of the scenario contentparts, R3-12) left the focus chain of the window with the freed part
+                // (~QWidget of the next part read it: a crash of the release build, about 1 run in 5)
+                if (ToolPagesLifetimeRecorder::isDeferredSite(site))
+                {
+                    QPointer<QObject> deferredVictim(object);
+                    QMetaObject::invokeMethod(object, [deferredVictim, &victimCheck, isVictimCheckAlive]()
+                    {
+                        if (deferredVictim && *isVictimCheckAlive)
+                        {
+                            victimCheck.retire(deferredVictim.data());
+                        }
+                    }, Qt::QueuedConnection);
+                    return ToolPagesLifetimeRecorder::Action::Deferred;
+                }
+
                 // A tab, whose leave flow runs (a question of its tool page is open - the scenario leave answers it
                 // later), refuses its close and raises the question (A0: one flow of the tab): the site has no
                 // victim, as the user cannot close that tab now (Refusal::RefusedWhileLeaving, counted by the check);
@@ -3667,6 +3688,10 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerReviewBScenarios(&result);
         registerReviewCompareScenarios(&result);
         registerReviewMeasureScenarios(&result);
+        registerContentScenarios(&result);
+        registerContentCanvasScenarios(&result);
+        registerContentPanelsScenarios(&result);
+        registerContentCardsScenarios(&result);
         return result;
     }();
     return scenarios;

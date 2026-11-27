@@ -46,6 +46,7 @@
 
 class QAbstractItemModel;
 class QBoxLayout;
+class QButtonGroup;
 class QVBoxLayout;
 
 namespace pdf
@@ -403,6 +404,20 @@ public:
         QObject::connect(button, &QToolButton::clicked, receiver, slot);
         return button;
     }
+
+    /// Icon button of the toolbar, which is checked while its mode is on (the canvas tools of Edit Content: Select,
+    /// Text, Image ... - edit-content-v2 1647:21313, "Toolbar button" 190:538: 36 x 36, the icon 20, no text at any
+    /// width of the toolbar - PDFWidgetStyleProperties::ICON_ONLY). \p toolTip is its tooltip and its accessible
+    /// name. \p group - the exclusive group of the buttons, of which one is checked (the caller owns the group and
+    /// sets its exclusivity; the button is added to it); nullptr = a toggle of its own (Multiple). No slot: the
+    /// caller connects (the button, or QButtonGroup::buttonClicked of its group).
+    QToolButton* addToolButton(const QString& objectName, const QString& iconName, const QString& toolTip, QButtonGroup* group);
+
+    /// Toggle of the toolbar with a text (Preview of Edit Content, "Toolbar menu button" 190:577: the icon 18 and
+    /// the label, checked = on): a checkable button, which opens no panel. Its text is hidden as the texts of the
+    /// other actions in a narrow toolbar (the tooltip and the accessible name say it; the caller sets
+    /// PDFAppToolToolbar::NARROW_FIRST_PROPERTY for a label, which goes first). No slot: the caller connects.
+    QToolButton* addToggleButton(const QString& objectName, const QString& text, const QString& iconName);
 
     /// Divider of the toolbar (303:4427)
     void addActionDivider();

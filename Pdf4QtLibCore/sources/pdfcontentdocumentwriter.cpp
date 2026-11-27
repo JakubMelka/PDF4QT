@@ -29,7 +29,8 @@
 //      modified structure model against the structure of the document read again; the choice of
 //      the containers, which are written (changed, not read-only, not skipped, not used by a
 //      skipped page); the bytes of each of them (PDFContentStreamWriter) and their compressed
-//      form; the resources a form without resources of its own gets, when a name was added to it;
+//      form; the check of a changed form without resources of its own against every place, which
+//      draws it, and the resources it gets, when a name was added to it;
 //      every check of the structure, the run of its writer on a private copy of the storage of
 //      the builder included. A mismatch, an error or a cancellation ends the write here: the
 //      builder is as the caller gave it.
@@ -123,7 +124,7 @@ public:
     {
         Own,        ///< The resources of the container as a new dictionary (PDFContentResources::write)
         None,       ///< No entry: the container goes on using the resources of the page it is drawn on
-        Inherited,  ///< A copy of the resources of the page the container was built with, with the added names
+        Inherited,  ///< A copy of the resources the container was built with (of its caller and of its page), with the added names
         Kept        ///< The entry of the document as it is (a value, which is no dictionary)
     };
 
@@ -135,7 +136,7 @@ public:
         PDFContentStreamWriteResult stream;     ///< The content and the resources
         QByteArray compressedContent;           ///< The content compressed by Flate
         ResourcesMode resourcesMode = ResourcesMode::Own;   ///< A form or a pattern: its /Resources
-        PDFObject inheritedResources;           ///< ResourcesMode::Inherited: the resource dictionary of the page (a dictionary, or null for a page without one)
+        PDFObject inheritedResources;           ///< ResourcesMode::Inherited: the resources the container was built with (PDFContentContainer::getInheritedResources, else the resource dictionary of its page; a dictionary, or null for a page without one)
     };
 
     /// A changed container, which is not written because of a skipped page
@@ -540,18 +541,11 @@ public:
         return dictionary;
     }
 
-    /// The value a resource dictionary gives a name of a category; null, when it defines none
-    static PDFObject getResource(const PDFDocument* document, const PDFDictionary* resources, PDFContentResourceCategory category, const QByteArray& name)
-    {
-        const PDFDictionary* categoryDictionary = resources ? document->getDictionaryFromObject(resources->get(PDFContentResources::getCategoryKey(category))) : nullptr;
-        return categoryDictionary ? categoryDictionary->get(name) : PDFObject();
-    }
-
-    /// The object is a content, which uses the resources of the page it is drawn on, because it
-    /// has none of its own (ISO 32000-2, 7.8.3): a form of /XObject, a tiling pattern of
-    /// /Pattern or a Type 3 font of /Font, whose /Resources is missing, null or a reference to
-    /// nothing. The renderer of this library gives such a content the dictionaries of the
-    /// content, which draws it.
+    /// The object is a content, which inherits its resources, because it has none of its own
+    /// (ISO 32000-2, 7.8.3): a form of /XObject, a tiling pattern of /Pattern or a Type 3 font of
+    /// /Font, whose /Resources is missing, null or a reference to nothing. The processor of this
+    /// library gives such a content the names of the content, which draws it, and a name that
+    /// content does not define from the page (NOTES.txt 7.8.3).
     static bool isInheritingContent(const PDFDocument* document, PDFContentResourceCategory category, const PDFObject& object)
     {
         const PDFDictionary* dictionary = nullptr;
@@ -585,50 +579,242 @@ public:
         return dictionary && document->getObject(dictionary->get("Resources")).isNull();
     }
 
-    /// Two resource dictionaries give a content the same objects.
-    /// \param recorded The dictionary of the page the content was built with, nullptr = none
-    /// \param otherResources The other resources, dereferenced (anything else than a dictionary = none)
-    /// \param usedNames The names the content uses
-    /// \param isStrict Every category must be equal as a whole (a category without a name is as a
-    ///        missing one); otherwise each used name must be the same value, or an equal object
-    ///        behind another reference
-    static bool isSameResources(const PDFDocument* document,
-                                const PDFDictionary* recorded,
-                                const PDFObject& otherResources,
-                                const std::set<PDFContentResourceName>& usedNames,
-                                bool isStrict)
+    /// The names of the category dictionaries of resources with their values, each dictionary
+    /// indexed once per container: a lookup costs log n, not a pass over the dictionary. The
+    /// dictionaries belong to the document or to a container of the snapshot, which outlive it.
+    using NameIndex = std::map<const PDFDictionary*, std::map<QByteArray, PDFObject>>;
+
+    /// The value resources give a name of a category: the first entry of the key with a value
+    /// other than null (ISO 32000-2, 7.3.7: an entry with the null value is no entry - so the
+    /// processor merges the dictionaries of content without resources); null, when there is none
+    static PDFObject getIndexedResource(const PDFDocument* document, const PDFDictionary* resources, const PDFContentResourceName& name, NameIndex& index)
     {
-        const PDFDictionary* other = otherResources.isDictionary() ? otherResources.getDictionary() : nullptr;
-
-        if (isStrict)
+        const PDFDictionary* category = resources ? document->getDictionaryFromObject(resources->get(PDFContentResources::getCategoryKey(name.category))) : nullptr;
+        if (!category)
         {
-            for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
-            {
-                const QByteArray categoryKey = PDFContentResources::getCategoryKey(category);
-                const PDFDictionary* recordedCategory = recorded ? document->getDictionaryFromObject(recorded->get(categoryKey)) : nullptr;
-                const PDFDictionary* otherCategory = other ? document->getDictionaryFromObject(other->get(categoryKey)) : nullptr;
-                const bool isRecordedEmpty = !recordedCategory || recordedCategory->getCount() == 0;
-                const bool isOtherEmpty = !otherCategory || otherCategory->getCount() == 0;
-                if (isRecordedEmpty != isOtherEmpty || (!isRecordedEmpty && !(*recordedCategory == *otherCategory)))
-                {
-                    return false;
-                }
-            }
-
-            return true;
+            return PDFObject();
         }
 
-        for (const PDFContentResourceName& name : usedNames)
+        auto it = index.find(category);
+        if (it == index.end())
         {
-            const PDFObject recordedObject = getResource(document, recorded, name.category, name.name);
-            const PDFObject otherObject = getResource(document, other, name.category, name.name);
-            if (recordedObject != otherObject && document->getObject(recordedObject) != document->getObject(otherObject))
+            std::map<QByteArray, PDFObject> names;
+            for (size_t i = 0; i < category->getCount(); ++i)
+            {
+                if (!category->getValue(i).isNull())
+                {
+                    names.emplace(category->getKey(i).getString(), category->getValue(i));
+                }
+            }
+            it = index.emplace(category, std::move(names)).first;
+        }
+
+        auto itName = it->second.find(name.name);
+        return itName != it->second.cend() ? itName->second : PDFObject();
+    }
+
+    /// Adds every name of every category of the resources (with a value other than null)
+    static void addResourceNames(const PDFDocument* document, const PDFDictionary* resources, std::set<PDFContentResourceName>& names)
+    {
+        for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
+        {
+            const PDFDictionary* categoryDictionary = resources ? document->getDictionaryFromObject(resources->get(PDFContentResources::getCategoryKey(category))) : nullptr;
+            for (size_t i = 0; categoryDictionary && i < categoryDictionary->getCount(); ++i)
+            {
+                if (!categoryDictionary->getValue(i).isNull())
+                {
+                    names.insert(PDFContentResourceName{ category, categoryDictionary->getKey(i).getString() });
+                }
+            }
+        }
+    }
+
+    /// Two values of a name give a content the same object: the same value, or equal objects
+    /// behind two references (null and null too: neither defines the name)
+    static bool isSameResource(const PDFDocument* document, const PDFObject& left, const PDFObject& right)
+    {
+        return left == right || document->getObject(left) == document->getObject(right);
+    }
+
+    /// The resources of a page give every name of \p names the object the resources of the
+    /// build give it; an added name (one of \p addedNames) they must not define at all
+    static bool isSamePageResources(const PDFDocument* document,
+                                    const PDFDictionary* page,
+                                    const PDFDictionary* built,
+                                    const std::set<PDFContentResourceName>& names,
+                                    const std::set<PDFContentResourceName>& addedNames,
+                                    NameIndex& index)
+    {
+        for (const PDFContentResourceName& name : names)
+        {
+            const PDFObject pageObject = getIndexedResource(document, page, name, index);
+            if (addedNames.count(name) ? !pageObject.isNull() : !isSameResource(document, pageObject, getIndexedResource(document, built, name, index)))
             {
                 return false;
             }
         }
-
         return true;
+    }
+
+    /// The name of the resource, which set a property of a state (PDFContentPropertySource)
+    static void addSourceName(const PDFContentPropertySource& source, PDFContentStateProperty property, std::set<PDFContentResourceName>& names)
+    {
+        switch (source.origin)
+        {
+            case PDFContentPropertySource::Origin::Inherited:
+                break;
+
+            case PDFContentPropertySource::Origin::ExtGState:
+                if (!source.resourceName.isEmpty())
+                {
+                    names.insert(PDFContentResourceName{ PDFContentResourceCategory::ExtGState, source.resourceName });
+                }
+                break;
+
+            case PDFContentPropertySource::Origin::Operator:
+                if (property == PDFContentStateProperty::Font && !source.resourceName.isEmpty())
+                {
+                    names.insert(PDFContentResourceName{ PDFContentResourceCategory::Font, source.resourceName });
+                }
+                else if (property == PDFContentStateProperty::StrokeColor || property == PDFContentStateProperty::FillColor)
+                {
+                    if (!source.resourceName.isEmpty())
+                    {
+                        names.insert(PDFContentResourceName{ PDFContentResourceCategory::ColorSpace, source.resourceName });
+                    }
+                    if (!source.patternName.isEmpty())
+                    {
+                        names.insert(PDFContentResourceName{ PDFContentResourceCategory::Pattern, source.patternName });
+                    }
+                }
+                break;
+        }
+    }
+
+    /// The names, whose objects the build resolved into values, which the written content can
+    /// keep without naming them (review R2-2): an override writes a property by its value (R-2:
+    /// a moved node keeps the state of its old place; R-3: a residual state run sets the leak of
+    /// a node, which no longer reaches the nodes behind it - makeValue of the command engine).
+    /// For every property of every override of the tree: the resource, which set it in the state
+    /// at the beginning of the node and in the state at the end of its leak. More names than
+    /// needed (a value the user chose has a source too), never fewer.
+    static void addBakedResourceNames(const PDFContentContainer& container, std::set<PDFContentResourceName>& names)
+    {
+        // The tree is walked with a stack of its own (its depth is given by the document)
+        std::vector<const PDFContentNode*> stack;
+        if (container.getRoot())
+        {
+            stack.push_back(container.getRoot().get());
+        }
+        while (!stack.empty())
+        {
+            const PDFContentNode* node = stack.back();
+            stack.pop_back();
+
+            if (const PDFContentStateOverride* override = node->getOverride())
+            {
+                for (const auto& property : override->properties)
+                {
+                    if (node->getSymbolicState())
+                    {
+                        addSourceName(node->getSymbolicState()->getSource(property.first), property.first, names);
+                    }
+                    if (node->getLeak().endSymbolicState)
+                    {
+                        addSourceName(node->getLeak().endSymbolicState->getSource(property.first), property.first, names);
+                    }
+                }
+            }
+
+            for (const PDFContentNodePointer& child : node->getChildren())
+            {
+                if (child)
+                {
+                    stack.push_back(child.get());
+                }
+            }
+        }
+    }
+
+    /// The contents with resources of their own, in which the container of the walk node
+    /// \p walkNode is drawn (review R2-1). The container has no resources of its own: it takes a
+    /// name from the content drawing it and a name that content lacks from the page (NOTES.txt
+    /// 7.8.3); content without resources drawing it passes the resources of its own caller on.
+    /// So the container is drawn in the context of an owner with resources of its own Q (a page,
+    /// a form, a pattern, a Type 3 font, an appearance stream, a soft mask group) and of the page
+    /// P under it, when Q names it (an edge of the walk), or when Q names content without
+    /// resources and Q or P names the container - that content can draw it through any chain of
+    /// such content (each of them has the same Q and P). The walk has no edges from content
+    /// without resources, so the second kind is taken conservatively: every owner with resources
+    /// of its own, which names content without resources and which is reachable from a page
+    /// naming the container (a page, which does not name it, can give it to no such chain; a Q,
+    /// which names it, is of the first kind). More owners than draw it, never fewer.
+    ///
+    /// Bounds: one pass over the nodes and their edges, one breadth-first walk with one visited
+    /// set (the walk itself is bounded by its depth and its budget of nodes and edges).
+    /// \param pageNodes The page nodes among them
+    /// \param otherNodes The other owners
+    static void collectDrawingOwners(const PDFResourceWalkResult& walk, size_t walkNode, std::vector<size_t>* pageNodes, std::vector<size_t>* otherNodes)
+    {
+        const size_t count = walk.nodes.size();
+        std::vector<bool> isDrawing(count, false);
+        std::vector<bool> isReached(count, false);
+        std::vector<size_t> queue;
+
+        // The first kind: the owners naming the container; the pages among them start the walk
+        for (size_t i = 0; i < count; ++i)
+        {
+            const std::vector<size_t>& children = walk.nodes[i].children;
+            if (std::find(children.cbegin(), children.cend(), walkNode) != children.cend())
+            {
+                isDrawing[i] = true;
+                if (walk.nodes[i].kind == PDFResourceOwnerKind::Page)
+                {
+                    isReached[i] = true;
+                    queue.push_back(i);
+                }
+            }
+        }
+
+        for (size_t i = 0; i < queue.size(); ++i)
+        {
+            for (const size_t child : walk.nodes[queue[i]].children)
+            {
+                if (child < count && !isReached[child])
+                {
+                    isReached[child] = true;
+                    queue.push_back(child);
+                }
+            }
+        }
+
+        // The second kind: an owner with resources of its own reached from such a page, which
+        // names content without resources
+        for (size_t i = 0; i < count; ++i)
+        {
+            const PDFResourceWalkNode& node = walk.nodes[i];
+            if (isDrawing[i] || !isReached[i] || node.resources.isNull())
+            {
+                continue;
+            }
+
+            for (const size_t child : node.children)
+            {
+                if (child < count && walk.nodes[child].kind != PDFResourceOwnerKind::Page && walk.nodes[child].resources.isNull())
+                {
+                    isDrawing[i] = true;
+                    break;
+                }
+            }
+        }
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            if (isDrawing[i] && i != walkNode)
+            {
+                (walk.nodes[i].kind == PDFResourceOwnerKind::Page ? pageNodes : otherNodes)->push_back(i);
+            }
+        }
     }
 
     /// The resource names of the operations PDFContentStreamWriter writes for a container: the
@@ -689,30 +875,38 @@ public:
         return names;
     }
 
-    /// The resources for a form or a pattern without /Resources of its own, to which the editor
-    /// has added names (R-4): the resource dictionary of the page the container was built with
-    /// (PDFContentContainer::getInheritedResourcesPageIndex) - writeStreamContainer copies it and
-    /// puts the added names into copies of their categories.
+    /// A changed form or pattern without /Resources of its own (no entry, null, a reference to
+    /// nothing): what its stream gets under /Resources, or the error, which refuses it. The
+    /// guarantee: no page changes its look silently.
     ///
-    /// The copy takes the place of the resources of every page, which draws the container
-    /// (ISO 32000-2, 7.8.3), so it is right only when all those pages agree with that page:
-    ///  - the recorded page is one of the pages, which reach the container (the container was
-    ///    built with resources, with which the document really draws it);
-    ///  - every other such page gives every name the operations of the container use the same
-    ///    object (the same value, or equal objects behind two references), category by category;
-    ///    the added names are left out (the container defines them itself, and the allocator of
-    ///    the names avoids every name the content uses);
-    ///  - the same holds for the resources of every other content, which names the container in
-    ///    its own resources (a form or an appearance stream with a resource dictionary, which
-    ///    draws the container): this library draws the container with the dictionaries of the
-    ///    content, which draws it, so the copy takes the place of those resources too;
-    ///  - when the content draws a form, a pattern or a Type 3 font without resources of its own
-    ///    (also a new object of the editor), that content sees the copy in place of the resources
-    ///    of the page in this library, and nobody knows here, which names it uses: every category
-    ///    of the other resources must then be equal as a whole, and no added name may take the
-    ///    place of a name of the page.
-    /// A container no page draws inherits nothing: it gets a dictionary of the added names.
+    /// Such a container is drawn with the resources of each place, which draws it: a name from
+    /// the content drawing it, a name that content lacks from the page (NOTES.txt 7.8.3; the
+    /// contexts: collectDrawingOwners). It was built with the resources of one of them (the
+    /// recorded page, PDFContentContainer::getInheritedResourcesPageIndex, and the resources of
+    /// the build, getInheritedResources: the merged ones of its caller, or those of the page).
+    /// Its tree holds the objects of these resources, and the commands keep some of them by value
+    /// (R-2, R-3: addBakedResourceNames). So the written content is right only where every other
+    /// context resolves every name it uses (and every baked name) to the same object as the
+    /// resources of the build - also when no name was added (review R2-2). Checked:
+    ///  - the recorded page is one of the pages, which reach the container (else the build had
+    ///    resources, with which the document does not draw it);
+    ///  - every other context gives each such name the same object (the same value, or equal
+    ///    objects behind two references); a name of the content, which a context does not define,
+    ///    is looked up in each page reaching the container (more pages than needed, never fewer);
+    ///    the added names are left out (the container defines them itself).
+    /// When a name was added (R-4), the container gets a copy of the resources of the build with
+    /// the added names in copies of their categories: the resources of its own, which every
+    /// context then uses. When the container also draws a form, a pattern or a Type 3 font
+    /// without resources of its own (also a new object of the editor), that content, whose names
+    /// nobody knows here, takes its names from the copy after the write and a name the copy
+    /// lacks from the page, so the check is strict: every name of the resources of the build is
+    /// compared in every context, a content drawing the container may define no name the
+    /// resources of the build do not, and no context may define an added name (the builder
+    /// reserves the names of the resources of the build, so the allocator does not give them).
+    /// Without a page, which draws it, the container inherits nothing: it gets a dictionary of
+    /// the added names, or stays without one.
     /// \param walkNode The index of the node of the container in the walk (the size of the nodes, when it has none)
+    /// \param isResourcesChanged A name was added to the container
     /// \returns the error, which refuses the container; empty, when item.resourcesMode and
     ///          item.inheritedResources are set
     static QString prepareInheritedResources(const PDFDocument* document,
@@ -720,17 +914,18 @@ public:
                                              const PDFResourceWalkResult& walk,
                                              size_t walkNode,
                                              const PDFOperationControl* control,
+                                             bool isResourcesChanged,
                                              Item& item)
     {
-        if (walk.isLimitReached)
-        {
-            return Writer::tr("The document has too many nested resources to find every page, which draws this content: a resource cannot be added to it.");
-        }
-
         if (item.pages.empty())
         {
-            item.resourcesMode = ResourcesMode::Own;
+            item.resourcesMode = isResourcesChanged ? ResourcesMode::Own : ResourcesMode::None;
             return QString();
+        }
+
+        if (walk.isLimitReached)
+        {
+            return Writer::tr("The content has no resources of its own and the document has too many nested resources to find every place, which draws it: its change cannot be written.");
         }
 
         const PDFCatalog* catalog = document->getCatalog();
@@ -740,62 +935,85 @@ public:
             // The tree builder took the entry /Resources for resources of the container (a
             // reference to an object, which does not exist): its content was read without the
             // resources of any page
-            return Writer::tr("The content has no resources of its own and was not read with the resources of a page: a resource cannot be added to it.");
+            return Writer::tr("The content has no resources of its own and was not read with the resources of a page: its change cannot be written.");
         }
         if (!std::binary_search(item.pages.cbegin(), item.pages.cend(), recordedPageIndex) || size_t(recordedPageIndex) >= catalog->getPageCount())
         {
-            return Writer::tr("The content has no resources of its own and the page, whose resources it was read with, does not draw it: a resource cannot be added to it.");
+            return Writer::tr("The content has no resources of its own and the page, whose resources it was read with, does not draw it: its change cannot be written.");
         }
 
-        const PDFObject& recordedValue = catalog->getPage(size_t(recordedPageIndex))->getResources();
-        const PDFObject recordedResources = document->getObject(recordedValue);
-        const PDFDictionary* recorded = recordedResources.isDictionary() ? recordedResources.getDictionary() : nullptr;
+        // The resources of the build: the merged ones of the caller, or those of the page
+        const PDFObject recordedResources = document->getObject(catalog->getPage(size_t(recordedPageIndex))->getResources());
+        const PDFObject& builtValue = item.container->getInheritedResources();
+        const PDFObject builtResources = builtValue.isDictionary() ? builtValue : recordedResources;
+        const PDFDictionary* built = builtResources.isDictionary() ? builtResources.getDictionary() : nullptr;
 
-        // The names the written content uses and does not define itself, and whether it draws a
-        // content, which inherits its resources too
+        // The names the written content uses or keeps by value and does not define itself, and
+        // whether it draws a content, which inherits its resources too
         const PDFContentResources& resources = item.stream.resources;
-        std::set<PDFContentResourceName> usedNames;
-        for (const PDFContentResourceName& name : getWrittenResourceNames(*item.container))
+        std::set<PDFContentResourceName> names = getWrittenResourceNames(*item.container);
+        addBakedResourceNames(*item.container, names);
+        std::set<PDFContentResourceName> checkedNames;
+        for (const PDFContentResourceName& name : names)
         {
             if (resources.getObject(name.category, name.name).isNull())
             {
-                usedNames.insert(name);
+                checkedNames.insert(name);
             }
         }
 
+        NameIndex index;
         bool isStrict = false;
-        for (const PDFContentResourceName& name : usedNames)
+        if (isResourcesChanged)
         {
-            isStrict = isStrict || isInheritingContent(document, name.category, document->getObject(getResource(document, recorded, name.category, name.name)));
-        }
-
-        for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
-        {
-            for (const PDFContentResources::Entry& entry : resources.getEntries(category))
+            for (const PDFContentResourceName& name : checkedNames)
             {
-                const bool isNewObject = entry.object.isReference() && isProvisional(entry.object.getReference(), snapshot.newObjects);
-                const PDFObject object = isNewObject ? snapshot.newObjects.at(entry.object.getReference()) : document->getObject(entry.object);
-                isStrict = isStrict || isInheritingContent(document, category, object);
+                isStrict = isStrict || isInheritingContent(document, name.category, document->getObject(getIndexedResource(document, built, name, index)));
             }
-        }
 
-        if (isStrict)
-        {
             for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
             {
                 for (const PDFContentResources::Entry& entry : resources.getEntries(category))
                 {
-                    if (!getResource(document, recorded, category, entry.name).isNull())
+                    const bool isNewObject = entry.object.isReference() && isProvisional(entry.object.getReference(), snapshot.newObjects);
+                    const PDFObject object = isNewObject ? snapshot.newObjects.at(entry.object.getReference()) : document->getObject(entry.object);
+                    isStrict = isStrict || isInheritingContent(document, category, object);
+                }
+            }
+        }
+
+        // Strict: every name of the resources of the build, and the names added to the copy, which
+        // are no names of them (the copy keeps them all) and which no context may define
+        std::set<PDFContentResourceName> addedNames;
+        if (isStrict)
+        {
+            addResourceNames(document, built, checkedNames);
+
+            for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
+            {
+                for (const PDFContentResources::Entry& entry : resources.getEntries(category))
+                {
+                    if (!entry.isOriginal)
                     {
-                        return Writer::tr("The content has no resources of its own and draws other content without resources: the new resource “%1” would hide a resource of the page from it. A resource cannot be added to it.").arg(QString::fromLatin1(entry.name));
+                        if (!getIndexedResource(document, built, PDFContentResourceName{ category, entry.name }, index).isNull())
+                        {
+                            return Writer::tr("The content has no resources of its own and draws other content without resources: the new resource “%1” would hide a resource of the same name from it. A resource cannot be added to it.").arg(QString::fromLatin1(entry.name));
+                        }
+                        addedNames.insert(PDFContentResourceName{ category, entry.name });
                     }
                 }
             }
         }
 
-        // The pages, which draw the content with other resources than the recorded page
-        std::vector<PDFInteger> differentPages;
-        for (const PDFInteger pageIndex : item.pages)
+        std::vector<size_t> pageNodes;
+        std::vector<size_t> otherNodes;
+        collectDrawingOwners(walk, walkNode, &pageNodes, &otherNodes);
+
+        // The owners with resources of their own drawing the container: their names; a name of
+        // the content they do not define is looked up in the pages
+        std::set<PDFContentResourceName> namesOfPages;
+        QString callerError;
+        for (const size_t nodeIndex : otherNodes)
         {
             if (PDFOperationControl::isOperationCanceled(control))
             {
@@ -803,14 +1021,84 @@ public:
                 return QString();
             }
 
-            if (pageIndex == recordedPageIndex || pageIndex < 0 || size_t(pageIndex) >= catalog->getPageCount())
+            const PDFResourceWalkNode& node = walk.nodes[nodeIndex];
+            const PDFDictionary* caller = node.resources.isDictionary() ? node.resources.getDictionary() : nullptr;
+            bool isDifferent = false;
+            for (const PDFContentResourceName& name : checkedNames)
+            {
+                const PDFObject callerObject = getIndexedResource(document, caller, name, index);
+                if (callerObject.isNull())
+                {
+                    namesOfPages.insert(name);
+                }
+                else if (!isSameResource(document, callerObject, getIndexedResource(document, built, name, index)))
+                {
+                    isDifferent = true;
+                }
+            }
+
+            if (isStrict)
+            {
+                std::set<PDFContentResourceName> callerNames;
+                addResourceNames(document, caller, callerNames);
+                for (const PDFContentResourceName& name : callerNames)
+                {
+                    // (an added name is none of the built ones: a caller defining it differs too)
+                    isDifferent = isDifferent || getIndexedResource(document, built, name, index).isNull();
+                }
+
+                // Content without resources drawn by the container takes an added name, which
+                // the caller does not define, from a page now and from the copy after the write
+                namesOfPages.insert(addedNames.cbegin(), addedNames.cend());
+            }
+
+            if (isDifferent && callerError.isEmpty())
+            {
+                callerError = Writer::tr("The content has no resources of its own and is drawn with the resources of each place, which uses it. Its change cannot be written, because a form or an annotation of the page %1, which draws it, gives it other resources than those it was read with.")
+                        .arg(node.pageIndex + 1);
+            }
+        }
+
+        // The pages naming the container are contexts of their own: every checked name
+        std::set<PDFInteger> drawingPages;
+        for (const auto& [pageIndex, pageNode] : walk.pages)
+        {
+            if (std::find(pageNodes.cbegin(), pageNodes.cend(), pageNode) != pageNodes.cend())
+            {
+                drawingPages.insert(pageIndex);
+            }
+        }
+
+        // The pages (each resource dictionary once - the pages of a document often share one)
+        std::vector<PDFInteger> differentPages;
+        std::map<std::pair<const PDFDictionary*, bool>, bool> comparedPages;
+        for (const PDFInteger pageIndex : item.pages)
+        {
+            if (PDFOperationControl::isOperationCanceled(control))
+            {
+                return QString();
+            }
+
+            if (pageIndex < 0 || size_t(pageIndex) >= catalog->getPageCount())
             {
                 continue;
             }
 
-            // The same dictionary object, or an equal direct one (the pages of a document often share one)
-            const PDFObject& pageValue = catalog->getPage(size_t(pageIndex))->getResources();
-            if (pageValue != recordedValue && !isSameResources(document, recorded, document->getObject(pageValue), usedNames, isStrict))
+            const bool isDrawingPage = drawingPages.count(pageIndex) > 0;
+            const PDFObject pageResources = document->getObject(catalog->getPage(size_t(pageIndex))->getResources());
+            const PDFDictionary* page = pageResources.isDictionary() ? pageResources.getDictionary() : nullptr;
+            auto it = comparedPages.find(std::make_pair(page, isDrawingPage));
+            if (it == comparedPages.end())
+            {
+                // A page naming the container is a context of its own (every checked name, and no
+                // added name); every page reaching it gives the names a caller does not define
+                const bool isSame = isSamePageResources(document, page, built, namesOfPages, addedNames, index) &&
+                                    (!isDrawingPage || (isSamePageResources(document, page, built, checkedNames, addedNames, index) &&
+                                                        isSamePageResources(document, page, built, addedNames, addedNames, index)));
+                it = comparedPages.emplace(std::make_pair(page, isDrawingPage), isSame).first;
+            }
+
+            if (!it->second)
             {
                 differentPages.push_back(pageIndex);
             }
@@ -818,33 +1106,24 @@ public:
 
         if (!differentPages.empty())
         {
-            return Writer::tr("The content has no resources of its own and is drawn with the resources of each page, which uses it. A resource cannot be added to it, because the pages %1 give it other resources than the page %2.")
+            return Writer::tr("The content has no resources of its own and is drawn with the resources of each place, which uses it. Its change cannot be written, because the pages %1 give it other resources than the page %2, with which it was read.")
                     .arg(PDFDocumentPageOperations::formatPageNumbers(differentPages)).arg(recordedPageIndex + 1);
         }
 
-        // The other contents, which name the container in resources of their own
-        for (size_t i = 0; i < walk.nodes.size(); ++i)
+        if (!callerError.isEmpty())
         {
-            const PDFResourceWalkNode& node = walk.nodes[i];
-            if (node.kind == PDFResourceOwnerKind::Page || std::find(node.children.cbegin(), node.children.cend(), walkNode) == node.children.cend())
-            {
-                continue;
-            }
-
-            if (PDFOperationControl::isOperationCanceled(control))
-            {
-                return QString();
-            }
-
-            if (!isSameResources(document, recorded, node.resources, usedNames, isStrict))
-            {
-                return Writer::tr("The content has no resources of its own and is drawn with the resources of the content, which uses it. A resource cannot be added to it, because a form or an annotation of the page %1 gives it other resources than the page %2.")
-                        .arg(node.pageIndex + 1).arg(recordedPageIndex + 1);
-            }
+            return callerError;
         }
 
-        item.resourcesMode = ResourcesMode::Inherited;
-        item.inheritedResources = recordedResources.isDictionary() ? recordedResources : PDFObject();
+        if (isResourcesChanged)
+        {
+            item.resourcesMode = ResourcesMode::Inherited;
+            item.inheritedResources = built ? builtResources : PDFObject();
+        }
+        else
+        {
+            item.resourcesMode = ResourcesMode::None;
+        }
         return QString();
     }
 
@@ -854,9 +1133,9 @@ public:
     /// entry, a null value and a reference to an object, which does not exist, are no resources
     /// (ISO 32000-2, 7.3.7: "a dictionary entry whose value is null shall be treated the same as
     /// if the entry does not exist"; 7.3.10: a reference to an undefined object is the null
-    /// object): the container uses the resources of the page, as the tree builder and the
-    /// renderer read it. A value of another type gives the content no resources at all in this
-    /// library: it is kept, until a name is added.
+    /// object): the container inherits the resources of the place drawing it, as the tree builder
+    /// and the renderer read it (prepareInheritedResources). A value of another type gives the
+    /// content no resources at all in this library: it is kept, until a name is added.
     /// \returns the error, which refuses the container; empty otherwise
     static QString prepareStreamResources(const PDFDocument* document,
                                           const PDFDocumentBuilder* builder,
@@ -875,112 +1154,26 @@ public:
             return QString();
         }
 
-        if (!item.stream.resources.isChanged())
-        {
-            item.resourcesMode = ownResources.isNull() ? ResourcesMode::None : ResourcesMode::Kept;
-            return QString();
-        }
-
         if (!ownResources.isNull())
         {
-            item.resourcesMode = ResourcesMode::Own;
+            item.resourcesMode = item.stream.resources.isChanged() ? ResourcesMode::Own : ResourcesMode::Kept;
             return QString();
         }
 
-        return prepareInheritedResources(document, snapshot, walk, walkNode, control, item);
+        if (item.container->isUnchanged())
+        {
+            // A forced rewrite of an unchanged container (Options::forceRewrite): the bytes of
+            // the original streams, nothing resolved by the build is written
+            item.resourcesMode = ResourcesMode::None;
+            return QString();
+        }
+
+        // Without resources of its own: a changed content is checked against every place drawing
+        // it, also when no name was added (review R2-2)
+        return prepareInheritedResources(document, snapshot, walk, walkNode, control, item.stream.resources.isChanged(), item);
     }
 
     // ---- The structure ----
-
-    static bool isSameChild(const PDFContentStructureChild& left, const PDFContentStructureChild& right)
-    {
-        return left.kind == right.kind && left.element == right.element && left.mcid == right.mcid && left.page == right.page &&
-               left.stream == right.stream && left.streamOwner == right.streamOwner && left.object == right.object;
-    }
-
-    /// An element, which the editor has not changed, is what the document gives now
-    static bool isSameElement(const PDFContentStructureElement& left, const PDFContentStructureElement& right)
-    {
-        return left.id == right.id && left.parent == right.parent && left.type == right.type && left.standardType == right.standardType &&
-               left.title == right.title && left.alternateText == right.alternateText && left.actualText == right.actualText &&
-               left.expandedText == right.expandedText && left.language == right.language && left.elementId == right.elementId &&
-               left.page == right.page && left.otherEntries == right.otherEntries &&
-               std::equal(left.children.cbegin(), left.children.cend(), right.children.cbegin(), right.children.cend(), &isSameChild);
-    }
-
-    /// The structure model of a snapshot was read from the document: it agrees with the structure
-    /// read again (\p current) in everything a model keeps from its reading - the elements with
-    /// their objects in their order; every field of an element the editor has not changed (of a
-    /// changed one its object and the keys the editor never changes); the keys of the parent
-    /// tree with their original values; the content of every item the editor has not changed.
-    /// What a model does not keep - the original children and texts of a changed element, the
-    /// original array of a changed item, when the array is an object of its own - cannot be
-    /// compared here.
-    static bool isStructureOfDocument(const PDFContentStructureModel& model, const PDFContentStructureModel& current)
-    {
-        const std::vector<PDFContentStructureElement>& elements = model.getElements();
-        const std::vector<PDFContentStructureElement>& currentElements = current.getElements();
-        if (elements.size() < currentElements.size())
-        {
-            return false;
-        }
-
-        for (size_t i = 0; i < elements.size(); ++i)
-        {
-            const PDFContentStructureElement& element = elements[i];
-            if (i >= currentElements.size())
-            {
-                // Only an element the editor has created is not in the document
-                if (element.reference.isValid())
-                {
-                    return false;
-                }
-                continue;
-            }
-
-            const PDFContentStructureElement& currentElement = currentElements[i];
-            if (element.reference != currentElement.reference || element.otherEntries != currentElement.otherEntries ||
-                (!element.isModified && !isSameElement(element, currentElement)))
-            {
-                return false;
-            }
-        }
-
-        const std::map<PDFInteger, PDFContentParentTreeItem>& parentTree = model.getParentTree();
-        const std::map<PDFInteger, PDFContentParentTreeItem>& currentParentTree = current.getParentTree();
-        for (const auto& item : parentTree)
-        {
-            auto it = currentParentTree.find(item.first);
-            if (it == currentParentTree.cend())
-            {
-                // Only a key the editor has added is not in the document
-                if (!item.second.isModified)
-                {
-                    return false;
-                }
-                continue;
-            }
-
-            if (item.second.raw != it->second.raw ||
-                (!item.second.isModified && (item.second.kind != it->second.kind || item.second.elements != it->second.elements)))
-            {
-                return false;
-            }
-        }
-
-        // A key the document has got since the model was read. (/ParentTreeNextKey and the
-        // reference of the parent tree need no comparison of their own: they are among the
-        // other entries of the root, the element 0, which were compared above.)
-        for (const auto& item : currentParentTree)
-        {
-            if (!parentTree.count(item.first))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     /// The object of a reference is in the builder what it is in the document. An object, which
     /// was compared already, is not compared again.
@@ -999,7 +1192,7 @@ public:
     ///
     /// The walk over the nodes of the parent tree has one visited set (a node reached twice or
     /// a node, which is its own descendant, is entered once) and the depth limit of the model.
-    /// \param structure The structure of \p document (read from it now)
+    /// \param structure A structure model of \p document (its source fingerprint is the one of the document)
     static bool isStructureSourceUnchanged(const PDFDocument* document, const PDFDocumentBuilder* builder, const PDFContentStructureModel& structure)
     {
         const PDFDictionary* trailer = document->getTrailerDictionary();
@@ -1098,9 +1291,10 @@ public:
         return true;
     }
 
-    /// The copy of the resources of the page for a container without resources of its own, with
-    /// the added names in copies of their categories (an added name wins over a name of the
-    /// page, which the content does not use: prepareInheritedResources)
+    /// The copy of the resources of the build for a container without resources of its own, with
+    /// the added names in copies of their categories (an added name wins over a name of those
+    /// resources, which the content does not use; never with content without resources inside:
+    /// prepareInheritedResources)
     static PDFObject createInheritedResources(const PDFDocument* document, const Item& item)
     {
         const PDFDictionary* inherited = item.inheritedResources.isDictionary() ? item.inheritedResources.getDictionary() : nullptr;
@@ -1227,20 +1421,20 @@ PDFContentWriteResult PDFContentDocumentWriter::write(const PDFDocument* documen
 
     // The structure model is not covered by a fingerprint of a container: a modified one is
     // written whole (its changed elements and the whole parent tree), so it must be the
-    // structure of this document. The structure is read again and compared with everything the
-    // model keeps from its own reading.
+    // structure of this document. The model keeps the fingerprint of everything its reading
+    // took from the document (PDFContentStructureModel::getSourceFingerprint), also of the parts
+    // it has changed since; the document gives it now.
     const bool isStructureWritten = snapshot.structure && !snapshot.structure->isEmpty() && snapshot.structure->isModified();
-    PDFContentStructureModelPointer currentStructure;
     if (isStructureWritten)
     {
-        currentStructure = PDFContentStructureModel::read(document, control);
+        const QByteArray fingerprint = PDFContentStructureModel::computeSourceFingerprint(document, control);
         if (PDFOperationControl::isOperationCanceled(control))
         {
             result.status = PDFContentWriteResult::Status::Canceled;
             return result;
         }
 
-        if (!currentStructure || !Helper::isStructureOfDocument(*snapshot.structure, *currentStructure))
+        if (fingerprint.isEmpty() || fingerprint != snapshot.structure->getSourceFingerprint())
         {
             result.status = PDFContentWriteResult::Status::DocumentChanged;
             result.isStructureOutdated = true;
@@ -1427,34 +1621,83 @@ PDFContentWriteResult PDFContentDocumentWriter::write(const PDFDocument* documen
     }
 
     // ---- The structure: every check before anything is written ----
+    PDFContentStructureModelPointer structure = snapshot.structure;
     if (isStructureWritten)
     {
-        // The model is written whole, and nothing tells, which of its changes belong to which
-        // page (a deleted sequence, whose children do not agree with the parent tree, changes
-        // elements only). With a changed container left out, the tags of content, which stays
-        // as it is, would be written changed: the page cannot be skipped.
+        // A container left out (a skipped page, a form of a skipped page) keeps the tags of
+        // its content as the document has them: the changes of its key (/StructParents) are
+        // taken out of the model, the changes of the written containers stay; an element with
+        // changed children of both is taken apart child by child. Refused, where the two cannot
+        // be separated (PDFContentStructureModel::withoutChangesOfKeys; the error names the
+        // skipped page), and for a key of a left-out container, which a written container has
+        // too, with a change.
+        std::set<PDFInteger> leftOutKeys;
         for (const Helper::LeftOutContainer& leftOut : leftOutContainers)
         {
-            for (const PDFInteger pageIndex : leftOut.skippedPages)
+            auto it = snapshot.containers.find(leftOut.key);
+            const PDFInteger key = it != snapshot.containers.cend() ? it->second->getStructuralParentKey() : -1;
+            if (key >= 0)
             {
-                result.errors[pageIndex].push_back(PDFContentWriteError{ leftOut.key, PDFContentNodeId(), tr("The tags of the document were changed with its content and are written as a whole: the page cannot be left out. Undo the changes of the page instead.") });
+                leftOutKeys.insert(key);
             }
         }
 
-        if (!Helper::isStructureSourceUnchanged(document, builder, *currentStructure))
+        QString separationError;
+        if (!leftOutKeys.empty())
+        {
+            const PDFContentStructureModelPointer original = PDFContentStructureModel::read(document, control);
+            if (PDFOperationControl::isOperationCanceled(control))
+            {
+                result = PDFContentWriteResult();
+                result.status = PDFContentWriteResult::Status::Canceled;
+                return result;
+            }
+
+            structure = original ? snapshot.structure->withoutChangesOfKeys(*original, leftOutKeys, &separationError) : nullptr;
+            for (const Helper::Item& item : items)
+            {
+                // The key of a written container, which is left out too, with a change of its tags
+                const PDFInteger key = item.container->getStructuralParentKey();
+                if (structure && original && leftOutKeys.count(key))
+                {
+                    const PDFContentStructureModelPointer withoutKey = snapshot.structure->withoutChangesOfKeys(*original, { key }, nullptr);
+                    if (!withoutKey || !withoutKey->isEqual(*snapshot.structure))
+                    {
+                        structure = nullptr;
+                        separationError = tr("The tags of this page and of a written content have one key: they cannot be left out alone. Undo the changes of the tags of the page instead.");
+                    }
+                }
+            }
+
+            if (!structure)
+            {
+                if (separationError.isEmpty())
+                {
+                    separationError = tr("The tags of the page cannot be left out alone. Undo the changes of the tags of the page instead.");
+                }
+                for (const Helper::LeftOutContainer& leftOut : leftOutContainers)
+                {
+                    for (const PDFInteger pageIndex : leftOut.skippedPages)
+                    {
+                        result.errors[pageIndex].push_back(PDFContentWriteError{ leftOut.key, PDFContentNodeId(), separationError });
+                    }
+                }
+            }
+        }
+
+        if (structure && !Helper::isStructureSourceUnchanged(document, builder, *structure))
         {
             result.errors[Helper::NO_PAGE].push_back(PDFContentWriteError{ PDFContentContainerKey(), PDFContentNodeId(), tr("The tags were changed in the document, which is being written.") });
         }
-        else
+        else if (structure)
         {
-            // The writer of the structure on a copy of the objects of the builder: all its
-            // checks run here, where nothing is written yet. The steps (1) - (3) touch no
-            // object of the structure, so the real run of the step (5) gives the same answer.
-            PDFDocumentBuilder probe(*builder->getStorage(), document->getInfo()->version);
-            PDFStructureTreeWriteResult probeResult = PDFStructureTreeWriter::write(&probe, *snapshot.structure);
-            for (QString& error : probeResult.errors)
+            // All checks of the writer of the structure run here, where nothing is written yet.
+            // The steps (1) - (3) touch no object of the structure, so the real run of the step
+            // (5) gives the same answer.
+            const QString error = PDFStructureTreeWriter::check(builder, *structure);
+            if (!error.isEmpty())
             {
-                result.errors[Helper::NO_PAGE].push_back(PDFContentWriteError{ PDFContentContainerKey(), PDFContentNodeId(), std::move(error) });
+                result.errors[Helper::NO_PAGE].push_back(PDFContentWriteError{ PDFContentContainerKey(), PDFContentNodeId(), error });
             }
         }
 
@@ -1482,6 +1725,7 @@ PDFContentWriteResult PDFContentDocumentWriter::write(const PDFDocument* documen
     {
         Helper::countObjects(*item.container, &result);
         pagesChanged.insert(item.pages.cbegin(), item.pages.cend());
+        result.isPagesChangedIncomplete = result.isPagesChangedIncomplete || (!Helper::isPage(item.container->getKey()) && walk.isLimitReached);
 
         if (Helper::isPage(item.container->getKey()))
         {
@@ -1499,9 +1743,9 @@ PDFContentWriteResult PDFContentDocumentWriter::write(const PDFDocument* documen
     // ---- (5) The structure: once, after the new objects of the snapshot (the writer of the
     //      structure adds objects to the builder). Its checks have passed on the copy of the
     //      builder in part A, and the steps above have touched no object of the structure. ----
-    if (isStructureWritten)
+    if (isStructureWritten && structure)
     {
-        PDFStructureTreeWriteResult structureResult = PDFStructureTreeWriter::write(builder, *snapshot.structure);
+        PDFStructureTreeWriteResult structureResult = PDFStructureTreeWriter::write(builder, *structure);
         Q_ASSERT(structureResult.errors.empty());
         for (QString& error : structureResult.errors)
         {

@@ -581,22 +581,37 @@ void PDFAppToolToolbar::updateCollapse()
 
     m_isUpdatingCollapse = true;
 
-    // The first level, at which the content fits into the width of the toolbar
+    // Everything shown first. The step before the levels (the owner's decision of zadani.md chapter 10): the texts
+    // of the buttons with NARROW_FIRST_PROPERTY go, and the levels are tried only when that is not enough - with
+    // those texts hidden for good (monotonic). The levels keep their numbers; without such a button the step
+    // changes nothing and the first level, which fits, is the same as it was before the step existed.
     int level = H::Full;
-    for (; level < H::LastLevel; ++level)
+    applyCollapse(level, false);
+    const bool isPriorityCollapsed = !isFitting();
+    if (isPriorityCollapsed)
     {
-        applyCollapse(level);
-        invalidateGroupSizes();
-        if (m_layout->sizeHint().width() <= width())
+        // The first level, at which the content fits into the width of the toolbar
+        for (; level < H::LastLevel; ++level)
         {
-            break;
+            applyCollapse(level, true);
+            if (isFitting())
+            {
+                break;
+            }
         }
+        applyCollapse(level, true);
+        invalidateGroupSizes();
     }
-    applyCollapse(level);
-    invalidateGroupSizes();
     m_collapseLevel = level;
+    m_isPriorityCollapsed = isPriorityCollapsed;
 
     m_isUpdatingCollapse = false;
+}
+
+bool PDFAppToolToolbar::isFitting()
+{
+    invalidateGroupSizes();
+    return m_layout->sizeHint().width() <= width();
 }
 
 void PDFAppToolToolbar::invalidateGroupSizes()
@@ -618,7 +633,7 @@ void PDFAppToolToolbar::invalidateGroupSizes()
     m_layout->invalidate();
 }
 
-void PDFAppToolToolbar::applyCollapse(int level)
+void PDFAppToolToolbar::applyCollapse(int level, bool isPriorityCollapsed)
 {
     using H = PDFAppToolToolbarHelper;
 
@@ -649,8 +664,10 @@ void PDFAppToolToolbar::applyCollapse(int level)
         for (QToolButton* button : buttons)
         {
             // An icon-only button of the design (Toolbar button 190:538, Sign by Hand 435:8712) has the
-            // icon 20 at every level, the others lose their texts in a narrow toolbar
-            const bool isIconOnly = level >= H::ActionsIconsOnly || PDFWidgetStyleProperties::isSet(button, PDFWidgetStyleProperties::ICON_ONLY);
+            // icon 20 at every level, the others lose their texts in a narrow toolbar - a button with
+            // NARROW_FIRST_PROPERTY before all the others (the step before the levels, updateCollapse)
+            const bool isIconOnly = level >= H::ActionsIconsOnly || PDFWidgetStyleProperties::isSet(button, PDFWidgetStyleProperties::ICON_ONLY) ||
+                                    (isPriorityCollapsed && button->property(NARROW_FIRST_PROPERTY).toBool());
             button->setToolButtonStyle(isIconOnly ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
             button->setIconSize(isIconOnly ? QSize(20, 20) : QSize(18, 18));
         }

@@ -135,6 +135,7 @@ struct PDFContentStructureChange
 };
 
 class PDFContentStructureModel;
+class PDFContentStructureDifference;
 using PDFContentStructureModelPointer = std::shared_ptr<const PDFContentStructureModel>;
 
 /// The structure tree of a document as the editor needs it: every child of /K including the
@@ -213,12 +214,76 @@ public:
     /// the model is copied once
     PDFContentStructureModelPointer applied(const std::vector<PDFContentStructureChange>& changes) const;
 
+    /// The model after the changes, as applied(changes); \p difference (may be nullptr) gets
+    /// what the changes touched, before and after, so that an undo step keeps the difference and
+    /// not the two models (zadani_jadro.md 4.5).
+    PDFContentStructureModelPointer applied(const std::vector<PDFContentStructureChange>& changes, PDFContentStructureDifference* difference) const;
+
+    /// The model before the changes of \p difference, made from this model, which is the model
+    /// after them (or a model equal to it in the parts the difference does not hold). The result
+    /// is equal to the model before (isEqual), isModified and the foreign children included.
+    /// \returns nullptr, when the difference cannot be of this model (another count of elements)
+    PDFContentStructureModelPointer reverted(const PDFContentStructureDifference& difference) const;
+
+    /// The model after the changes of \p difference, made from this model, which is the model
+    /// before them (redo without the changes; the same as applied of the changes).
+    /// \returns nullptr, when the difference cannot be of this model (another count of elements)
+    PDFContentStructureModelPointer reapplied(const PDFContentStructureDifference& difference) const;
+
+    /// The two models are equal in everything the queries, the consistency functions and the
+    /// writer read (the elements, the parent tree, the foreign children and items, the irregular
+    /// content, the identifiers in use, isModified, the issues and the source fingerprint)
+    bool isEqual(const PDFContentStructureModel& other) const;
+
+    /// This model without the changes of the tagged content of some keys (a page, which the
+    /// writer leaves out): the difference of \p original and this model is taken apart. The items
+    /// of the parent tree of the keys, and every element, whose changed children are all marked
+    /// content of the keys, are as in \p original; every other change stays. An element with
+    /// changed children of the keys and of other keys (a paragraph across a page break) is taken
+    /// apart child by child: the removed children of the keys come back at their places, the
+    /// parts of splits of the keys go, the changes of the other keys stay, in the order of /K.
+    /// \param original The model read from the document now (the same source fingerprint)
+    /// \param structuralParentKeys The keys (/StructParents) of the contents, which are not written
+    /// \param[out] errorText Why the changes cannot be separated (may be nullptr)
+    /// \returns nullptr, when they cannot: an element with changes of one of the keys has a
+    ///          change, whose content is not known (a child without a known page, a changed entry
+    ///          of the element), foreign children together with changes of another key, or a part
+    ///          of a split of another key, whose place among the children of the keys is not known
+    ///          (its original was removed, and children of the keys lie between the children it
+    ///          can come from); or the two models have another count of elements
+    PDFContentStructureModelPointer withoutChangesOfKeys(const PDFContentStructureModel& original, const std::set<PDFInteger>& structuralParentKeys, QString* errorText) const;
+
     /// Something differs from the document the model was read from
     bool isModified() const;
+
+    /// The number of this version of the model: every model made by the default constructor,
+    /// read, applied (also of changes, which change nothing) or withoutChangesOfKeys (when it
+    /// leaves something out) gets a new number (unique in the process, never 0); reverted and
+    /// reapplied give the model they make the number of the version it reproduces
+    /// (PDFContentStructureDifference::getVersionBefore / getVersionAfter), a copy keeps the
+    /// number. Two models with the same number have the same content, also when they are two
+    /// objects: a command tells by it, whether the model is the one it was applied to (as by
+    /// PDFContentContainer::getVersion). isEqual does not compare it.
+    quint64 getVersion() const { return m_version; }
+
+    /// A hash of everything read() took from the document (the value of /StructTreeRoot of the
+    /// catalog, the objects of the elements and of the items of /K, the nodes and values of
+    /// /ParentTree, /StructParents of the pages and streams named by the children). It is kept
+    /// unchanged by applied, reverted and reapplied: the writer compares it with
+    /// computeSourceFingerprint of the document it writes into, so a model read from another
+    /// state of the document is refused, also in its modified parts.
+    const QByteArray& getSourceFingerprint() const;
+
+    /// The fingerprint read() would give the model of \p document now. A bounded walk with one
+    /// visited set (the depth limits of the reading, PDFObjectWalk::DEFAULT_MAXIMUM_NODES objects).
+    /// \param document The document (nullptr: the fingerprint of a model without a document)
+    /// \param control Cancellation, may be nullptr (a canceled computation returns an empty array)
+    static QByteArray computeSourceFingerprint(const PDFDocument* document, const PDFOperationControl* control);
 
 private:
     friend class PDFContentStructureModelHelper;    ///< Reading and the changes (pdfcontentstructure.cpp)
     friend class PDFStructureTreeWriterHelper;      ///< Writing (pdfstructuretreewriter.cpp)
+    friend class PDFContentStructureDifference;     ///< Its states hold the private parts of the model
 
     /// An item of /K the model does not read as a child (null, a wrong type, a direct structure
     /// element dictionary, a marked content or object reference with other keys than those of
@@ -240,6 +305,10 @@ private:
     /// A page or a content stream and a marked content identifier
     using ContentKey = std::pair<PDFInteger, PDFInteger>;
 
+    /// A new number of a version (one counter of the process: models are read by workers too)
+    static quint64 allocateVersion();
+
+    quint64 m_version = allocateVersion();
     std::vector<PDFContentStructureElement> m_elements;
     std::map<PDFInteger, PDFContentParentTreeItem> m_parentTree;
     PDFInteger m_nextParentTreeKey = 0;
@@ -273,6 +342,70 @@ private:
 
     /// Key -> the largest MCID a child of an element names for it
     std::map<PDFInteger, PDFInteger> m_largestChildContentId;
+
+    /// computeSourceFingerprint of the document at the reading
+    QByteArray m_sourceFingerprint;
+};
+
+/// What PDFContentStructureModel::applied changed: the parts of the model the changes touched,
+/// as they were before and as they are after them (an element with its children and foreign
+/// children, an item of the parent tree, the membership of a marked content in the private sets,
+/// the largest identifier of a key, the flag isModified). Its size is proportional to the touched
+/// elements and items of the parent tree, not to the model; a change, which changes nothing,
+/// gives an empty difference.
+///
+/// Threads and ownership: a plain value owned by the caller (a command of the undo stack); copied
+/// freely, also between threads. It holds no pointer into a model or a document.
+class PDF4QTLIBCORESHARED_EXPORT PDFContentStructureDifference
+{
+public:
+    /// The changes changed nothing in the model
+    bool isEmpty() const;
+
+    /// Number of the elements the changes touched (with their foreign children)
+    size_t getElementCount() const;
+
+    /// Number of the items of the parent tree the changes touched
+    size_t getParentTreeItemCount() const;
+
+    /// The numbers of the versions of the models before and after the changes
+    /// (PDFContentStructureModel::getVersion; 0 for a difference, which applied did not make)
+    quint64 getVersionBefore() const { return m_versionBefore; }
+    quint64 getVersionAfter() const { return m_versionAfter; }
+
+private:
+    friend class PDFContentStructureModel;
+    friend class PDFContentStructureModelHelper;
+
+    using ContentKey = PDFContentStructureModel::ContentKey;
+    using ForeignChildren = std::vector<PDFContentStructureModel::ForeignChild>;
+
+    /// An element and its foreign children (std::nullopt: the element does not exist, it has no
+    /// foreign children)
+    struct ElementState
+    {
+        std::optional<PDFContentStructureElement> element;
+        std::optional<ForeignChildren> foreignChildren;
+    };
+
+    /// The touched parts of one model
+    struct State
+    {
+        size_t elementCount = 0;
+        std::map<PDFContentStructureElementId, ElementState> elements;
+        std::map<PDFInteger, std::optional<PDFContentParentTreeItem>> parentTree;   ///< std::nullopt: no item
+        std::set<ContentKey> foreignParentTreeItems;    ///< Those of m_touchedContents, which are in the set of the model
+        std::set<ContentKey> irregularContent;          ///< Those of m_touchedContents, which are in the set of the model
+        std::map<PDFInteger, std::optional<PDFInteger>> largestChildContentId;      ///< std::nullopt: no entry
+        PDFInteger nextParentTreeKey = 0;
+        bool isModified = false;
+    };
+
+    State m_before;
+    State m_after;
+    std::set<ContentKey> m_touchedContents;     ///< (key, MCID), whose membership in a private set differs
+    quint64 m_versionBefore = 0;
+    quint64 m_versionAfter = 0;
 };
 
 }   // namespace pdf

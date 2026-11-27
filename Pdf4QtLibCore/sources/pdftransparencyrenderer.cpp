@@ -3174,9 +3174,11 @@ void PDFTransparencyRenderer::flushDrawBuffer()
 {
     if (m_drawBuffer.isModified())
     {
+        // DisableOverprintSimulation: every object as with overprint off (ISO 32000-2, 8.6.7)
         PDFOverprintMode overprintMode = getGraphicState()->getOverprintMode();
-        const bool useOverprint = (overprintMode.overprintFilling && m_drawBuffer.isContainsFilling()) ||
-                                  (overprintMode.overprintStroking && m_drawBuffer.isContainsStroking());
+        const bool isOverprintSimulated = !m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisableOverprintSimulation);
+        const bool useOverprint = isOverprintSimulated && ((overprintMode.overprintFilling && m_drawBuffer.isContainsFilling()) ||
+                                                           (overprintMode.overprintStroking && m_drawBuffer.isContainsStroking()));
 
         // B211, R7-7: the overprint mode 1 only for the current color of a DeviceCMYK space in a
         // DeviceCMYK group, never for an image or a shading (ISO 32000-2, 8.6.7, 11.7.4.3); in

@@ -182,6 +182,49 @@ private:
     }
 };
 
+bool PDFContentStateValue::isEqual(const PDFContentStateValue& left, const PDFContentStateValue& right)
+{
+    if (left.kind != right.kind)
+    {
+        return false;
+    }
+
+    switch (left.kind)
+    {
+        case Kind::None:
+            return true;
+
+        case Kind::Real:
+            return left.real == right.real;
+
+        case Kind::Integer:
+            return left.integer == right.integer;
+
+        case Kind::Boolean:
+            return left.boolean == right.boolean;
+
+        case Kind::Name:
+            return left.name == right.name;
+
+        case Kind::Dash:
+            return left.dash == right.dash;
+
+        case Kind::Color:
+            return left.color.deviceSpace == right.color.deviceSpace &&
+                   left.color.components == right.color.components &&
+                   PDFContentStateHelper::isObjectEqual(left.color.colorSpaceObject, right.color.colorSpaceObject) &&
+                   PDFContentStateHelper::isObjectEqual(left.color.patternObject, right.color.patternObject);
+
+        case Kind::Font:
+            return left.real == right.real && PDFContentStateHelper::isObjectEqual(left.object, right.object);
+
+        case Kind::Object:
+            return left.matrix == right.matrix && PDFContentStateHelper::isObjectEqual(left.object, right.object);
+    }
+
+    return false;
+}
+
 PDFContentResolvedState::PDFContentResolvedState(const PDFPageContentProcessorState& state) :
     m_state(state),
     m_hasSoftMask(state.getSoftMask() != nullptr)

@@ -133,7 +133,7 @@ Bez toho by se stejný řádek kreslil dvakrát (widget a delegát) a galerie by
 
 Sloupec **Použití** je počet instancí na deseti stránkách s obrazovkami (bez stránky *Widgets*); „vnořená“ znamená, že komponenta nemá na obrazovkách žádnou přímou instanci: je uvnitř jiných komponent (Star button, Tool choice), nebo se do nich dosazuje záměnou instance (náhledy v Color mode card). „Nové“ je komponenta přidaná opravami 13. 10. 2026. Sloupec **Var.** je počet variant sady, „–“ je samostatná komponenta. Karta každé komponenty je ve [specifikaci](components_spec.md) pod stejným názvem.
 
-Čísla 1–89 jsou původní a nemění se; tři nové komponenty mají čísla 90–92 a jsou zařazené v tabulce své rodiny. Tlačítka okna (93, 94) přibyla s plánem nové aplikace 18. 10. 2026 a součet 3.6 je nezahrnuje.
+Čísla 1–89 jsou původní a nemění se; tři nové komponenty mají čísla 90–92 a jsou zařazené v tabulce své rodiny. Tlačítka okna (93, 94) přibyla s plánem nové aplikace 18. 10. 2026 a součet 3.6 je nezahrnuje. Komponenty 95–98 (Expander card, Path segment, Path bar, Row toggle action) a varianty `State=Mixed` Spin boxu a Combo boxu přibyly 27. 11. 2026 (Edit Content, etapa E1, [components_fixes.md](components_fixes.md) kapitola „Edit Content, stage E1“); widgety byly hotové dřív než Figma, součet 3.6 je také nezahrnuje.
 
 ### 3.1 Kostra aplikace a Home
 
@@ -190,9 +190,9 @@ Sloupec **Použití** je počet instancí na deseti stránkách s obrazovkami (b
 | --- | --- | --- | --- | --- | --- | --- |
 | 37 | Checkbox | `144:2878` | 10 | 1 648 | S+ | `QCheckBox`; hover a stisk zaškrtnutého z nového tokenu |
 | 38 | Radio | `292:1001` | 10 | 153 | S+ | `QRadioButton`; hover a stisk zaškrtnutého z nového tokenu |
-| 39 | Combo box | `144:2899` | 5 | 656 | S | `PDFComboBox` |
+| 39 | Combo box | `144:2899` | 6 | 656 | S | `PDFComboBox`; `State=Mixed` (27. 11. 2026) = `setMixed` |
 | 40 | Select | `78:857` | 5 | 10 | S | `PDFComboBox::setSelectPrefix` |
-| 41 | Spin box | `144:2932` | 4 | 428 | S | `PDFSpinBox`, `PDFDoubleSpinBox` |
+| 41 | Spin box | `144:2932` | 5 | 428 | S | `PDFSpinBox`, `PDFDoubleSpinBox`; `State=Mixed` (27. 11. 2026) = `setMixed` |
 | 42 | Text field | `144:2941` | 5 | 306 | S | `PDFLineEdit` |
 | 43 | Password field | `225:870` | 15 | 93 | S+ | `PDFLineEdit::setPasswordField`; výška, zámek, přepínač a prostrkání znaků se liší |
 | 44 | Strength meter | `455:1270` | 6 | 45 | W | `PDFStrengthMeter` |
@@ -254,6 +254,10 @@ Sloupec **Použití** je počet instancí na deseti stránkách s obrazovkami (b
 | 87 | Layout preview/Two pages | `192:758` | – | vnořená | O | `PDFPreviewPainter` |
 | 88 | Layout preview/Two columns | `192:773` | – | vnořená | O | `PDFPreviewPainter` |
 | 89 | Sample page | `192:1039` | – | 306 | O | zástupná stránka dokumentu, neimplementuje se |
+| 95 | Expander card | `1661:1678` | 2 | nové 27. 11. 2026, obrazovky zatím obyčejné rámce `section-…` | W | `PDFExpanderCard` |
+| 96 | Path segment | `1662:1674` | 14 | nové 27. 11. 2026, vnořená v Path bar | W | `PDFPathSegment` |
+| 97 | Path bar | `1662:1751` | 6 | nové 27. 11. 2026, obrazovky zatím obyčejné rámce (`isolation-bar`, `breadcrumb`) | K | `PDFPathBar` |
+| 98 | Row toggle action | `1662:1782` | 10 | nové 27. 11. 2026, obrazovky zatím holé ikony v řádcích Objects | D | přepínací akce `PDFRowDelegate` (`Action::checkable`) |
 
 ### 3.6 Součet
 

@@ -30,6 +30,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappfiledrop.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppage.h"
 #include "pdfappprint.h"
 #include "pdfapprestoredfilebar.h"
 #include "pdfappsendmail.h"
@@ -359,6 +360,18 @@ bool PDFAppDocumentSaver::canSave() const
 
     // An open editor of a form field is committed by the save (step 4, package D)
     return (document->isModified() || document->hasPendingEdits()) && PDFAppDocumentFileWriter::isWritable(document->getFilePath());
+}
+
+bool PDFAppDocumentSaver::canSaveWhenModified() const
+{
+    const PDFAppDocument* document = getDocument();
+    if (!document || !document->isReady() || isRunning() || document->isLocked())
+    {
+        return false;
+    }
+
+    // A copy without a file is saved by Save as; a file must be writable
+    return document->getFilePath().isEmpty() || PDFAppDocumentFileWriter::isWritable(document->getFilePath());
 }
 
 bool PDFAppDocumentSaver::canSaveAs() const
@@ -1149,8 +1162,27 @@ PDFAppDocumentFileCommandHandler* PDFAppDocumentFileCommandHandler::find(const P
     return tab ? qobject_cast<PDFAppDocumentFileCommandHandler*>(tab->findHandler(PDFAppCommands::save())) : nullptr;
 }
 
+PDFAppPage* PDFAppDocumentFileCommandHandler::getShownPage() const
+{
+    const PDFAppDocumentTab* tab = getTab();
+    return tab ? tab->getPage() : nullptr;
+}
+
 void PDFAppDocumentFileCommandHandler::execute(const QString& commandId)
 {
+    if (commandId == PDFAppCommands::save() || commandId == PDFAppCommands::saveAs())
+    {
+        // The shown page asks first (an open tool with work, which is not in the document yet; zadani.md KE.3,
+        // zadani_gui.md 4.21): its question is open - the answer saves by save / saveAs below, which never ask, or
+        // saves nothing. The show of the question runs code of the application: nothing of the handler is used
+        // after it.
+        PDFAppPage* page = getShownPage();
+        if (page && page->requestSaveQuestion(commandId))
+        {
+            return;
+        }
+    }
+
     if (commandId == PDFAppCommands::save())
     {
         save();
@@ -1192,7 +1224,18 @@ bool PDFAppDocumentFileCommandHandler::isEnabled(const QString& commandId) const
 
     if (commandId == PDFAppCommands::save())
     {
-        return m_saver && m_saver->canSave();
+        if (m_saver && m_saver->canSave())
+        {
+            return true;
+        }
+
+        // A document without changes of its own, over which an open tool holds work (zadani.md KE.3): Save asks the
+        // question of the tool, which offers to apply the work first - only when Save could save the document once
+        // it is changed (not locked, no save running, no file or a writable one; R3-4: a read-only file keeps Save
+        // disabled as without the tool, Save As asks). The shell of the tool refreshes the actions, when the answer of
+        // the page changes (PDFDocumentToolShell::hasSaveQuestion).
+        const PDFAppPage* page = getShownPage();
+        return m_saver && m_saver->canSaveWhenModified() && page && page->hasSaveQuestion();
     }
     if (commandId == PDFAppCommands::saveAs())
     {

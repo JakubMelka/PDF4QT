@@ -41,8 +41,10 @@
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
+#include "pdfwidgetstyleproperties.h"
 
 #include <QAbstractItemModel>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -1229,6 +1231,36 @@ PDFAppToolPanelPopup* PDFAppToolPanelBuilder::addMenu(const QString& objectName,
         toolbar->addPanel(button, panel);
     }
     return panel;
+}
+
+QToolButton* PDFAppToolPanelBuilder::addToolButton(const QString& objectName, const QString& iconName, const QString& toolTip, QButtonGroup* group)
+{
+    // Toolbar button 190:538 (36 x 36, the icon 20): the property keeps it an icon button at every width of the
+    // toolbar (PDFAppToolToolbar sets the style of the buttons of the actions by its width)
+    QToolButton* button = PDFAppDocumentToolbar::createToolbarButton(objectName, iconName, m_widget);
+    button->setCheckable(true);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::ICON_ONLY);
+    button->setToolTip(toolTip);
+    button->setAccessibleName(toolTip);
+    if (group)
+    {
+        // The group is the caller's (it does not own its buttons); a button deleted with the actions leaves it
+        group->addButton(button);
+    }
+    addWidget(button);
+    return button;
+}
+
+QToolButton* PDFAppToolPanelBuilder::addToggleButton(const QString& objectName, const QString& text, const QString& iconName)
+{
+    // Toolbar menu button 190:577 (the icon 18 and the label Medium 13), checkable; it is no button of a panel
+    QToolButton* button = PDFAppDocumentToolbar::createToolbarMenuButton(objectName, iconName, m_widget);
+    button->setText(text);
+    button->setToolTip(text);
+    button->setAccessibleName(text);
+    addWidget(button);
+    return button;
 }
 
 void PDFAppToolPanelBuilder::addActionDivider()

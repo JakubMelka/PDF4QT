@@ -199,6 +199,35 @@ PDFAppLeaveResult PDFAppPage::requestFinishLeave(bool isProceeding, PDFAppLeaveF
     return finishLeave(isProceeding) ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
 }
 
+bool PDFAppPage::isDocumentCommandHandled(const QString& commandId, bool* isEnabled) const
+{
+    Q_UNUSED(commandId);
+    Q_UNUSED(isEnabled);
+    return false;
+}
+
+bool PDFAppPage::handleDocumentCommand(const QString& commandId)
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+bool PDFAppPage::hasSaveQuestion() const
+{
+    return false;
+}
+
+bool PDFAppPage::requestSaveQuestion(const QString& commandId)
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+bool PDFAppPage::isDocumentReloadDeferred() const
+{
+    return false;
+}
+
 void PDFAppPage::restoreViewState(const QVariantMap& state)
 {
     Q_UNUSED(state);

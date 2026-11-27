@@ -94,6 +94,11 @@ public:
     /// PDFDocumentToolGUI::isResultInThisTab): the written file, which the page opens in place
     /// of the own tab (Accepted); empty = none
     QString newDocumentFilePath;
+
+    /// The save, which the user asked for by the choice of PDFAppToolSaveQuestion, which runs the tool first
+    /// ("Apply and Save", zadani_gui.md 4.21): the command of the document (PDFAppCommands::save / saveAs), which the
+    /// page executes on the tab after the tool has closed with its result kept in the tab (Accepted); empty = none
+    QString saveCommandId;
 };
 
 /// Undo and Redo of a tool, which changes the document of its tab while it is open
@@ -371,9 +376,53 @@ public:
     /// \returns the commit was accepted; the slots of the document may delete the shell meanwhile.
     bool commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion);
 
-    /// What Undo and Redo of the tool act on: the composite target of a GUI with hasDocumentUndoSteps,
-    /// else the model (nullptr before enter)
+    /// What Undo and Redo of the tool act on: the own target of the GUI (PDFDocumentToolGUI::getOwnUndoTarget,
+    /// read once in enter; nullptr again, when the GUI has deleted it), else the composite target of a GUI with
+    /// hasDocumentUndoSteps, else the model (nullptr before enter)
     PDFAppToolUndoTarget* getUndoTarget() const;
+
+    /// The state of a command of the document for the open tool (PDFDocumentToolGUI::getDocumentCommandState;
+    /// zadani_gui.md 4.20, way 2): NotHandled before enter, after close, for a tool in its own tab, for Undo and
+    /// Redo (the GUI is not asked: they act on the undo target of the mode, getUndoTarget) and for a command
+    /// the GUI does not handle; a command the GUI handles is Disabled outside of the state Editing (a run, a
+    /// decision) and while the GUI says so. No side effects. The actions of the window follow the state of the
+    /// shell by themselves (refreshDocumentCommands), a change inside of the GUI by
+    /// PDFDocumentToolGUI::updateDocumentCommands.
+    PDFAppToolCommandState getDocumentCommandState(const QString& commandId) const;
+
+    /// Gives the command to the GUI (PDFDocumentToolGUI::handleDocumentCommand), when its state is Enabled.
+    /// \returns true = the tool has taken it. The GUI may close the tool or the tab: the last call of the caller.
+    bool handleDocumentCommand(const QString& commandId);
+
+    /// The document of the tab is about to be saved by the command \p commandId (PDFAppCommands::save / saveAs)
+    /// of the user (zadani.md KE.3, zadani_gui.md 4.21): a tool, which is edited and holds unsaved work, asks the
+    /// question of its GUI (PDFDocumentToolGUI::getSaveQuestion; a message box of the window, open - never exec).
+    /// \returns true = the question is open (or was open already and came forward): the caller saves nothing, the
+    /// answer goes on - Cancel nothing; the save choice executes the save without asking again
+    /// (PDFAppDocumentFileCommandHandler::save / saveAs; Save of a document, which has nothing of its own to save -
+    /// PDFAppDocumentSaver::canSave - writes nothing) and the tool stays open; the apply choice confirms the tool
+    /// (confirm(): the usual run with the result dialog) and, when its result is kept in the tab, the page saves
+    /// after the tool has closed (PDFAppToolCloseRequest::saveCommandId) - any other end of the run saves nothing.
+    /// false = nothing to ask, the caller saves.
+    bool requestSaveQuestion(const QString& commandId);
+
+    /// requestSaveQuestion would ask now: the tool is edited (not retired), it holds unsaved work (hasUnsavedWork)
+    /// and its GUI has a question (PDFDocumentToolGUI::getSaveQuestion is valid). The handler of Save enables the
+    /// command by it also for a document without changes of its own (PDFAppPage::hasSaveQuestion). No side effects;
+    /// when the value changes, the shell refreshes the actions of the window (updateSaveQuestionState).
+    bool hasSaveQuestion() const;
+
+    /// The open question of requestSaveQuestion (nullptr = none)
+    PDFMessageBox* getSaveQuestion() const { return m_saveQuestion.data(); }
+
+    /// The automatic refresh does not reload the document of the tab from its changed file now: the GUI holds work,
+    /// which belongs to the version of the document it was made on (PDFDocumentToolGUI::isDocumentReloadDeferred;
+    /// Edit Content, zadani_gui.md 4.21; R3-6). false before enter, after close, when retired and for a GUI without
+    /// the hook (every tool but Edit Content). No side effects; PDFAppToolDocumentPage passes it on.
+    bool isDocumentReloadDeferred() const;
+
+    /// The save, which follows a result kept in the tab (the apply choice of the save question); empty = none
+    const QString& getSaveAfterResultCommandId() const { return m_saveAfterResultCommandId; }
 
     /// The tab leaves the tool by a navigation (F14), its close or the close of the window (A0: without a nested
     /// event loop, a step of \p flow). A run asks as close-running: Stop and Leave = Done (the caller stops the run),
@@ -705,6 +754,42 @@ private:
     QPointer<PDFAppToolParameterModel> m_model;
     QPointer<PDFDocumentToolRunner> m_runner;
     QPointer<PDFAppToolCompositeUndoTarget> m_undoTarget;  ///< A child (PDFDocumentToolGUI::hasDocumentUndoSteps), nullptr = the model is the target
+    QPointer<PDFAppToolUndoTarget> m_ownUndoTarget;         ///< Not owned: PDFDocumentToolGUI::getOwnUndoTarget (the GUI's), nullptr = none
+    QPointer<PDFMessageBox> m_saveQuestion;                 ///< The open question of requestSaveQuestion (new, WA_DeleteOnClose, owned logically by the shell)
+    QString m_saveQuestionCommandId;                        ///< The command the open question was asked for
+    QString m_saveAfterResultCommandId;                     ///< The apply choice of the save question: the save after a result kept in the tab
+
+    /// The buttons of the save question (the answer is the last call: the save and the run execute foreign code)
+    void onSaveQuestionSaveClicked();
+    void onSaveQuestionApplyClicked();
+
+    /// PDFDocumentToolGUI::documentCommandStatesChanged: the actions of the window follow
+    void onDocumentCommandStatesChanged();
+
+    /// The state of a command by the GUI alone (NotHandled for Undo and Redo, which the GUI is never asked about)
+    PDFAppToolCommandState getGUICommandState(const QString& commandId) const;
+
+    /// The GUI takes a command of the application at all: it answers Enabled or Disabled for a command of the
+    /// registry of the context (bounded by the registry, about 150 commands; no side effects)
+    bool hasDocumentCommands() const;
+
+    /// Remembers hasSaveQuestion. \returns the value has changed since the last call
+    bool rememberSaveQuestion();
+
+    /// The work of the user may have changed (the Primary button, the status, a parameter): when hasSaveQuestion
+    /// has another value than the last time, the command states of the tab are refreshed (Save of a document
+    /// without changes follows the question). The refresh is the last call: a slot of the tab runs.
+    void updateSaveQuestionState();
+
+    /// The state of the shell has changed (entered, a run, a decision, editing again): the answers of
+    /// getDocumentCommandState and hasSaveQuestion follow it, so the command states of the tab are refreshed for a
+    /// tool, whose GUI takes commands (hasDocumentCommands), or whose save question has come or gone - nothing for
+    /// any other tool. The refresh is the last call: a slot of the tab runs. After the entry it runs from the
+    /// event loop (enter: the page of the tool is the page of its tab only then); a shell closed or retired
+    /// meanwhile refreshes nothing.
+    void refreshDocumentCommands();
+
+    bool m_hadSaveQuestion = false;                         ///< hasSaveQuestion at the last rememberSaveQuestion
 
     QPointer<PDFAppToolToolbar> m_toolbar;
     QPointer<PDFAppToolSidePanel> m_rightPanel;

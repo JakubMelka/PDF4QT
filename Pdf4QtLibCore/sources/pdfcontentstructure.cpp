@@ -41,8 +41,14 @@
 #include "pdfoperationcontrol.h"
 #include "pdfstructuretree.h"   // PDFStructureItem::getTypeFromName only: the names of the standard structure types
 
+#include <QCryptographicHash>
+
 #include <algorithm>
+#include <atomic>
+#include <deque>
+#include <iterator>
 #include <limits>
+#include <tuple>
 
 namespace pdf
 {
@@ -1418,7 +1424,919 @@ public:
         insertChild(model, element, childIndex + 1, child);
         model.m_largestChildContentId[key] = newMcid;
     }
+
+    // -------------------------------------------------------------------------------------------
+    //  Comparison and differences (zadani_jadro.md 4.5: an undo step keeps the difference)
+    // -------------------------------------------------------------------------------------------
+
+    using Difference = PDFContentStructureDifference;
+    using ForeignChildren = std::vector<Model::ForeignChild>;
+
+    static bool isEqualChild(const Child& first, const Child& second)
+    {
+        return first.kind == second.kind && first.element == second.element && first.mcid == second.mcid && first.page == second.page &&
+               first.stream == second.stream && first.streamOwner == second.streamOwner && first.object == second.object;
+    }
+
+    static bool isEqualElement(const Element& first, const Element& second)
+    {
+        return first.id == second.id && first.parent == second.parent && first.reference == second.reference && first.type == second.type &&
+               first.standardType == second.standardType && first.title == second.title && first.alternateText == second.alternateText &&
+               first.actualText == second.actualText && first.expandedText == second.expandedText && first.language == second.language &&
+               first.elementId == second.elementId && first.page == second.page && first.isModified == second.isModified &&
+               std::equal(first.children.cbegin(), first.children.cend(), second.children.cbegin(), second.children.cend(), &PDFContentStructureModelHelper::isEqualChild) &&
+               first.otherEntries == second.otherEntries;
+    }
+
+    static bool isEqualForeignChild(const Model::ForeignChild& first, const Model::ForeignChild& second)
+    {
+        return first.position == second.position && first.key == second.key && first.mcid == second.mcid && first.isElement == second.isElement &&
+               first.object == second.object;
+    }
+
+    /// The foreign children of an element, nullptr for none
+    static const ForeignChildren* getForeignChildren(const Model& model, ElementId id)
+    {
+        auto it = model.m_foreignChildren.find(id);
+        return it != model.m_foreignChildren.end() ? &it->second : nullptr;
+    }
+
+    /// No foreign children and an empty list of them are the same
+    static bool isEqualForeignChildren(const ForeignChildren* first, const ForeignChildren* second)
+    {
+        static const ForeignChildren none;
+        const ForeignChildren& firstChildren = first ? *first : none;
+        const ForeignChildren& secondChildren = second ? *second : none;
+        return std::equal(firstChildren.cbegin(), firstChildren.cend(), secondChildren.cbegin(), secondChildren.cend(), &PDFContentStructureModelHelper::isEqualForeignChild);
+    }
+
+    static bool isEqualParentTreeItem(const ParentTreeItem& first, const ParentTreeItem& second)
+    {
+        return first.kind == second.kind && first.isModified == second.isModified && first.elements == second.elements && first.raw == second.raw;
+    }
+
+    static Difference::ElementState getElementState(const Model& model, ElementId id)
+    {
+        Difference::ElementState state;
+        if (size_t(id) < model.m_elements.size())
+        {
+            state.element = model.m_elements[size_t(id)];
+        }
+        if (const ForeignChildren* foreignChildren = getForeignChildren(model, id))
+        {
+            state.foreignChildren = *foreignChildren;
+        }
+        return state;
+    }
+
+    /// The items of \p first, which are not in \p second
+    static std::set<Model::ContentKey> getSetDifference(const std::set<Model::ContentKey>& first, const std::set<Model::ContentKey>& second)
+    {
+        std::set<Model::ContentKey> result;
+        std::set_difference(first.cbegin(), first.cend(), second.cbegin(), second.cend(), std::inserter(result, result.end()));
+        return result;
+    }
+
+    /// The items of \p contents, which are in \p set
+    static std::set<Model::ContentKey> getIntersection(const std::set<Model::ContentKey>& contents, const std::set<Model::ContentKey>& set)
+    {
+        std::set<Model::ContentKey> result;
+        std::set_intersection(contents.cbegin(), contents.cend(), set.cbegin(), set.cend(), std::inserter(result, result.end()));
+        return result;
+    }
+
+    /// The parts, in which the two models differ, as they are in each of them. One pass over the
+    /// model (applied copies the whole model anyway); the difference holds only what differs.
+    static void computeDifference(const Model& before, const Model& after, Difference& difference)
+    {
+        difference = Difference();
+
+        // Elements with their foreign children (the keys of the foreign children are elements)
+        const size_t elementCount = qMax(before.m_elements.size(), after.m_elements.size());
+        for (size_t i = 0; i < elementCount; ++i)
+        {
+            const ElementId id = ElementId(i);
+            const bool isElementEqual = i < before.m_elements.size() && i < after.m_elements.size() && isEqualElement(before.m_elements[i], after.m_elements[i]);
+            if (!isElementEqual || !isEqualForeignChildren(getForeignChildren(before, id), getForeignChildren(after, id)))
+            {
+                difference.m_before.elements.emplace(id, getElementState(before, id));
+                difference.m_after.elements.emplace(id, getElementState(after, id));
+            }
+        }
+
+        // Items of the parent tree
+        for (const auto& item : before.m_parentTree)
+        {
+            auto it = after.m_parentTree.find(item.first);
+            if (it == after.m_parentTree.end() || !isEqualParentTreeItem(item.second, it->second))
+            {
+                difference.m_before.parentTree.emplace(item.first, item.second);
+                difference.m_after.parentTree.emplace(item.first, it != after.m_parentTree.end() ? std::optional<ParentTreeItem>(it->second) : std::nullopt);
+            }
+        }
+        for (const auto& item : after.m_parentTree)
+        {
+            if (!before.m_parentTree.count(item.first))
+            {
+                difference.m_before.parentTree.emplace(item.first, std::nullopt);
+                difference.m_after.parentTree.emplace(item.first, item.second);
+            }
+        }
+
+        // The marked contents, whose membership in a private set differs; each state keeps, which
+        // of them are in its sets
+        for (const std::set<Model::ContentKey>& contents : { getSetDifference(before.m_foreignParentTreeItems, after.m_foreignParentTreeItems),
+                                                             getSetDifference(after.m_foreignParentTreeItems, before.m_foreignParentTreeItems),
+                                                             getSetDifference(before.m_irregularContent, after.m_irregularContent),
+                                                             getSetDifference(after.m_irregularContent, before.m_irregularContent) })
+        {
+            difference.m_touchedContents.insert(contents.cbegin(), contents.cend());
+        }
+        difference.m_before.foreignParentTreeItems = getIntersection(difference.m_touchedContents, before.m_foreignParentTreeItems);
+        difference.m_after.foreignParentTreeItems = getIntersection(difference.m_touchedContents, after.m_foreignParentTreeItems);
+        difference.m_before.irregularContent = getIntersection(difference.m_touchedContents, before.m_irregularContent);
+        difference.m_after.irregularContent = getIntersection(difference.m_touchedContents, after.m_irregularContent);
+
+        // The largest identifiers the children name
+        for (const auto& largest : before.m_largestChildContentId)
+        {
+            auto it = after.m_largestChildContentId.find(largest.first);
+            if (it == after.m_largestChildContentId.end() || it->second != largest.second)
+            {
+                difference.m_before.largestChildContentId.emplace(largest.first, largest.second);
+                difference.m_after.largestChildContentId.emplace(largest.first, it != after.m_largestChildContentId.end() ? std::optional<PDFInteger>(it->second) : std::nullopt);
+            }
+        }
+        for (const auto& largest : after.m_largestChildContentId)
+        {
+            if (!before.m_largestChildContentId.count(largest.first))
+            {
+                difference.m_before.largestChildContentId.emplace(largest.first, std::nullopt);
+                difference.m_after.largestChildContentId.emplace(largest.first, largest.second);
+            }
+        }
+
+        difference.m_before.elementCount = before.m_elements.size();
+        difference.m_after.elementCount = after.m_elements.size();
+        difference.m_before.nextParentTreeKey = before.m_nextParentTreeKey;
+        difference.m_after.nextParentTreeKey = after.m_nextParentTreeKey;
+        difference.m_before.isModified = before.m_isModified;
+        difference.m_after.isModified = after.m_isModified;
+    }
+
+    /// Puts the touched parts of \p state into the model
+    static void applyState(Model& model, const Difference::State& state, const std::set<Model::ContentKey>& touchedContents)
+    {
+        model.m_elements.resize(state.elementCount);
+        for (const auto& elementState : state.elements)
+        {
+            const ElementId id = elementState.first;
+            if (elementState.second.element && size_t(id) < model.m_elements.size())
+            {
+                model.m_elements[size_t(id)] = *elementState.second.element;
+            }
+
+            if (elementState.second.foreignChildren)
+            {
+                model.m_foreignChildren[id] = *elementState.second.foreignChildren;
+            }
+            else
+            {
+                model.m_foreignChildren.erase(id);
+            }
+        }
+
+        for (const auto& item : state.parentTree)
+        {
+            if (item.second)
+            {
+                model.m_parentTree[item.first] = *item.second;
+            }
+            else
+            {
+                model.m_parentTree.erase(item.first);
+            }
+        }
+
+        for (const Model::ContentKey& contentKey : touchedContents)
+        {
+            model.m_foreignParentTreeItems.erase(contentKey);
+            model.m_irregularContent.erase(contentKey);
+        }
+        model.m_foreignParentTreeItems.insert(state.foreignParentTreeItems.cbegin(), state.foreignParentTreeItems.cend());
+        model.m_irregularContent.insert(state.irregularContent.cbegin(), state.irregularContent.cend());
+
+        for (const auto& largest : state.largestChildContentId)
+        {
+            if (largest.second)
+            {
+                model.m_largestChildContentId[largest.first] = *largest.second;
+            }
+            else
+            {
+                model.m_largestChildContentId.erase(largest.first);
+            }
+        }
+
+        model.m_nextParentTreeKey = state.nextParentTreeKey;
+        model.m_isModified = state.isModified;
+    }
+
+    /// Order of the children for a comparison as multisets (every field)
+    static bool isChildLess(const Child& first, const Child& second)
+    {
+        return std::tie(first.kind, first.element, first.mcid, first.page, first.stream, first.streamOwner, first.object) <
+               std::tie(second.kind, second.element, second.mcid, second.page, second.stream, second.streamOwner, second.object);
+    }
+
+    /// The keys of the contents, whose children of the element differ between the two states
+    /// (a child removed or added; a foreign child, which named a content of the key, removed or
+    /// changed). \returns false, when a change cannot be given a key: a child, which is no
+    /// marked content or whose page is not known, a changed entry of the element (a change of
+    /// the structure itself, stage E5), an element, which exists in one state only.
+    static bool getChangedKeys(const Model& model, const Difference::ElementState& before, const Difference::ElementState& after, std::set<PDFInteger>& keys)
+    {
+        if (!before.element || !after.element)
+        {
+            return false;
+        }
+
+        const Element& first = *before.element;
+        const Element& second = *after.element;
+        if (first.id != second.id || first.parent != second.parent || first.reference != second.reference || first.type != second.type ||
+            first.standardType != second.standardType || first.title != second.title || first.alternateText != second.alternateText ||
+            first.actualText != second.actualText || first.expandedText != second.expandedText || first.language != second.language ||
+            first.elementId != second.elementId || first.page != second.page || first.otherEntries != second.otherEntries)
+        {
+            return false;
+        }
+
+        std::vector<Child> firstChildren = first.children;
+        std::vector<Child> secondChildren = second.children;
+        std::sort(firstChildren.begin(), firstChildren.end(), &PDFContentStructureModelHelper::isChildLess);
+        std::sort(secondChildren.begin(), secondChildren.end(), &PDFContentStructureModelHelper::isChildLess);
+        std::vector<Child> changedChildren;
+        std::set_symmetric_difference(firstChildren.cbegin(), firstChildren.cend(), secondChildren.cbegin(), secondChildren.cend(),
+                                      std::back_inserter(changedChildren), &PDFContentStructureModelHelper::isChildLess);
+
+        bool isKnown = true;
+        for (const Child& child : changedChildren)
+        {
+            const PDFInteger key = isContentKind(child) ? getStructuralParentKey(model, first, child) : -1;
+            if (key < 0)
+            {
+                isKnown = false;
+                continue;
+            }
+            keys.insert(key);
+        }
+
+        // The foreign children, which named a content exactly (the only ones a change touches):
+        // the keys of those, which are not in the second state as they were
+        static const ForeignChildren none;
+        const ForeignChildren& firstForeign = before.foreignChildren ? *before.foreignChildren : none;
+        const ForeignChildren& secondForeign = after.foreignChildren ? *after.foreignChildren : none;
+        std::multiset<std::pair<PDFInteger, PDFInteger>> firstContents;
+        std::multiset<std::pair<PDFInteger, PDFInteger>> secondContents;
+        for (const Model::ForeignChild& foreignChild : firstForeign)
+        {
+            firstContents.emplace(foreignChild.key, foreignChild.mcid);
+        }
+        for (const Model::ForeignChild& foreignChild : secondForeign)
+        {
+            secondContents.emplace(foreignChild.key, foreignChild.mcid);
+        }
+        std::vector<std::pair<PDFInteger, PDFInteger>> changedContents;
+        std::set_symmetric_difference(firstContents.cbegin(), firstContents.cend(), secondContents.cbegin(), secondContents.cend(), std::back_inserter(changedContents));
+        for (const auto& content : changedContents)
+        {
+            if (content.first >= 0)
+            {
+                keys.insert(content.first);
+            }
+        }
+
+        return isKnown;
+    }
+
+    static QString getNotSeparableText()
+    {
+        return PDFTranslationContext::tr("A structure element lists tagged content of this page and of another page, and the changes of both are in it: the tags of the page cannot be left out alone. Undo the changes of the tags of the page instead.");
+    }
+
+    static QString getForeignChildrenText()
+    {
+        return PDFTranslationContext::tr("A structure element lists tagged content of this page and of another page together with items the editor does not read, and the changes of both are in it: the tags of the page cannot be left out alone. Undo the changes of the tags of the page instead.");
+    }
+
+    static QString getAmbiguousPlaceText()
+    {
+        return PDFTranslationContext::tr("A structure element lists tagged content of this page between tagged content of another page, which was split and partly deleted there: the place of the tags of this page among the parts is not known, so they cannot be left out alone. Undo the changes of the tags of the page instead.");
+    }
+
+    /// The child without its marked content identifier: a part made by a split is a copy of its
+    /// original with another identifier (splitSequence), so the two are equal in it
+    static Child getChildWithoutIdentifier(Child child)
+    {
+        child.mcid = -1;
+        return child;
+    }
+
+    /// One segment of separateChildren: the children between two children, which both elements
+    /// have (or an end). \p removed are the indices of the original children of the segment,
+    /// which the current element does not have, \p inserted the indices of the current children
+    /// of the segment, which the original does not have (the parts made by splits). The removed
+    /// children of the keys come back at their places, the inserted children of the other keys
+    /// stay. An inserted child is right behind its original (or behind another part of it) when
+    /// it is made: its original is \p previousKept or one of \p removed with the same key, page
+    /// and stream. A restored child goes in front of it, when it is in front of its original.
+    /// \returns false, when the original of an inserted child is not known, or when restored
+    ///          children lie between two children, which can be its original
+    static bool appendSegment(const Model& model,
+                              const Element& element,
+                              const std::vector<Child>& original,
+                              const std::vector<Child>& current,
+                              std::optional<size_t> previousKept,
+                              const std::vector<size_t>& removed,
+                              const std::vector<size_t>& inserted,
+                              const std::set<PDFInteger>& keys,
+                              std::vector<Child>& children,
+                              QString* errorText)
+    {
+        // Indices of the original children, which come back, ascending
+        std::vector<size_t> restored;
+        for (const size_t index : removed)
+        {
+            const PDFInteger key = getStructuralParentKey(model, element, original[index]);
+            if (key < 0)
+            {
+                *errorText = getNotSeparableText();
+                return false;
+            }
+            if (keys.count(key))
+            {
+                restored.push_back(index);
+            }
+        }
+
+        // Indices of the current children, which stay
+        std::vector<size_t> written;
+        for (const size_t index : inserted)
+        {
+            const PDFInteger key = getStructuralParentKey(model, element, current[index]);
+            if (key < 0)
+            {
+                *errorText = getNotSeparableText();
+                return false;
+            }
+            if (!keys.count(key))
+            {
+                written.push_back(index);
+            }
+        }
+
+        if (!restored.empty() && !written.empty())
+        {
+            // The places, where the original of a part can be: the first and the last original
+            // child of the segment (with the kept one in front of it) equal to the part without
+            // the identifier. One map per segment: the cost is linear in its children.
+            std::map<Child, std::pair<size_t, size_t>, bool (*)(const Child&, const Child&)> places(&PDFContentStructureModelHelper::isChildLess);
+            if (previousKept)
+            {
+                places.emplace(getChildWithoutIdentifier(original[*previousKept]), std::make_pair(*previousKept, *previousKept));
+            }
+            for (const size_t index : removed)
+            {
+                auto it = places.emplace(getChildWithoutIdentifier(original[index]), std::make_pair(index, index)).first;
+                it->second.second = index;
+            }
+
+            size_t restoredCount = 0;
+            for (const size_t index : written)
+            {
+                auto it = places.find(getChildWithoutIdentifier(current[index]));
+                if (it == places.end())
+                {
+                    *errorText = getNotSeparableText();
+                    return false;
+                }
+
+                // The restored children in front of the first and in front of the last possible
+                // original: one number, else the place is not known; never less than the restored
+                // children already in front of an earlier part (the order of /K)
+                const size_t inFrontOfFirst = size_t(std::lower_bound(restored.cbegin(), restored.cend(), it->second.first) - restored.cbegin());
+                const size_t inFrontOfLast = size_t(std::lower_bound(restored.cbegin(), restored.cend(), it->second.second) - restored.cbegin());
+                if (inFrontOfFirst != inFrontOfLast || inFrontOfFirst < restoredCount)
+                {
+                    *errorText = getAmbiguousPlaceText();
+                    return false;
+                }
+
+                for (; restoredCount < inFrontOfFirst; ++restoredCount)
+                {
+                    children.push_back(original[restored[restoredCount]]);
+                }
+                children.push_back(current[index]);
+            }
+
+            for (; restoredCount < restored.size(); ++restoredCount)
+            {
+                children.push_back(original[restored[restoredCount]]);
+            }
+            return true;
+        }
+
+        for (const size_t index : written)
+        {
+            children.push_back(current[index]);
+        }
+        for (const size_t index : restored)
+        {
+            children.push_back(original[index]);
+        }
+        return true;
+    }
+
+    /// The children of an element, whose children of the keys and of other keys changed, without
+    /// the changes of the keys (review R2-3: a paragraph across a page break, one page skipped).
+    /// The changes of the model are removals of children and parts of splits inserted right
+    /// behind their originals: the children the two elements have are in the same order, the
+    /// removed ones of the keys come back at their places, the inserted ones of the keys go, the
+    /// rest is as it is now. Linear in the children (a map per segment, logarithmic lookups).
+    /// \param model The model (the keys of the children)
+    /// \param before The element in the original (getChangedKeys has returned true for the pair)
+    /// \param after The element now
+    /// \param keys The keys left out
+    /// \param[out] children The children without the changes of the keys
+    /// \param[out] errorText Why they cannot be separated: an element with foreign children (their
+    ///             places among the children are not separated), a child, whose page is not
+    ///             known, children, whose order changed, a part of a split, whose original is not
+    ///             known or whose place among the restored children is not (appendSegment)
+    static bool separateChildren(const Model& model,
+                                 const Difference::ElementState& before,
+                                 const Difference::ElementState& after,
+                                 const std::set<PDFInteger>& keys,
+                                 std::vector<Child>& children,
+                                 QString* errorText)
+    {
+        if ((before.foreignChildren && !before.foreignChildren->empty()) || (after.foreignChildren && !after.foreignChildren->empty()))
+        {
+            *errorText = getForeignChildrenText();
+            return false;
+        }
+
+        const Element& element = *before.element;
+        const std::vector<Child>& original = before.element->children;
+        const std::vector<Child>& current = after.element->children;
+
+        std::vector<Child> sortedOriginal = original;
+        std::sort(sortedOriginal.begin(), sortedOriginal.end(), &PDFContentStructureModelHelper::isChildLess);
+
+        children.clear();
+        children.reserve(original.size() + current.size());
+
+        std::optional<size_t> previousKept;
+        std::vector<size_t> removed;
+        std::vector<size_t> inserted;
+        size_t originalIndex = 0;
+        for (size_t i = 0; i < current.size(); ++i)
+        {
+            const Child& child = current[i];
+            if (!std::binary_search(sortedOriginal.cbegin(), sortedOriginal.cend(), child, &PDFContentStructureModelHelper::isChildLess))
+            {
+                inserted.push_back(i);
+                continue;
+            }
+
+            // A child of both: the original children in front of it are removed
+            while (originalIndex < original.size() && !isEqualChild(original[originalIndex], child))
+            {
+                removed.push_back(originalIndex++);
+            }
+            if (originalIndex == original.size())
+            {
+                // Not in the original behind the previous one: the order changed (no change of
+                // the model does it)
+                *errorText = getNotSeparableText();
+                return false;
+            }
+
+            if (!appendSegment(model, element, original, current, previousKept, removed, inserted, keys, children, errorText))
+            {
+                return false;
+            }
+            children.push_back(child);
+            previousKept = originalIndex++;
+            removed.clear();
+            inserted.clear();
+        }
+
+        for (; originalIndex < original.size(); ++originalIndex)
+        {
+            removed.push_back(originalIndex);
+        }
+        return appendSegment(model, element, original, current, previousKept, removed, inserted, keys, children, errorText);
+    }
+
+    /// PDFContentStructureModel::withoutChangesOfKeys
+    static PDFContentStructureModelPointer withoutChangesOfKeys(const Model& current, const Model& original, const std::set<PDFInteger>& keys, QString* errorText)
+    {
+        std::shared_ptr<Model> model = std::make_shared<Model>(current);
+        Difference difference;
+        computeDifference(original, current, difference);
+        if (keys.empty() || difference.isEmpty())
+        {
+            return model;
+        }
+
+        if (original.m_elements.size() != current.m_elements.size())
+        {
+            if (errorText)
+            {
+                *errorText = getNotSeparableText();
+            }
+            return nullptr;
+        }
+
+        // Does a key of the contents left out have a change at all
+        bool isKeyChanged = false;
+        for (const auto& item : difference.m_before.parentTree)
+        {
+            isKeyChanged = isKeyChanged || keys.count(item.first);
+        }
+        for (const Model::ContentKey& contentKey : difference.m_touchedContents)
+        {
+            isKeyChanged = isKeyChanged || keys.count(contentKey.first);
+        }
+
+        // The elements: each one goes back to the original, when its changes are all of the keys;
+        // an element with changes of the keys and of other keys is separated child by child
+        std::vector<ElementId> restoredElements;
+        std::vector<std::pair<ElementId, std::vector<Child>>> separatedElements;
+        for (const auto& elementState : difference.m_before.elements)
+        {
+            const ElementId id = elementState.first;
+            const Difference::ElementState& afterState = difference.m_after.elements.at(id);
+            std::set<PDFInteger> changedKeys;
+            const bool isKnown = getChangedKeys(current, elementState.second, afterState, changedKeys);
+
+            bool isOfKeys = false;
+            bool isOfOthers = !isKnown;
+            for (const PDFInteger key : changedKeys)
+            {
+                const bool isLeftOut = keys.count(key) > 0;
+                isOfKeys = isOfKeys || isLeftOut;
+                isOfOthers = isOfOthers || !isLeftOut;
+            }
+            isKeyChanged = isKeyChanged || isOfKeys;
+
+            if (isOfKeys && !isOfOthers)
+            {
+                restoredElements.push_back(id);
+            }
+            else if (isOfKeys)
+            {
+                std::vector<Child> children;
+                QString separationError = getNotSeparableText();
+                if (!isKnown || !separateChildren(current, elementState.second, afterState, keys, children, &separationError))
+                {
+                    if (errorText)
+                    {
+                        *errorText = separationError;
+                    }
+                    return nullptr;
+                }
+                separatedElements.emplace_back(id, std::move(children));
+            }
+        }
+
+        if (!isKeyChanged)
+        {
+            return model;
+        }
+
+        // A change, whose content is not known, may be of a key left out
+        for (const auto& elementState : difference.m_before.elements)
+        {
+            std::set<PDFInteger> changedKeys;
+            if (!getChangedKeys(current, elementState.second, difference.m_after.elements.at(elementState.first), changedKeys))
+            {
+                if (errorText)
+                {
+                    *errorText = getNotSeparableText();
+                }
+                return nullptr;
+            }
+        }
+
+        // The model leaves something out: another content, another version
+        model->m_version = Model::allocateVersion();
+
+        for (const ElementId id : restoredElements)
+        {
+            const Difference::ElementState& state = difference.m_before.elements.at(id);
+            model->m_elements[size_t(id)] = *state.element;
+            if (state.foreignChildren)
+            {
+                model->m_foreignChildren[id] = *state.foreignChildren;
+            }
+            else
+            {
+                model->m_foreignChildren.erase(id);
+            }
+        }
+
+        // The separated elements: the entries as they are (the same in both), the children without
+        // the changes of the keys; neither has foreign children (separateChildren). A change of
+        // another key stays in them (a removed child stays removed, a part stays), so they
+        // differ from the document: modified.
+        for (auto& separated : separatedElements)
+        {
+            Element& element = model->m_elements[size_t(separated.first)];
+            element.children = std::move(separated.second);
+            element.isModified = true;
+        }
+
+        for (const auto& item : difference.m_before.parentTree)
+        {
+            if (keys.count(item.first))
+            {
+                if (item.second)
+                {
+                    model->m_parentTree[item.first] = *item.second;
+                }
+                else
+                {
+                    model->m_parentTree.erase(item.first);
+                }
+            }
+        }
+
+        for (const Model::ContentKey& contentKey : difference.m_touchedContents)
+        {
+            if (keys.count(contentKey.first))
+            {
+                model->m_foreignParentTreeItems.erase(contentKey);
+                model->m_irregularContent.erase(contentKey);
+                if (difference.m_before.foreignParentTreeItems.count(contentKey))
+                {
+                    model->m_foreignParentTreeItems.insert(contentKey);
+                }
+                if (difference.m_before.irregularContent.count(contentKey))
+                {
+                    model->m_irregularContent.insert(contentKey);
+                }
+            }
+        }
+
+        for (const auto& largest : difference.m_before.largestChildContentId)
+        {
+            if (keys.count(largest.first))
+            {
+                if (largest.second)
+                {
+                    model->m_largestChildContentId[largest.first] = *largest.second;
+                }
+                else
+                {
+                    model->m_largestChildContentId.erase(largest.first);
+                }
+            }
+        }
+
+        // Modified: something the writer writes differs from the document
+        bool isModified = false;
+        for (const Element& element : model->m_elements)
+        {
+            isModified = isModified || element.isModified;
+        }
+        for (const auto& item : model->m_parentTree)
+        {
+            isModified = isModified || item.second.isModified;
+        }
+        model->m_isModified = isModified;
+        return model;
+    }
+
+    // -------------------------------------------------------------------------------------------
+    //  Fingerprint of the source
+    // -------------------------------------------------------------------------------------------
+
+    /// Most levels of indirect objects the walk of the fingerprint enters: an element and its /K
+    /// array behind a reference are two levels, so twice the depth of the elements and a margin
+    static constexpr int MAXIMUM_FINGERPRINT_DEPTH = 2 * Model::MAXIMUM_DEPTH + Model::MAXIMUM_NUMBER_TREE_DEPTH + 8;
+
+    /// Most levels of direct objects hashed inside one object (deeper ones are one marker)
+    static constexpr int MAXIMUM_HASHED_NESTING = 128;
+
+    /// State of one computation of the fingerprint
+    struct FingerprintWalk
+    {
+        explicit FingerprintWalk(const PDFObjectStorage* storage) :
+            storage(storage),
+            hash(QCryptographicHash::Sha256),
+            walk(MAXIMUM_FINGERPRINT_DEPTH)
+        {
+
+        }
+
+        const PDFObjectStorage* storage;
+        QCryptographicHash hash;
+        PDFObjectWalk walk;                                         ///< The one visited set of the walk
+        std::deque<std::pair<PDFObjectReference, int>> pending;     ///< Entered objects to hash, with their depth
+        std::set<PDFObjectReference> owners;                        ///< /Pg and /Stm: pages and streams, whose /StructParents counts
+    };
+
+    static void hashInteger(QCryptographicHash& hash, qint64 value)
+    {
+        // The bytes of the number in a fixed order, whatever the machine
+        char bytes[8];
+        quint64 unsignedValue = quint64(value);
+        for (char& byte : bytes)
+        {
+            byte = char(unsignedValue & 0xFF);
+            unsignedValue >>= 8;
+        }
+        hash.addData(QByteArrayView(bytes, sizeof(bytes)));
+    }
+
+    static void hashBytes(QCryptographicHash& hash, const QByteArray& bytes)
+    {
+        // The length first: two texts in a row never give the bytes of two other texts
+        hashInteger(hash, bytes.size());
+        hash.addData(QByteArrayView(bytes));
+    }
+
+    static void hashReference(QCryptographicHash& hash, PDFObjectReference reference)
+    {
+        hash.addData(QByteArrayView("R"));
+        hashInteger(hash, reference.objectNumber);
+        hashInteger(hash, reference.generation);
+    }
+
+    /// A key, whose reference leads out of the structure (a page, a content stream, an annotation
+    /// or another object of the page): the reference is hashed, the object is not entered
+    static bool isLeavingKey(const PDFInplaceOrMemoryString& key)
+    {
+        return key == "Pg" || key == "Stm" || key == "StmOwn" || key == "Obj";
+    }
+
+    /// Hashes a value; the references it holds are entered into the walk (\p isFollowed), the
+    /// pages and streams of /Pg and /Stm are collected for their /StructParents
+    static void hashValue(FingerprintWalk& walk, const PDFObject& object, int depth, int nesting, bool isFollowed)
+    {
+        QCryptographicHash& hash = walk.hash;
+        if (nesting > MAXIMUM_HASHED_NESTING)
+        {
+            hash.addData(QByteArrayView("?"));
+            return;
+        }
+
+        switch (object.getType())
+        {
+            case PDFObject::Type::Null:
+                hash.addData(QByteArrayView("N"));
+                break;
+
+            case PDFObject::Type::Bool:
+                hash.addData(QByteArrayView(object.getBool() ? "T" : "F"));
+                break;
+
+            case PDFObject::Type::Int:
+                hash.addData(QByteArrayView("I"));
+                hashInteger(hash, object.getInteger());
+                break;
+
+            case PDFObject::Type::Real:
+                hash.addData(QByteArrayView("D"));
+                hashBytes(hash, QByteArray::number(object.getReal(), 'g', 17));
+                break;
+
+            case PDFObject::Type::String:
+                hash.addData(QByteArrayView("S"));
+                hashBytes(hash, object.getString());
+                break;
+
+            case PDFObject::Type::Name:
+                hash.addData(QByteArrayView("/"));
+                hashBytes(hash, object.getString());
+                break;
+
+            case PDFObject::Type::Array:
+            {
+                const PDFArray* array = object.getArray();
+                hash.addData(QByteArrayView("["));
+                hashInteger(hash, qint64(array->getCount()));
+                for (size_t i = 0; i < array->getCount(); ++i)
+                {
+                    hashValue(walk, array->getItem(i), depth, nesting + 1, isFollowed);
+                }
+                break;
+            }
+
+            case PDFObject::Type::Dictionary:
+            case PDFObject::Type::Stream:
+            {
+                // The dictionary of a stream: its data are no part of the structure
+                const PDFDictionary* dictionary = object.isStream() ? object.getStream()->getDictionary() : object.getDictionary();
+                hash.addData(QByteArrayView(object.isStream() ? "s" : "<"));
+                hashInteger(hash, qint64(dictionary->getCount()));
+                for (size_t i = 0; i < dictionary->getCount(); ++i)
+                {
+                    const PDFInplaceOrMemoryString& key = dictionary->getKey(i);
+                    const PDFObject& value = dictionary->getValue(i);
+                    hashBytes(hash, key.getString());
+
+                    const bool isLeaving = isLeavingKey(key);
+                    if (isLeaving && value.isReference() && (key == "Pg" || key == "Stm"))
+                    {
+                        walk.owners.insert(value.getReference());
+                    }
+                    hashValue(walk, value, depth, nesting + 1, isFollowed && !isLeaving);
+                }
+                break;
+            }
+
+            case PDFObject::Type::Reference:
+            {
+                const PDFObjectReference reference = object.getReference();
+                hashReference(hash, reference);
+                if (isFollowed && walk.walk.enterReference(reference, depth + 1))
+                {
+                    walk.pending.emplace_back(reference, depth + 1);
+                }
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    /// The fingerprint of computeSourceFingerprint; an empty array, when it was canceled
+    static QByteArray computeSourceFingerprint(const PDFDocument* document, const PDFOperationControl* control)
+    {
+        if (PDFOperationControl::isOperationCanceled(control))
+        {
+            return QByteArray();
+        }
+
+        const PDFObjectStorage* storage = document ? &document->getStorage() : nullptr;
+        FingerprintWalk walk(storage);
+        walk.hash.addData(QByteArrayView("PDF4QT structure fingerprint 1"));
+
+        const PDFDictionary* trailer = storage ? storage->getDictionaryFromObject(storage->getTrailerDictionary()) : nullptr;
+        const PDFDictionary* catalog = trailer ? storage->getDictionaryFromObject(trailer->get("Root")) : nullptr;
+        if (!catalog)
+        {
+            walk.hash.addData(QByteArrayView("no catalog"));
+            return walk.hash.result();
+        }
+
+        // The value of the entry, then every object reachable from it in the breadth first order
+        // (the same document gives the same order), except through the keys, which leave the
+        // structure; each object once
+        walk.hash.addData(QByteArrayView("root"));
+        hashValue(walk, catalog->get("StructTreeRoot"), 0, 0, true);
+
+        while (!walk.pending.empty())
+        {
+            if (PDFOperationControl::isOperationCanceled(control))
+            {
+                return QByteArray();
+            }
+
+            const PDFObjectReference reference = walk.pending.front().first;
+            const int depth = walk.pending.front().second;
+            walk.pending.pop_front();
+
+            walk.hash.addData(QByteArrayView("object"));
+            hashReference(walk.hash, reference);
+            hashValue(walk, storage->getObject(reference), depth, 0, true);
+        }
+
+        // /StructParents of the pages and streams (Table 359): it gives the key of their content
+        walk.hash.addData(QByteArrayView("owners"));
+        hashInteger(walk.hash, qint64(walk.owners.size()));
+        for (const PDFObjectReference& owner : walk.owners)
+        {
+            hashReference(walk.hash, owner);
+            const PDFDictionary* dictionary = storage->getDictionaryFromObject(storage->getObject(owner));
+            hashValue(walk, dictionary ? storage->getObject(dictionary->get("StructParents")) : PDFObject(), 0, 0, false);
+        }
+
+        // A walk stopped by its limits is a fingerprint of its own
+        hashInteger(walk.hash, walk.walk.isLimitReached() ? 1 : 0);
+        return walk.hash.result();
+    }
 };
+
+quint64 PDFContentStructureModel::allocateVersion()
+{
+    static std::atomic<quint64> counter{ 0 };
+    return ++counter;
+}
 
 PDFContentStructureModelPointer PDFContentStructureModel::read(const PDFDocument* document, const PDFOperationControl* control)
 {
@@ -1429,6 +2347,14 @@ PDFContentStructureModelPointer PDFContentStructureModel::read(const PDFDocument
 
     std::shared_ptr<PDFContentStructureModel> model = std::make_shared<PDFContentStructureModel>();
     if (document && !PDFContentStructureModelHelper::read(document, control, *model))
+    {
+        return nullptr;
+    }
+
+    // A walk of its own over the same objects (the reading does not hash what it reads): the
+    // fingerprint is defined once, by computeSourceFingerprint
+    model->m_sourceFingerprint = PDFContentStructureModelHelper::computeSourceFingerprint(document, control);
+    if (model->m_sourceFingerprint.isEmpty())
     {
         return nullptr;
     }
@@ -1613,6 +2539,11 @@ PDFContentStructureChange PDFContentStructureModel::getChangeForReorder(PDFInteg
 
 PDFContentStructureModelPointer PDFContentStructureModel::applied(const std::vector<PDFContentStructureChange>& changes) const
 {
+    return applied(changes, nullptr);
+}
+
+PDFContentStructureModelPointer PDFContentStructureModel::applied(const std::vector<PDFContentStructureChange>& changes, PDFContentStructureDifference* difference) const
+{
     std::shared_ptr<PDFContentStructureModel> model = std::make_shared<PDFContentStructureModel>(*this);
 
     // The children of the removed sequences are removed together, before a split looks for its
@@ -1642,12 +2573,134 @@ PDFContentStructureModelPointer PDFContentStructureModel::applied(const std::vec
     }
 
     PDFContentStructureModelHelper::applyRemovals(*model, removals);
+
+    // A new version, also when nothing changed (a model made by applied is a version of its own)
+    model->m_version = allocateVersion();
+
+    if (difference)
+    {
+        PDFContentStructureModelHelper::computeDifference(*this, *model, *difference);
+        difference->m_versionBefore = m_version;
+        difference->m_versionAfter = model->m_version;
+    }
+
     return model;
+}
+
+PDFContentStructureModelPointer PDFContentStructureModel::reverted(const PDFContentStructureDifference& difference) const
+{
+    if (m_elements.size() != difference.m_after.elementCount)
+    {
+        return nullptr;
+    }
+
+    std::shared_ptr<PDFContentStructureModel> model = std::make_shared<PDFContentStructureModel>(*this);
+    PDFContentStructureModelHelper::applyState(*model, difference.m_before, difference.m_touchedContents);
+    // The version it reproduces (a difference, which applied did not make, has none: a new one)
+    model->m_version = (difference.m_versionBefore != 0) ? difference.m_versionBefore : allocateVersion();
+    return model;
+}
+
+PDFContentStructureModelPointer PDFContentStructureModel::reapplied(const PDFContentStructureDifference& difference) const
+{
+    if (m_elements.size() != difference.m_before.elementCount)
+    {
+        return nullptr;
+    }
+
+    std::shared_ptr<PDFContentStructureModel> model = std::make_shared<PDFContentStructureModel>(*this);
+    PDFContentStructureModelHelper::applyState(*model, difference.m_after, difference.m_touchedContents);
+    model->m_version = (difference.m_versionAfter != 0) ? difference.m_versionAfter : allocateVersion();
+    return model;
+}
+
+bool PDFContentStructureModel::isEqual(const PDFContentStructureModel& other) const
+{
+    using Helper = PDFContentStructureModelHelper;
+
+    if (m_elements.size() != other.m_elements.size() || m_parentTree.size() != other.m_parentTree.size() ||
+        m_nextParentTreeKey != other.m_nextParentTreeKey || m_issues != other.m_issues || m_structureTreeRoot != other.m_structureTreeRoot ||
+        m_isModified != other.m_isModified || m_isComplete != other.m_isComplete || m_singleChildElements != other.m_singleChildElements ||
+        m_foreignParentTreeItems != other.m_foreignParentTreeItems || m_structuralParentKeys != other.m_structuralParentKeys ||
+        m_irregularContent != other.m_irregularContent || m_largestChildContentId != other.m_largestChildContentId ||
+        m_sourceFingerprint != other.m_sourceFingerprint)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < m_elements.size(); ++i)
+    {
+        const PDFContentStructureElementId id = PDFContentStructureElementId(i);
+        if (!Helper::isEqualElement(m_elements[i], other.m_elements[i]) ||
+            !Helper::isEqualForeignChildren(Helper::getForeignChildren(*this, id), Helper::getForeignChildren(other, id)))
+        {
+            return false;
+        }
+    }
+
+    // A foreign child of an identifier, which is no element (never made by the reading)
+    for (const auto& foreignChildren : m_foreignChildren)
+    {
+        if (size_t(foreignChildren.first) >= m_elements.size() && !Helper::isEqualForeignChildren(&foreignChildren.second, Helper::getForeignChildren(other, foreignChildren.first)))
+        {
+            return false;
+        }
+    }
+    for (const auto& foreignChildren : other.m_foreignChildren)
+    {
+        if (size_t(foreignChildren.first) >= m_elements.size() && !Helper::isEqualForeignChildren(Helper::getForeignChildren(*this, foreignChildren.first), &foreignChildren.second))
+        {
+            return false;
+        }
+    }
+
+    auto itOther = other.m_parentTree.cbegin();
+    for (const auto& item : m_parentTree)
+    {
+        if (item.first != itOther->first || !Helper::isEqualParentTreeItem(item.second, itOther->second))
+        {
+            return false;
+        }
+        ++itOther;
+    }
+
+    return true;
+}
+
+PDFContentStructureModelPointer PDFContentStructureModel::withoutChangesOfKeys(const PDFContentStructureModel& original, const std::set<PDFInteger>& structuralParentKeys, QString* errorText) const
+{
+    return PDFContentStructureModelHelper::withoutChangesOfKeys(*this, original, structuralParentKeys, errorText);
 }
 
 bool PDFContentStructureModel::isModified() const
 {
     return m_isModified;
+}
+
+const QByteArray& PDFContentStructureModel::getSourceFingerprint() const
+{
+    return m_sourceFingerprint;
+}
+
+QByteArray PDFContentStructureModel::computeSourceFingerprint(const PDFDocument* document, const PDFOperationControl* control)
+{
+    return PDFContentStructureModelHelper::computeSourceFingerprint(document, control);
+}
+
+bool PDFContentStructureDifference::isEmpty() const
+{
+    return m_before.elements.empty() && m_before.parentTree.empty() && m_touchedContents.empty() && m_before.largestChildContentId.empty() &&
+           m_before.elementCount == m_after.elementCount && m_before.nextParentTreeKey == m_after.nextParentTreeKey && m_before.isModified == m_after.isModified;
+}
+
+size_t PDFContentStructureDifference::getElementCount() const
+{
+    return m_before.elements.size();
+}
+
+size_t PDFContentStructureDifference::getParentTreeItemCount() const
+{
+    return m_before.parentTree.size();
 }
 
 }   // namespace pdf

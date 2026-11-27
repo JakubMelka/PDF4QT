@@ -470,6 +470,42 @@ set_target_properties(UnitTestsContentRoundTrip PROPERTIES
 add_test(UnitTestsContentRoundTrip  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentRoundTrip")
 set_tests_properties(UnitTestsContentRoundTrip PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Edit Content, stage E1, package P13, the core: Align, Distribute, Match size (pdfcontentarrange.*)
+add_executable(UnitTestsContentArrange
+	tst_contentarrangetest.cpp
+)
+
+target_link_libraries(UnitTestsContentArrange PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentArrange REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentArrange PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentArrange  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentArrange")
+set_tests_properties(UnitTestsContentArrange PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Edit Content, stage E1, package P10: the display queries of the core (pdfcontentdisplay.*)
+add_executable(UnitTestsContentDisplay
+	tst_contentdisplaytest.cpp
+)
+
+target_link_libraries(UnitTestsContentDisplay PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentDisplay REUSE_FROM UnitTestsPchCore)
+
+set_target_properties(UnitTestsContentDisplay PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsContentDisplay  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsContentDisplay")
+set_tests_properties(UnitTestsContentDisplay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(UnitTestsMeasure
 	tst_measuretest.cpp
 )
@@ -1184,6 +1220,43 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsAppToolShell "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolShell")
     set_tests_properties(UnitTestsAppToolShell PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # The hooks of a tool with its own model and canvas (Edit Content, stage E1): the own undo target, the routed
+    # commands of the document, the save question, the buttons of the panel builder, the priority of the labels of
+    # the toolbar and the image filter of the file dialogs; the precompiled header of the root fixture
+    add_executable(UnitTestsAppToolHooks
+        tst_apptoolhookstest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolHooks PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolHooks REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolHooks PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolHooks "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolHooks")
+    set_tests_properties(UnitTestsAppToolHooks PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Edit Content, stage E1 (zadani.md 11.3): the real code of the skeleton (AppToolContentSkeleton) and one program
+    # per package - P11 the canvas (AppToolContentCanvas), P12 the tabs (AppToolContentPanels), P13 the cards
+    # (AppToolContentCards), P14 the GUI of the tool (AppToolContent); the precompiled header of the root fixture
+    foreach(PDF4QT_CONTENT_APP_TEST AppToolContentSkeleton AppToolContentCanvas AppToolContentPanels AppToolContentCards AppToolContent)
+        string(TOLOWER "${PDF4QT_CONTENT_APP_TEST}" PDF4QT_CONTENT_APP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_CONTENT_APP_TEST}
+            tst_${PDF4QT_CONTENT_APP_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_CONTENT_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_CONTENT_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_CONTENT_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_CONTENT_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_CONTENT_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_CONTENT_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
     # The generic lifetime test of the tools in a document tab: the scenarios of the test
     # tool, the next waves add the scenarios of their tools (step 3a of phase 2: each package
     # in its own file apptoolpageslifetime_<package>.cpp)
@@ -1207,6 +1280,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_review_b.cpp
         apptoolpageslifetime_review_c_compare.cpp
         apptoolpageslifetime_review_c_measure.cpp
+        apptoolpageslifetime_content.cpp
+        apptoolpageslifetime_content_canvas.cpp
+        apptoolpageslifetime_content_panels.cpp
+        apptoolpageslifetime_content_cards.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)

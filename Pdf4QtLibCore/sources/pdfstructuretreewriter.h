@@ -63,6 +63,12 @@ public:
     ///        of the content already in it)
     /// \param model The model
     static PDFStructureTreeWriteResult write(PDFDocumentBuilder* builder, const PDFContentStructureModel& model);
+
+    /// The checks of write without writing: the structure tree root of the catalog of the builder
+    /// is the one of the model, and every modified element is an object of the builder.
+    /// \returns the translated error, which write would give; empty, when write would write the
+    ///          model (or write nothing: an empty or unmodified model)
+    static QString check(const PDFDocumentBuilder* builder, const PDFContentStructureModel& model);
 };
 
 }   // namespace pdf

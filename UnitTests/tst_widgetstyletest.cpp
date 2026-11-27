@@ -48,6 +48,9 @@
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QFocusFrame>
+#include <QGraphicsRectItem>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QMenu>
 #include <QMetaEnum>
 #include <QPainter>
@@ -200,6 +203,11 @@ private slots:
     void labelDataText();
     void comboPopupGeometry();
     void certificateHeader();
+
+    // Edit Content (stage E1): the canvas is a QGraphicsView - its viewport has the
+    // background bg/track, its frame, scroll bars and rubber band are drawn by the
+    // style, no pixel of the leak color in both themes and both cache modes
+    void graphicsView();
 
 private:
     static constexpr const char* CORE_FONTS_VARIABLE = "PDF4QT_WIDGET_STYLE_TEST_CORE_FONTS";
@@ -5088,6 +5096,88 @@ void WidgetStyleTest::certificateHeader()
             QVERIFY2(hasInk, qPrintable(context));
         }
     }
+}
+
+void WidgetStyleTest::graphicsView()
+{
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+
+        for (const QGraphicsView::CacheMode cacheMode : { QGraphicsView::CacheNone, QGraphicsView::CacheBackground })
+        {
+            // A scene larger than the view (both scroll bars), an item with its own brush
+            // (the content of a document is never a color of the theme) in the corner
+            QGraphicsScene scene(0.0, 0.0, 1000.0, 800.0);
+            scene.addRect(QRectF(0.0, 0.0, 40.0, 40.0), QPen(Qt::NoPen), QBrush(QColor(0x20, 0x80, 0x20)));
+
+            QGraphicsView view(&scene);
+            view.setCacheMode(cacheMode);
+            view.setDragMode(QGraphicsView::RubberBandDrag);
+            view.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+            view.resize(300, 200);
+            view.show();
+            QVERIFY(QTest::qWaitForWindowExposed(&view));
+
+            QVERIFY(view.verticalScrollBar()->isVisible());
+            QVERIFY(view.horizontalScrollBar()->isVisible());
+
+            // The corner of the scene with the item at the top left corner of the viewport
+            view.horizontalScrollBar()->setValue(view.horizontalScrollBar()->minimum());
+            view.verticalScrollBar()->setValue(view.verticalScrollBar()->minimum());
+            QApplication::processEvents();
+
+            QImage image = view.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+            QCOMPARE(countLeakPixels(image), 0);
+
+            // The viewport is bg/track (the canvas of Edit Content, zadani_gui.md 4.15), the item keeps its color
+            const QPoint viewportOrigin = view.viewport()->mapTo(&view, QPoint(0, 0));
+            QVERIFY2(isNear(image.pixelColor(viewportOrigin + QPoint(150, 100)), token(Color::BgTrack)),
+                     qPrintable(image.pixelColor(viewportOrigin + QPoint(150, 100)).name(QColor::HexArgb)));
+            QVERIFY(isNear(image.pixelColor(viewportOrigin + QPoint(20, 20)), QColor(0x20, 0x80, 0x20)));
+
+            // The frame of the view is drawn by the style (border/default at the edge, not the leak)
+            QVERIFY(view.frameWidth() > 0);
+            QVERIFY(isNear(image.pixelColor(view.width() / 2, 0), token(Color::BorderDefault)));
+
+            // The rubber band of a drag over the empty area: bg/accent-subtle over bg/track
+            QWidget* viewport = view.viewport();
+            QTest::mousePress(viewport, Qt::LeftButton, Qt::NoModifier, QPoint(100, 60));
+            QMouseEvent move(QEvent::MouseMove, QPointF(200, 150), viewport->mapToGlobal(QPointF(200, 150)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(viewport, &move);
+            QTRY_VERIFY(!view.rubberBandRect().isEmpty());
+
+            image = view.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+            QCOMPARE(countLeakPixels(image), 0);
+            const QColor inside = image.pixelColor(viewportOrigin + QPoint(150, 105));
+            QVERIFY2(isNear(inside, blend(token(Color::BgAccentSubtle), token(Color::BgTrack)), 3), qPrintable(inside.name(QColor::HexArgb)));
+            QVERIFY(isNear(image.pixelColor(viewportOrigin + QPoint(100, 105)), token(Color::BgAccent), 3));
+
+            // QGraphicsView leaves the release unaccepted (QTest would warn)
+            QMouseEvent release(QEvent::MouseButtonRelease, QPointF(200, 150), viewport->mapToGlobal(QPointF(200, 150)), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(viewport, &release);
+            QVERIFY(view.rubberBandRect().isEmpty());
+        }
+    }
+
+    // A change of the theme of a shown view with the cached background takes the new bg/track
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QGraphicsScene scene(0.0, 0.0, 100.0, 100.0);
+    QGraphicsView view(&scene);
+    view.setCacheMode(QGraphicsView::CacheBackground);
+    view.resize(300, 200);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    const QPoint center = view.viewport()->mapTo(&view, view.viewport()->rect().center());
+    const QColor lightTrack = token(Color::BgTrack);
+    QVERIFY(isNear(view.grab().toImage().pixelColor(center), lightTrack));
+
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QApplication::processEvents();
+    QVERIFY(!isNear(token(Color::BgTrack), lightTrack));
+    const QImage dark = view.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+    QCOMPARE(countLeakPixels(dark), 0);
+    QVERIFY2(isNear(dark.pixelColor(center), token(Color::BgTrack)), qPrintable(dark.pixelColor(center).name(QColor::HexArgb)));
 }
 
 QTEST_MAIN(WidgetStyleTest)

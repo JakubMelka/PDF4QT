@@ -107,6 +107,13 @@ private Q_SLOTS:
     void editorBuildsOnce();
     void editorNodeCache();
     void editorManyQueries();
+    void editorStructureQueries();
+    void editorChildrenFollowList();
+    void editorManyChildren();
+    void containerDifference();
+    void containerDifferenceOfMoves();
+    void containerDifferenceOfOperationsAndResources();
+    void containerDifferenceWhichIsNotCompact();
     void containerIsUnchanged();
 
     // Builder: structure
@@ -128,6 +135,11 @@ private Q_SLOTS:
     void contentTail_data();
     void contentTail();
     void appendIndex();
+    void openEnds_data();
+    void openEnds();
+    void effectiveOverride();
+    void colorLimit_data();
+    void colorLimit();
     void unclosedNodes_data();
     void unclosedNodes();
     void unclosedNodesKept();
@@ -167,6 +179,13 @@ private Q_SLOTS:
     void formContainer();
     void formResourcesInherited_data();
     void formResourcesInherited();
+    void formResourcesOfCaller_data();
+    void formResourcesOfCaller();
+    void formResourcesOfCallerInSession();
+    void formFirstUseInSession();
+    void reservedNames();
+    void reservedNamesDepthLimit();
+    void reservedNamesLinear();
     void formInitialState();
     void formCycleAndSharedForm();
     void patternCell();
@@ -178,6 +197,10 @@ private Q_SLOTS:
     // Builder: text (PDFContentTextLayout of package P06)
     void textLayout();
     void textWithoutLayout();
+    void textCompleteAfterUnknownPosition_data();
+    void textCompleteAfterUnknownPosition();
+    void textCompleteAfterPositionOperator_data();
+    void textCompleteAfterPositionOperator();
 
     // Threads and ownership
     void containerOutlivesDocument();
@@ -195,11 +218,19 @@ private:
                                        const PDFContentResolvedStatePointer& initialState = nullptr,
                                        PDFInteger pageIndex = -1,
                                        const PDFOperationControl* control = nullptr,
-                                       PDFProgressSink* progress = nullptr);
+                                       PDFProgressSink* progress = nullptr,
+                                       const PDFObject& callerResources = PDFObject());
     static PDFContentBuildResult buildPage(const PDFDocument& document, bool layoutText = false) { return build(document, pageKey(document), layoutText); }
 
     /// The value of a name in a category of the resources of the page ("XObject", "Fm1")
     static PDFObject pageResource(const PDFDocument& document, const char* category, const char* name);
+
+    /// A page, which draws a form with resources of its own and forms and a pattern without them
+    /// (formResourcesOfCaller, formResourcesOfCallerInSession; documented at the definition)
+    static PDFDocument createCallerResourcesDocument(const QByteArray& innerContent, const QByteArray& deepContent, const QByteArray& cellContent);
+
+    /// /Resources of the form /Outer of createCallerResourcesDocument, as its dictionary has it
+    static PDFObject outerResources(const PDFDocument& document);
 
     static QString describe(const PDFContentNodePointer& node);
     static QString describe(const PDFContentContainerPointer& container) { return container ? describe(container->getRoot()) : QStringLiteral("<no container>"); }
@@ -390,7 +421,8 @@ PDFContentBuildResult ContentTreeTest::build(const PDFDocument& document,
                                              const PDFContentResolvedStatePointer& initialState,
                                              PDFInteger pageIndex,
                                              const PDFOperationControl* control,
-                                             PDFProgressSink* progress)
+                                             PDFProgressSink* progress,
+                                             const PDFObject& callerResources)
 {
     // The caches live only for the call: the container must not need them afterwards
     PDFCMSGeneric cms;
@@ -405,6 +437,7 @@ PDFContentBuildResult ContentTreeTest::build(const PDFDocument& document,
     context.iccProfileCache = &iccProfileCache;
     context.cms = &cms;
     context.pageIndex = pageIndex;
+    context.callerResources = callerResources;
 
     PDFContentBuildOptions options;
     options.layoutText = layoutText;
@@ -417,6 +450,76 @@ PDFObject ContentTreeTest::pageResource(const PDFDocument& document, const char*
     const PDFDictionary* resources = document.getDictionaryFromObject(document.getCatalog()->getPage(0)->getResources());
     const PDFDictionary* dictionary = resources ? document.getDictionaryFromObject(resources->get(category)) : nullptr;
     return dictionary ? dictionary->get(name) : PDFObject();
+}
+
+/// The page "/Outer Do /Direct Do" with /ExtGState << /GS1 << /LW 5 >> /GS4 << /LW 3 >> >>,
+/// /ColorSpace << /CsP /DeviceRGB >> and /XObject << /Outer /Direct >>. /Outer has resources of
+/// its own (no /ColorSpace, no /GS4): /ExtGState << /GS1 << /LW 9 >> /GS2
+/// << /LW 7 >> >>, /XObject << /Inner /Deep /Own >>, /Pattern << /P >>, /Shading << /ShO >> (an
+/// axial shading; the page has no /Shading), its content "/Inner Do /Pattern cs /P scn 0 0 10 10
+/// re f". Without /Resources: /Inner (\p innerContent), /Deep (\p deepContent), /Direct
+/// (\p innerContent again, drawn by the page), the colored tiling pattern /P (\p cellContent) and
+/// /Sub "/GS9 gs 0 0 1 1 re S". /Own has resources of its own, /XObject << /Sub >>, and the
+/// content "/Sub Do".
+PDFDocument ContentTreeTest::createCallerResourcesDocument(const QByteArray& innerContent, const QByteArray& deepContent, const QByteArray& cellContent)
+{
+    return Documents::createDocument("/Outer Do /Direct Do", [&](PDFDocumentBuilder* builder)
+    {
+        auto lineWidthState = [](PDFInteger width)
+        {
+            return Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "LW", PDFObject::createInteger(width) } });
+        };
+        auto addForm = [builder](const QByteArray& content, PDFObject resources)
+        {
+            Documents::DictionaryEntries entries = { { "Type", PDFObject::createName("XObject") },
+                                                     { "Subtype", PDFObject::createName("Form") },
+                                                     { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) } };
+            if (!resources.isNull())
+            {
+                entries.emplace_back("Resources", std::move(resources));
+            }
+            return Documents::addStreamObject(builder, std::move(entries), content);
+        };
+
+        PDFObject inner = addForm(innerContent, PDFObject());
+        PDFObject deep = addForm(deepContent, PDFObject());
+        PDFObject direct = addForm(innerContent, PDFObject());
+        PDFObject pattern = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("Pattern") },
+                                                                  { "PatternType", PDFObject::createInteger(1) },
+                                                                  { "PaintType", PDFObject::createInteger(1) },
+                                                                  { "TilingType", PDFObject::createInteger(1) },
+                                                                  { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                                                  { "XStep", PDFObject::createInteger(10) },
+                                                                  { "YStep", PDFObject::createInteger(10) } }, cellContent);
+        PDFObject function = Documents::addObject(builder, Documents::createDictionaryObject({ { "FunctionType", PDFObject::createInteger(2) },
+                                                                                              { "Domain", Documents::createIntegerArrayObject({ 0, 1 }) },
+                                                                                              { "N", PDFObject::createInteger(1) } }));
+        PDFObject shading = Documents::addObject(builder, Documents::createDictionaryObject({ { "ShadingType", PDFObject::createInteger(2) },
+                                                                                             { "ColorSpace", PDFObject::createName("DeviceGray") },
+                                                                                             { "Coords", Documents::createIntegerArrayObject({ 0, 0, 100, 0 }) },
+                                                                                             { "Function", std::move(function) } }));
+
+        PDFObject sub = addForm("/GS9 gs 0 0 1 1 re S", PDFObject());
+        PDFObject own = addForm("/Sub Do", Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Sub", std::move(sub) } }) } }));
+
+        PDFObject outerResources = Documents::createDictionaryObject({ { "ExtGState", Documents::createDictionaryObject({ { "GS1", lineWidthState(9) }, { "GS2", lineWidthState(7) } }) },
+                                                                       { "XObject", Documents::createDictionaryObject({ { "Inner", std::move(inner) }, { "Deep", std::move(deep) }, { "Own", std::move(own) } }) },
+                                                                       { "Pattern", Documents::createDictionaryObject({ { "P", std::move(pattern) } }) },
+                                                                       { "Shading", Documents::createDictionaryObject({ { "ShO", std::move(shading) } }) } });
+        PDFObject outer = addForm("/Inner Do /Pattern cs /P scn 0 0 10 10 re f", std::move(outerResources));
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({ { "GS1", lineWidthState(5) }, { "GS4", lineWidthState(3) } }));
+        resources.addEntry(PDFInplaceOrMemoryString("ColorSpace"), Documents::createDictionaryObject({ { "CsP", PDFObject::createName("DeviceRGB") } }));
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "Outer", std::move(outer) }, { "Direct", std::move(direct) } }));
+        return resources;
+    });
+}
+
+PDFObject ContentTreeTest::outerResources(const PDFDocument& document)
+{
+    const PDFObject& outer = document.getObject(pageResource(document, "XObject", "Outer"));
+    return outer.isStream() ? outer.getStream()->getDictionary()->get("Resources") : PDFObject();
 }
 
 QString ContentTreeTest::describe(const PDFContentNodePointer& node)
@@ -1752,6 +1855,710 @@ void ContentTreeTest::editorManyQueries()
     QVERIFY2(timer.elapsed() <= limit, qPrintable(QString::number(timer.elapsed())));
 }
 
+void ContentTreeTest::editorStructureQueries()
+{
+    // The queries of the editor, which make no node (pdfcontentnode.h: getParentId,
+    // getIndexInParent, getChildCount, getChildId, getNodeData, isClipChangedByChildren): they
+    // answer for the tree as it is after every change.
+    //
+    // Root 1 { Group 2 { Path 3, Image 4 }, MarkedContent 5 { Path 6 (a clipping path), Shading 7 } }
+    const PDFContentNodeId none;
+    const PDFContentNodeId rootId{ 1 };
+    const PDFContentNodeId groupId{ 2 };
+    const PDFContentNodeId pathId{ 3 };
+    const PDFContentNodeId imageId{ 4 };
+    const PDFContentNodeId markedId{ 5 };
+    const PDFContentNodeId clipId{ 6 };
+    const PDFContentNodeId shadingId{ 7 };
+
+    PDFContentContainerPointer original;
+    {
+        PDFContentContainerEditor editor(PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0)));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Group, 2), rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 3), groupId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Image, 4), groupId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::MarkedContent, 5), rootId, -1));
+
+        PDFContentNode::Data clip = nodeData(PDFContentNodeKind::Path, 6);
+        clip.hasClipEffect = true;
+        QVERIFY(editor.insertNode(clip, markedId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Shading, 7), markedId, -1));
+
+        // The editor of a new container answers too
+        QVERIFY(editor.getParentId(clipId) == markedId);
+        QCOMPARE(editor.getIndexInParent(shadingId), PDFInteger(1));
+        QVERIFY(editor.isClipChangedByChildren(markedId));
+        original = editor.build();
+
+        // After build() every query answers as for an unknown node
+        QVERIFY(editor.getParentId(clipId) == none);
+        QCOMPARE(editor.getIndexInParent(shadingId), PDFInteger(-1));
+        QCOMPARE(editor.getChildCount(rootId), PDFInteger(0));
+        QVERIFY(editor.getChildId(rootId, 0) == none);
+        QVERIFY(editor.getNodeData(rootId) == nullptr);
+        QVERIFY(!editor.isClipChangedByChildren(markedId));
+    }
+
+    PDFContentContainerEditor editor(original);
+
+    // The tree of the container
+    QVERIFY(editor.getParentId(rootId) == none);
+    QVERIFY(editor.getParentId(groupId) == rootId);
+    QVERIFY(editor.getParentId(imageId) == groupId);
+    QCOMPARE(editor.getIndexInParent(rootId), PDFInteger(-1));
+    QCOMPARE(editor.getIndexInParent(groupId), PDFInteger(0));
+    QCOMPARE(editor.getIndexInParent(markedId), PDFInteger(1));
+    QCOMPARE(editor.getIndexInParent(imageId), PDFInteger(1));
+    QCOMPARE(editor.getChildCount(rootId), PDFInteger(2));
+    QCOMPARE(editor.getChildCount(groupId), PDFInteger(2));
+    QCOMPARE(editor.getChildCount(pathId), PDFInteger(0));
+    QVERIFY(editor.getChildId(rootId, 1) == markedId);
+    QVERIFY(editor.getChildId(groupId, 0) == pathId);
+    QVERIFY(editor.getChildId(groupId, 1) == imageId);
+    QVERIFY(editor.getChildId(groupId, 2) == none);
+    QVERIFY(editor.getChildId(groupId, -1) == none);
+    QVERIFY(editor.getChildId(pathId, 0) == none);
+
+    const PDFContentNode::Data* data = editor.getNodeData(imageId);
+    QVERIFY(data != nullptr);
+    QCOMPARE(data->kind, PDFContentNodeKind::Image);
+    QVERIFY(data->id == imageId);
+    QVERIFY(data->parentId == groupId);
+
+    // An unknown node
+    const PDFContentNodeId unknown{ 99 };
+    QVERIFY(editor.getParentId(unknown) == none);
+    QCOMPARE(editor.getIndexInParent(unknown), PDFInteger(-1));
+    QCOMPARE(editor.getChildCount(unknown), PDFInteger(0));
+    QVERIFY(editor.getChildId(unknown, 0) == none);
+    QVERIFY(editor.getNodeData(unknown) == nullptr);
+    QVERIFY(editor.getNodeData(none) == nullptr);
+    QVERIFY(!editor.isClipChangedByChildren(unknown));
+
+    // The clipping path is a child of the marked content only: the root has a marked content,
+    // whose own data do not say that it changes the clip
+    QVERIFY(editor.isClipChangedByChildren(markedId));
+    QVERIFY(!editor.isClipChangedByChildren(groupId));
+    QVERIFY(!editor.isClipChangedByChildren(rootId));
+    QVERIFY(!editor.isClipChangedByChildren(clipId));
+
+    // The clipping path is removed: no child changes the clip, the shading is the first child
+    QVERIFY(editor.removeNode(clipId));
+    QVERIFY(!editor.isClipChangedByChildren(markedId));
+    QCOMPARE(editor.getChildCount(markedId), PDFInteger(1));
+    QCOMPARE(editor.getIndexInParent(shadingId), PDFInteger(0));
+    QVERIFY(editor.getNodeData(clipId) == nullptr);
+    QCOMPARE(editor.getIndexInParent(clipId), PDFInteger(-1));
+
+    // The leak of a child says that the clip changes
+    PDFContentNode::Data shading = *editor.getNodeData(shadingId);
+    shading.leak.isClipChanged = true;
+    QVERIFY(editor.setNodeData(shadingId, shading));
+    QVERIFY(editor.isClipChangedByChildren(markedId));
+    shading.leak.isClipChanged = false;
+    QVERIFY(editor.setNodeData(shadingId, shading));
+    QVERIFY(!editor.isClipChangedByChildren(markedId));
+
+    // A new first child of the group
+    const PDFContentNodeId newId{ 8 };
+    PDFContentNode::Data newData = nodeData(PDFContentNodeKind::Path, 8);
+    newData.hasClipEffect = true;
+    QVERIFY(editor.insertNode(newData, groupId, 0));
+    QCOMPARE(editor.getChildCount(groupId), PDFInteger(3));
+    QVERIFY(editor.getChildId(groupId, 0) == newId);
+    QCOMPARE(editor.getIndexInParent(pathId), PDFInteger(1));
+    QCOMPARE(editor.getIndexInParent(imageId), PDFInteger(2));
+    QVERIFY(editor.getNodeData(newId)->parentId == groupId);
+    QVERIFY(editor.isClipChangedByChildren(groupId));
+
+    // A move to another parent: the data say the new parent at once; the clip goes with the node
+    QVERIFY(editor.moveNode(newId, markedId, 1));
+    QVERIFY(editor.getParentId(newId) == markedId);
+    QVERIFY(editor.getNodeData(newId)->parentId == markedId);
+    QCOMPARE(editor.getIndexInParent(newId), PDFInteger(1));
+    QCOMPARE(editor.getChildCount(groupId), PDFInteger(2));
+    QCOMPARE(editor.getIndexInParent(pathId), PDFInteger(0));
+    QVERIFY(!editor.isClipChangedByChildren(groupId));
+    QVERIFY(editor.isClipChangedByChildren(markedId));
+
+    // A move, which is refused, changes nothing (an index out of range)
+    QVERIFY(!editor.moveNode(pathId, markedId, 7));
+    QVERIFY(editor.getParentId(pathId) == groupId);
+    QCOMPARE(editor.getIndexInParent(pathId), PDFInteger(0));
+    QCOMPARE(editor.getChildCount(groupId), PDFInteger(2));
+
+    // The nodes the editor makes say the same
+    QCOMPARE(describe(editor.getNode(rootId)), QStringLiteral("Root{Group{Path Image} MarkedContent{Shading Path}}"));
+    const PDFContentContainerPointer changed = editor.build();
+    QCOMPARE(describe(changed), QStringLiteral("Root{Group{Path Image} MarkedContent{Shading Path}}"));
+    QCOMPARE(changed->getIndexInParent(newId), PDFInteger(1));
+    QVERIFY(changed->getNode(newId)->getParentId() == markedId);
+}
+
+void ContentTreeTest::editorChildrenFollowList()
+{
+    // The children of a node of the editor are kept as a balanced tree. Whatever is inserted,
+    // removed and moved, they are the list a plain array gives for the same operations: the
+    // array is the specification here (insertNode puts the node at its index, removeNode takes
+    // it out, moveNode takes it out first and puts it at the index of the children, which are
+    // left). The operations are chosen by a fixed sequence of numbers.
+    const PDFContentNodeId rootId{ 1 };
+    PDFContentContainerEditor editor(PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0)));
+
+    std::vector<quint64> list;
+    quint64 nextId = 10;
+    for (int i = 0; i < 300; ++i)
+    {
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, nextId), rootId, -1));
+        list.push_back(nextId++);
+    }
+
+    quint32 state = 20261127;
+    auto next = [&state](size_t bound)
+    {
+        // A linear congruential generator (the constants of Numerical Recipes)
+        state = state * 1664525u + 1013904223u;
+        return size_t(state >> 8) % bound;
+    };
+
+    auto isSameAsList = [&editor, &list, rootId]()
+    {
+        if (editor.getChildCount(rootId) != PDFInteger(list.size()))
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < list.size(); ++i)
+        {
+            if (editor.getChildId(rootId, PDFInteger(i)).value != list[i] || editor.getIndexInParent(PDFContentNodeId{ list[i] }) != PDFInteger(i))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    QVERIFY(isSameAsList());
+
+    for (int step = 0; step < 4000; ++step)
+    {
+        switch (next(3))
+        {
+            case 0:
+            {
+                const size_t index = next(list.size() + 1);
+                QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, nextId), rootId, PDFInteger(index)));
+                list.insert(list.begin() + index, nextId++);
+                break;
+            }
+
+            case 1:
+            {
+                if (list.size() > 1)
+                {
+                    const size_t index = next(list.size());
+                    QVERIFY(editor.removeNode(PDFContentNodeId{ list[index] }));
+                    list.erase(list.begin() + index);
+                }
+                break;
+            }
+
+            default:
+            {
+                const size_t from = next(list.size());
+                const size_t to = next(list.size());
+                const quint64 id = list[from];
+                QVERIFY(editor.moveNode(PDFContentNodeId{ id }, rootId, PDFInteger(to)));
+                list.erase(list.begin() + from);
+                list.insert(list.begin() + to, id);
+                break;
+            }
+        }
+
+        if (step % 100 == 0)
+        {
+            QVERIFY2(isSameAsList(), qPrintable(QStringLiteral("step %1").arg(step)));
+        }
+    }
+
+    QVERIFY(isSameAsList());
+
+    // The node of the root and the container have the children in the same order
+    const PDFContentNodePointer root = editor.getNode(rootId);
+    QCOMPARE(root->getChildren().size(), list.size());
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        QCOMPARE(root->getChildren()[i]->getId().value, list[i]);
+    }
+
+    const PDFContentContainerPointer container = editor.build();
+    QCOMPARE(container->getNodeCount(), list.size() + 1);
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        QCOMPARE(container->getIndexInParent(PDFContentNodeId{ list[i] }), PDFInteger(i));
+    }
+}
+
+void ContentTreeTest::editorManyChildren()
+{
+    // A parent with 200 000 children (the root of a flat page). The first half is removed child
+    // by child from the front, each one asked for its index before; the second half is moved to
+    // the front one by one. With the children in a plain array every one of these 300 000
+    // steps costs the number of the children (about 3 x 10^10 moved identifiers); with the
+    // order statistic tree it costs their logarithm.
+    constexpr quint64 COUNT = 200000;
+    constexpr quint64 FIRST_ID = 2;
+    const PDFContentNodeId rootId{ 1 };
+
+    PDFContentContainerPointer original;
+    {
+        PDFContentContainerEditor editor(PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0)));
+        for (quint64 i = 0; i < COUNT; ++i)
+        {
+            QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, FIRST_ID + i), rootId, -1));
+        }
+        original = editor.build();
+    }
+    QCOMPARE(original->getNodeCount(), size_t(COUNT + 1));
+
+    QElapsedTimer timer;
+    timer.start();
+    const qint64 limit = timeLimit(5000);
+
+    PDFContentContainerEditor editor(original);
+    for (quint64 i = 0; i < COUNT / 2; ++i)
+    {
+        const PDFContentNodeId id{ FIRST_ID + i };
+        QCOMPARE(editor.getIndexInParent(id), PDFInteger(0));
+        QVERIFY(editor.removeNode(id));
+
+        if (i % 1024 == 0 && timer.elapsed() > limit)
+        {
+            QFAIL(qPrintable(QStringLiteral("Only %1 of %2 children were removed within %3 ms").arg(i).arg(COUNT / 2).arg(limit)));
+        }
+    }
+
+    for (quint64 i = COUNT / 2; i < COUNT; ++i)
+    {
+        QVERIFY(editor.moveNode(PDFContentNodeId{ FIRST_ID + i }, rootId, 0));
+
+        if (i % 1024 == 0 && timer.elapsed() > limit)
+        {
+            QFAIL(qPrintable(QStringLiteral("Only %1 of %2 children were moved within %3 ms").arg(i - COUNT / 2).arg(COUNT / 2).arg(limit)));
+        }
+    }
+
+    // The second half in the reverse order: the last child of the container is the first one,
+    // the first child of the second half is the last one
+    QCOMPARE(editor.getChildCount(rootId), PDFInteger(COUNT / 2));
+    QCOMPARE(editor.getChildId(rootId, 0).value, FIRST_ID + COUNT - 1);
+    QCOMPARE(editor.getChildId(rootId, PDFInteger(COUNT / 2 - 1)).value, FIRST_ID + COUNT / 2);
+    QCOMPARE(editor.getIndexInParent(PDFContentNodeId{ FIRST_ID + COUNT / 2 + 10 }), PDFInteger(COUNT / 2 - 11));
+
+    const PDFContentContainerPointer changed = editor.build();
+    QCOMPARE(changed->getNodeCount(), size_t(COUNT / 2 + 1));
+    QCOMPARE(changed->getRoot()->getChildren().front()->getId().value, FIRST_ID + COUNT - 1);
+    QCOMPARE(changed->getRoot()->getChildren().back()->getId().value, FIRST_ID + COUNT / 2);
+    QVERIFY2(timer.elapsed() <= limit, qPrintable(QString::number(timer.elapsed())));
+}
+
+void ContentTreeTest::containerDifference()
+{
+    // PDFContentContainerDifference: what an undo step keeps of a container instead of its two
+    // versions (zadani_jadro.md 4.5: a command holds the difference, not a snapshot).
+    //
+    // Root 1 { Path 2, Group 3 { Path 4, Path 5, Path 6 }, Path 7, Path 8 }
+    const PDFContentNodeId rootId{ 1 };
+    const PDFContentNodeId groupId{ 3 };
+    auto id = [](quint64 value) { return PDFContentNodeId{ value }; };
+
+    PDFContentContainerPointer original;
+    {
+        PDFContentContainerEditor editor(PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0)));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 2), rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Group, 3), rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 4), groupId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 5), groupId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 6), groupId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 7), rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 8), rootId, -1));
+        original = editor.build();
+    }
+
+    // The change: path 5 gets other data, path 7 is removed, a new shading 9 is the last child
+    // of the group
+    PDFContentContainerPointer changed;
+    {
+        PDFContentContainerEditor editor(original);
+        PDFContentNode::Data data = original->getNode(id(5))->getData();
+        data.isModified = true;
+        QVERIFY(editor.setNodeData(id(5), data));
+        QVERIFY(editor.removeNode(id(7)));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Shading, 9), groupId, -1));
+        changed = editor.build();
+    }
+    QCOMPARE(describe(original), QStringLiteral("Root{Path Group{Path Path Path} Path Path}"));
+    QCOMPARE(describe(changed), QStringLiteral("Root{Path Group{Path Path Path Shading} Path}"));
+
+    // Every container of the builder or of an editor is a version of its own
+    QVERIFY(original->getVersion() != 0);
+    QVERIFY(changed->getVersion() != 0);
+    QVERIFY(original->getVersion() != changed->getVersion());
+
+    const PDFContentContainerDifference difference = PDFContentContainerDifference::create(original, changed);
+    QVERIFY(difference.isValid());
+    QVERIFY(difference.isCompact());
+    QCOMPARE(difference.getVersionBefore(), original->getVersion());
+    QCOMPARE(difference.getVersionAfter(), changed->getVersion());
+
+    // What is kept: the root (itself and its data before and after: 3 items) with one child
+    // taken away (path 7: 1); the group (3) with path 5 taken away and put in (2) and the
+    // shading put in (1) - 10 items, whatever the number of the other nodes is
+    QCOMPARE(difference.getStoredItemCount(), size_t(10));
+
+    // The version before, made from the version after: another object with the same number,
+    // the same tree and - where nothing changed - the same nodes; the nodes, which were changed
+    // or removed, are the old objects again
+    const PDFContentContainerPointer before = difference.getBefore(changed);
+    QVERIFY(before != nullptr);
+    QVERIFY(before != original);
+    QCOMPARE(before->getVersion(), original->getVersion());
+    QCOMPARE(describe(before), describe(original));
+    QVERIFY(identifiers(before->getRoot()) == identifiers(original->getRoot()));
+    QCOMPARE(before->getNodeCount(), original->getNodeCount());
+    for (const quint64 value : { 2, 4, 5, 6, 7, 8 })
+    {
+        QVERIFY2(before->getNode(id(value)) == original->getNode(id(value)), qPrintable(QString::number(value)));
+    }
+    QVERIFY(!before->getNode(id(5))->isModified());
+    QVERIFY(before->getNode(id(9)) == nullptr);
+    QVERIFY(before->getNode(groupId) != original->getNode(groupId));
+    QVERIFY(before->getNode(groupId)->getParentId() == rootId);
+    QCOMPARE(before->getIndexInParent(id(8)), PDFInteger(3));
+    QVERIFY(before->getParent(id(6))->getId() == groupId);
+
+    // And the version after again, from the version made before and from the old object
+    for (const PDFContentContainerPointer& base : { before, original })
+    {
+        const PDFContentContainerPointer after = difference.getAfter(base);
+        QVERIFY(after != nullptr);
+        QVERIFY(after != changed);
+        QCOMPARE(after->getVersion(), changed->getVersion());
+        QCOMPARE(describe(after), describe(changed));
+        QVERIFY(identifiers(after->getRoot()) == identifiers(changed->getRoot()));
+        for (const quint64 value : { 2, 4, 5, 6, 8, 9 })
+        {
+            QVERIFY2(after->getNode(id(value)) == changed->getNode(id(value)), qPrintable(QString::number(value)));
+        }
+        QVERIFY(after->getNode(id(5))->isModified());
+        QVERIFY(after->getNode(id(7)) == nullptr);
+        QCOMPARE(after->getIndexInParent(id(9)), PDFInteger(3));
+    }
+
+    // A container, which is not the version the difference starts from, is refused
+    QVERIFY(difference.getAfter(changed) == nullptr);
+    QVERIFY(difference.getBefore(original) == nullptr);
+    QVERIFY(difference.getAfter(nullptr) == nullptr);
+    QVERIFY(difference.getBefore(nullptr) == nullptr);
+
+    // Also a container, in which every place of the difference is found: only the data of
+    // path 5 differ, so the tree of the version after has the places of the version before -
+    // the number of the version tells, that the change is in it already
+    {
+        PDFContentContainerEditor editor(original);
+        PDFContentNode::Data data = original->getNode(id(5))->getData();
+        data.isModified = true;
+        QVERIFY(editor.setNodeData(id(5), data));
+        const PDFContentContainerPointer dataChanged = editor.build();
+
+        const PDFContentContainerDifference dataDifference = PDFContentContainerDifference::create(original, dataChanged);
+        QVERIFY(dataDifference.isCompact());
+        QVERIFY(dataDifference.getAfter(dataChanged) == nullptr);
+        QVERIFY(dataDifference.getBefore(original) == nullptr);
+        QVERIFY(dataDifference.getAfter(original) != nullptr);
+        QVERIFY(dataDifference.getBefore(dataChanged) != nullptr);
+    }
+
+    // No difference: of nothing, and of containers of two keys
+    const PDFContentContainerDifference none;
+    QVERIFY(!none.isValid());
+    QVERIFY(!none.isCompact());
+    QCOMPARE(none.getStoredItemCount(), size_t(0));
+    QCOMPARE(none.getVersionBefore(), quint64(0));
+    QVERIFY(none.getAfter(original) == nullptr);
+    QVERIFY(!PDFContentContainerDifference::create(original, nullptr).isValid());
+    QVERIFY(!PDFContentContainerDifference::create(nullptr, changed).isValid());
+
+    PDFContentContainerEditor otherEditor(PDFContentContainerKey::createPage(1, PDFObjectReference(21, 0)));
+    QVERIFY(!PDFContentContainerDifference::create(original, otherEditor.build()).isValid());
+
+    // The difference of a version and itself keeps nothing and gives the version
+    const PDFContentContainerDifference same = PDFContentContainerDifference::create(original, original);
+    QVERIFY(same.isValid());
+    QCOMPARE(same.getStoredItemCount(), size_t(0));
+    QVERIFY(same.getAfter(original) == original);
+    QVERIFY(same.getBefore(original) == original);
+    QVERIFY(same.getAfter(changed) == nullptr);
+
+    // The version before does not live by the difference: it is gone with its last holder,
+    // and so is its root with the list of all its children
+    std::weak_ptr<const PDFContentContainer> weakOriginal = original;
+    std::weak_ptr<const PDFContentNode> weakRoot = original->getRoot();
+    original.reset();
+    QVERIFY(weakOriginal.expired());
+    QVERIFY(weakRoot.expired());
+    QCOMPARE(describe(difference.getBefore(changed)), QStringLiteral("Root{Path Group{Path Path Path} Path Path}"));
+}
+
+void ContentTreeTest::containerDifferenceOfMoves()
+{
+    // Children, which change their place. Root 1 { Path 2 ... Path 11 }: the paths 2 and 3 go
+    // to the end (Bring to Front), the path 6 into a new group 20 at its place:
+    // 4 5 Group{6} 7 8 9 10 11 2 3
+    const PDFContentNodeId rootId{ 1 };
+    auto createFlat = [rootId](quint64 count)
+    {
+        PDFContentContainerEditor editor(PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0)));
+        for (quint64 i = 0; i < count; ++i)
+        {
+            editor.insertNode(nodeData(PDFContentNodeKind::Path, 2 + i), rootId, -1);
+        }
+        return editor.build();
+    };
+
+    auto childIdentifiers = [](const PDFContentContainerPointer& container)
+    {
+        QList<quint64> result;
+        for (const PDFContentNodePointer& child : container->getRoot()->getChildren())
+        {
+            result << child->getId().value;
+        }
+        return result;
+    };
+
+    const PDFContentContainerPointer original = createFlat(10);
+
+    PDFContentContainerPointer changed;
+    {
+        PDFContentContainerEditor editor(original);
+        QVERIFY(editor.moveNode(PDFContentNodeId{ 2 }, rootId, -1));
+        QVERIFY(editor.moveNode(PDFContentNodeId{ 3 }, rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Group, 20), rootId, editor.getIndexInParent(PDFContentNodeId{ 6 })));
+        QVERIFY(editor.moveNode(PDFContentNodeId{ 6 }, PDFContentNodeId{ 20 }, -1));
+        changed = editor.build();
+    }
+    QCOMPARE(childIdentifiers(changed), QList<quint64>({ 4, 5, 20, 7, 8, 9, 10, 11, 2, 3 }));
+
+    // Kept: the root (3 items), the three children taken away (2, 3, 6) and the three put in
+    // (the group with path 6 inside, 2, 3): the seven children, which keep their order, cost
+    // nothing
+    const PDFContentContainerDifference difference = PDFContentContainerDifference::create(original, changed);
+    QVERIFY(difference.isCompact());
+    QCOMPARE(difference.getStoredItemCount(), size_t(9));
+
+    const PDFContentContainerPointer before = difference.getBefore(changed);
+    QVERIFY(before != nullptr);
+    QCOMPARE(childIdentifiers(before), QList<quint64>({ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }));
+    QVERIFY(before->getNode(PDFContentNodeId{ 20 }) == nullptr);
+    QVERIFY(before->getNode(PDFContentNodeId{ 6 })->getParentId() == rootId);
+    QVERIFY(before->getNode(PDFContentNodeId{ 6 }) == original->getNode(PDFContentNodeId{ 6 }));
+
+    const PDFContentContainerPointer after = difference.getAfter(before);
+    QVERIFY(after != nullptr);
+    QCOMPARE(childIdentifiers(after), QList<quint64>({ 4, 5, 20, 7, 8, 9, 10, 11, 2, 3 }));
+    QVERIFY(after->getNode(PDFContentNodeId{ 6 })->getParentId() == PDFContentNodeId{ 20 });
+    QCOMPARE(after->getIndexInParent(PDFContentNodeId{ 2 }), PDFInteger(8));
+
+    // 5 000 children, the first 100 of them moved to the end: 100 children taken away and 100
+    // put in with the root (3 items) - not 5 000
+    const PDFContentContainerPointer large = createFlat(5000);
+    PDFContentContainerPointer largeChanged;
+    {
+        PDFContentContainerEditor editor(large);
+        for (quint64 i = 0; i < 100; ++i)
+        {
+            QVERIFY(editor.moveNode(PDFContentNodeId{ 2 + i }, rootId, -1));
+        }
+        largeChanged = editor.build();
+    }
+
+    const PDFContentContainerDifference largeDifference = PDFContentContainerDifference::create(large, largeChanged);
+    QVERIFY(largeDifference.isCompact());
+    QCOMPARE(largeDifference.getStoredItemCount(), size_t(203));
+    QVERIFY(childIdentifiers(largeDifference.getBefore(largeChanged)) == childIdentifiers(large));
+    QVERIFY(childIdentifiers(largeDifference.getAfter(large)) == childIdentifiers(largeChanged));
+    QCOMPARE(childIdentifiers(largeChanged).front(), quint64(102));
+    QCOMPARE(childIdentifiers(largeChanged).back(), quint64(101));
+}
+
+void ContentTreeTest::containerDifferenceOfOperationsAndResources()
+{
+    // The operations and the resources of a difference. The content has six operations:
+    // BT0 Tf1 Tj2 ET3 re4 f5.
+    const PDFDocument document = createDocument("BT /F1 12 Tf (A) Tj ET 0 0 5 5 re f");
+    const PDFContentContainerPointer original = buildPage(document).container;
+    QVERIFY(original != nullptr);
+    QCOMPARE(original->getOperations().getCount(), size_t(6));
+    QCOMPARE(original->getOperations().getOperation(1).getOperator(), PDFContentOperator::TextSetFontAndFontSize);
+
+    const size_t graphicStateCount = original->getResources().getEntries(PDFContentResourceCategory::ExtGState).size();
+    const PDFObject graphicState = Documents::createDictionaryObject({ { "LW", PDFObject::createInteger(7) } });
+
+    // The change: a state run of a generated operation (the operation 6) at the beginning, the
+    // operator Tf suppressed, a new graphics state dictionary in the resources
+    QByteArray graphicStateName;
+    PDFContentContainerPointer changed;
+    {
+        PDFContentContainerEditor editor(original);
+        QVERIFY(insertGeneratedRun(editor, 1000, 0));
+        editor.getOperations().setFlags(1, PDFContentOperation::Suppressed);
+        graphicStateName = editor.getResources().addObject(PDFContentResourceCategory::ExtGState, "GS", graphicState);
+        changed = editor.build();
+    }
+    QVERIFY(!graphicStateName.isEmpty());
+    QVERIFY(!changed->isUnchanged());
+    QCOMPARE(changed->getOperations().getCount(), size_t(7));
+
+    // Kept: the root (3) with the state run put in (1), one appended operation, one changed
+    // flag, one resource entry
+    const PDFContentContainerDifference difference = PDFContentContainerDifference::create(original, changed);
+    QVERIFY(difference.isCompact());
+    QCOMPARE(difference.getStoredItemCount(), size_t(7));
+
+    // The version before: the flag and the resources are as they were, no node names the
+    // appended operation - the container is the unchanged content again. A version owns its
+    // own operations only: the appended operation is not in its pool (as in the old object).
+    const PDFContentContainerPointer before = difference.getBefore(changed);
+    QVERIFY(before != nullptr);
+    QCOMPARE(describe(before), describe(original));
+    QVERIFY(before->isUnchanged());
+    QVERIFY(!before->getOperations().getOperation(1).getFlags().testFlag(PDFContentOperation::Suppressed));
+    QVERIFY(!before->getResources().isChanged());
+    QVERIFY(before->getResources().getObject(PDFContentResourceCategory::ExtGState, graphicStateName).isNull());
+    QCOMPARE(before->getResources().getEntries(PDFContentResourceCategory::ExtGState).size(), graphicStateCount);
+    QCOMPARE(before->getOperations().getCount(), size_t(6));
+    QCOMPARE(PDFContentStreamWriter::write(*before).content, PDFContentStreamWriter::write(*original).content);
+
+    // The version after, from the version made before and from the old object: the appended
+    // operation at its index 6 both times, seven operations, never eight
+    for (const PDFContentContainerPointer& base : { before, original })
+    {
+        const PDFContentContainerPointer after = difference.getAfter(base);
+        QVERIFY(after != nullptr);
+        QCOMPARE(describe(after), describe(changed));
+        QCOMPARE(after->getOperations().getCount(), size_t(7));
+        QCOMPARE(after->getOperations().getOperation(6).getOperator(), PDFContentOperator::SetLineWidth);
+        QVERIFY(after->getOperations().getOperation(1).getFlags().testFlag(PDFContentOperation::Suppressed));
+        QCOMPARE(after->getResources().getObject(PDFContentResourceCategory::ExtGState, graphicStateName), graphicState);
+        QCOMPARE(after->getResources().getEntries(PDFContentResourceCategory::ExtGState).size(), graphicStateCount + 1);
+        QCOMPARE(PDFContentStreamWriter::write(*after).content, PDFContentStreamWriter::write(*changed).content);
+    }
+    QVERIFY(original->isUnchanged());
+    QCOMPARE(original->getOperations().getCount(), size_t(6));
+
+    // A second change: one state run more (the operation 7). The difference of the first
+    // version and the last one - what a merged command keeps - is made from a first version,
+    // which was made again from the middle one made again: it has its six operations, as the
+    // old object, so the two operations count as appended and the old object gets both.
+    PDFContentContainerPointer last;
+    {
+        PDFContentContainerEditor editor(changed);
+        QVERIFY(insertGeneratedRun(editor, 1001, 0));
+        last = editor.build();
+    }
+
+    const PDFContentContainerDifference second = PDFContentContainerDifference::create(changed, last);
+    const PDFContentContainerPointer middle = second.getBefore(last);
+    QVERIFY(middle != nullptr);
+    QCOMPARE(middle->getOperations().getCount(), size_t(7));
+    const PDFContentContainerPointer first = difference.getBefore(middle);
+    QVERIFY(first != nullptr);
+    QCOMPARE(first->getOperations().getCount(), size_t(6));
+
+    // Kept: the root (3), two state runs put in, two operations, one flag, one resource entry
+    const PDFContentContainerDifference merged = PDFContentContainerDifference::create(first, last);
+    QVERIFY(merged.isCompact());
+    QCOMPARE(merged.getStoredItemCount(), size_t(9));
+    QCOMPARE(merged.getVersionBefore(), original->getVersion());
+
+    const PDFContentContainerPointer mergedAfter = merged.getAfter(original);
+    QVERIFY(mergedAfter != nullptr);
+    QCOMPARE(mergedAfter->getOperations().getCount(), size_t(8));
+    QCOMPARE(describe(mergedAfter), describe(last));
+    QCOMPARE(PDFContentStreamWriter::write(*mergedAfter).content, PDFContentStreamWriter::write(*last).content);
+
+    const PDFContentContainerPointer mergedBefore = merged.getBefore(last);
+    QVERIFY(mergedBefore != nullptr);
+    QVERIFY(mergedBefore->isUnchanged());
+    QCOMPARE(mergedBefore->getOperations().getCount(), size_t(6));
+    QCOMPARE(describe(mergedBefore), describe(original));
+
+    // The objects the difference names: the new graphics state dictionary of the resources
+    std::vector<PDFObject> objects;
+    merged.addObjects(&objects);
+    QVERIFY(std::find(objects.cbegin(), objects.cend(), graphicState) != objects.cend());
+}
+
+void ContentTreeTest::containerDifferenceWhichIsNotCompact()
+{
+    // A difference, which cannot be kept by its changed places, keeps both versions: it is
+    // right, and it says that it is not small (isCompact, and the nodes of both versions as its
+    // stored items).
+    const PDFContentNodeId rootId{ 1 };
+    const PDFContentContainerKey key = PDFContentContainerKey::createPage(0, PDFObjectReference(20, 0));
+
+    PDFContentContainerPointer original;
+    {
+        PDFContentContainerEditor editor(key);
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 2), rootId, -1));
+        QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 3), rootId, -1));
+        original = editor.build();
+    }
+
+    // (1) Other data of the container differ (a command changes the tree, the operations and
+    // the resources only): the box of the page
+    {
+        PDFContentContainerEditor editor(original);
+        editor.getContainerData().boundingBox = QRectF(0, 0, 10, 10);
+        QVERIFY(editor.removeNode(PDFContentNodeId{ 3 }));
+        const PDFContentContainerPointer changed = editor.build();
+
+        const PDFContentContainerDifference difference = PDFContentContainerDifference::create(original, changed);
+        QVERIFY(difference.isValid());
+        QVERIFY(!difference.isCompact());
+        QCOMPARE(difference.getStoredItemCount(), size_t(3 + 2));
+
+        // The versions it gives are the two objects, with everything they have
+        QVERIFY(difference.getAfter(original) == changed);
+        QVERIFY(difference.getBefore(changed) == original);
+        QCOMPARE(difference.getAfter(original)->getBoundingBox(), QRectF(0, 0, 10, 10));
+        QVERIFY(difference.getAfter(changed) == nullptr);
+        QVERIFY(difference.getBefore(original) == nullptr);
+    }
+
+    // (2) A tree made by hand, in which an identifier is used twice among the children, which
+    // differ: the places of the children cannot be told by their identifiers
+    {
+        auto createNode = [](PDFContentNodeKind kind, quint64 id, std::vector<PDFContentNodePointer> children)
+        {
+            PDFContentNode::Data data = nodeData(kind, id);
+            data.parentId = PDFContentNodeId{ kind == PDFContentNodeKind::Root ? quint64(0) : quint64(1) };
+            return std::make_shared<const PDFContentNode>(std::move(data), std::move(children));
+        };
+
+        PDFContentContainer::Data data;
+        data.key = key;
+        data.root = createNode(PDFContentNodeKind::Root, 1, { createNode(PDFContentNodeKind::Path, 3, { }), createNode(PDFContentNodeKind::Path, 3, { }), createNode(PDFContentNodeKind::Path, 2, { }) });
+        const PDFContentContainerPointer byHand = std::make_shared<const PDFContentContainer>(std::move(data));
+
+        const PDFContentContainerDifference difference = PDFContentContainerDifference::create(original, byHand);
+        QVERIFY(difference.isValid());
+        QVERIFY(!difference.isCompact());
+        QVERIFY(difference.getAfter(original) == byHand);
+        QVERIFY(difference.getBefore(byHand) == original);
+    }
+}
+
 void ContentTreeTest::containerIsUnchanged()
 {
     // q0 w1 re2 f3 Q4 re5 f6: Root{Group(0:1/4:1){StateRun(1:1) Path(2:2)} Path(5:2)}
@@ -2843,6 +3650,315 @@ void ContentTreeTest::appendIndex()
     }
 }
 
+void ContentTreeTest::openEnds_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<QString>("tree");
+    QTest::addColumn<qint64>("rootAppendIndex");
+    QTest::addColumn<qint64>("secondAppendIndex");     // getAppendIndex of the node 2 (-1: a leaf)
+    QTest::addColumn<QList<quint64>>("openEnds");       // The nodes with isOpenEnd, depth first
+
+    // A content, which ends with something left open: content written behind it would join it
+    // (pe0fa_state.md, "Noticed" 1; request 3 of pb0s1_state.md), so the end of its parent is in
+    // front of it. A path without a painting operator: a painting operator behind it paints it
+    // too (ISO 32000-2, 8.5.2: a path is painted by the operator, which ends it). re0 S1 m2 l3.
+    QTest::newRow("path without a painting operator") << QByteArray("0 0 5 5 re S 10 10 m 20 20 l")
+                                                      << QStringLiteral("Root{Path(0:2) Opaque(2:2)}") << qint64(1) << qint64(-1) << QList<quint64>({ 3 });
+    QTest::newRow("painted path") << QByteArray("0 0 5 5 re S")
+                                  << QStringLiteral("Root{Path(0:2)}") << qint64(1) << qint64(-1) << QList<quint64>();
+
+    // An opaque span (a dash array over the limit of the builder from gs on), which ends with the
+    // content while its q is open: content behind it would be inside of the q. re0 S1 gs2 q3 re4 S5
+    QTest::newRow("opaque span with an open q") << QByteArray("0 0 5 5 re S /GSD gs q 0 0 5 5 re S")
+                                                << QStringLiteral("Root{Path(0:2) Opaque(2:4)}") << qint64(1) << qint64(-1) << QList<quint64>({ 3 });
+
+    // The same span closed: Q6 restores the long pattern of gs, d7 ends it - nothing is open
+    QTest::newRow("opaque span closed") << QByteArray("0 0 5 5 re S /GSD gs q 0 0 5 5 re S Q [] 0 d")
+                                        << QStringLiteral("Root{Path(0:2) Opaque(2:6)}") << qint64(2) << qint64(-1) << QList<quint64>();
+
+    // A text object without its ET, which shows a text of the rendering mode 7 (add to the
+    // clipping path): the ET, which the model writes in front of content behind it, makes the clip
+    // real for that content (9.3.6). BT0 Tf1 Tr2 Tj3. Its own children are not concerned.
+    QTest::newRow("unclosed clipping text") << QByteArray("BT /F1 12 Tf 7 Tr (A) Tj")
+                                            << QStringLiteral("Root{TextObject(0:1){StateRun(1:2) TextShow(3:1)}}") << qint64(0) << qint64(2) << QList<quint64>({ 2 });
+
+    // The same text inside of a group without its Q: the Q the model writes behind the ET ends
+    // the clip (8.4.2: Q restores the clipping path), so the end of the root is behind the group;
+    // inside of the group the end is in front of the text. q0 BT1 Tf2 Tr3 Tj4
+    QTest::newRow("unclosed clipping text in an unclosed group") << QByteArray("q BT /F1 12 Tf 7 Tr (A) Tj")
+                                                                 << QStringLiteral("Root{Group(0:1){TextObject(1:1){StateRun(2:2) TextShow(4:1)}}}") << qint64(1) << qint64(0) << QList<quint64>({ 3 });
+
+    // Without a clip the place behind the missing ET is a place as any other (pe0fa_state.md)
+    QTest::newRow("unclosed text") << QByteArray("BT /F1 12 Tf (A) Tj")
+                                   << QStringLiteral("Root{TextObject(0:1){StateRun(1:1) TextShow(2:1)}}") << qint64(1) << qint64(2) << QList<quint64>();
+
+    // An unclosed marked content, whose last child is an open path: new content of the root goes
+    // in front of it (it holds the open end), new content of the marked content in front of the
+    // path. BMC0 re1
+    QTest::newRow("open path in an unclosed marked content") << QByteArray("/T BMC 0 0 5 5 re")
+                                                             << QStringLiteral("Root{MarkedContent(0:1){Opaque(1:1)}}") << qint64(0) << qint64(0) << QList<quint64>({ 3 });
+}
+
+void ContentTreeTest::openEnds()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(QString, tree);
+    QFETCH(qint64, rootAppendIndex);
+    QFETCH(qint64, secondAppendIndex);
+    QFETCH(QList<quint64>, openEnds);
+
+    const PDFDocument document = createDocument(content);
+    const PDFContentContainerPointer container = buildPage(document).container;
+    QVERIFY(container != nullptr);
+    QCOMPARE(describe(container), tree);
+    QCOMPARE(container->getAppendIndex(PDFContentNodeId{ 1 }), PDFInteger(rootAppendIndex));
+    QCOMPARE(container->getAppendIndex(PDFContentNodeId{ 2 }), PDFInteger(secondAppendIndex));
+
+    QList<quint64> actualOpenEnds;
+    std::vector<PDFContentNodePointer> stack = { container->getRoot() };
+    while (!stack.empty())
+    {
+        const PDFContentNodePointer node = stack.back();
+        stack.pop_back();
+        if (node->isOpenEnd())
+        {
+            actualOpenEnds << node->getId().value;
+        }
+        for (auto it = node->getChildren().rbegin(); it != node->getChildren().rend(); ++it)
+        {
+            stack.push_back(*it);
+        }
+    }
+    QCOMPARE(actualOpenEnds, openEnds);
+
+    // A node inserted at the end of the root goes in front of the open end, and the end stays
+    // pinned in the new version (the flag is a part of the data)
+    PDFContentContainerEditor editor(container);
+    QVERIFY(editor.insertNode(nodeData(PDFContentNodeKind::Path, 100), PDFContentNodeId{ 1 }, container->getAppendIndex(PDFContentNodeId{ 1 })));
+    const PDFContentContainerPointer appended = editor.build();
+    QCOMPARE(appended->getRoot()->getChildren()[size_t(rootAppendIndex)]->getId().value, quint64(100));
+    QCOMPARE(appended->getAppendIndex(PDFContentNodeId{ 1 }), PDFInteger(rootAppendIndex + 1));
+}
+
+void ContentTreeTest::effectiveOverride()
+{
+    using Property = PDFContentStateProperty;
+    using Value = PDFContentStateValue;
+
+    // PDFContentContainer::getEffectiveOverride. cm0 q1 w2 cm3 re4 S5 re6 f7 Q8: the group begins
+    // in the matrix S = [1 0 0 1 7 0]; inside of it a path stroked with the width 3 set inside of
+    // the group and a path filled, both drawn in R = [1 0 0 1 5 0] x S = [1 0 0 1 12 0].
+    const PDFDocument document = createDocument("1 0 0 1 7 0 cm q 3 w 1 0 0 1 5 0 cm 0 0 5 5 re S 0 0 5 5 re f Q");
+    const PDFContentContainerPointer built = buildPage(document).container;
+    QCOMPARE(describe(built), QStringLiteral("Root{StateRun(0:1) Group(1:1/8:1){StateRun(2:2) Path(4:2) Path(6:2)}}"));
+    const PDFContentNodeId groupId = nodeAt(built, { 1 })->getId();
+    const PDFContentNodeId strokeId = nodeAt(built, { 1, 1 })->getId();
+    const PDFContentNodeId fillId = nodeAt(built, { 1, 2 })->getId();
+    QCOMPARE(nodeAt(built, { 1 })->getState()->getCurrentTransformationMatrix(), QTransform(1, 0, 0, 1, 7, 0));
+    QCOMPARE(nodeAt(built, { 1, 1 })->getState()->getCurrentTransformationMatrix(), QTransform(1, 0, 0, 1, 12, 0));
+
+    // Without overrides nothing reaches a node; an unknown node has no value
+    QVERIFY(built->getEffectiveOverride(strokeId).has_value());
+    QVERIFY(built->getEffectiveOverride(strokeId)->isEmpty());
+    QVERIFY(!built->getEffectiveOverride(PDFContentNodeId{ 99 }).has_value());
+
+    // The group gets a wrap (the editor takes any data): q, M = [2 0 0 2 0 0] cm, /LW 4, the fill
+    // color red, Q. The fill path gets its own override: the alpha of filling 0.5, the line
+    // width 6 and the fill color blue.
+    Value width;
+    width.kind = Value::Kind::Real;
+    width.real = 4.0;
+    Value red;
+    red.kind = Value::Kind::Color;
+    red.color.deviceSpace = "DeviceRGB";
+    red.color.components = { 1.0, 0.0, 0.0 };
+    Value blue = red;
+    blue.color.components = { 0.0, 0.0, 1.0 };
+    Value alpha;
+    alpha.kind = Value::Kind::Real;
+    alpha.real = 0.5;
+    Value ownWidth;
+    ownWidth.kind = Value::Kind::Real;
+    ownWidth.real = 6.0;
+
+    PDFContentContainerEditor editor(built);
+    PDFContentNode::Data groupData = *editor.getNodeData(groupId);
+    groupData.override = PDFContentStateOverride();
+    groupData.override->transform = QTransform(2, 0, 0, 2, 0, 0);
+    groupData.override->properties[Property::LineWidth] = width;
+    groupData.override->properties[Property::FillColor] = red;
+    QVERIFY(editor.setNodeData(groupId, groupData));
+
+    PDFContentNode::Data fillData = *editor.getNodeData(fillId);
+    fillData.override = PDFContentStateOverride();
+    fillData.override->properties[Property::AlphaFilling] = alpha;
+    fillData.override->properties[Property::LineWidth] = ownWidth;
+    fillData.override->properties[Property::FillColor] = blue;
+    QVERIFY(editor.setNodeData(fillId, fillData));
+    const PDFContentContainerPointer container = editor.build();
+
+    // The written content "1 0 0 1 7 0 cm q 2 0 0 2 0 0 cm ... q 3 w 1 0 0 1 5 0 cm <path>"
+    // draws a path inside of the group in [1 0 0 1 5 0] x M x S (the cm of the wrap comes after
+    // S and before the cm inside of the group): the point p goes to 2 (p + (5, 0)) + (7, 0) =
+    // 2 p + (17, 0). As an override of the node, T x R with R = [1 0 0 1 12 0] (T first, then
+    // the move by 12): T maps p to 2 p + (17, 0) - (12, 0) = 2 p + (5, 0). Without the matrix S
+    // of the group (the wrap taken as if it were at the matrix of the node) it would be
+    // 2 p + (12, 0).
+    const std::optional<PDFContentStateOverride> stroke = container->getEffectiveOverride(strokeId);
+    QVERIFY(stroke.has_value());
+    QCOMPARE(stroke->transform, QTransform(2, 0, 0, 2, 5, 0));
+    QCOMPARE((stroke->transform * nodeAt(container, { 1, 1 })->getState()->getCurrentTransformationMatrix()).map(QPointF(1, 1)), QPointF(19, 2));
+
+    // The width 3 is set by w inside of the group before the path: the /LW of the wrap does not
+    // reach it; the fill color is inherited from before the group: the red of the wrap reaches it
+    QCOMPARE(stroke->properties.size(), size_t(1));
+    QVERIFY(stroke->properties.count(Property::FillColor));
+    QVERIFY(PDFContentStateValue::isEqual(stroke->properties.at(Property::FillColor), red));
+
+    // The own override of the fill path comes last: its alpha, its width (which the wrap of the
+    // group does not reach anyway) and its blue over the red of the group. Its own wrap has no
+    // matrix, so the matrix is the one of the group.
+    const std::optional<PDFContentStateOverride> fill = container->getEffectiveOverride(fillId);
+    QVERIFY(fill.has_value());
+    QCOMPARE(fill->transform, QTransform(2, 0, 0, 2, 5, 0));
+    QCOMPARE(fill->properties.size(), size_t(3));
+    QVERIFY(PDFContentStateValue::isEqual(fill->properties.at(Property::AlphaFilling), alpha));
+    QVERIFY(PDFContentStateValue::isEqual(fill->properties.at(Property::LineWidth), ownWidth));
+    QVERIFY(PDFContentStateValue::isEqual(fill->properties.at(Property::FillColor), blue));
+
+    // The group itself: its own override only
+    const std::optional<PDFContentStateOverride> group = container->getEffectiveOverride(groupId);
+    QVERIFY(group.has_value());
+    QCOMPARE(group->transform, QTransform(2, 0, 0, 2, 0, 0));
+    QCOMPARE(group->properties.size(), size_t(2));
+
+    // An own matrix is the innermost cm: the fill path moved by [1 0 0 1 0 3] in its own wrap is
+    // drawn in [1 0 0 1 0 3] x [1 0 0 1 5 0] x M x S - the point (1, 1) goes to (1, 4), then to
+    // 2 ((1, 4) + (5, 0)) + (7, 0) = (19, 8)
+    PDFContentContainerEditor moveEditor(container);
+    PDFContentNode::Data movedData = *moveEditor.getNodeData(fillId);
+    movedData.override->transform = QTransform(1, 0, 0, 1, 0, 3);
+    QVERIFY(moveEditor.setNodeData(fillId, movedData));
+    const PDFContentContainerPointer moved = moveEditor.build();
+    const std::optional<PDFContentStateOverride> movedFill = moved->getEffectiveOverride(fillId);
+    QVERIFY(movedFill.has_value());
+    QCOMPARE((movedFill->transform * nodeAt(moved, { 1, 2 })->getState()->getCurrentTransformationMatrix()).map(QPointF(1, 1)), QPointF(19, 8));
+}
+
+void ContentTreeTest::colorLimit_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<QString>("tree");
+    QTest::addColumn<int>("issueOperation");    // -1: no issue
+    QTest::addColumn<bool>("isEndMarked");      // The end state of the last node has the marker of the fill color
+
+    // /CsN is a DeviceN space of 33 colorants, /CsS one of 32 (colorLimit). A state keeps at most
+    // 32 components of a color (PDF_MAX_COLOR_COMPONENTS): the content, in which a longer color is
+    // in effect, is one opaque node from the operation, which sets it, to the operation, after
+    // which the color is within the limit again (as the dash array, MAXIMUM_DASH_LENGTH).
+    // re0 f1 cs2 re3 f4 cs5 re6 f7
+    QTest::newRow("fill color over the limit") << QByteArray("0 0 5 5 re f /CsN cs 0 0 5 5 re f /DeviceGray cs 0 0 5 5 re f")
+                                               << QStringLiteral("Root{Path(0:2) Opaque(2:4) Path(6:2)}") << 2 << false;
+    QTest::newRow("stroking color over the limit") << QByteArray("/CsN CS 0 0 5 5 re S /DeviceGray CS 0 0 5 5 re S")
+                                                   << QStringLiteral("Root{Opaque(0:4) Path(4:2)}") << 0 << false;
+    QTest::newRow("at the limit") << QByteArray("/CsS cs 0 0 5 5 re f")
+                                  << QStringLiteral("Root{StateRun(0:1) Path(1:2)}") << -1 << false;
+
+    // In effect at the end of the content: the state behind the opaque node holds the marker
+    QTest::newRow("in effect at the end") << QByteArray("0 0 5 5 re f /CsN cs 0 0 5 5 re f")
+                                          << QStringLiteral("Root{Path(0:2) Opaque(2:3)}") << 2 << true;
+}
+
+void ContentTreeTest::colorLimit()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(QString, tree);
+    QFETCH(int, issueOperation);
+    QFETCH(bool, isEndMarked);
+
+    constexpr size_t MAXIMUM_COLOR_COMPONENTS = 32;
+
+    // /CsN [/DeviceN [/C1 ... /C33] /DeviceGray f], /CsS with /C1 ... /C32; f is a PostScript
+    // calculator function, which pops all inputs but one
+    auto createDeviceN = [](PDFDocumentBuilder* builder, int count)
+    {
+        std::vector<PDFObject> names;
+        std::vector<PDFReal> domain;
+        QByteArray code("{");
+        for (int i = 0; i < count; ++i)
+        {
+            names.push_back(PDFObject::createName("C" + QByteArray::number(i + 1)));
+            domain.push_back(0.0);
+            domain.push_back(1.0);
+            if (i > 0)
+            {
+                code += " pop";
+            }
+        }
+        code += " }";
+        PDFObject function = Documents::addStreamObject(builder, { { "FunctionType", PDFObject::createInteger(4) },
+                                                                   { "Domain", Documents::createNumberArrayObject(domain) },
+                                                                   { "Range", Documents::createNumberArrayObject({ 0.0, 1.0 }) } }, code);
+        return Documents::createArrayObject({ PDFObject::createName("DeviceN"), Documents::createArrayObject(names), PDFObject::createName("DeviceGray"), function });
+    };
+
+    const PDFDocument document = Documents::createDocument(content, [&](PDFDocumentBuilder* builder)
+    {
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ColorSpace"), Documents::createDictionaryObject({ { "CsN", createDeviceN(builder, 33) }, { "CsS", createDeviceN(builder, 32) } }));
+        return resources;
+    });
+
+    const PDFContentBuildResult result = buildPage(document);
+    QVERIFY(result.container != nullptr);
+    QCOMPARE(describe(result.container), tree);
+
+    if (issueOperation >= 0)
+    {
+        QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::StateLimit }));
+        QCOMPARE(result.issues.front().operationIndex, size_t(issueOperation));
+        QCOMPARE(result.issues.front().text, QStringLiteral("A color has too many components."));
+    }
+    else
+    {
+        QVERIFY(result.issues.empty());
+        QCOMPARE(nodeAt(result.container, { 1 })->getState()->getState().getFillColorOriginal().size(), MAXIMUM_COLOR_COMPONENTS);
+    }
+
+    // No state of a node holds a longer color; the content is written back byte for byte
+    std::vector<PDFContentNodePointer> stack = { result.container->getRoot() };
+    while (!stack.empty())
+    {
+        const PDFContentNodePointer node = stack.back();
+        stack.pop_back();
+        for (const PDFContentResolvedStatePointer& state : { node->getState(), node->getLeak().endState })
+        {
+            if (state)
+            {
+                QVERIFY(state->getState().getFillColorOriginal().size() <= MAXIMUM_COLOR_COMPONENTS);
+                QVERIFY(state->getState().getStrokeColorOriginal().size() <= MAXIMUM_COLOR_COMPONENTS);
+            }
+        }
+        for (const PDFContentNodePointer& child : node->getChildren())
+        {
+            stack.push_back(child);
+        }
+    }
+    QCOMPARE(result.container->getOperations().getOriginalContent(), content);
+
+    // The marker: one component, which is not a number - equal to no color, itself included
+    if (isEndMarked)
+    {
+        const PDFContentResolvedStatePointer endState = result.container->getRoot()->getChildren().back()->getLeak().endState;
+        QVERIFY(endState);
+        const PDFColor& endColor = endState->getState().getFillColorOriginal();
+        QCOMPARE(endColor.size(), size_t(1));
+        QVERIFY(std::isnan(endColor[0]));
+        QVERIFY(PDFContentResolvedState::getDifference(*endState, *endState).contains(PDFContentStateProperty::FillColor));
+        QCOMPARE(endState->getState().getStrokeColorOriginal().size(), size_t(1));    // DeviceGray, untouched
+    }
+}
+
 void ContentTreeTest::unclosedNodes_data()
 {
     QTest::addColumn<QByteArray>("content");
@@ -3325,7 +4441,7 @@ void ContentTreeTest::dashLimit()
 
     if (issueOperation >= 0)
     {
-        QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::OperandLimit }));
+        QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::StateLimit }));
         QCOMPARE(result.issues.front().operationIndex, size_t(issueOperation));
     }
     else
@@ -3501,7 +4617,7 @@ void ContentTreeTest::dashLimitOfInitialState()
     QVERIFY(result.container != nullptr);
     QCOMPARE(describe(result.container), QStringLiteral("Root{Opaque(0:4)}"));
     QCOMPARE(result.container->getOperations().getOriginalContent(), Documents::formContent());
-    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::OperandLimit }));
+    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::StateLimit }));
     QCOMPARE(result.issues.front().operationIndex, size_t(0));
 
     QVERIFY(result.container->getInitialState()->getState().getLineDashPattern().isSolid());
@@ -3567,7 +4683,7 @@ void ContentTreeTest::dashLimitOfInitialStateBeforeAnyOperator()
     const PDFContentBuildResult result = build(document, formKey, false, initialState, 0);
     QVERIFY(result.container != nullptr);
     QCOMPARE(describe(result.container), tree);
-    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::OperandLimit }));
+    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::StateLimit }));
     QCOMPARE(result.issues.front().operationIndex, size_t(0));
 
     // No state of the container holds the long array; the content is written back byte for byte
@@ -3620,11 +4736,12 @@ void ContentTreeTest::dashLimitBehind_data()
     QTest::newRow("other properties") << path + " /GSD gs 2 w 1 J " + path
                                       << path + " /GSD gs 2 w 1 J " + path + " q 1 w 0 J [] 0 d 0 0 5 5 re S Q";
 
-    // A group without its Q: the processor restores the state before q at the end of the content,
-    // but the copy is written behind the last operation, inside of the group (the opaque node
-    // holds the open q), where the width 2 and the long pattern are in effect
+    // A group without its Q: the opaque node holds the open q, so content written behind it would
+    // be inside of the group (PDFContentNode::isOpenEnd): the end of the root is in front of the
+    // opaque node, behind the first path, where the initial state is in effect - the copy needs
+    // no wrap
     QTest::newRow("unclosed group") << path + " q /GSD gs 2 w " + path
-                                    << path + " q /GSD gs 2 w " + path + " q 1 w [] 0 d 0 0 5 5 re S Q";
+                                    << path + " " + path + " q /GSD gs 2 w " + path;
 
     const QByteArray textContent = path + " BT " + dash(130) + " 0 d /F1 12 Tf (A) Tj ET";
     QTest::newRow("inside of a text object") << textContent
@@ -3637,10 +4754,11 @@ void ContentTreeTest::dashLimitBehind_data()
                                    << endedContent + " " + path;
 
     // The same inside of a group, which the content does not close: the opaque node lasts to the
-    // end (it holds the open q), but the pattern there is the solid line again
+    // end and holds the open q, so it is an open end (PDFContentNode::isOpenEnd) - the copy goes
+    // in front of it, behind the first path, where the initial state is in effect (no wrap)
     const QByteArray openContent = path + " " + dash(130) + " 0 d q [] 0 d";
     QTest::newRow("pattern ended inside of an open group") << openContent
-                                                           << openContent + " " + path;
+                                                           << path + " " + path + " " + dash(130) + " 0 d q [] 0 d";
 }
 
 void ContentTreeTest::dashLimitBehind()
@@ -3895,9 +5013,9 @@ void ContentTreeTest::contentSizeLimit()
     QCOMPARE(result.container->getOperations().getCount(), size_t(0));
     QVERIFY(result.container->getOperations().getTail().isEmpty());
     QVERIFY(result.container->getInitialState() != nullptr);
-    // The issue has the nearest kind of the header (a content, which is read-only, because its
-    // streams are not read) and says the reason (the source text; the tests load no translation)
-    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::UndecodableStream }));
+    // The issue has a kind of its own (the limit of the size, not a stream, which cannot be
+    // decoded) and says the reason (the source text; the tests load no translation)
+    QCOMPARE(issueKinds(result.issues), kinds({ PDFContentIssue::Kind::ContentSizeLimit }));
     QVERIFY(!result.issues.front().nodeId.isValid());
     QVERIFY(result.issues.front().text.contains(QStringLiteral("too large")));
     QVERIFY(!result.container->getFingerprint().isEmpty());
@@ -5303,6 +6421,390 @@ void ContentTreeTest::formResourcesInherited()
     QCOMPARE(issueKinds(result.issues).contains(int(PDFContentIssue::Kind::UndefinedResource)), variant == 6);
 }
 
+void ContentTreeTest::formResourcesOfCaller_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<bool>("withCaller");
+    QTest::addColumn<double>("lineWidth");
+    QTest::addColumn<bool>("undefined");
+
+    // The form /Inner of createCallerResourcesDocument has no /Resources; it is built as drawn by
+    // /Outer (the caller resources of the build are those of /Outer) or by the page (none). As the
+    // processor does (NOTES.txt 7.8.3, the owner's decision of 2026-11-27; ISO 32000-2, 7.8.3 names
+    // the page only): a name is looked up in the caller first - /GS1 is << /LW 9 >> of /Outer, not
+    // << /LW 5 >> of the page; /GS2 << /LW 7 >> and the shading /ShO of a category the page does
+    // not have at all are only in /Outer. A name the caller does not define comes from the page:
+    // /GS4 << /LW 3 >>, and the color space /CsP of a category /Outer does not have at all (no
+    // undefined name: the stroke is drawn). Drawn by the page, /GS2 and /ShO are undefined: gs
+    // fails and the line width keeps its initial value 1 (Table 51).
+    QTest::newRow("the name of the caller wins") << QByteArray("/GS1 gs 0 0 10 10 re S") << true << 9.0 << false;
+    QTest::newRow("a name only of the caller") << QByteArray("/GS2 gs 0 0 10 10 re S") << true << 7.0 << false;
+    QTest::newRow("a name only of the page") << QByteArray("/GS4 gs 0 0 10 10 re S") << true << 3.0 << false;
+    QTest::newRow("a category only of the page") << QByteArray("/CsP CS 1 0 0 SC /GS2 gs 0 0 10 10 re S") << true << 7.0 << false;
+    QTest::newRow("a name of nobody") << QByteArray("/GS3 gs 0 0 10 10 re S") << true << 1.0 << true;
+    QTest::newRow("a category only of the caller") << QByteArray("/ShO sh /GS2 gs 0 0 10 10 re S") << true << 7.0 << false;
+    QTest::newRow("the name of the page, drawn by the page") << QByteArray("/GS1 gs 0 0 10 10 re S") << false << 5.0 << false;
+    QTest::newRow("a name only of the caller, drawn by the page") << QByteArray("/GS2 gs 0 0 10 10 re S") << false << 1.0 << true;
+    QTest::newRow("a category only of the caller, drawn by the page") << QByteArray("/ShO sh 0 0 10 10 re S") << false << 1.0 << true;
+}
+
+void ContentTreeTest::formResourcesOfCaller()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(bool, withCaller);
+    QFETCH(double, lineWidth);
+    QFETCH(bool, undefined);
+
+    const PDFDocument document = createCallerResourcesDocument(content, QByteArray(), QByteArray());
+    const PDFObject callerResources = outerResources(document);
+    QVERIFY(document.getDictionaryFromObject(callerResources));
+
+    const PDFObject& inner = document.getDictionaryFromObject(document.getDictionaryFromObject(callerResources)->get("XObject"))->get("Inner");
+    QVERIFY(inner.isReference());
+
+    const PDFContentBuildResult result = build(document, PDFContentContainerKey::createForm(inner.getReference()), false, nullptr, 0, nullptr, nullptr,
+                                               withCaller ? callerResources : PDFObject());
+    QVERIFY(result.container != nullptr);
+
+    // The container still inherits (its own resources are none); it keeps the resources it was
+    // built with, which the document writer materializes (R-4): drawn by /Outer, a dictionary,
+    // whose /ExtGState is that of /Outer with the /GS4 of the page behind it; drawn by the page,
+    // none (the page's own)
+    QCOMPARE(result.container->getInheritedResourcesPageIndex(), PDFInteger(0));
+    QVERIFY(result.container->getResources().getEntries(PDFContentResourceCategory::ExtGState).empty());
+    const PDFObject& inherited = result.container->getInheritedResources();
+    QCOMPARE(inherited.isDictionary(), withCaller);
+    if (withCaller)
+    {
+        const PDFDictionary* states = document.getDictionaryFromObject(inherited.getDictionary()->get("ExtGState"));
+        QVERIFY(states != nullptr);
+        QCOMPARE(states->getCount(), size_t(3));
+        QCOMPARE(states->getKey(0).getString(), QByteArray("GS1"));
+        QCOMPARE(states->getKey(1).getString(), QByteArray("GS2"));
+        QCOMPARE(states->getKey(2).getString(), QByteArray("GS4"));
+        QVERIFY(document.getDictionaryFromObject(states->getValue(0))->get("LW") == PDFObject::createInteger(9));
+        QVERIFY(document.getDictionaryFromObject(states->getValue(2))->get("LW") == PDFObject::createInteger(3));
+    }
+
+    const PDFContentNodePointer path = result.container->getRoot()->getChildren().back();
+    QCOMPARE(path->getKind(), PDFContentNodeKind::Path);
+    QCOMPARE(path->getState()->getState().getLineWidth(), lineWidth);
+    QCOMPARE(issueKinds(result.issues).contains(int(PDFContentIssue::Kind::UndefinedResource)), undefined);
+
+    // What it draws without /Resources has the same caller (it has no resources of its own)
+    QVERIFY(result.nestedCallerResources == (withCaller ? callerResources : PDFObject()));
+}
+
+void ContentTreeTest::formResourcesOfCallerInSession()
+{
+    // The session gives a form or a pattern cell without /Resources the resources of the content,
+    // which draws it first: /Inner and the cell of /P are drawn by /Outer, /Deep by /Inner (which
+    // has no resources: its caller is /Outer again), /Direct by the page. /GS2 << /LW 7 >> is
+    // defined only by /Outer (createCallerResourcesDocument), /Deep only in /XObject of /Outer.
+    const PDFDocumentPointer document(new PDFDocument(createCallerResourcesDocument("/GS2 gs 0 0 10 10 re S /Deep Do", "/GS2 gs 0 0 20 20 re S", "/GS2 gs 0 0 5 5 re S")));
+    PDFContentEditSession session(document, PDFCMSPointer(), nullptr);
+
+    const PDFDictionary* outer = document->getDictionaryFromObject(outerResources(*document));
+    QVERIFY(outer);
+    const PDFDictionary* outerForms = document->getDictionaryFromObject(outer->get("XObject"));
+    const PDFDictionary* outerPatterns = document->getDictionaryFromObject(outer->get("Pattern"));
+    QVERIFY(outerForms && outerPatterns);
+
+    const PDFContentContainerKey outerKey = PDFContentContainerKey::createForm(pageResource(*document, "XObject", "Outer").getReference());
+    const PDFContentContainerKey directKey = PDFContentContainerKey::createForm(pageResource(*document, "XObject", "Direct").getReference());
+    const PDFContentContainerKey innerKey = PDFContentContainerKey::createForm(outerForms->get("Inner").getReference());
+    const PDFContentContainerKey deepKey = PDFContentContainerKey::createForm(outerForms->get("Deep").getReference());
+    const PDFContentContainerKey cellKey = PDFContentContainerKey::createPatternCell(outerPatterns->get("P").getReference());
+
+    QString errorText;
+    for (const PDFContentContainerKey& key : { session.getPageKey(0), outerKey, innerKey, deepKey, cellKey, directKey })
+    {
+        QVERIFY2(session.loadContainer(key, nullptr, &errorText), qPrintable(errorText));
+    }
+
+    auto strokeWidth = [&session](const PDFContentContainerKey& key) -> double
+    {
+        for (const PDFContentNodePointer& child : session.getContainer(key)->getRoot()->getChildren())
+        {
+            if (child->getKind() == PDFContentNodeKind::Path)
+            {
+                return child->getState()->getState().getLineWidth();
+            }
+        }
+        return -1.0;
+    };
+    auto isUndefined = [&session](const PDFContentContainerKey& key)
+    {
+        for (const PDFContentIssue& issue : session.getContainer(key)->getIssues())
+        {
+            if (issue.kind == PDFContentIssue::Kind::UndefinedResource)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // /Inner: Root{StateRun(0:1) Path(1:2) FormUse(3:1)} - /Deep is a form of /Outer
+    QCOMPARE(describe(session.getContainer(innerKey)), QStringLiteral("Root{StateRun(0:1) Path(1:2) FormUse(3:1)}"));
+    QCOMPARE(session.getContainer(innerKey)->getRoot()->getChildren().back()->getData().xobject, deepKey.reference);
+    QCOMPARE(strokeWidth(innerKey), 7.0);
+    QVERIFY(!isUndefined(innerKey));
+    QCOMPARE(strokeWidth(deepKey), 7.0);
+    QVERIFY(!isUndefined(deepKey));
+    QCOMPARE(strokeWidth(cellKey), 7.0);
+    QVERIFY(!isUndefined(cellKey));
+
+    // Drawn by the page: /GS2 and /Deep are undefined there
+    QCOMPARE(strokeWidth(directKey), 1.0);
+    QVERIFY(isUndefined(directKey));
+    QCOMPARE(session.getContainer(directKey)->getRoot()->getChildren().back()->getKind(), PDFContentNodeKind::Opaque);
+}
+
+void ContentTreeTest::formFirstUseInSession()
+{
+    // Review R2-2: the session builds a form without /Resources with the page, state and caller of
+    // its first use in the order of the document (the page index, then the order of the uses in
+    // each content), not of the first loaded content. Two pages draw /F "/GX gs 0 0 10 10 re S"
+    // by "/F Do"; the page 1 gives /GX << /LW 2 >>, the page 2 << /LW 9 >>.
+    PDFDocumentBuilder builder;
+    const PDFObject form = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                  { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, "/GX gs 0 0 10 10 re S");
+    for (const PDFInteger lineWidth : { 2, 9 })
+    {
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+        builder.mergeTo(page, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "F", form } }) },
+                                                                                                                     { "ExtGState", Documents::createDictionaryObject({ { "GX", Documents::createDictionaryObject({ { "LW", PDFObject::createInteger(lineWidth) } }) } }) } }) },
+                                                                  { "Contents", Documents::addStreamObject(&builder, Documents::DictionaryEntries(), "/F Do") } }));
+    }
+    const PDFDocumentPointer document(new PDFDocument(builder.build()));
+    const PDFContentContainerKey formKey = PDFContentContainerKey::createForm(form.getReference());
+
+    // The page 2 is loaded first, the page 1 later, the form last: the page 1 decides (width 2)
+    {
+        PDFContentEditSession session(document, PDFCMSPointer(), nullptr);
+        QString errorText;
+        for (const PDFContentContainerKey& key : { session.getPageKey(1), session.getPageKey(0), formKey })
+        {
+            QVERIFY2(session.loadContainer(key, nullptr, &errorText), qPrintable(errorText));
+        }
+        const PDFContentContainerPointer container = session.getContainer(formKey);
+        QCOMPARE(container->getInheritedResourcesPageIndex(), PDFInteger(0));
+        QCOMPARE(container->getRoot()->getChildren().back()->getState()->getState().getLineWidth(), 2.0);
+    }
+
+    // The form is built after the page 2 alone: it stays as it was built (a built container is
+    // never replaced), the page 1 loaded later changes nothing
+    {
+        PDFContentEditSession session(document, PDFCMSPointer(), nullptr);
+        QString errorText;
+        for (const PDFContentContainerKey& key : { session.getPageKey(1), formKey, session.getPageKey(0) })
+        {
+            QVERIFY2(session.loadContainer(key, nullptr, &errorText), qPrintable(errorText));
+        }
+        const PDFContentContainerPointer container = session.getContainer(formKey);
+        QCOMPARE(container->getInheritedResourcesPageIndex(), PDFInteger(1));
+        QCOMPARE(container->getRoot()->getChildren().back()->getState()->getState().getLineWidth(), 9.0);
+    }
+}
+
+void ContentTreeTest::reservedNames()
+{
+    // A1L2-4: a name added to the resources of a content must not become a name, which content
+    // without resources drawn by it uses (it takes the names of its caller and a name the caller
+    // lacks from the page, NOTES.txt 7.8.3). createCallerResourcesDocument with /Inner (and
+    // /Direct) "/GS1 gs /GS2 gs 0 0 10 10 re S /Deep Do /Own Do", /Deep "/GS7 gs 0 0 20 20 re S
+    // /Deep Do" (it draws itself: a cycle), the cell of /P "/GS8 gs 0 0 5 5 re S", /Sub "/GS9 gs
+    // ..." drawn by /Own, which has resources of its own. The page defines the ExtGStates /GS1,
+    // /GS4, the color space /CsP and the XObjects /Outer and /Direct; /Outer the ExtGStates /GS1
+    // and /GS2. For the page a name it defines in a category is no risk (the allocator never
+    // gives it); for a form every name counts: content drawn by it takes a name of the form
+    // before the one of the page.
+    using Category = PDFContentResourceCategory;
+    const PDFDocument document = createCallerResourcesDocument("/GS1 gs /GS2 gs 0 0 10 10 re S /Deep Do /Own Do", "/GS7 gs 0 0 20 20 re S /Deep Do", "/GS8 gs 0 0 5 5 re S");
+    const std::set<QByteArray> withoutPageExtGState = { "Deep", "GS2", "GS7", "GS8", "GS9", "Own" };
+    const std::set<QByteArray> withoutPageXObjects = { "Deep", "GS1", "GS2", "GS7", "GS8", "GS9", "Own" };
+
+    // The page: /Direct (drawn by the page), and below /Outer, which has resources of its own,
+    // /Inner, /P and /Deep - they look in the page first - and /Sub below /Own (resources of its
+    // own too: its content is not scanned, its /Sub looks in the page first). /Deep is reached
+    // twice (from the resources of /Outer and from /Inner) and draws itself: one visited set.
+    const PDFContentBuildResult page = buildPage(document);
+    QVERIFY(page.container != nullptr);
+    QCOMPARE(page.container->getResources().getReservedNames(Category::ExtGState), withoutPageExtGState);
+    QCOMPARE(page.container->getResources().getReservedNames(Category::XObject), withoutPageXObjects);
+    QCOMPARE(page.container->getResources().getReservedNames(Category::Font), withoutPageXObjects);
+    QCOMPARE(page.container->getResources().allocateName(Category::ExtGState, "GS"), QByteArray("GS3"));
+    QVERIFY(page.container->getResources().getUndefinedNames(Category::ExtGState).empty());
+
+    // /Outer: /Inner and the cell of /P, which it draws, and /Deep, which /Inner draws (found in
+    // the resources of /Outer, the caller of /Inner). /GS1 counts for /Outer although the page
+    // defines it: /Inner takes the /GS1 of /Outer first (it has one anyway). /Own is the caller
+    // of /Sub: /GS9 is no name /Sub could take from /Outer.
+    const PDFObject& outerReference = pageResource(document, "XObject", "Outer");
+    const PDFContentBuildResult outer = build(document, PDFContentContainerKey::createForm(outerReference.getReference()), false, nullptr, 0);
+    QVERIFY(outer.container != nullptr);
+    QCOMPARE(outer.container->getResources().getReservedNames(Category::ExtGState), (std::set<QByteArray>{ "Deep", "GS1", "GS2", "GS7", "GS8", "Own" }));
+    QCOMPARE(outer.container->getResources().allocateName(Category::ExtGState, "GS"), QByteArray("GS3"));
+    QCOMPARE(outer.container->getResources().allocateName(Category::XObject, "Fm"), QByteArray("Fm1"));
+    QCOMPARE(outer.container->getResources().allocateName(Category::XObject, "GS"), QByteArray("GS3"));
+
+    // /Direct, drawn by the page: /Deep is not defined for it (the page has no /Deep), it draws
+    // nothing; its own names are undefined names of its own resources (it has none). It has no
+    // resources of its own: every name of the resources it was built with (those of the page)
+    // is reserved - the document writer gives it a copy of them with an added name, which must
+    // not take the place of one of them.
+    const PDFObject& directReference = pageResource(document, "XObject", "Direct");
+    const PDFContentBuildResult direct = build(document, PDFContentContainerKey::createForm(directReference.getReference()), false, nullptr, 0);
+    QVERIFY(direct.container != nullptr);
+    for (const Category category : PDFContentResources::getCategories())
+    {
+        std::set<QByteArray> expected;
+        switch (category)
+        {
+            case Category::ExtGState:
+                expected = { "GS1", "GS4" };
+                break;
+            case Category::XObject:
+                expected = { "Direct", "Outer" };
+                break;
+            case Category::ColorSpace:
+                expected = { "CsP" };
+                break;
+            default:
+                break;
+        }
+        QCOMPARE(direct.container->getResources().getReservedNames(category), expected);
+    }
+    QCOMPARE(direct.container->getResources().getUndefinedNames(Category::ExtGState), (std::set<QByteArray>{ "GS1", "GS2" }));
+    QCOMPARE(direct.container->getResources().allocateName(Category::ExtGState, "GS"), QByteArray("GS3"));
+}
+
+void ContentTreeTest::reservedNamesDepthLimit()
+{
+    // A chain of 40 forms without resources: the page draws /F1, the form /Fk sets /Gk and draws
+    // /F(k+1) (all of them in the /XObject of the page). The walk goes 32 forms deep
+    // (PDFContentTreeBuilderReservedNames::MAXIMUM_DEPTH): /G1 ... /G32 and the names of the
+    // forms it scanned (/F2 ... /F33) are reserved, nothing of /F33 and deeper.
+    constexpr int COUNT = 40;
+    constexpr int DEPTH = 32;
+
+    const PDFDocument document = Documents::createDocument("/F1 Do", [&](PDFDocumentBuilder* builder)
+    {
+        Documents::DictionaryEntries forms;
+        for (int k = 1; k <= COUNT; ++k)
+        {
+            const QByteArray content = "/G" + QByteArray::number(k) + " gs /F" + QByteArray::number(k + 1) + " Do";
+            forms.emplace_back("F" + QByteArray::number(k), Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                                                                    { "Subtype", PDFObject::createName("Form") },
+                                                                                                    { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, content));
+        }
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject(std::move(forms)));
+        return resources;
+    });
+
+    std::set<QByteArray> expected;
+    for (int k = 1; k <= DEPTH; ++k)
+    {
+        expected.insert("G" + QByteArray::number(k));
+        expected.insert("F" + QByteArray::number(k + 1));
+    }
+
+    const PDFContentBuildResult page = buildPage(document);
+    QVERIFY(page.container != nullptr);
+    QCOMPARE(page.container->getResources().getReservedNames(PDFContentResourceCategory::ExtGState), expected);
+}
+
+void ContentTreeTest::reservedNamesLinear()
+{
+    // Review R2-5: the walk of the reserved names looks the names of a scanned content up in the
+    // dictionaries of the page and of the caller; its cost is linear in what it reads, not the
+    // product of the scanned contents and the size of the dictionaries. The page draws /F0, which
+    // draws /F1 ... /F1000 (forms without resources, each "0 0 m": no names); the /XObject of the
+    // page has 100 000 more entries (/X0 ... /X99999, integers). Every one of the 1001 scanned
+    // forms is looked up in that dictionary; a loop over the dictionary per form reads 2 x 10^8
+    // entries.
+    constexpr int FORM_COUNT = 1000;
+    constexpr int OTHER_COUNT = 100000;
+
+    const auto createForm = [](PDFDocumentBuilder* builder, const QByteArray& content)
+    {
+        return Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                     { "Subtype", PDFObject::createName("Form") },
+                                                     { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, content);
+    };
+    const PDFDocument document = Documents::createDocument("/F0 Do", [&](PDFDocumentBuilder* builder)
+    {
+        QByteArray content;
+        Documents::DictionaryEntries forms;
+        for (int k = 1; k <= FORM_COUNT; ++k)
+        {
+            content += "/F" + QByteArray::number(k) + " Do ";
+            forms.emplace_back("F" + QByteArray::number(k), createForm(builder, "0 0 m"));
+        }
+        forms.emplace_back("F0", createForm(builder, content));
+        for (int k = 0; k < OTHER_COUNT; ++k)
+        {
+            forms.emplace_back("X" + QByteArray::number(k), PDFObject::createInteger(k));
+        }
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject(std::move(forms)));
+        return resources;
+    });
+
+    QElapsedTimer timer;
+    timer.start();
+    const PDFContentBuildResult page = buildPage(document);
+    const qint64 elapsed = timer.elapsed();
+    QVERIFY(page.container != nullptr);
+
+    // Every form was scanned: /F1 ... /F1000 are reserved where the page does not define them
+    const std::set<QByteArray>& reserved = page.container->getResources().getReservedNames(PDFContentResourceCategory::ExtGState);
+    QCOMPARE(reserved.size(), size_t(FORM_COUNT));
+    QVERIFY(reserved.count("F1") && reserved.count("F1000"));
+    QVERIFY(page.container->getResources().getReservedNames(PDFContentResourceCategory::XObject).empty());
+    QVERIFY2(elapsed < timeLimit(3000), qPrintable(QString("The build took %1 ms").arg(elapsed)));
+
+    // Every glyph procedure of a Type 3 font without resources counts against the 1 024 contents
+    // of the walk (PDFContentTreeBuilderReservedNames::MAXIMUM_SCANNED_CONTENTS), also one, which
+    // is no stream: the page "BT /T 10 Tf ET /G Do", /T with n procedures, which are integers,
+    // /G a form without resources "/GSX gs". The font comes first (the category Font): with
+    // 1 000 procedures /G is the 1 001st content and is scanned, with 2 000 the walk ends at the
+    // bound before /G (the names found so far stay reserved, none here).
+    for (const int procedureCount : { 1000, 2000 })
+    {
+        const PDFDocument type3Document = Documents::createDocument("BT /T 10 Tf ET /G Do", [&](PDFDocumentBuilder* builder)
+        {
+            Documents::DictionaryEntries procedures;
+            for (int k = 0; k < procedureCount; ++k)
+            {
+                procedures.emplace_back("g" + QByteArray::number(k), PDFObject::createInteger(k));
+            }
+            const PDFObject font = Documents::addObject(builder, Documents::createDictionaryObject({ { "Type", PDFObject::createName("Font") },
+                                                                                                     { "Subtype", PDFObject::createName("Type3") },
+                                                                                                     { "FontBBox", Documents::createIntegerArrayObject({ 0, 0, 1, 1 }) },
+                                                                                                     { "FontMatrix", Documents::createArrayObject({ PDFObject::createReal(0.001), PDFObject::createInteger(0), PDFObject::createInteger(0),
+                                                                                                                                                    PDFObject::createReal(0.001), PDFObject::createInteger(0), PDFObject::createInteger(0) }) },
+                                                                                                     { "CharProcs", Documents::createDictionaryObject(std::move(procedures)) },
+                                                                                                     { "Encoding", Documents::createDictionaryObject({ { "Differences", Documents::createArrayObject({ PDFObject::createInteger(0), PDFObject::createName("g0") }) } }) },
+                                                                                                     { "FirstChar", PDFObject::createInteger(0) },
+                                                                                                     { "LastChar", PDFObject::createInteger(0) },
+                                                                                                     { "Widths", Documents::createIntegerArrayObject({ 1000 }) } }));
+            PDFDictionaryBuilder resources;
+            resources.addEntry(PDFInplaceOrMemoryString("Font"), Documents::createDictionaryObject({ { "T", font } }));
+            resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "G", createForm(builder, "/GSX gs") } }));
+            return resources;
+        });
+
+        const PDFContentBuildResult type3Page = buildPage(type3Document);
+        QVERIFY(type3Page.container != nullptr);
+        QCOMPARE(type3Page.container->getResources().getReservedNames(PDFContentResourceCategory::ExtGState).count("GSX"), size_t(procedureCount == 1000 ? 1 : 0));
+    }
+}
+
 void ContentTreeTest::formInitialState()
 {
     using Property = PDFContentStateProperty;
@@ -6196,6 +7698,159 @@ void ContentTreeTest::textLayout()
         QVERIFY(show.textState.font == nullptr);
         QVERIFY(result.container->getOperations().getOperation(1).getFlags().testFlag(PDFContentOperation::Failed));
     }
+}
+
+void ContentTreeTest::textCompleteAfterUnknownPosition_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<QList<bool>>("complete");      // isTextComplete of the TextShow nodes in their order
+
+    // A2L2-4: the glyphs of a show have the positions of the standard only, when the show begins
+    // where the standard puts it - every show before it in the text object moved the text matrix
+    // by advances the layout knows. /F1 has a width for every glyph used here, /H is Helvetica
+    // without /Widths (a glyph without a width in the font dictionary moves by Tc + Tw only).
+    QTest::newRow("all widths known") << QByteArray("BT /F1 10 Tf (A) Tj (B) Tj ET") << QList<bool>({ true, true });
+    QTest::newRow("after a glyph without a width") << QByteArray("BT /H 10 Tf (A) Tj /F1 10 Tf (B) Tj ET") << QList<bool>({ false, false });
+    QTest::newRow("a new text object begins at the identity") << QByteArray("BT /H 10 Tf (A) Tj ET BT /F1 10 Tf (B) Tj ET") << QList<bool>({ false, true });
+
+    // A TJ of more than 100 000 operands is an opaque node: the processor moves the text matrix
+    // by it, the layout does not (the show after it in the text object)
+    QByteArray numbers;
+    for (int i = 0; i < 100001; ++i)
+    {
+        numbers += "0 ";
+    }
+    QTest::newRow("after an opaque show") << QByteArray("BT /F1 10 Tf [" + numbers + "] TJ (A) Tj ET") << QList<bool>({ false });
+    QTest::newRow("an opaque show in another text object") << QByteArray("BT /F1 10 Tf [" + numbers + "] TJ ET BT /F1 10 Tf (A) Tj ET") << QList<bool>({ true });
+}
+
+void ContentTreeTest::textCompleteAfterUnknownPosition()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(QList<bool>, complete);
+
+    const PDFDocument document = Documents::createDocument(content, [](PDFDocumentBuilder* builder)
+    {
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Font"), Documents::createDictionaryObject({ { "F1", Documents::addSimpleFontObject(builder) },
+                                                                                                { "H", Documents::addStandardFontObject(builder, "Helvetica") } }));
+        return resources;
+    });
+
+    const PDFContentBuildResult result = buildPage(document, true);
+    QVERIFY(result.container != nullptr);
+
+    QList<bool> actual;
+    std::vector<PDFContentNodePointer> stack = { result.container->getRoot() };
+    while (!stack.empty())
+    {
+        const PDFContentNodePointer node = stack.back();
+        stack.pop_back();
+        if (node->getKind() == PDFContentNodeKind::TextShow)
+        {
+            QVERIFY(!node->getData().textItems.empty());
+            actual << node->getData().isTextComplete;
+        }
+        for (auto it = node->getChildren().rbegin(); it != node->getChildren().rend(); ++it)
+        {
+            stack.push_back(*it);
+        }
+    }
+    QCOMPARE(actual, complete);
+}
+
+void ContentTreeTest::textCompleteAfterPositionOperator_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<QList<bool>>("complete");      // isTextComplete of the TextShow nodes in their order
+    QTest::addColumn<QList<QPointF>>("starts");     // the translation of Tm before the first glyph of each complete show
+
+    // Review R2-6, ISO 32000-2, 9.4.2: Tm sets Tm and Tlm (they "shall not be concatenated onto
+    // the current text matrix, but shall replace it"); Td sets Tm = Tlm = [1 0 0 1 tx ty] x Tlm,
+    // TD is -ty TL tx ty Td, T* is 0 -Tl Td, ' is T* string Tj, " is aw Tw ac Tc string '. A show
+    // moves Tm only (9.4.3: Tm "by altering its e and f translation components"); Tlm changes
+    // only "on specific occasions mentioned in" Tables 106 and 107 - the operators above. So a
+    // show, which the layout cannot follow, leaves Tlm known: each of these operators puts the
+    // text where the standard says, the shows behind it are complete again.
+    // /F1: the width of B is 650 per 1000 (Documents::simpleFontWidth): it moves Tm by 6.5 at the
+    // size 10; /H: Helvetica without /Widths. The start of C behind B: [1 0 0 1 6.5 0] x Tm.
+    QTest::newRow("Tm after a glyph without a width") << QByteArray("BT /H 10 Tf (A) Tj 1 0 0 1 50 60 Tm /F1 10 Tf (B) Tj (C) Tj ET")
+                                                       << QList<bool>({ false, true, true }) << QList<QPointF>({ QPointF(), QPointF(50, 60), QPointF(56.5, 60) });
+    QTest::newRow("Tm with a scale") << QByteArray("BT /H 10 Tf (A) Tj 2 0 0 2 10 20 Tm /F1 10 Tf (B) Tj (C) Tj ET")
+                                     << QList<bool>({ false, true, true }) << QList<QPointF>({ QPointF(), QPointF(10, 20), QPointF(23, 20) });
+    QTest::newRow("Td after a glyph without a width") << QByteArray("BT /H 10 Tf 5 7 Td (A) Tj /F1 10 Tf 20 30 Td (B) Tj ET")
+                                                       << QList<bool>({ false, true }) << QList<QPointF>({ QPointF(), QPointF(25, 37) });
+    QTest::newRow("TD and T* after a glyph without a width") << QByteArray("BT /H 10 Tf 5 7 Td (A) Tj /F1 10 Tf 20 -12 TD (B) Tj (C) Tj T* (A) Tj ET")
+                                                              << QList<bool>({ false, true, true, true }) << QList<QPointF>({ QPointF(), QPointF(25, -5), QPointF(31.5, -5), QPointF(25, -17) });
+    QTest::newRow("T* after a glyph without a width") << QByteArray("BT /H 10 Tf 14 TL 5 7 Td (A) Tj /F1 10 Tf T* (B) Tj ET")
+                                                       << QList<bool>({ false, true }) << QList<QPointF>({ QPointF(), QPointF(5, -7) });
+    QTest::newRow("' after a glyph without a width") << QByteArray("BT /H 10 Tf 14 TL 5 7 Td (A) Tj /F1 10 Tf (B) ' ET")
+                                                      << QList<bool>({ false, true }) << QList<QPointF>({ QPointF(), QPointF(5, -7) });
+    // " sets Tc 1: B moves by 6.5 + 1
+    QTest::newRow("\" after a glyph without a width") << QByteArray("BT /H 10 Tf 14 TL 5 7 Td (A) Tj /F1 10 Tf 2 1 (B) \" (C) Tj ET")
+                                                       << QList<bool>({ false, true, true }) << QList<QPointF>({ QPointF(), QPointF(5, -7), QPointF(12.5, -7) });
+    QTest::newRow("a glyph without a width after Tm") << QByteArray("BT /F1 10 Tf (A) Tj 1 0 0 1 50 60 Tm /H 10 Tf (B) Tj /F1 10 Tf (C) Tj ET")
+                                                       << QList<bool>({ true, false, false }) << QList<QPointF>({ QPointF(0, 0), QPointF(), QPointF() });
+
+    // A TJ of more than 100 000 operands is an opaque node: the processor moves Tm by it, the
+    // layout does not; Tlm stays
+    QByteArray numbers;
+    for (int i = 0; i < 100001; ++i)
+    {
+        numbers += "0 ";
+    }
+    QTest::newRow("Tm after an opaque show") << QByteArray("BT /F1 10 Tf [" + numbers + "] TJ 1 0 0 1 50 50 Tm (A) Tj ET")
+                                              << QList<bool>({ true }) << QList<QPointF>({ QPointF(50, 50) });
+    QTest::newRow("Td after an opaque show") << QByteArray("BT /F1 10 Tf 5 7 Td [" + numbers + "] TJ 10 0 Td (A) Tj ET")
+                                              << QList<bool>({ true }) << QList<QPointF>({ QPointF(15, 7) });
+
+    // An opaque ' or " (a string and more than 100 000 operands behind it: the processor reads
+    // its operands from the first one) moves Tlm by T*, which the layout does not see: a
+    // relative move behind it is not known, Tm is
+    QTest::newRow("Td after an opaque '") << QByteArray("BT /F1 10 Tf 14 TL (A) " + numbers + "' 10 0 Td (B) Tj 1 0 0 1 5 5 Tm (C) Tj ET")
+                                           << QList<bool>({ false, true }) << QList<QPointF>({ QPointF(), QPointF(5, 5) });
+    QTest::newRow("T* after an opaque \"") << QByteArray("BT /F1 10 Tf 14 TL 2 1 (A) " + numbers + "\" T* (B) Tj 1 0 0 1 5 5 Tm (C) Tj ET")
+                                            << QList<bool>({ false, true }) << QList<QPointF>({ QPointF(), QPointF(5, 5) });
+}
+
+void ContentTreeTest::textCompleteAfterPositionOperator()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(QList<bool>, complete);
+    QFETCH(QList<QPointF>, starts);
+
+    const PDFDocument document = Documents::createDocument(content, [](PDFDocumentBuilder* builder)
+    {
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Font"), Documents::createDictionaryObject({ { "F1", Documents::addSimpleFontObject(builder) },
+                                                                                                { "H", Documents::addStandardFontObject(builder, "Helvetica") } }));
+        return resources;
+    });
+
+    const PDFContentBuildResult result = buildPage(document, true);
+    QVERIFY(result.container != nullptr);
+
+    QList<bool> actual;
+    QList<QPointF> actualStarts;
+    std::vector<PDFContentNodePointer> stack = { result.container->getRoot() };
+    while (!stack.empty())
+    {
+        const PDFContentNodePointer node = stack.back();
+        stack.pop_back();
+        if (node->getKind() == PDFContentNodeKind::TextShow)
+        {
+            QVERIFY(!node->getData().textItems.empty());
+            const QTransform& matrix = node->getData().textItems.front().textMatrix;
+            actual << node->getData().isTextComplete;
+            actualStarts << (node->getData().isTextComplete ? QPointF(matrix.dx(), matrix.dy()) : QPointF());
+        }
+        for (auto it = node->getChildren().rbegin(); it != node->getChildren().rend(); ++it)
+        {
+            stack.push_back(*it);
+        }
+    }
+    QCOMPARE(actual, complete);
+    QCOMPARE(actualStarts, starts);
 }
 
 void ContentTreeTest::textWithoutLayout()

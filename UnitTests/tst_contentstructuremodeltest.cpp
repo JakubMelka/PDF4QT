@@ -41,6 +41,7 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <initializer_list>
 #include <map>
 #include <vector>
@@ -499,6 +500,19 @@ private Q_SLOTS:
     void clearPageOfManySequences();
     void documentWithoutStructureChanges();
 
+    // Differences of the changes (undo keeps a difference, zadani_jadro.md 4.5)
+    void differenceOfEachAction();
+    void differenceRevertedInReverseOrder();
+    void differenceIsProportional();
+    void versionOfModel();
+
+    // The source of the model and the separation of the changes of a page
+    void sourceFingerprint();
+    void sourceFingerprintWalk();
+    void withoutChangesOfKeys();
+    void withoutChangesOfUnknownContent();
+    void withoutChangesOfKeysChildByChild();
+
     // Number tree writer
     void numberTreeEmpty();
     void numberTreeRootOnly();
@@ -520,6 +534,7 @@ private Q_SLOTS:
     void writeSharedElementOnce();
     void writeDirectRoot();
     void writeErrors();
+    void writeCheck();
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -2448,6 +2463,339 @@ void ContentStructureModelTest::documentWithoutStructureChanges()
 }
 
 // ---------------------------------------------------------------------------------------------
+//  Differences of the changes (zadani_jadro.md 4.5: an undo step keeps the difference)
+// ---------------------------------------------------------------------------------------------
+
+void ContentStructureModelTest::differenceOfEachAction()
+{
+    // Each action of the consistency table on the tagged document (P /K 0, Span 1, Figure 3; the
+    // array of the page [P Span null Figure]), applied with a difference, reverted from the model
+    // after it and reapplied to the model before it. The actions, which change no structure, give
+    // an empty difference; a removal and a split touch the element of the sequence and the array
+    // of the page (ISO 32000-2, 14.7.5.4), nothing else.
+    const TaggedDocument t = Helper::createTagged();
+    PDFContentStructureModelPointer model = PDFContentStructureModel::read(&t.document, nullptr);
+    QVERIFY(model);
+
+    struct Row
+    {
+        const char* name;
+        PDFContentStructureChange change;
+        PDFContentStructureChange::Action action;
+        QStringList paragraphChildren;
+        QList<PDFInteger> pageArray;
+        size_t elementCount;
+        size_t itemCount;
+    };
+
+    const QList<PDFInteger> original = Helper::numbers({ t.paragraph, t.span, PDFObjectReference(), t.figure });
+    const std::vector<Row> rows = {
+        { "none", model->getChangeForDelete(0, 0, false), PDFContentStructureChange::Action::None, { "M0" }, original, 0, 0 },
+        { "untag", model->getChangeForMoveOut(0, 0, false, false, 3), PDFContentStructureChange::Action::Untag, { "M0" }, original, 0, 0 },
+        { "keep with wrap", model->getChangeForReorder(0, 0, true, 3), PDFContentStructureChange::Action::KeepWithWrap, { "M0" }, original, 0, 0 },
+        { "refused", model->getChangeForReorder(0, 0, false, 2147483647), PDFContentStructureChange::Action::Refused, { "M0" }, original, 0, 0 },
+        { "remove sequence", model->getChangeForDelete(0, 0, true), PDFContentStructureChange::Action::RemoveSequence, { },
+          Helper::numbers({ PDFObjectReference(), t.span, PDFObjectReference(), t.figure }), 1, 1 },
+        { "split sequence", model->getChangeForReorder(0, 0, false, 3), PDFContentStructureChange::Action::SplitSequence, { "M0", "M4" },
+          Helper::numbers({ t.paragraph, t.span, PDFObjectReference(), t.figure, t.paragraph }), 1, 1 },
+    };
+
+    for (const Row& row : rows)
+    {
+        QVERIFY2(row.change.action == row.action, row.name);
+
+        PDFContentStructureDifference difference;
+        PDFContentStructureModelPointer changed = model->applied({ row.change }, &difference);
+        QVERIFY2(changed, row.name);
+        QVERIFY2(changed->isEqual(*model->applied({ row.change })), row.name);
+        QVERIFY2(Helper::childrenOf(*changed, t.paragraph) == row.paragraphChildren, row.name);
+        QVERIFY2(Helper::parentTreeOf(*changed, 0) == row.pageArray, row.name);
+        QVERIFY2(changed->isEqual(*model) == (row.elementCount == 0), row.name);
+
+        QVERIFY2(difference.isEmpty() == (row.elementCount == 0), row.name);
+        QVERIFY2(difference.getElementCount() == row.elementCount, row.name);
+        QVERIFY2(difference.getParentTreeItemCount() == row.itemCount, row.name);
+
+        // Undo: the model before, unmodified again
+        PDFContentStructureModelPointer reverted = changed->reverted(difference);
+        QVERIFY2(reverted, row.name);
+        QVERIFY2(reverted->isEqual(*model), row.name);
+        QVERIFY2(!reverted->isModified(), row.name);
+        QVERIFY2(Helper::childrenOf(*reverted, t.paragraph) == QStringList({ "M0" }), row.name);
+        QVERIFY2(Helper::parentTreeOf(*reverted, 0) == original, row.name);
+
+        // Redo
+        PDFContentStructureModelPointer reapplied = model->reapplied(difference);
+        QVERIFY2(reapplied, row.name);
+        QVERIFY2(reapplied->isEqual(*changed), row.name);
+        QVERIFY2(reapplied->isModified() == (row.elementCount > 0), row.name);
+        QVERIFY2(Helper::childrenOf(*reapplied, t.paragraph) == row.paragraphChildren, row.name);
+    }
+
+    // A difference cannot be applied to a model with another count of elements
+    PDFContentStructureDifference difference;
+    model->applied({ model->getChangeForDelete(0, 0, true) }, &difference);
+    const PDFContentStructureModel emptyModel;
+    QVERIFY(emptyModel.reverted(difference) == nullptr);
+    QVERIFY(emptyModel.reapplied(difference) == nullptr);
+}
+
+void ContentStructureModelTest::differenceRevertedInReverseOrder()
+{
+    // Three commands on the private parts of the model, undone in the reverse order and redone:
+    //   X /Pg page /K [ null 0 (junk) 1 << /Type /MCR /Pg page /MCID 2 /Extra 1 >> ]
+    //   /Nums [ 0 [X X X (junk)] ]
+    // null and (junk) are foreign children; the reference with /Extra is a foreign child, which
+    // names the content 2 (irregular: it goes with the content); the string at the index 3 of the
+    // array is a foreign item of the parent tree.
+    //   A: split of 0 (new identifier 4)    -> /K [ null 0 4 (junk) 1 MCR ]   array [X X X (junk) X]
+    //   B: delete of 2 and 3 (one command)   -> /K [ null 0 4 (junk) 1 ]       array [X X null null X]
+    //   C: delete of 4 (the new sequence of the split) and 1
+    //                                        -> /K [ null 0 (junk) ]           array [X null null null null]
+    StructureDocument d;
+    const PDFObjectReference root = d.reserve();
+    const PDFObjectReference x = d.reserve();
+    const PDFObject reference2 = Obj::dictionary({ { "Type", Obj::name("MCR") }, { "Pg", Obj::reference(d.page()) }, { "MCID", Obj::integer(2) }, { "Extra", Obj::integer(1) } });
+    d.set(x, Obj::element("Sect", root, d.page(), Obj::array({ Obj::null(), Obj::integer(0), Obj::string("junk"), Obj::integer(1), reference2 })));
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::reference(x) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array({ Obj::reference(x), Obj::reference(x), Obj::reference(x), Obj::string("junk") }) }) } }) } }));
+    d.setStructuralParents(d.page(), 0);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    PDFContentStructureModelPointer model0 = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(model0);
+    QCOMPARE(Helper::childrenOf(*model0, x), QStringList({ "M0", "M1" }));
+
+    const QString X = Helper::referenceText(x);
+    const QString junk("(junk)");
+    const QString null("null");
+
+    // The written /K of X and the written array of the page; nothing written for an unmodified model
+    auto written = [&document, x](const PDFContentStructureModel& model) -> std::pair<QStringList, QStringList>
+    {
+        PDFDocumentBuilder builder(&document);
+        if (!PDFStructureTreeWriter::write(&builder, model).isWritten)
+        {
+            return { };
+        }
+        const PDFObject numbers = Helper::parentTreeNumbers(builder);
+        return { Helper::itemsOf(Helper::dictionaryOf(builder, x)->get("K")), Helper::itemsOf(builder.getObject(numbers.getArray()->getItem(1))) };
+    };
+
+    // A
+    PDFContentStructureDifference differenceA;
+    const PDFContentStructureChange split = model0->getChangeForReorder(0, 0, false, 3);
+    QCOMPARE(split.newMcid, PDFInteger(4));
+    PDFContentStructureModelPointer model1 = model0->applied({ split }, &differenceA);
+    QCOMPARE(written(*model1), std::make_pair(QStringList({ null, "0", "4", junk, "1", "<<...>>" }), QStringList({ X, X, X, junk, X })));
+
+    // B
+    PDFContentStructureDifference differenceB;
+    PDFContentStructureModelPointer model2 = model1->applied({ model1->getChangeForDelete(0, 2, true), model1->getChangeForDelete(0, 3, true) }, &differenceB);
+    QCOMPARE(written(*model2), std::make_pair(QStringList({ null, "0", "4", junk, "1" }), QStringList({ X, X, null, null, X })));
+
+    // C
+    PDFContentStructureDifference differenceC;
+    PDFContentStructureModelPointer model3 = model2->applied({ model2->getChangeForDelete(0, 4, true), model2->getChangeForDelete(0, 1, true) }, &differenceC);
+    QCOMPARE(written(*model3), std::make_pair(QStringList({ null, "0", junk }), QStringList({ X, null, null, null, null })));
+    QCOMPARE(differenceC.getElementCount(), size_t(1));
+    QCOMPARE(differenceC.getParentTreeItemCount(), size_t(1));
+    QVERIFY(!differenceC.isEmpty());
+
+    // A change, which changes nothing, on a modified model
+    PDFContentStructureDifference differenceNone;
+    QVERIFY(model3->applied({ model3->getChangeForDelete(0, 0, false) }, &differenceNone)->isEqual(*model3));
+    QVERIFY(differenceNone.isEmpty());
+
+    // Undo C, B, A
+    PDFContentStructureModelPointer undoneC = model3->reverted(differenceC);
+    QVERIFY(undoneC && undoneC->isEqual(*model2) && !undoneC->isEqual(*model3));
+    QCOMPARE(written(*undoneC), written(*model2));
+
+    PDFContentStructureModelPointer undoneB = undoneC->reverted(differenceB);
+    QVERIFY(undoneB && undoneB->isEqual(*model1) && !undoneB->isEqual(*model2));
+    QCOMPARE(written(*undoneB), written(*model1));
+
+    // The content 2 is irregular again: its split is refused, as in the model read
+    QVERIFY(undoneB->getChangeForReorder(0, 2, false, 4).action == PDFContentStructureChange::Action::Refused);
+    QVERIFY(model2->getChangeForReorder(0, 1, false, 4).action == PDFContentStructureChange::Action::SplitSequence);
+
+    PDFContentStructureModelPointer undoneA = undoneB->reverted(differenceA);
+    QVERIFY(undoneA && undoneA->isEqual(*model0) && !undoneA->isEqual(*model1));
+    QVERIFY(!undoneA->isModified());
+    QCOMPARE(written(*undoneA), (std::pair<QStringList, QStringList>()));
+    QCOMPARE(Helper::childrenOf(*undoneA, x), QStringList({ "M0", "M1" }));
+
+    // The same split gives the same identifier as before (the largest identifier in use is back)
+    QCOMPARE(undoneA->getChangeForReorder(0, 0, false, 3).newMcid, PDFInteger(4));
+
+    // Redo A, B, C
+    PDFContentStructureModelPointer redoneA = undoneA->reapplied(differenceA);
+    QVERIFY(redoneA && redoneA->isEqual(*model1));
+    PDFContentStructureModelPointer redoneB = redoneA->reapplied(differenceB);
+    QVERIFY(redoneB && redoneB->isEqual(*model2));
+    PDFContentStructureModelPointer redoneC = redoneB->reapplied(differenceC);
+    QVERIFY(redoneC && redoneC->isEqual(*model3));
+    QCOMPARE(written(*redoneC), written(*model3));
+}
+
+void ContentStructureModelTest::differenceIsProportional()
+{
+    // 2000 elements P_i /K i on one page with the array [P_0 ... P_1999]: a split touches one element
+    // and the array, a deletion of ten sequences ten elements and the array, whatever the size of
+    // the model
+    const int count = 2000;
+    StructureDocument d;
+    const PDFObjectReference root = d.reserve();
+    std::vector<PDFObject> kids;
+    std::vector<PDFObject> pageArray;
+    for (int i = 0; i < count; ++i)
+    {
+        const PDFObjectReference element = d.reserve();
+        d.set(element, Obj::element("P", root, d.page(), Obj::integer(i)));
+        kids.push_back(Obj::reference(element));
+        pageArray.push_back(Obj::reference(element));
+    }
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::array(std::move(kids)) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array(std::move(pageArray)) }) } }) } }));
+    d.setStructuralParents(d.page(), 0);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    PDFContentStructureModelPointer model = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(model);
+    QCOMPARE(model->getElements().size(), size_t(count + 1));
+
+    PDFContentStructureDifference splitDifference;
+    PDFContentStructureModelPointer split = model->applied({ model->getChangeForReorder(0, 700, false, count - 1) }, &splitDifference);
+    QCOMPARE(splitDifference.getElementCount(), size_t(1));
+    QCOMPARE(splitDifference.getParentTreeItemCount(), size_t(1));
+    QVERIFY(split->reverted(splitDifference)->isEqual(*model));
+
+    std::vector<PDFContentStructureChange> removals;
+    for (int i = 0; i < 10; ++i)
+    {
+        removals.push_back(model->getChangeForDelete(0, 100 * i, true));
+    }
+    PDFContentStructureDifference removalDifference;
+    PDFContentStructureModelPointer removed = model->applied(removals, &removalDifference);
+    QCOMPARE(removalDifference.getElementCount(), size_t(10));
+    QCOMPARE(removalDifference.getParentTreeItemCount(), size_t(1));
+    QVERIFY(removed->reverted(removalDifference)->isEqual(*model));
+}
+
+void ContentStructureModelTest::versionOfModel()
+{
+    // The number of the version (request 3 of pb0s1_state.md, as PDFContentContainer::getVersion):
+    // a new one for every model made by the default constructor, read, applied and
+    // withoutChangesOfKeys (when it leaves something out); reverted and reapplied give the number
+    // of the version they reproduce, so a command knows the model it was applied to also when the
+    // object is another one. Three elements P_i /K i on one page, the array [P_0 P_1 P_2].
+    StructureDocument d;
+    const PDFObjectReference root = d.reserve();
+    std::vector<PDFObject> kids;
+    std::vector<PDFObject> pageArray;
+    for (int i = 0; i < 3; ++i)
+    {
+        const PDFObjectReference element = d.reserve();
+        d.set(element, Obj::element("P", root, d.page(), Obj::integer(i)));
+        kids.push_back(Obj::reference(element));
+        pageArray.push_back(Obj::reference(element));
+    }
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::array(std::move(kids)) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array(std::move(pageArray)) }) } }) } }));
+    d.setStructuralParents(d.page(), 0);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    // ---- read and the default constructor: a new number each time, never 0; a copy keeps it ----
+    const PDFContentStructureModelPointer model0 = PDFContentStructureModel::read(&document, nullptr);
+    const PDFContentStructureModelPointer readAgain = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(model0 && readAgain);
+    QVERIFY(model0->isEqual(*readAgain));
+    QVERIFY(model0->getVersion() != 0);
+    QVERIFY(readAgain->getVersion() != 0);
+    QVERIFY(model0->getVersion() != readAgain->getVersion());
+
+    const PDFContentStructureModel empty;
+    const PDFContentStructureModel otherEmpty;
+    QVERIFY(empty.getVersion() != 0);
+    QVERIFY(empty.getVersion() != otherEmpty.getVersion());
+    QVERIFY(empty.getVersion() != model0->getVersion() && empty.getVersion() != readAgain->getVersion());
+
+    const PDFContentStructureModel copy = *model0;
+    QCOMPARE(copy.getVersion(), model0->getVersion());
+
+    // ---- applied: a new number, which the difference names with the number before ----
+    PDFContentStructureDifference differenceA;
+    const PDFContentStructureChange split = model0->getChangeForReorder(0, 1, false, 2);
+    QVERIFY(split.action == PDFContentStructureChange::Action::SplitSequence);
+    const PDFContentStructureModelPointer model1 = model0->applied({ split }, &differenceA);
+    QVERIFY(model1 && !model1->isEqual(*model0));
+    QVERIFY(model1->getVersion() != 0);
+    QVERIFY(model1->getVersion() != model0->getVersion() && model1->getVersion() != readAgain->getVersion());
+    QCOMPARE(differenceA.getVersionBefore(), model0->getVersion());
+    QCOMPARE(differenceA.getVersionAfter(), model1->getVersion());
+
+    PDFContentStructureDifference differenceB;
+    const PDFContentStructureModelPointer model2 = model1->applied({ model1->getChangeForDelete(0, 0, true) }, &differenceB);
+    QVERIFY(model2 && !model2->isEqual(*model1));
+    QVERIFY(model2->getVersion() != model1->getVersion() && model2->getVersion() != model0->getVersion());
+    QCOMPARE(differenceB.getVersionBefore(), model1->getVersion());
+    QCOMPARE(differenceB.getVersionAfter(), model2->getVersion());
+
+    // Changes, which change nothing, still make a model of its own (with and without a difference)
+    PDFContentStructureDifference differenceNone;
+    const PDFContentStructureModelPointer unchanged = model2->applied({ model2->getChangeForDelete(0, 2, false) }, &differenceNone);
+    QVERIFY(differenceNone.isEmpty() && unchanged->isEqual(*model2));
+    QVERIFY(unchanged->getVersion() != model2->getVersion());
+    QCOMPARE(differenceNone.getVersionBefore(), model2->getVersion());
+    QCOMPARE(differenceNone.getVersionAfter(), unchanged->getVersion());
+    const PDFContentStructureModelPointer unchangedWithoutDifference = model2->applied({ });
+    QVERIFY(unchangedWithoutDifference->getVersion() != model2->getVersion() && unchangedWithoutDifference->getVersion() != unchanged->getVersion());
+
+    // ---- reverted and reapplied: other objects, the numbers of the versions they reproduce ----
+    const PDFContentStructureModelPointer undoneB = model2->reverted(differenceB);
+    QVERIFY(undoneB && undoneB != model1 && undoneB->isEqual(*model1));
+    QCOMPARE(undoneB->getVersion(), model1->getVersion());
+    const PDFContentStructureModelPointer undoneA = undoneB->reverted(differenceA);
+    QVERIFY(undoneA && undoneA != model0 && undoneA->isEqual(*model0));
+    QCOMPARE(undoneA->getVersion(), model0->getVersion());
+
+    const PDFContentStructureModelPointer redoneA = undoneA->reapplied(differenceA);
+    QVERIFY(redoneA && redoneA != model1 && redoneA->isEqual(*model1));
+    QCOMPARE(redoneA->getVersion(), model1->getVersion());
+    const PDFContentStructureModelPointer redoneB = redoneA->reapplied(differenceB);
+    QVERIFY(redoneB && redoneB->isEqual(*model2));
+    QCOMPARE(redoneB->getVersion(), model2->getVersion());
+
+    // A difference, which applied did not make, names no version: the model gets a new number
+    const PDFContentStructureDifference noDifference;
+    QCOMPARE(noDifference.getVersionBefore(), quint64(0));
+    QCOMPARE(noDifference.getVersionAfter(), quint64(0));
+    const PDFContentStructureModelPointer emptyReverted = empty.reverted(noDifference);
+    const PDFContentStructureModelPointer emptyReapplied = empty.reapplied(noDifference);
+    QVERIFY(emptyReverted && emptyReapplied);
+    QVERIFY(emptyReverted->getVersion() != 0 && emptyReverted->getVersion() != empty.getVersion());
+    QVERIFY(emptyReapplied->getVersion() != 0 && emptyReapplied->getVersion() != empty.getVersion() && emptyReapplied->getVersion() != emptyReverted->getVersion());
+
+    // ---- withoutChangesOfKeys: a new number, when it leaves a change out; the same model, when
+    //      it leaves nothing out ----
+    QString errorText;
+    const PDFContentStructureModelPointer withoutPage = model1->withoutChangesOfKeys(*model0, { 0 }, &errorText);
+    QVERIFY2(withoutPage, qPrintable(errorText));
+    QVERIFY(withoutPage->isEqual(*model0));
+    QVERIFY(withoutPage->getVersion() != model0->getVersion() && withoutPage->getVersion() != model1->getVersion());
+    const PDFContentStructureModelPointer withEverything = model1->withoutChangesOfKeys(*model0, { }, &errorText);
+    QVERIFY(withEverything && withEverything->isEqual(*model1));
+    QCOMPARE(withEverything->getVersion(), model1->getVersion());
+}
+
+// ---------------------------------------------------------------------------------------------
 //  Number tree writer (ISO 32000-2, 7.9.7, Table 37)
 // ---------------------------------------------------------------------------------------------
 
@@ -3245,6 +3593,437 @@ void ContentStructureModelTest::writeErrors()
         QVERIFY(!result.isWritten);
         QCOMPARE(result.errors.size(), size_t(1));
         QVERIFY(*builder.getStorage() == before);
+    }
+}
+
+void ContentStructureModelTest::writeCheck()
+{
+    // PDFStructureTreeWriter::check gives the error write would give, and writes nothing
+    const TaggedDocument t = Helper::createTagged();
+    PDFContentStructureModelPointer model = PDFContentStructureModel::read(&t.document, nullptr);
+    QVERIFY(model);
+    PDFContentStructureModelPointer changed = model->applied({ model->getChangeForDelete(0, 0, true) });
+
+    // No builder: an unmodified model needs none, a modified one does
+    QVERIFY(PDFStructureTreeWriter::check(nullptr, *model).isEmpty());
+    QCOMPARE(PDFStructureTreeWriter::check(nullptr, *changed), PDFStructureTreeWriter::write(nullptr, *changed).errors.front());
+
+    // The document of the model: no error, nothing written by the check, the write passes
+    {
+        PDFDocumentBuilder builder(&t.document);
+        const PDFObjectStorage before = *builder.getStorage();
+        QVERIFY(PDFStructureTreeWriter::check(&builder, *changed).isEmpty());
+        QVERIFY(*builder.getStorage() == before);
+        QVERIFY(PDFStructureTreeWriter::write(&builder, *changed).isWritten);
+    }
+
+    // Another document, and the changed element is not a dictionary any more: the errors of write
+    {
+        StructureDocument d;
+        const PDFDocument other = d.build();
+        PDFDocumentBuilder builder(&other);
+        const QString error = PDFStructureTreeWriter::check(&builder, *changed);
+        QVERIFY(!error.isEmpty());
+        QCOMPARE(error, PDFStructureTreeWriter::write(&builder, *changed).errors.front());
+    }
+    {
+        PDFDocumentBuilder builder(&t.document);
+        builder.setObject(t.paragraph, Obj::integer(1));
+        const QString error = PDFStructureTreeWriter::check(&builder, *changed);
+        QVERIFY(!error.isEmpty());
+        QCOMPARE(error, PDFStructureTreeWriter::write(&builder, *changed).errors.front());
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+//  The source of the model and the separation of the changes of a page
+// ---------------------------------------------------------------------------------------------
+
+void ContentStructureModelTest::sourceFingerprint()
+{
+    // The source fingerprint covers everything the reading takes from the document: the entry
+    // /StructTreeRoot of the catalog, the root and every object reachable from it (the elements,
+    // the arrays of /K, the nodes and arrays of /ParentTree, the role map), and /StructParents of
+    // the pages and streams the children name. It does not enter a page, a content stream or an
+    // annotation (/Pg, /Stm, /StmOwn, /Obj).
+    const TaggedDocument t = Helper::createTagged(true);
+    PDFContentStructureModelPointer model = PDFContentStructureModel::read(&t.document, nullptr);
+    QVERIFY(model);
+    const QByteArray fingerprint = model->getSourceFingerprint();
+    QVERIFY(!fingerprint.isEmpty());
+    QCOMPARE(PDFContentStructureModel::computeSourceFingerprint(&t.document, nullptr), fingerprint);
+    QCOMPARE(PDFContentStructureModel::read(&t.document, nullptr)->getSourceFingerprint(), fingerprint);
+
+    // A change of the model keeps it: it says, where the model came from
+    PDFContentStructureDifference difference;
+    PDFContentStructureModelPointer changed = model->applied({ model->getChangeForDelete(0, 0, true) }, &difference);
+    QCOMPARE(changed->getSourceFingerprint(), fingerprint);
+    QCOMPARE(changed->reverted(difference)->getSourceFingerprint(), fingerprint);
+
+    // Documents changed in one object
+    struct Row
+    {
+        const char* name;
+        std::function<void(PDFDocumentBuilder&)> change;
+        bool isChanged;
+    };
+    const std::vector<Row> rows = {
+        { "another /Alt of an element", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.figure, Obj::dictionary({ { "Alt", Obj::string("Circle") } })); }, true },
+        { "another /K of an element", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.paragraph, Obj::dictionary({ { "K", Obj::integer(2) } })); }, true },
+        { "another array of the page (an object of its own)", [&t](PDFDocumentBuilder& b) { b.setObject(t.pageArray, Obj::array({ Obj::reference(t.paragraph), Obj::null(), Obj::null(), Obj::reference(t.figure) })); }, true },
+        { "another role map", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.root, Obj::dictionary({ { "RoleMap", Obj::dictionary({ { "Para", Obj::name("H1") } }) } })); }, true },
+        { "another /StructParents of the page", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.page, Obj::dictionary({ { "StructParents", Obj::integer(5) } })); }, true },
+        { "another rectangle of the annotation", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.annotation, Obj::dictionary({ { "Rect", Obj::array({ Obj::integer(0), Obj::integer(0), Obj::integer(5), Obj::integer(5) }) } })); }, false },
+        { "another rotation of the page", [&t](PDFDocumentBuilder& b) { b.mergeTo(t.page, Obj::dictionary({ { "Rotate", Obj::integer(90) } })); }, false },
+    };
+    for (const Row& row : rows)
+    {
+        PDFDocumentBuilder builder(&t.document);
+        row.change(builder);
+        const PDFDocument other = builder.build();
+        QVERIFY2((PDFContentStructureModel::computeSourceFingerprint(&other, nullptr) != fingerprint) == row.isChanged, row.name);
+    }
+
+    // Documents without a structure: one fingerprint, not the one of a structure
+    StructureDocument d1;
+    StructureDocument d2;
+    d2.addPage();
+    const PDFDocument plain1 = d1.build();
+    const PDFDocument plain2 = d2.build();
+    const QByteArray plainFingerprint = PDFContentStructureModel::read(&plain1, nullptr)->getSourceFingerprint();
+    QVERIFY(!plainFingerprint.isEmpty());
+    QCOMPARE(PDFContentStructureModel::computeSourceFingerprint(&plain2, nullptr), plainFingerprint);
+    QVERIFY(plainFingerprint != fingerprint);
+
+    // Canceled: no fingerprint
+    CancelAfter canceled(0);
+    QVERIFY(PDFContentStructureModel::computeSourceFingerprint(&t.document, &canceled).isEmpty());
+}
+
+void ContentStructureModelTest::sourceFingerprintWalk()
+{
+    // The walk of the fingerprint has one visited set: a cycle ends, a node shared by two paths
+    // is hashed once - and a change of it is seen
+    //   root /K [X];  X /K [Y Z];  Y /K [X Z];  Z /S /Figure /Alt (a)
+    const auto create = [](const QByteArray& alt)
+    {
+        StructureDocument d;
+        const PDFObjectReference root = d.reserve();
+        const PDFObjectReference x = d.reserve();
+        const PDFObjectReference y = d.reserve();
+        const PDFObjectReference z = d.reserve();
+        d.set(x, Obj::element("Sect", root, PDFObjectReference(), Obj::array({ Obj::reference(y), Obj::reference(z) })));
+        d.set(y, Obj::element("Sect", x, PDFObjectReference(), Obj::array({ Obj::reference(x), Obj::reference(z) })));
+        d.set(z, Obj::element("Figure", x, PDFObjectReference(), PDFObject(), { { "Alt", Obj::string(alt) } }));
+        d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") }, { "K", Obj::array({ Obj::reference(x) }) } }));
+        d.setRoot(Obj::reference(root));
+        return d.build();
+    };
+
+    const PDFDocument first = create("a");
+    const PDFDocument second = create("b");
+    const QByteArray fingerprint = PDFContentStructureModel::computeSourceFingerprint(&first, nullptr);
+    QVERIFY(!fingerprint.isEmpty());
+    QCOMPARE(PDFContentStructureModel::computeSourceFingerprint(&first, nullptr), fingerprint);
+    QVERIFY(PDFContentStructureModel::computeSourceFingerprint(&second, nullptr) != fingerprint);
+
+    PDFContentStructureModelPointer model = PDFContentStructureModel::read(&first, nullptr);
+    QVERIFY(model);
+    QCOMPARE(model->getSourceFingerprint(), fingerprint);
+}
+
+void ContentStructureModelTest::withoutChangesOfKeys()
+{
+    // Two tagged pages (page 1 /StructParents 0, page 2 1):
+    //   root /K [A B C];  A /Pg page1 /K [0 1];  B /Pg page2 /K [0 1];
+    //   C /K [ << /Type /MCR /Pg page1 /MCID 2 >> << /Type /MCR /Pg page2 /MCID 2 >> ]
+    //   D /K << /Type /MCR /Pg page2 /MCID 3 /Extra 1 >>   (a foreign child, which names the content 3 of the page 2)
+    //   /Nums [ 0 [A A C]  1 [B B C D] ]
+    // The changes of the key 1 taken out of a model give the model of the other changes alone.
+    StructureDocument d;
+    const PDFObjectReference page2 = d.addPage();
+    const PDFObjectReference root = d.reserve();
+    const PDFObjectReference a = d.reserve();
+    const PDFObjectReference b = d.reserve();
+    const PDFObjectReference c = d.reserve();
+    const PDFObjectReference dd = d.reserve();
+    d.set(a, Obj::element("P", root, d.page(), Obj::array({ Obj::integer(0), Obj::integer(1) })));
+    d.set(b, Obj::element("P", root, page2, Obj::array({ Obj::integer(0), Obj::integer(1) })));
+    d.set(c, Obj::element("Span", root, PDFObjectReference(), Obj::array({ Obj::markedContentReference(d.page(), 2), Obj::markedContentReference(page2, 2) })));
+    d.set(dd, Obj::element("Span", root, PDFObjectReference(), Obj::dictionary({ { "Type", Obj::name("MCR") }, { "Pg", Obj::reference(page2) }, { "MCID", Obj::integer(3) }, { "Extra", Obj::integer(1) } })));
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::array({ Obj::reference(a), Obj::reference(b), Obj::reference(c), Obj::reference(dd) }) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array({ Obj::reference(a), Obj::reference(a), Obj::reference(c) }),
+                                                                                           Obj::integer(1), Obj::array({ Obj::reference(b), Obj::reference(b), Obj::reference(c), Obj::reference(dd) }) }) } }) } }));
+    d.setStructuralParents(d.page(), 0);
+    d.setStructuralParents(page2, 1);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    PDFContentStructureModelPointer original = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(original);
+    QCOMPARE(Helper::childrenOf(*original, dd), QStringList());
+
+    // The sequence 0 of both pages deleted: without the key 1 = the deletion of the page 1 alone
+    PDFContentStructureModelPointer both = original->applied({ Helper::removal(0, 0), Helper::removal(1, 0) });
+    QString errorText;
+    PDFContentStructureModelPointer separated = both->withoutChangesOfKeys(*original, { 1 }, &errorText);
+    QVERIFY2(separated, qPrintable(errorText));
+    QVERIFY(separated->isEqual(*original->applied({ Helper::removal(0, 0) })));
+    QCOMPARE(Helper::childrenOf(*separated, b), QStringList({ "M0", "M1" }));
+    QCOMPARE(Helper::parentTreeOf(*separated, 1), Helper::numbers({ b, b, c, dd }));
+
+    // The content 3 of the page 2 deleted with the page 1's 0: D loses its foreign child (the
+    // content is irregular); without the key 1 it has it again
+    PDFContentStructureModelPointer foreign = original->applied({ Helper::removal(0, 0), Helper::removal(1, 3) });
+    QVERIFY(foreign->getElement(Helper::idOf(*original, dd))->isModified);
+    PDFContentStructureModelPointer foreignSeparated = foreign->withoutChangesOfKeys(*original, { 1 }, nullptr);
+    QVERIFY(foreignSeparated && foreignSeparated->isEqual(*original->applied({ Helper::removal(0, 0) })));
+    QVERIFY(!separated->getElement(Helper::idOf(*separated, b))->isModified);
+    QVERIFY(!separated->getParentTree().at(1).isModified);
+    QVERIFY(separated->isModified());
+
+    // No key, a key without a change: the model as it is
+    QVERIFY(both->withoutChangesOfKeys(*original, { }, nullptr)->isEqual(*both));
+    QVERIFY(both->withoutChangesOfKeys(*original, { 7 }, nullptr)->isEqual(*both));
+
+    // Both keys: the original, not modified
+    PDFContentStructureModelPointer none = both->withoutChangesOfKeys(*original, { 0, 1 }, nullptr);
+    QVERIFY(none && none->isEqual(*original) && !none->isModified());
+
+    // A split of the page 2 (the new identifier 4: the array of the key 1 has four items): its
+    // key taken out gives the original, the identifiers in use included
+    PDFContentStructureModelPointer split = original->applied({ original->getChangeForReorder(1, 0, false, 3) });
+    QCOMPARE(Helper::childrenOf(*split, b), QStringList({ "M0", "M4", "M1" }));
+    PDFContentStructureModelPointer splitSeparated = split->withoutChangesOfKeys(*original, { 1 }, nullptr);
+    QVERIFY(splitSeparated && splitSeparated->isEqual(*original));
+
+    // C lists content of both pages: the deletion of its two sequences is separated child by
+    // child (step B0, review R2-3): C keeps the child of the key left out, at its place
+    PDFContentStructureModelPointer shared = original->applied({ Helper::removal(0, 2), Helper::removal(1, 2) });
+    errorText.clear();
+    PDFContentStructureModelPointer sharedWithout1 = shared->withoutChangesOfKeys(*original, { 1 }, &errorText);
+    QVERIFY2(sharedWithout1, qPrintable(errorText));
+    QVERIFY(sharedWithout1->isEqual(*original->applied({ Helper::removal(0, 2) })));
+    QCOMPARE(Helper::childrenOf(*sharedWithout1, c), QStringList({ QString("R2@%1").arg(page2.objectNumber) }));
+    PDFContentStructureModelPointer sharedWithout0 = shared->withoutChangesOfKeys(*original, { 0 }, nullptr);
+    QVERIFY(sharedWithout0 && sharedWithout0->isEqual(*original->applied({ Helper::removal(1, 2) })));
+    QCOMPARE(Helper::childrenOf(*sharedWithout0, c), QStringList({ QString("R2@%1").arg(d.page().objectNumber) }));
+    QVERIFY(shared->withoutChangesOfKeys(*original, { 0, 1 }, nullptr)->isEqual(*original));
+
+    PDFContentStructureModelPointer one = original->applied({ Helper::removal(0, 2), Helper::removal(1, 0) });
+    PDFContentStructureModelPointer oneSeparated = one->withoutChangesOfKeys(*original, { 1 }, nullptr);
+    QVERIFY(oneSeparated && oneSeparated->isEqual(*original->applied({ Helper::removal(0, 2) })));
+    QCOMPARE(Helper::childrenOf(*oneSeparated, c), QStringList({ QString("R2@%1").arg(page2.objectNumber) }));
+}
+
+void ContentStructureModelTest::withoutChangesOfUnknownContent()
+{
+    // A /K [0 1] without /Pg (the page of its children is not known); /Nums [0 [A A]]: the
+    // deletion of the sequence 0 removes the child of A, which the parent tree names - a change,
+    // whose page the model does not know. It cannot be taken apart from a change of the key 0.
+    StructureDocument d;
+    const PDFObjectReference root = d.reserve();
+    const PDFObjectReference a = d.add(Obj::element("P", root, PDFObjectReference(), Obj::array({ Obj::integer(0), Obj::integer(1) })));
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::reference(a) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array({ Obj::reference(a), Obj::reference(a) }) }) } }) } }));
+    d.setStructuralParents(d.page(), 0);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    PDFContentStructureModelPointer original = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(original);
+    PDFContentStructureModelPointer changed = original->applied({ original->getChangeForDelete(0, 0, true) });
+    QCOMPARE(Helper::childrenOf(*changed, a), QStringList({ "M1" }));
+
+    QString errorText;
+    QVERIFY(changed->withoutChangesOfKeys(*original, { 0 }, &errorText) == nullptr);
+    QVERIFY(!errorText.isEmpty());
+
+    // A key, which has no change, takes nothing out
+    QVERIFY(changed->withoutChangesOfKeys(*original, { 3 }, nullptr)->isEqual(*changed));
+}
+
+void ContentStructureModelTest::withoutChangesOfKeysChildByChild()
+{
+    // Review R2-3: an element, which lists tagged content of a skipped page and of a written page
+    // (a paragraph across a page break), keeps the children of the skipped page as the document
+    // has them and gets the changes of the written page; /K keeps the reading order. Two pages
+    // (page 1 /StructParents 0, page 2 1):
+    //   root /K [P Q F]
+    //   P /Pg page1 /K [0 1 R(p2,0) R(p2,1)]                     a paragraph across the page break
+    //   Q /Pg page1 /K [R(p2,2) 2 R(p2,3)]                       content of the page 1 between content of the page 2
+    //   F /Pg page1 /K [3 R(p2,4) << /Type /MCR /Pg page2 /MCID 5 /Extra 1 >>]   (a foreign child)
+    //   /Nums [ 0 [P P Q F]  1 [P P Q Q F F] ]
+    // R(p,m) = << /Type /MCR /Pg p /MCID m >>. A split gives the rest of a sequence the identifier
+    // above the array of its key (4 on the page 1, 6 on the page 2) right behind its original.
+    StructureDocument d;
+    const PDFObjectReference page1 = d.page();
+    const PDFObjectReference page2 = d.addPage();
+    const PDFObjectReference root = d.reserve();
+    const PDFObjectReference p = d.reserve();
+    const PDFObjectReference q = d.reserve();
+    const PDFObjectReference f = d.reserve();
+    d.set(p, Obj::element("P", root, page1, Obj::array({ Obj::integer(0), Obj::integer(1), Obj::markedContentReference(page2, 0), Obj::markedContentReference(page2, 1) })));
+    d.set(q, Obj::element("P", root, page1, Obj::array({ Obj::markedContentReference(page2, 2), Obj::integer(2), Obj::markedContentReference(page2, 3) })));
+    d.set(f, Obj::element("P", root, page1, Obj::array({ Obj::integer(3), Obj::markedContentReference(page2, 4),
+                                                          Obj::dictionary({ { "Type", Obj::name("MCR") }, { "Pg", Obj::reference(page2) }, { "MCID", Obj::integer(5) }, { "Extra", Obj::integer(1) } }) })));
+    d.set(root, Obj::dictionary({ { "Type", Obj::name("StructTreeRoot") },
+                                  { "K", Obj::array({ Obj::reference(p), Obj::reference(q), Obj::reference(f) }) },
+                                  { "ParentTree", Obj::dictionary({ { "Nums", Obj::array({ Obj::integer(0), Obj::array({ Obj::reference(p), Obj::reference(p), Obj::reference(q), Obj::reference(f) }),
+                                                                                           Obj::integer(1), Obj::array({ Obj::reference(p), Obj::reference(p), Obj::reference(q), Obj::reference(q), Obj::reference(f), Obj::reference(f) }) }) } }) } }));
+    d.setStructuralParents(page1, 0);
+    d.setStructuralParents(page2, 1);
+    d.setRoot(Obj::reference(root));
+    const PDFDocument document = d.build();
+
+    const PDFContentStructureModelPointer original = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(original);
+    const QString n2 = QString::number(page2.objectNumber);
+    QCOMPARE(Helper::childrenOf(*original, p), QStringList({ "M0", "M1", "R0@" + n2, "R1@" + n2 }));
+    QCOMPARE(Helper::childrenOf(*original, q), QStringList({ "R2@" + n2, "M2", "R3@" + n2 }));
+    QCOMPARE(Helper::childrenOf(*original, f), QStringList({ "M3", "R4@" + n2 }));
+
+    // The changed model without the changes of the keys
+    const auto separate = [&original](const PDFContentStructureModelPointer& changed, std::set<PDFInteger> keys, QString* errorText)
+    {
+        return changed->withoutChangesOfKeys(*original, keys, errorText);
+    };
+
+    // The splits (a sequence split in the middle) of each page
+    const PDFContentStructureChange splitP1 = original->getChangeForReorder(0, 0, false, 3);
+    const PDFContentStructureChange splitP2 = original->getChangeForReorder(1, 0, false, 5);
+    QVERIFY(splitP1.action == PDFContentStructureChange::Action::SplitSequence && splitP1.newMcid == 4);
+    QVERIFY(splitP2.action == PDFContentStructureChange::Action::SplitSequence && splitP2.newMcid == 6);
+
+    // ---- A removal on each page ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ Helper::removal(0, 1), Helper::removal(1, 0) });
+        QCOMPARE(Helper::childrenOf(*changed, p), QStringList({ "M0", "R1@" + n2 }));
+
+        // The page 2 skipped: P keeps R(p2,0) at its place, loses 1 of the page 1
+        QString errorText;
+        PDFContentStructureModelPointer without1 = separate(changed, { 1 }, &errorText);
+        QVERIFY2(without1, qPrintable(errorText));
+        QCOMPARE(Helper::childrenOf(*without1, p), QStringList({ "M0", "R0@" + n2, "R1@" + n2 }));
+        QCOMPARE(Helper::parentTreeOf(*without1, 0), QList<PDFInteger>({ p.objectNumber, 0, q.objectNumber, f.objectNumber }));
+        QCOMPARE(Helper::parentTreeOf(*without1, 1), Helper::numbers({ p, p, q, q, f, f }));
+        QVERIFY(without1->isEqual(*original->applied({ Helper::removal(0, 1) })));
+        QVERIFY(without1->getElement(Helper::idOf(*without1, p))->isModified);
+
+        // The page 1 skipped: P keeps 1, loses R(p2,0)
+        PDFContentStructureModelPointer without0 = separate(changed, { 0 }, nullptr);
+        QVERIFY(without0);
+        QCOMPARE(Helper::childrenOf(*without0, p), QStringList({ "M0", "M1", "R1@" + n2 }));
+        QVERIFY(without0->isEqual(*original->applied({ Helper::removal(1, 0) })));
+    }
+
+    // ---- A split on the page 2 and a removal on the page 1 ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ splitP2 })->applied({ Helper::removal(0, 0) });
+        QCOMPARE(Helper::childrenOf(*changed, p), QStringList({ "M1", "R0@" + n2, "R6@" + n2, "R1@" + n2 }));
+
+        // The page 1 skipped (the page 2 with the split written): 0 at its place in front
+        PDFContentStructureModelPointer without0 = separate(changed, { 0 }, nullptr);
+        QVERIFY(without0);
+        QCOMPARE(Helper::childrenOf(*without0, p), QStringList({ "M0", "M1", "R0@" + n2, "R6@" + n2, "R1@" + n2 }));
+        QCOMPARE(Helper::parentTreeOf(*without0, 1), Helper::numbers({ p, p, q, q, f, f, p }));
+        QVERIFY(without0->isEqual(*original->applied({ splitP2 })));
+
+        // The page 2 skipped (the page 1 with the removal written): no new identifier of the page 2
+        PDFContentStructureModelPointer without1 = separate(changed, { 1 }, nullptr);
+        QVERIFY(without1);
+        QCOMPARE(Helper::childrenOf(*without1, p), QStringList({ "M1", "R0@" + n2, "R1@" + n2 }));
+        QCOMPARE(Helper::parentTreeOf(*without1, 1), Helper::numbers({ p, p, q, q, f, f }));
+        QVERIFY(without1->isEqual(*original->applied({ Helper::removal(0, 0) })));
+    }
+
+    // ---- A split on the page 1 and a removal on the page 2 (the changed page skipped, the other
+    //      one written, and the other way round) ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ splitP1 })->applied({ Helper::removal(1, 1) });
+        QCOMPARE(Helper::childrenOf(*changed, p), QStringList({ "M0", "M4", "M1", "R0@" + n2 }));
+
+        PDFContentStructureModelPointer without1 = separate(changed, { 1 }, nullptr);
+        QVERIFY(without1);
+        QCOMPARE(Helper::childrenOf(*without1, p), QStringList({ "M0", "M4", "M1", "R0@" + n2, "R1@" + n2 }));
+        QVERIFY(without1->isEqual(*original->applied({ splitP1 })));
+
+        PDFContentStructureModelPointer without0 = separate(changed, { 0 }, nullptr);
+        QVERIFY(without0);
+        QCOMPARE(Helper::childrenOf(*without0, p), QStringList({ "M0", "M1", "R0@" + n2 }));
+        QVERIFY(without0->isEqual(*original->applied({ Helper::removal(1, 1) })));
+    }
+
+    // ---- A split on the page 2, whose original is removed afterwards, and a removal on the
+    //      page 1: the new part goes behind the place of its original (an MCR of the page 2,
+    //      never one of the integers of the page 1), so the restored 1 comes in front of it ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ splitP2 })->applied({ Helper::removal(1, 0), Helper::removal(0, 1) });
+        QCOMPARE(Helper::childrenOf(*changed, p), QStringList({ "M0", "R6@" + n2, "R1@" + n2 }));
+
+        PDFContentStructureModelPointer without0 = separate(changed, { 0 }, nullptr);
+        QVERIFY(without0);
+        QCOMPARE(Helper::childrenOf(*without0, p), QStringList({ "M0", "M1", "R6@" + n2, "R1@" + n2 }));
+        QVERIFY(without0->isEqual(*original->applied({ splitP2 })->applied({ Helper::removal(1, 0) })));
+
+        PDFContentStructureModelPointer without1 = separate(changed, { 1 }, nullptr);
+        QVERIFY(without1);
+        QCOMPARE(Helper::childrenOf(*without1, p), QStringList({ "M0", "R0@" + n2, "R1@" + n2 }));
+        QVERIFY(without1->isEqual(*original->applied({ Helper::removal(0, 1) })));
+    }
+
+    // ---- Still refused: Q lists 2 of the page 1 between R(p2,2) and R(p2,3). R(p2,3) is split
+    //      (the new part R(p2,6) right behind it), then R(p2,3) and 2 are removed: Q is
+    //      [R(p2,2) R(p2,6)]. Without the page 1 the restored 2 belongs in front of R(p2,6), when
+    //      R(p2,6) came from R(p2,3), but behind it, when it came from R(p2,2) - the two models do
+    //      not tell, so the skipped page 1 is refused. Without the page 2 nothing of the page 2 is
+    //      placed anew: separable. ----
+    {
+        const PDFContentStructureChange splitQ = original->getChangeForReorder(1, 3, false, 5);
+        QVERIFY(splitQ.action == PDFContentStructureChange::Action::SplitSequence && splitQ.newMcid == 6);
+        PDFContentStructureModelPointer changed = original->applied({ splitQ })->applied({ Helper::removal(1, 3), Helper::removal(0, 2) });
+        QCOMPARE(Helper::childrenOf(*changed, q), QStringList({ "R2@" + n2, "R6@" + n2 }));
+
+        QString errorText;
+        QVERIFY(separate(changed, { 0 }, &errorText) == nullptr);
+        QVERIFY2(errorText.contains(QStringLiteral("cannot be left out alone")), qPrintable(errorText));
+        QVERIFY2(errorText.contains(QStringLiteral("split")), qPrintable(errorText));
+
+        PDFContentStructureModelPointer without1 = separate(changed, { 1 }, nullptr);
+        QVERIFY(without1);
+        QCOMPARE(Helper::childrenOf(*without1, q), QStringList({ "R2@" + n2, "R3@" + n2 }));
+        QVERIFY(without1->isEqual(*original->applied({ Helper::removal(0, 2) })));
+
+        // The same split with its original kept: R(p2,6) is right behind R(p2,3), separable
+        PDFContentStructureModelPointer kept = original->applied({ splitQ })->applied({ Helper::removal(0, 2) });
+        PDFContentStructureModelPointer keptWithout0 = separate(kept, { 0 }, nullptr);
+        QVERIFY(keptWithout0);
+        QCOMPARE(Helper::childrenOf(*keptWithout0, q), QStringList({ "R2@" + n2, "M2", "R3@" + n2, "R6@" + n2 }));
+        QVERIFY(keptWithout0->isEqual(*original->applied({ splitQ })));
+    }
+
+    // ---- Still refused: F has a foreign child (an item of /K the model does not read); its
+    //      place among the children of the two pages is not separated ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ Helper::removal(0, 3), Helper::removal(1, 4) });
+        QString errorText;
+        QVERIFY(separate(changed, { 1 }, &errorText) == nullptr);
+        QVERIFY2(errorText.contains(QStringLiteral("cannot be left out alone")), qPrintable(errorText));
+        QVERIFY2(errorText.contains(QStringLiteral("does not read")), qPrintable(errorText));
+
+        // A change of the page 1 alone in F is no mixture
+        PDFContentStructureModelPointer one = original->applied({ Helper::removal(0, 3) });
+        QVERIFY(separate(one, { 1 }, nullptr)->isEqual(*one));
+        QVERIFY(separate(one, { 0 }, nullptr)->isEqual(*original));
+    }
+
+    // ---- Every page of P changed on both, more keys left out at once: the original ----
+    {
+        PDFContentStructureModelPointer changed = original->applied({ splitP2 })->applied({ Helper::removal(0, 0), Helper::removal(1, 1) });
+        PDFContentStructureModelPointer none = separate(changed, { 0, 1 }, nullptr);
+        QVERIFY(none && none->isEqual(*original) && !none->isModified());
     }
 }
 

@@ -67,6 +67,19 @@ struct PDFContentBuildContext
     /// container is changed, it gets its own copy of them). Ignored for Kind::Page. A Form or
     /// PatternCell key with the page index -1 gives no container and an issue.
     PDFInteger pageIndex = -1;
+
+    /// Kind::Form and Kind::PatternCell without /Resources of their own: the resources of the
+    /// content, which draws the container (PDFContentBuildResult::nestedCallerResources of the
+    /// build of that content; a dictionary or a reference to one). A name is looked up there
+    /// first and a name the caller does not define in the page, as PDFPageContentProcessor does
+    /// (NOTES.txt 7.8.3: a deliberate deviation from ISO 32000-2, 7.8.3, which says the page):
+    /// the processor merges the dictionaries of each category so - the entries of the caller,
+    /// then those of the page under the names the caller does not define, above one budget of
+    /// entries the caller alone - and the builder makes the same dictionaries before it
+    /// interprets the content (PDFContentContainer::getInheritedResources keeps them). Null: the
+    /// content is drawn by the page (or the caller is not known), the names are those of the
+    /// page. Ignored for Kind::Page and for a container with /Resources of its own.
+    PDFObject callerResources;
 };
 
 /// The result of a build
@@ -83,6 +96,13 @@ struct PDFContentBuildResult
 
     /// The tiling patterns used as a color by the container, each once (built when entered)
     std::vector<PDFContentContainerKey> usedPatternCells;
+
+    /// PDFContentBuildContext::callerResources of the builds of the forms and the pattern cells
+    /// this container uses: the /Resources of a form or a pattern cell with resources of its
+    /// own; for one without them, the callerResources of its own build (the content, which
+    /// draws it, is the caller of what it draws: the processor merges the same dictionaries
+    /// again); null for a page (the caller is the page itself).
+    PDFObject nestedCallerResources;
 };
 
 /// Builds the container of one content: a page, a form XObject or a cell of a tiling pattern.
@@ -98,17 +118,18 @@ struct PDFContentBuildResult
 /// a /Matrix, which is not six numbers), gives no container and an issue (InvalidContainer), an
 /// empty fingerprint; the Do of such a form is an Opaque node of the content, which uses it.
 ///
-/// Two limits beside those of PDFContentContainer, both private to the builder:
+/// Limits beside those of PDFContentContainer, private to the builder:
 ///  - the decoded bytes of all streams of a content together (every item of /Contents counts,
 ///    also one, which names a stream again): above 512 MB the content is not read - the
-///    container is empty and read-only, with an issue (a container keeps every byte of its
-///    content, and /Contents can name one stream any number of times);
-///  - the dash array of a state of a node: 128 elements. The content, in which a longer array is
-///    in effect (set by d or by /D of gs), is one Opaque node with an issue, from the operation,
-///    which sets it - or from the outermost open node around it -, up to the operation, after
-///    which the pattern is within the limit again and every bracket opened in between is closed
-///    (the states are compared after every operation and kept by the nodes: their cost must
-///    not grow with a length the content chooses).
+///    container is empty and read-only, with an issue ContentSizeLimit (a container keeps every
+///    byte of its content, and /Contents can name one stream any number of times);
+///  - the dash array of a state of a node: 128 elements, and a color of a state: 32 components
+///    (a DeviceN space has as many as the content names colorants). The content, in which
+///    a longer value is in effect (set by d, /D of gs, a color operator), is one Opaque node
+///    with an issue StateLimit, from the operation, which sets it - or from the outermost open
+///    node around it -, up to the operation, after which the value is within the limit again and
+///    every bracket opened in between is closed (the states are compared after every operation
+///    and kept by the nodes: their cost must not grow with a length the content chooses).
 ///
 /// Threads and ownership: build is reentrant and runs in a worker thread (one task per container,
 /// PDFExecutionPolicy::startTask); it reads the document and the caches only. The result is

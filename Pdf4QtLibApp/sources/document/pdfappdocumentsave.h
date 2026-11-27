@@ -41,6 +41,7 @@ class PDFAppDocumentOperation;
 class PDFAppDocumentSnapshot;
 class PDFAppDocumentTab;
 class PDFAppFileDialogRequest;
+class PDFAppPage;
 class PDFAppPrintController;
 class PDFAppRestoredFileBar;
 class PDFAppSendMail;
@@ -205,6 +206,14 @@ public:
     /// which has changes or has no file yet, is not locked, its file is writable
     /// and no save runs
     bool canSave() const;
+
+    /// Save could be used, once the document had changes of its own: canSave without its
+    /// condition of the changes - a shown document, not locked, no save runs, and no file yet or
+    /// a writable file. The save question of an open tool (PDFAppPage::hasSaveQuestion) enables
+    /// Save of a document without changes only with it (Edit Content, zadani.md KE.3: the question
+    /// offers to apply the work of the tool and save then - for a file, which Save can never
+    /// write, the user takes Save As, which asks the same question).
+    bool canSaveWhenModified() const;
 
     /// Save as can be used now: a shown document and no save runs
     bool canSaveAs() const;
@@ -391,16 +400,23 @@ public:
     /// The handler of package E of the tab (nullptr, if the tab has none)
     static PDFAppDocumentFileCommandHandler* find(const PDFAppDocumentTab* tab);
 
+    /// The commands Save and Save As ask the shown page of the tab first (PDFAppPage::requestSaveQuestion: an open
+    /// tool with work, which is not in the document yet; zadani.md KE.3): true = the question of the page is open
+    /// and nothing more is done here - its answer saves by save / saveAs or not at all.
     virtual void execute(const QString& commandId) override;
+
+    /// Save is enabled also for a document without changes of its own, while the shown page has a save question
+    /// (PDFAppPage::hasSaveQuestion) and no save runs
     virtual bool isEnabled(const QString& commandId) const override;
     virtual bool isChecked(const QString& commandId) const override;
 
     /// Saves the document (as the command Save, PDFAppDocumentSaver::save): the
     /// result comes by \p saveFinished. \returns false, when nothing can be saved
-    /// (then no signal comes).
+    /// (then no signal comes). Never asks the shown page (the close of a tab, the save choice of the question of a
+    /// tool - PDFDocumentToolShell).
     bool save();
 
-    /// Save as (PDFAppDocumentSaver::saveAs)
+    /// Save as (PDFAppDocumentSaver::saveAs); never asks the shown page either
     bool saveAs();
 
     /// save / saveAs for a requester, which waits in a member slot (A0, the close of
@@ -431,6 +447,9 @@ Q_SIGNALS:
 private:
     void onPartStateChanged();
     void onSaverFinished(bool isSaved);
+
+    /// The page the tab shows (nullptr = none, or the tab is being destroyed)
+    PDFAppPage* getShownPage() const;
 
     QPointer<PDFAppDocumentSaver> m_saver;
     QPointer<PDFAppAutoRefresh> m_autoRefresh;

@@ -659,6 +659,38 @@ bool PDFDocumentToolGUI::commitDocumentChange(const PDFModifiedDocument& modifie
     return shell && shell->commitDocumentChange(modified, description, expectedVersion);
 }
 
+PDFAppToolUndoTarget* PDFDocumentToolGUI::getOwnUndoTarget()
+{
+    return nullptr;
+}
+
+PDFAppToolCommandState PDFDocumentToolGUI::getDocumentCommandState(const QString& commandId) const
+{
+    Q_UNUSED(commandId);
+    return PDFAppToolCommandState::NotHandled;
+}
+
+bool PDFDocumentToolGUI::handleDocumentCommand(const QString& commandId)
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+void PDFDocumentToolGUI::updateDocumentCommands()
+{
+    Q_EMIT documentCommandStatesChanged();
+}
+
+PDFAppToolSaveQuestion PDFDocumentToolGUI::getSaveQuestion() const
+{
+    return PDFAppToolSaveQuestion();
+}
+
+bool PDFDocumentToolGUI::isDocumentReloadDeferred() const
+{
+    return false;
+}
+
 bool PDFDocumentToolGUI::isResultKeptInTool() const
 {
     return false;

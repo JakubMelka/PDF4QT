@@ -251,6 +251,38 @@ public:
     /// default calls finishLeave.
     virtual PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow);
 
+    // ------------------------------------------------------------- commands of the tab, which the page takes (Edit Content)
+    //
+    // The page of a tool with its own canvas takes commands of the document tab while it is shown (the zoom, the
+    // pages, the clipboard, Find; zadani_gui.md 4.20, way 2): PDFAppDocumentTab::isCommandEnabled and executeCommand
+    // ask the shown page before the handlers of the document.
+
+    /// The page handles the command of its tab itself: \p isEnabled (never nullptr) gets, whether the command can run
+    /// now; the handler of the document is not asked then. false = the command is not the page's (\p isEnabled is
+    /// not written). No side effects: read at every refresh of the actions of the window. Default: false.
+    virtual bool isDocumentCommandHandled(const QString& commandId, bool* isEnabled) const;
+
+    /// Executes a command, for which isDocumentCommandHandled has said enabled. \returns the command was taken; the
+    /// handler of the document does not execute it in either case. The page, its tab or the window may be deleted
+    /// by it: the last call of the caller. Default: false.
+    virtual bool handleDocumentCommand(const QString& commandId);
+
+    /// The page has work, about which it asks before the document of its tab is saved (the save question of an open
+    /// tool, PDFDocumentToolGUI::getSaveQuestion; zadani.md KE.3): Save is enabled also for a document without
+    /// changes then (the question offers to apply the work first). No side effects. Default: false.
+    virtual bool hasSaveQuestion() const;
+
+    /// The user saves the document of the tab by the command \p commandId (PDFAppCommands::save, saveAs): the page
+    /// asks its question (shown without an event loop) and takes the save over - its answer saves or not. \returns
+    /// true = the question is open, the caller saves nothing; false = nothing to ask, the caller saves. Default: false.
+    virtual bool requestSaveQuestion(const QString& commandId);
+
+    /// The automatic refresh of the tab does not reload the document from its changed file now: the page holds work,
+    /// which belongs to the version of the document it was made on (an open tool, PDFDocumentToolGUI::
+    /// isDocumentReloadDeferred; Edit Content, zadani_gui.md 4.21). PDFAppAutoRefresh asks the shown page at each
+    /// check and checks the file again later while it is true. No side effects. Default: false.
+    virtual bool isDocumentReloadDeferred() const;
+
     PDFAppContext* getContext() const { return m_context; }
 
     /// Name of an icon of the design for the layout direction: Qt does not mirror

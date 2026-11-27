@@ -88,11 +88,13 @@ private Q_SLOTS:
     void listOperationOverStreams();
     void listGeneratedAfterOriginal();
     void listCopiesShareOperations();
+    void listPrefix();
     void listCopiesInThreads();
 
     // Resources (R-4)
     void resourcesRead();
     void resourcesAllocateName();
+    void resourcesReservedNames();
     void resourcesOriginalEntriesStay();
     void resourcesWrite();
     void resourcesOfFormWithoutResources();
@@ -761,6 +763,79 @@ void ContentOperationsTest::listCopiesShareOperations()
     QVERIFY(second.getOperation(count).getFlags() == (PDFContentOperation::Flags(PDFContentOperation::Generated) | PDFContentOperation::Suppressed));
 }
 
+void ContentOperationsTest::listPrefix()
+{
+    // The first operations of a list (PDFContentOperationList::getPrefix): the version of a
+    // container before a change, made again by an undo, owns the operations it had - not the
+    // ones the change appended behind them. 2000 original operations "0 w", "1 w", ... and 1000
+    // generated ones "q": the generated ones begin inside of the second block of 1024.
+    const size_t originalCount = 2000;
+    const size_t count = 3000;
+    PDFContentOperationList list;
+    for (size_t i = 0; i < originalCount; ++i)
+    {
+        const QByteArray rawBytes = (i == 0 ? QByteArray() : QByteArray(" ")) + QByteArray::number(qulonglong(i)) + " w";
+        list.append(PDFContentOperation::createOriginal(Op::SetLineWidth, rawBytes, PDFContentByteRange(), {}, {}, PDFContentOperation::None));
+    }
+    list.finishOriginal(QByteArray(" % end"));
+    for (size_t i = originalCount; i < count; ++i)
+    {
+        list.append(PDFContentOperation::createGenerated(Op::SaveGraphicState, QByteArray("q"), {}, {}));
+    }
+    QCOMPARE(list.getCount(), count);
+
+    // Cuts inside of a block, at its border and of the whole list; a cut keeps the original
+    // operations, the tail and the original content, and shares the operations with the list
+    for (const size_t prefixCount : { originalCount, size_t(2047), size_t(2048), size_t(2049), size_t(2500), count })
+    {
+        const PDFContentOperationList prefix = list.getPrefix(prefixCount);
+        QCOMPARE(prefix.getCount(), prefixCount);
+        QCOMPARE(prefix.getOriginalCount(), originalCount);
+        QCOMPARE(prefix.getTail(), QByteArray(" % end"));
+        QCOMPARE(prefix.getOriginalContent(), list.getOriginalContent());
+        QCOMPARE(prefix.getOperation(0).getRawBytes(), QByteArray("0 w"));
+        QCOMPARE(prefix.getOperation(1999).getRawBytes(), QByteArray(" 1999 w"));
+        QCOMPARE(prefix.getOperation(prefixCount - 1).getRawBytes(), prefixCount > originalCount ? QByteArray("q") : QByteArray(" 1999 w"));
+        // A full block is shared (the very same objects); the operations of a partly used last
+        // block (1024 ... 2047 for a cut below 2048) are a copy of their own
+        QVERIFY(&prefix.getOperation(10) == &list.getOperation(10));
+        QCOMPARE(&prefix.getOperation(1500) == &list.getOperation(1500), prefixCount >= 2048);
+    }
+
+    // Appending to a cut: the next index is the count of the cut (not the count of the list),
+    // and the list keeps its own operation at that index; again inside of a block and at
+    // a border of blocks
+    for (const size_t prefixCount : { size_t(2500), size_t(2048) })
+    {
+        PDFContentOperationList prefix = list.getPrefix(prefixCount);
+        QCOMPARE(prefix.append(PDFContentOperation::createGenerated(Op::RestoreGraphicState, QByteArray("Q"), {}, {})), prefixCount);
+        QCOMPARE(prefix.append(PDFContentOperation::createGenerated(Op::RestoreGraphicState, QByteArray("Q"), {}, {})), prefixCount + 1);
+        QCOMPARE(prefix.getCount(), prefixCount + 2);
+        QCOMPARE(prefix.getOperation(prefixCount).getRawBytes(), QByteArray("Q"));
+        QCOMPARE(prefix.getOperation(prefixCount - 1).getRawBytes(), QByteArray("q"));
+        QCOMPARE(list.getOperation(prefixCount).getRawBytes(), QByteArray("q"));
+        QCOMPARE(list.getCount(), count);
+
+        // New flags in the cut do not reach the list
+        prefix.setFlags(prefixCount - 1, PDFContentOperation::Flags(PDFContentOperation::Generated) | PDFContentOperation::Suppressed);
+        QVERIFY(list.getOperation(prefixCount - 1).getFlags() == PDFContentOperation::Flags(PDFContentOperation::Generated));
+    }
+
+    // A cut of a cut, which nobody else holds (its last block is its own), appended to: the
+    // operations behind the cut are gone, the new one takes the first free index
+    {
+        PDFContentOperationList prefix = list.getPrefix(2600);
+        prefix = prefix.getPrefix(2100);
+        QCOMPARE(prefix.append(PDFContentOperation::createGenerated(Op::RestoreGraphicState, QByteArray("Q"), {}, {})), size_t(2100));
+        QCOMPARE(prefix.getCount(), size_t(2101));
+        QCOMPARE(prefix.getOperation(2100).getRawBytes(), QByteArray("Q"));
+        QCOMPARE(prefix.getOperation(2099).getRawBytes(), QByteArray("q"));
+    }
+
+    // A count above the list gives the whole list
+    QCOMPARE(list.getPrefix(count + 10).getCount(), count);
+}
+
 void ContentOperationsTest::listCopiesInThreads()
 {
     // A list inside of a container is read by any thread, while other threads change their own
@@ -915,6 +990,43 @@ void ContentOperationsTest::resourcesRead()
         QCOMPARE(int(categories[i]), int(i));
         QCOMPARE(PDFContentResources::getCategoryKey(categories[i]), expectedKeys[qsizetype(i)]);
     }
+}
+
+void ContentOperationsTest::resourcesReservedNames()
+{
+    // PDFContentResources::getReservedNames: names of a category, which content without resources
+    // drawn by this content uses (the tree builder sets them; A1L2-4). allocateName avoids them
+    // in their category - also in a category, which has no dictionary - and they are no
+    // undefined names.
+    const PDFObject resourcesObject = dictionary({ { "ExtGState", dictionary({ { "GS1", dictionary({ { "LW", PDFObject::createInteger(1) } }) } }) } });
+    PDFContentResources resources = PDFContentResources::read(nullptr, resourcesObject, createList({ }, QByteArray()));
+    QVERIFY(resources.getReservedNames(Category::ExtGState).empty());
+    QCOMPARE(resources.allocateName(Category::ExtGState, "GS"), QByteArray("GS2"));
+    QCOMPARE(resources.allocateName(Category::XObject, "Fm"), QByteArray("Fm1"));
+
+    resources.setReservedNames(Category::ExtGState, { "GS2", "GS3" });
+    resources.setReservedNames(Category::XObject, { "Fm1", "GS4" });
+    QCOMPARE(resources.getReservedNames(Category::ExtGState), (std::set<QByteArray>{ "GS2", "GS3" }));
+    QVERIFY(resources.getUndefinedNames(Category::ExtGState).empty());
+    QVERIFY(!resources.isChanged());
+
+    // Each category its own names: /GS4 is reserved for XObject only
+    QCOMPARE(resources.allocateName(Category::ExtGState, "GS"), QByteArray("GS4"));
+    QCOMPARE(resources.allocateName(Category::XObject, "Fm"), QByteArray("Fm2"));
+    QCOMPARE(resources.allocateName(Category::XObject, "GS"), QByteArray("GS1"));
+    QCOMPARE(resources.allocateName(Category::Font, "GS"), QByteArray("GS1"));
+
+    // addObject takes the same name; a copy (the resources of an editor) keeps the reserved names
+    PDFContentResources copy = resources;
+    QCOMPARE(copy.addObject(Category::ExtGState, "GS", dictionary({ { "CA", PDFObject::createReal(0.5) } })), QByteArray("GS4"));
+    QCOMPARE(copy.addObject(Category::XObject, "Fm", reference(9)), QByteArray("Fm2"));
+    QCOMPARE(copy.allocateName(Category::ExtGState, "GS"), QByteArray("GS5"));
+    QCOMPARE(copy.getReservedNames(Category::XObject), resources.getReservedNames(Category::XObject));
+
+    // No names: nothing is reserved
+    resources.setReservedNames(Category::ExtGState, { });
+    QVERIFY(resources.getReservedNames(Category::ExtGState).empty());
+    QCOMPARE(resources.allocateName(Category::ExtGState, "GS"), QByteArray("GS2"));
 }
 
 void ContentOperationsTest::resourcesAllocateName()

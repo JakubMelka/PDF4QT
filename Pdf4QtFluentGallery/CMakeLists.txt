@@ -29,6 +29,7 @@ add_library(Pdf4QtFluentGalleryPages OBJECT
     gallerycardpages.cpp
     gallerycomponentpages.cpp
     gallerydelegatepages.cpp
+    galleryeditcontentpages.cpp
     gallerypanelpages.cpp
     gallerypages.cpp
     gallerypages.h

@@ -26,6 +26,7 @@
 #include "pdfappdocumentloader.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppage.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfdocumentreader.h"
@@ -391,7 +392,7 @@ void PDFAppAutoRefresh::startCheck()
     watcher->setFuture(QtConcurrent::run(&PDFAppAutoRefreshReader::read, m_watchedPath, document->getOriginalData()));
 }
 
-bool PDFAppAutoRefresh::isCheckDeferred(const PDFAppDocument* document)
+bool PDFAppAutoRefresh::isCheckDeferred(const PDFAppDocument* document) const
 {
     if (document->isBlockedByOperation())
     {
@@ -405,7 +406,11 @@ bool PDFAppAutoRefresh::isCheckDeferred(const PDFAppDocument* document)
             return true;
         }
     }
-    return false;
+
+    // The work of an open tool belongs to this version of the document (R3-6: the edits of Edit Content would be
+    // refused by Apply after a reload): the file is checked again later, as during an operation
+    const PDFAppPage* page = m_tab ? m_tab->getPage() : nullptr;
+    return page && page->isDocumentReloadDeferred();
 }
 
 void PDFAppAutoRefresh::onReaderFinished()

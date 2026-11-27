@@ -34,6 +34,7 @@
 #include <QComboBox>
 #include <QDockWidget>
 #include <QFocusFrame>
+#include <QGraphicsView>
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QLayout>
@@ -326,6 +327,45 @@ bool PDFWidgetStyleImpl::needsHover(const QWidget* widget)
     // Rows of item views are hovered in their viewports
     const QAbstractItemView* view = qobject_cast<const QAbstractItemView*>(widget->parentWidget());
     return view && view->viewport() == widget;
+}
+
+bool PDFWidgetStyleImpl::isGraphicsViewViewport(const QWidget* widget)
+{
+    const QGraphicsView* view = widget ? qobject_cast<const QGraphicsView*>(widget->parentWidget()) : nullptr;
+    return view && view->viewport() == widget;
+}
+
+void PDFWidgetStyleImpl::applyGraphicsViewPalette(QWidget* viewport, bool isApplied)
+{
+    if (!isGraphicsViewViewport(viewport))
+    {
+        return;
+    }
+
+    constexpr const char* APPLIED = "_pdf4qt_graphicsViewPalette";
+    if (isApplied)
+    {
+        // The colors of the theme are written, the palette is never read
+        QPalette palette = PDFThemeColors::createLeakPalette();
+        const QColor track = PDFStylePainter::color(Color::BgTrack);
+        for (QPalette::ColorGroup group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled })
+        {
+            palette.setColor(group, QPalette::Base, track);
+            palette.setColor(group, QPalette::Window, track);
+        }
+        viewport->setPalette(palette);
+        viewport->setProperty(APPLIED, true);
+    }
+    else if (viewport->property(APPLIED).toBool())
+    {
+        viewport->setPalette(QPalette());
+        viewport->setProperty(APPLIED, QVariant());
+    }
+
+    if (QGraphicsView* view = qobject_cast<QGraphicsView*>(viewport->parentWidget()))
+    {
+        view->resetCachedContent();
+    }
 }
 
 bool PDFWidgetStyleImpl::needsStyledBackground(const QWidget* widget)

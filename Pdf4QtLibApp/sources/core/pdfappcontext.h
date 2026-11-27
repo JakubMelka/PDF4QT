@@ -215,6 +215,10 @@ private:
     void requestOpen(const PDFAppInstanceRequest& request);
     void deliverPendingRequests();
 
+    /// The tools behind the developer switch (advanced.developerMode; Edit Content until its release, zadani.md
+    /// 11.2, QE.13): registered while the setting is on, removed when it is off or the storage closes
+    void applyDeveloperTools();
+
     void onSettingChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
     void onSystemColorSchemeChanged();

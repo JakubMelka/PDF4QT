@@ -1306,8 +1306,22 @@ public:
     /// Selects the swatch, whose canonical value equals the color (the rgb
     /// values are compared); an invalid color selects "No color", when the row
     /// has it (otherwise nothing is selected); another color is a custom color,
-    /// no swatch is selected. It never emits \p colorSelected.
+    /// no swatch is selected. It never emits \p colorSelected. It leaves the
+    /// mixed state.
     void setColor(const QColor& color);
+
+    /// Mixed state: the colors of the selected objects differ (Edit Content,
+    /// edit-content-v2-multi-selected). No swatch is selected; the row is
+    /// announced "Mixed" (its accessible description, translated, unless the
+    /// application has set its own) - the design draws no text in a row of
+    /// swatches. In the state \p getColor returns an invalid color and
+    /// \p isNoColorSelected false. Entering and leaving the state by the program
+    /// never emits \p colorSelected; setMixed(false) selects the color held
+    /// before the state again. The user leaves the state by choosing a color (a
+    /// swatch, the palette), which emits \p colorSelected as always - also the
+    /// color, which was selected before the state.
+    bool isMixed() const { return m_isMixed; }
+    void setMixed(bool mixed);
 
     /// Count of the swatches (also the hidden ones over the visible limit)
     int getSwatchCount() const { return static_cast<int>(m_entries.size()); }
@@ -1405,6 +1419,10 @@ private:
     void onPaletteClosed();
     void onPaletteDestroyed();
 
+    /// Leaves the mixed state (no signal, the selection is set by the caller)
+    void leaveMixed();
+    void updateMixedDescription();
+
     Options m_options;
     std::vector<Entry> m_entries;
     QList<QPointer<PDFColorSwatch>> m_swatches;
@@ -1417,6 +1435,10 @@ private:
     int m_visibleSwatchLimit = -1;
     bool m_isDestroying = false;
     QString m_accessibleName;
+    bool m_isMixed = false;
+    Selection m_selectionBeforeMixed = Selection::Nothing;
+    QColor m_colorBeforeMixed;
+    QString m_mixedDescription;     ///< The accessible description set by the mixed state
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFPageSelection::Filters)

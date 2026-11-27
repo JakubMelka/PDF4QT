@@ -53,6 +53,7 @@ class PDFAppToolHost;
 class PDFAppToolInputList;
 class PDFAppToolParameterModel;
 class PDFAppToolToolbar;
+class PDFAppToolUndoTarget;
 class PDFDocumentToolCatalogEntry;
 class PDFDocumentToolShell;
 class PDFModifiedDocument;
@@ -138,6 +139,33 @@ public:
     QString actionIconName;     ///< The icon of the choice
 
     bool isValid() const { return !title.isEmpty(); }
+};
+
+/// The texts of the question, which a tool in the tab of a document asks, when the user saves the document while
+/// the tool holds work, which is not in the document yet (PDFDocumentToolGUI::getSaveQuestion; Edit Content, the
+/// frame edit-content-v2-save-prompt, zadani.md KE.3): Cancel, the save without the work of the tool, and the run of
+/// the tool followed by the save.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolSaveQuestion
+{
+public:
+    QString title;              ///< "Save without the changes to the page content?"; empty = no question, the save goes on
+    QString text;               ///< What the file will and will not contain
+    QString cancelText;         ///< The button, which saves nothing ("Cancel"); empty = "Cancel"
+    QString saveText;           ///< The button, which saves the document of the tab as it is and keeps the tool open ("Save Without the Changes")
+    QString applyText;          ///< The button, which runs the tool and saves after its result is kept in the tab ("Apply and Save"); empty = no such choice
+    QString applyIconName;      ///< The icon of that button; empty = none
+
+    bool isValid() const { return !title.isEmpty(); }
+};
+
+/// What a tool with its own canvas says about a command of the document (PDFDocumentToolGUI::
+/// getDocumentCommandState; Edit Content, zadani_gui.md 4.20: the zoom, the pages, the clipboard and Find act in
+/// the tool while its canvas is shown)
+enum class PDFAppToolCommandState
+{
+    NotHandled, ///< The command is not the tool's: the handler of the document decides and executes it, as without a tool
+    Enabled,    ///< The tool takes the command now (PDFDocumentToolGUI::handleDocumentCommand)
+    Disabled    ///< The command is the tool's, but it cannot run now: its action and shortcut are disabled
 };
 
 /// What differs between the tools in the shell (plan of the first batch, chapter 2.1):
@@ -501,6 +529,52 @@ public:
     /// caller checks its guard).
     bool commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion);
 
+    // ------------------------------------------------------------- tool with its own model and canvas (Edit Content)
+
+    /// The Undo and Redo of a tool, which has its own history (Edit Content: the undo stack of its session over all
+    /// pages; zadani.md KE.2): the commands Undo and Redo, their keys and the buttons of the toolbar act on it instead
+    /// of the parameter model, and no composite target is made (it wins over hasDocumentUndoSteps). The shell reads
+    /// it once, in enter() after attach and before the mode is entered: the target must exist then. Ownership: the
+    /// GUI (the target is the GUI's child or a child of its child) - it lives as long as the GUI; the shell and the
+    /// view hold it by QPointer and the view gives it up when the mode ends. Default: nullptr (the parameter model).
+    virtual PDFAppToolUndoTarget* getOwnUndoTarget();
+
+    /// The state of a command of the document for this tool (PDFAppToolCommandState; zadani_gui.md 4.20, way 2).
+    /// Asked by PDFAppDocumentTab::isCommandEnabled / executeCommand through the page and the shell while the tool
+    /// is edited (during a run and a decision the commands of the tool are Disabled by the shell). Undo and Redo
+    /// are never asked: the shell answers them itself (NotHandled - the handler of the document sends them to the
+    /// undo target of the mode, getOwnUndoTarget). Cheap and without side effects: it is read at every refresh of
+    /// the actions of the window, and for every command of the application when the state of the shell changes
+    /// (the shell refreshes the actions of the window then, for a tool, which takes a command at all). The tool
+    /// says by updateDocumentCommands, when an answer may have changed for a reason of its own. Default: NotHandled.
+    virtual PDFAppToolCommandState getDocumentCommandState(const QString& commandId) const;
+
+    /// Executes a command of the document, for which getDocumentCommandState is Enabled now (the shortcut of the
+    /// application, its menu, the status bar): the zoom of its canvas, its page, its clipboard. \returns the tool
+    /// has taken the command (what PDFAppTab::executeCommand returns); the handler of the document does not
+    /// execute the command in either case - a command the tool handles is the tool's alone. The call is the last
+    /// thing the caller does: the tool may close itself (queued) or the tab. Default: false.
+    virtual bool handleDocumentCommand(const QString& commandId);
+
+    /// Says, that an answer of getDocumentCommandState may have changed (the selection, the clipboard, the page):
+    /// the actions of the window and the toolbars of the tab are refreshed (PDFAppTab::commandStatesChanged of the
+    /// tab of the tool, emitted by the shell). The last call of the caller: slots of the tab run.
+    void updateDocumentCommands();
+
+    /// The question before the document of the tab is saved while the tool holds work (PDFAppToolSaveQuestion;
+    /// zadani.md KE.3, zadani_gui.md 4.21). Asked by the handler of Save and Save As through the page and the shell
+    /// (PDFDocumentToolShell::requestSaveQuestion), only while the tool is edited and hasUnsavedWork. An invalid
+    /// question = the save goes on without asking (the default, every tool until now).
+    virtual PDFAppToolSaveQuestion getSaveQuestion() const;
+
+    /// The automatic refresh does not reload the document of the tab from its changed file now (zadani_gui.md 4.21,
+    /// "the document changed under the tool"; R3-6): the tool holds work, which belongs to the version of the
+    /// document it was made on (Edit Content: the edits of its session, which a reload would turn into a refused
+    /// Apply). PDFAppAutoRefresh asks the shown page of the tab (PDFAppPage::isDocumentReloadDeferred, the shell) at
+    /// each check and checks the file again later while it is true. Cheap, no side effects. Default: false (every
+    /// tool until now: a reload goes on as before).
+    virtual bool isDocumentReloadDeferred() const;
+
     // ------------------------------------------------------------- analysis kept in the tool (step 7)
 
     /// The tool shows the result of its run itself and stays open (plan of step 7 of phase 2, 4.1: Ink
@@ -623,6 +697,9 @@ Q_SIGNALS:
     /// The title, the icon or the loss text of the own tab may have changed (the tab
     /// updates its title and its dot); a slot may not delete the shell
     void ownTabStateChanged();
+
+    /// An answer of getDocumentCommandState may have changed (updateDocumentCommands); a slot may not delete the shell
+    void documentCommandStatesChanged();
 
 protected:
     /// The default hook of PDFDeferredDeletion::retire (step 4, PDFRetirable): the pure computations of the GUI are

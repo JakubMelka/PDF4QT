@@ -364,6 +364,13 @@ int PDFRowDelegate::addActionsToMenu(QMenu* menu, QAbstractItemView* view, const
         QAction* menuAction = new PDFRowDelegateMenuAction(text, this, view, index, action.id, menu);
         menu->addAction(menuAction);
         menuAction->setEnabled(isEnabled && action.enabled);
+
+        // A toggle is a checkable entry with its state (Hide / Lock with a check mark)
+        if (action.checkable)
+        {
+            menuAction->setCheckable(true);
+            menuAction->setChecked(action.checked);
+        }
         ++count;
     }
 
@@ -415,10 +422,69 @@ bool PDFRowDelegate::isActionAvailable(QAbstractItemView* view, const QModelInde
 
 void PDFRowDelegate::triggerAction(QAbstractItemView* view, const QModelIndex& index, int action)
 {
-    if (isActionAvailable(view, index, action))
+    if (!isActionAvailable(view, index, action))
     {
-        m_lastActionView = view;
-        performAction(view, index, action);
+        return;
+    }
+
+    m_lastActionView = view;
+
+    // A toggle with a role writes its new state into the model (the model decides,
+    // the delegate keeps no state), then the signal is emitted
+    for (const Action& item : getActions(getViewOption(view, index), index))
+    {
+        if (item.id == action && item.checkable && item.role >= 0)
+        {
+            performWriteAction(view, index, action, QVariant(!item.checked), item.role);
+            return;
+        }
+    }
+
+    performAction(view, index, action);
+}
+
+bool PDFRowDelegate::isActionShown(const Action& action, const PDFComponentPainter::State& itemState, QStyle::State actionFlags)
+{
+    if (!action.checkable || action.checked)
+    {
+        return true;
+    }
+
+    return itemState.isHovered() || itemState.hasFocusRing() || actionFlags.testAnyFlags(QStyle::State_MouseOver | QStyle::State_Sunken);
+}
+
+void PDFRowDelegate::paintToggleActions(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& itemState) const
+{
+    if (!painter || !index.isValid())
+    {
+        return;
+    }
+
+    for (const Action& action : getActions(option, index))
+    {
+        if (!action.checkable || action.rect.isEmpty())
+        {
+            continue;
+        }
+
+        const QStyle::State actionFlags = getActionFlags(option, index, action.id);
+        if (!isActionShown(action, itemState, actionFlags))
+        {
+            continue;
+        }
+
+        QStyle::State flags = actionFlags;
+        if (itemState.isEnabled() && action.enabled)
+        {
+            flags |= QStyle::State_Enabled;
+        }
+        if (action.checked)
+        {
+            flags |= QStyle::State_On;
+        }
+
+        const QString iconName = (action.checked && !action.checkedIconName.isEmpty()) ? action.checkedIconName : action.iconName;
+        PDFComponentPainter::paintRowToggleAction(painter, action.rect, iconName, PDFComponentPainter::State(flags, itemState.direction));
     }
 }
 

@@ -55,11 +55,14 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfcomponentpaintercolorpicker.cpp
     sources/pdfcomponentpainterdelegates.cpp
     sources/pdfcomponentpainterpanels.cpp
+    sources/pdfcomponentpaintersections.cpp
     sources/pdfcomponentpainterwindow.cpp
     sources/pdfcomponentpanels.cpp
     sources/pdfcomponentpanels.h
     sources/pdfcomponentrows.cpp
     sources/pdfcomponentrows.h
+    sources/pdfcomponentsections.cpp
+    sources/pdfcomponentsections.h
     sources/pdfcomponentwindow.cpp
     sources/pdfcomponentwindow.h
     sources/pdfdeferreddeletion.cpp

@@ -237,4 +237,33 @@ void PDFContentOperationList::finishOriginal(QByteArray tail)
     m_isOriginalFinished = true;
 }
 
+PDFContentOperationList PDFContentOperationList::getPrefix(size_t count) const
+{
+    const size_t prefixCount = qBound(m_originalCount, count, m_count);
+
+    PDFContentOperationList prefix = *this;
+    if (prefixCount == m_count)
+    {
+        return prefix;
+    }
+
+    // The blocks of the prefix; every block holds exactly the operations of the list in it
+    // (append and detachChunk rely on it), so a last block, which this list has filled further,
+    // is copied up to the end of the prefix - never changed, another list may read it
+    const size_t fullChunkCount = prefixCount / CHUNK_SIZE;
+    const size_t restCount = prefixCount % CHUNK_SIZE;
+    prefix.m_chunks.resize(fullChunkCount);
+
+    if (restCount > 0)
+    {
+        const Chunk& lastChunk = *m_chunks[fullChunkCount];
+        ChunkPointer copy = std::make_shared<Chunk>();
+        copy->operations.assign(lastChunk.operations.cbegin(), lastChunk.operations.cbegin() + restCount);
+        prefix.m_chunks.push_back(std::move(copy));
+    }
+
+    prefix.m_count = prefixCount;
+    return prefix;
+}
+
 }   // namespace pdf

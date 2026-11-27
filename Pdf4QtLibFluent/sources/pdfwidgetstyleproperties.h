@@ -204,6 +204,10 @@ public:
     /// of the scroll bar extent at the edge (the page area of the application).
     static constexpr const char* OVERLAY_SCROLL_BARS = "overlayScrollBars";
 
+    /// QComboBox: the mixed state (PDFComboBox::setMixed) - its placeholder "Mixed" is
+    /// drawn as a value (text/primary), not muted (edit-content-v2-multi-selected 1647:49442)
+    static constexpr const char* MIXED = "mixed";
+
     /// Sets the property and applies the look to the widget
     static void set(QWidget* widget, const char* name, const QVariant& value = QVariant(true));
 

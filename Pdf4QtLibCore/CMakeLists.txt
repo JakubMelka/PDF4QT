@@ -356,10 +356,15 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfcontentundostack.cpp
     sources/pdfcontentcommands.h
     sources/pdfcontentcommands.cpp
+    sources/pdfcontentcommandengine.h
+    sources/pdfcontentarrange.h
+    sources/pdfcontentarrange.cpp
     sources/pdfcontentdocumentwriter.h
     sources/pdfcontentdocumentwriter.cpp
     sources/pdfcontentjson.h
     sources/pdfcontentjson.cpp
+    sources/pdfcontentdisplay.h
+    sources/pdfcontentdisplay.cpp
     sources/pdfdocumenttool_content.h
     sources/pdfdocumenttool_content.cpp
     sources/pdftextlayoutgenerator.h

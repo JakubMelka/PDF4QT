@@ -22,6 +22,8 @@ Seznam oprav, kterými se 13. a 14. 10. 2026 ve Figmě srovnaly nesrovnalosti st
 16. [Plná modrá, nabídka Annotate a dráha přepínače (16. 10. 2026)](#16-plná-modrá-nabídka-annotate-a-dráha-přepínače-16-10-2026)
 17. [Tag, Star button, Color swatch, Collection row a Version row (17. 10. 2026)](#17-tag-star-button-color-swatch-collection-row-a-version-row-17-10-2026)
 18. [Implementace komponent v knihovně (16.–17. 10. 2026)](#18-implementace-komponent-v-knihovně-1617-10-2026)
+19. [Generický test životnosti widgetů (17.–18. 10. 2026)](#19-generický-test-životnosti-widgetů-1718-10-2026)
+20. [Edit Content, stage E1 (27. 11. 2026)](#20-edit-content-stage-e1-27-11-2026)
 
 ## 1. Souhrn
 
@@ -731,3 +733,37 @@ Tři chyby kapitoly 18 (viewport delegáta, kontextová nabídka delegáta, slot
 Doplňky M3a a M10 ověřil agent mutací ve své kopii (s nimi oba mutanty odhalí). Mutace oprav této kapitoly (palety a rámečku fokusu) ověřil fix agent ve Windows: test spadne, resp. selže na varování; zdroj byl obnoven a kontrolní součet SHA-256 sedí.
 
 Výsledek: build cílů `Pdf4QtLibFluent`, `Pdf4QtFluentGallery`, `UnitTestsWidgetStyle`, `UnitTestsFluentComponents` a `UnitTestsFluentLifetime` bez varování ve Windows (MSVC) i v Linuxu (GCC 15); Windows `UnitTestsFluentLifetime` 158/158 (i třikrát najednou), `UnitTestsFluentComponents` 164/164, `UnitTestsWidgetStyle` 192/192 (bez `initTestCase` / `cleanupTestCase`); Linux nativně 158/158, 164/164, 192/192; valgrind bez chyb a bez definitivních úniků ve všech procesech. Cíl testu se sestaví jen se soukromými hlavičkami QtCore (`Qt6::CorePrivate`), jinak CMake vypíše zprávu a test vynechá. Otevřené: test neprověřuje vypnutí aplikace s žijícími widgety (`aboutToQuit`) ani vypršení časovače skrytí tooltipu (10 s); otvírače popupů jsou dosud pevný seznam kroků, nápovědy vzorků zatím pokrývají nabídky a časovače.
+
+## 20. Edit Content, stage E1 (27. 11. 2026)
+
+Na pokyn vlastníka z 27. 11. 2026 („Yes, change it in Figma too.“) přibyly na stránce *Components* komponenty a varianty widgetů etapy E1 nástroje Edit Content, které knihovna `Pdf4QtLibFluent` už měla (`PDFExpanderCard`, `PDFPathBar`, `PDFPathSegment`, přepínací akce `PDFRowDelegate`, `setMixed`; stav agenta `phase2_briefs/pe1s5_state.md`). Na obrazovkách `edit-content-v2*` byly dosud jen obyčejné vrstvy rámců. Vzorem byl kód; kde se liší od rámců, platí kód (tabulka rozdílů níže). Instance na obrazovkách se na nové komponenty nepřepínaly (rozhodne vlastník zvlášť); jiné stránky, proměnné ani jiné komponenty se neměnily. Karty jsou v [components_spec.md](components_spec.md), čísla 95–98 v [components.md](components.md) 3.5.
+
+| Komponenta / varianta | Uzel | Co přibylo |
+| --- | --- | --- |
+| Expander card | sada `1661:1678` | `Expanded=False` `1661:1627`, `Expanded=True` `1661:1639`; vlastnosti Title, Summary (text), Show badge (false), Show link (true), Show content (false); vystavené instance `badge` (Tag) a `link` (Text link „Expand“ / „Collapse“) |
+| Path segment | sada `1662:1674` | 14 variant: Size Default / Small × Current False (Default, Hover, Pressed, Focus, Disabled) / True (Default, Disabled), `1662:1646` až `1662:1672`; vlastnost Label |
+| Path bar | sada `1662:1751` | 6 variant: Size Default / Small × Form Full / Shortened (State Default) a Form Full, State Disabled (`1662:1679`, `1662:1690`, `1662:1704`, `1662:1715`, `1662:1726`, `1662:1740`); segmenty jsou vystavené instance Path segment |
+| Row toggle action | sada `1662:1782` | 10 variant: Checked False / True × State Default, Row hover, Hover, Pressed, Disabled (`1662:1752` až `1662:1779`); vlastnosti Icon (`icon/eye`) a Checked icon (`icon/eye-off`); vlastní komponenta, protože Icon button by potřeboval novou osu variant (přejmenování existujících) a má pozadí v Hover / Pressed |
+| Spin box `144:2932` | varianta `State=Mixed` `1660:1624` | „Mixed“ v `text/primary`, text bez vazby na Value, přípona skrytá |
+| Combo box `144:2899` | varianta `State=Mixed` `1660:1630` | „Mixed“ v `text/primary`, text bez vazby na Value |
+| Color swatch `206:805` | jen popis sady | řada vzorků v kódu kreslí Mixed bez textu (žádný vzorek vybraný), nová varianta proto nevznikla; jedna věta v popisu |
+
+Popisy: každá nová sada a obě varianty Mixed mají popis (dekódovaný text, americká angličtina); popisy sad Spin box, Combo box a Color swatch jsou doplněné o jednu větu.
+
+Rozdíly kódu a rámců (nakresleno podle kódu):
+
+| Místo | Rámec | Kód a komponenta |
+| --- | --- | --- |
+| Path segment Default, výška řádku | `isolation-bar` `1647:42965`: texty s automatickou výškou (15 px) | pevných 16 px (`PATH_LINE_DEFAULT`); malá velikost 13 px je v obou shodná (`breadcrumb` `1647:21730`) |
+| Path bar, obsah | `isolation-bar` má i ikonu `icon/group-enter`, Tag, rozpěrku a tlačítko „Leave group“ | komponenta je jen cesta (`PDFPathBar`); zkrácená podoba a zakázaný stav nejsou v rámcích, kresleno z `computeLayout` |
+| Row toggle action, rozměr | `1647:22603`, `1647:22644`, `1647:22666`: holé ikony 12×12 v řádku | ikona 12 uprostřed obdélníku akce, který určuje volající (galerie a testy 20×20) – komponenta 20×20 |
+| Expander card, mezera v kartě | sbalená `1647:21843`: 6 | 8 (`EXPANDER_CARD_SPACING`); s jedinou položkou bez viditelného rozdílu |
+| Mixed (Spin box, Combo box) | `1647:49458`, `1647:49442`: instance Default s přepsaným textem | shodné |
+
+Rozložení sekce: Spin box se rozšířil o 160 px (828×82), proto se Text field `144:2941` posunul z x = 848 na 1008; Combo box (1708×82) se vešel. Nové sady leží v posledním řádku vpravo od Strength meter (Expander card 1516, 14009; Path segment 2258, 14009; Path bar 2258, 14230; Row toggle action 2848, 14009). Sekce zůstala 3900×14549, žádné dvě komponenty se nepřekrývají.
+
+Ověření:
+
+- **Otisk před a po** (hash každého kresleného uzlu po komponentách sekce a po horních rámcích stránky, včetně vnitřku instancí, popisů, vlastností a reakcí): *Tools - Edit* je shodná (106 horních uzlů, 41 484 kreslených uzlů, všechny hashe stejné – i 71 rámců `edit-content-v2*` a skryté `_b_edit`, `_wire`, `_b_edit2*`, `_wire2`, `_lib`, `_template`, `_panel`). *Components*: 97 ze 101 komponent beze změny; změněné jsou jen Spin box, Combo box (nová varianta a věta popisu), Color swatch (věta popisu) a Text field (posun). Přepočet těchto čtyř s původní šířkou sady, původním popisem, původními hodnotami vlastnosti State, bez nové varianty a s původní polohou dává přesně původní hashe – existující varianty se tedy nezměnily. Přibyly 4 sady.
+- **Barvy:** 107 výplní a obrysů nových sad a variant je navázaných na proměnné kolekce *Color* (15 proměnných), surová barva je rovná vyřešené (`resolveForConsumer`, světlý režim), krytí odpovídá alfě proměnné, žádná vrstva nemá krytí; žádná nová proměnná.
+- **Snímky:** `get_screenshot` / `screenshot()` všech čtyř nových sad ve světlém režimu (mimo repozitář).

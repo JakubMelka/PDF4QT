@@ -1275,6 +1275,12 @@ void PDFWidgetStyleImpl::onThemeChanged()
             // The toolbar has computed its margins from the metrics, see the event filter
             applyToolBarMargins(toolBar);
         }
+
+        if (!widget->testAttribute(Qt::WA_SetStyle) && widget->testAttribute(Qt::WA_WState_Polished) && isGraphicsViewViewport(widget))
+        {
+            // The palette of the viewport of a graphics view has the colors of the theme
+            applyGraphicsViewPalette(widget, true);
+        }
     }
 }
 

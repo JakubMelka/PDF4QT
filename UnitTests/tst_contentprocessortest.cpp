@@ -746,6 +746,11 @@ private slots:
     void uncoloredCellGuardsNest();
     void uncoloredCellGuardEndsWithException();
 
+    // Nested content without /Resources: the resources of the page (ISO 32000-2, 7.8.3)
+    void nestedContentResources_data();
+    void nestedContentResources();
+    void nestedContentResourcesOfAppearance();
+
     // The documents of contenttestdocuments.h
     void documentSimpleFonts();
     void documentType0Font();
@@ -804,6 +809,24 @@ private:
     /// /Differences [65 /square], /CharProcs << /square (a stream with \p procedure) >>,
     /// /Resources << /ProcSet [/PDF] >>
     static PDFObject addGlyphFontObject(PDFDocumentBuilder* builder, const QByteArray& procedure);
+
+    /// The document of the tests of nested content without /Resources (ISO 32000-2, 7.8.3): the page
+    /// and the form /Outer give the name /GS1 two different graphics state parameter dictionaries.
+    ///   page    /ExtGState << /GS1 << /LW 5 >> /GS4 << /LW 3 >> >>  /XObject << /Outer >>, the content "/Outer Do"
+    ///   /Outer  /Resources << /ExtGState << /GS1 << /LW 9 >> /GS2 << /LW 7 >> >> /XObject << /Inner >>
+    ///           /Font << /T3 >> /Pattern << /P >> >>, the content \p outerContent
+    ///   /Inner  a form without /Resources, the content \p innerContent
+    ///   /T3     a Type 3 font without /Resources: the code 65 (A) has the procedure \p glyphProcedure
+    ///   /P      a colored tiling pattern without /Resources (/BBox [0 0 10 10], the steps 10), the
+    ///           content of its cell \p cellContent
+    /// /GS3 is defined nowhere.
+    static PDFDocument createNestedResourcesDocument(const QByteArray& outerContent, const QByteArray& innerContent, const QByteArray& glyphProcedure, const QByteArray& cellContent);
+
+    /// The resources of /Outer of createNestedResourcesDocument (\p inner is the reference to /Inner)
+    static PDFObject createOuterResources(PDFDocumentBuilder* builder, PDFObject inner, const QByteArray& glyphProcedure, const QByteArray& cellContent);
+
+    /// The distinct line widths of the stroked paths, in the order of their first painting
+    static QList<PDFReal> strokedLineWidths(const Recorder& recorder);
 
     /// The content of the cell of the uncolored tiling pattern /PU of createUncoloredPatternResources:
     /// each of the twelve color operators once, then the square [0 0 5 5] filled and stroked
@@ -932,6 +955,80 @@ PDFObject ContentProcessorTest::addGlyphFontObject(PDFDocumentBuilder* builder, 
                                                           { "Differences", Documents::createArrayObject({ PDFObject::createInteger(65), PDFObject::createName("square") }) } }) },
         { "CharProcs", Documents::createDictionaryObject({ { "square", std::move(glyph) } }) },
         { "Resources", Documents::createDictionaryObject({ { "ProcSet", Documents::createArrayObject({ PDFObject::createName("PDF") }) } }) } }));
+}
+
+PDFObject ContentProcessorTest::createOuterResources(PDFDocumentBuilder* builder, PDFObject inner, const QByteArray& glyphProcedure, const QByteArray& cellContent)
+{
+    using Documents = ContentTestDocuments;
+
+    auto lineWidthState = [](PDFInteger width)
+    {
+        return Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "LW", PDFObject::createInteger(width) } });
+    };
+
+    // A Type 3 font and a tiling pattern without /Resources
+    PDFObject glyph = Documents::addStreamObject(builder, Documents::DictionaryEntries(), glyphProcedure);
+    PDFObject font = Documents::addObject(builder, Documents::createDictionaryObject({
+        { "Type", PDFObject::createName("Font") },
+        { "Subtype", PDFObject::createName("Type3") },
+        { "FontBBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) },
+        { "FontMatrix", Documents::createNumberArrayObject({ 0.01, 0, 0, 0.01, 0, 0 }) },
+        { "FirstChar", PDFObject::createInteger(65) },
+        { "LastChar", PDFObject::createInteger(65) },
+        { "Widths", Documents::createIntegerArrayObject({ 60 }) },
+        { "Encoding", Documents::createDictionaryObject({ { "Type", PDFObject::createName("Encoding") },
+                                                          { "Differences", Documents::createArrayObject({ PDFObject::createInteger(65), PDFObject::createName("square") }) } }) },
+        { "CharProcs", Documents::createDictionaryObject({ { "square", std::move(glyph) } }) } }));
+
+    PDFObject pattern = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("Pattern") },
+                                                              { "PatternType", PDFObject::createInteger(1) },
+                                                              { "PaintType", PDFObject::createInteger(1) },
+                                                              { "TilingType", PDFObject::createInteger(1) },
+                                                              { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                                              { "XStep", PDFObject::createInteger(10) },
+                                                              { "YStep", PDFObject::createInteger(10) } }, cellContent);
+
+    return Documents::createDictionaryObject({ { "ExtGState", Documents::createDictionaryObject({ { "GS1", lineWidthState(9) }, { "GS2", lineWidthState(7) } }) },
+                                               { "XObject", Documents::createDictionaryObject({ { "Inner", std::move(inner) } }) },
+                                               { "Font", Documents::createDictionaryObject({ { "T3", std::move(font) } }) },
+                                               { "Pattern", Documents::createDictionaryObject({ { "P", std::move(pattern) } }) } });
+}
+
+PDFDocument ContentProcessorTest::createNestedResourcesDocument(const QByteArray& outerContent, const QByteArray& innerContent, const QByteArray& glyphProcedure, const QByteArray& cellContent)
+{
+    using Documents = ContentTestDocuments;
+
+    return Documents::createDocument("/Outer Do", [&](PDFDocumentBuilder* builder)
+    {
+        PDFObject inner = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                                { "Subtype", PDFObject::createName("Form") },
+                                                                { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) } }, innerContent);
+        PDFObject outer = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                                { "Subtype", PDFObject::createName("Form") },
+                                                                { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) },
+                                                                { "Resources", createOuterResources(builder, std::move(inner), glyphProcedure, cellContent) } }, outerContent);
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), Documents::createDictionaryObject({ { "GS1", Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") },
+                                                                                                                                                    { "LW", PDFObject::createInteger(5) } }) },
+                                                                                                      { "GS4", Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") },
+                                                                                                                                                    { "LW", PDFObject::createInteger(3) } }) } }));
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "Outer", std::move(outer) } }));
+        return resources;
+    });
+}
+
+QList<PDFReal> ContentProcessorTest::strokedLineWidths(const Recorder& recorder)
+{
+    QList<PDFReal> result;
+    for (const Recorder::PaintedPath& path : recorder.paths)
+    {
+        if (path.stroke && !result.contains(path.lineWidth))
+        {
+            result << path.lineWidth;
+        }
+    }
+    return result;
 }
 
 QByteArray ContentProcessorTest::uncoloredCellContent()
@@ -4378,6 +4475,130 @@ void ContentProcessorTest::uncoloredCellGuardEndsWithException()
     QVERIFY(fill && fill->isColorIgnored);
     QCOMPARE(recorder.paths.size(), size_t(1));
     QVERIFY(!recorder.colorOperatorsIgnored());
+}
+
+void ContentProcessorTest::nestedContentResources_data()
+{
+    // NOTES.txt 7.8.3 (the owner's decision of 2026-11-27, a deliberate deviation from ISO
+    // 32000-2, 7.8.3 and Table 110, which name the page only): a form, a glyph procedure or a
+    // pattern cell without /Resources looks a name up in the content, which draws it, first, and
+    // a name that content does not define in the page. createNestedResourcesDocument: the page
+    // gives /GS1 the line width 5 and /GS4 3, the form /Outer, which draws the content, /GS1 9
+    // and /GS2 7. /GS1 tells the two orders apart (9 of /Outer, the page-first order would give
+    // 5); /GS2 is only in /Outer (7 by both); /GS4 is only in the page (3 - the fallback, new
+    // against the rule of before 2026-11-27, under which gs failed); /GS3 is nowhere: gs fails
+    // and the line width stays 1 (Table 51, the initial value).
+    QTest::addColumn<QByteArray>("outerContent");
+    QTest::addColumn<QByteArray>("innerContent");
+    QTest::addColumn<QByteArray>("glyphProcedure");
+    QTest::addColumn<QByteArray>("cellContent");
+    QTest::addColumn<QList<PDFReal>>("lineWidths");
+    QTest::addColumn<int>("failedOperators");
+
+    const QByteArray none("0 0 1 1 re S");
+    const QByteArray stroke1("/GS1 gs 0 0 10 10 re S");
+    const QByteArray stroke2("/GS2 gs 0 0 10 10 re S");
+    const QByteArray stroke3("/GS3 gs 0 0 10 10 re S");
+    const QByteArray stroke4("/GS4 gs 0 0 10 10 re S");
+    const QByteArray showA("BT /T3 10 Tf 0 0 Td (A) Tj ET");
+    const QByteArray fillByPattern("/Pattern cs /P scn 0 0 10 10 re f");
+
+    QTest::newRow("outer form: its own name") << stroke1 << none << none << none << QList<PDFReal>({ 9 }) << 0;
+    QTest::newRow("outer form: its own resources, no fallback") << stroke4 << none << none << none << QList<PDFReal>({ 1 }) << 1;
+    QTest::newRow("form: the name of the outer form wins") << QByteArray("/Inner Do") << stroke1 << none << none << QList<PDFReal>({ 9 }) << 0;
+    QTest::newRow("form: a name only of the outer form") << QByteArray("/Inner Do") << stroke2 << none << none << QList<PDFReal>({ 7 }) << 0;
+    QTest::newRow("form: a name only of the page") << QByteArray("/Inner Do") << stroke4 << none << none << QList<PDFReal>({ 3 }) << 0;
+    QTest::newRow("form: a name of nobody") << QByteArray("/Inner Do") << stroke3 << none << none << QList<PDFReal>({ 1 }) << 1;
+    QTest::newRow("glyph: the name of the outer form wins") << showA << none << QByteArray("60 0 d0 /GS1 gs 0 0 50 50 re S") << none << QList<PDFReal>({ 9 }) << 0;
+    QTest::newRow("glyph: a name only of the outer form") << showA << none << QByteArray("60 0 d0 /GS2 gs 0 0 50 50 re S") << none << QList<PDFReal>({ 7 }) << 0;
+    QTest::newRow("glyph: a name only of the page") << showA << none << QByteArray("60 0 d0 /GS4 gs 0 0 50 50 re S") << none << QList<PDFReal>({ 3 }) << 0;
+    QTest::newRow("cell: the name of the outer form wins") << fillByPattern << none << none << QByteArray("/GS1 gs 0 0 10 10 re S") << QList<PDFReal>({ 9 }) << 0;
+    QTest::newRow("cell: a name only of the outer form") << fillByPattern << none << none << QByteArray("/GS2 gs 0 0 10 10 re S") << QList<PDFReal>({ 7 }) << 0;
+    QTest::newRow("cell: a name only of the page") << fillByPattern << none << none << QByteArray("/GS4 gs 0 0 10 10 re S") << QList<PDFReal>({ 3 }) << 0;
+    // A chain: /Inner (drawn by /Outer) fills with /P, whose cell has no resources either: the
+    // dictionaries in effect in /Inner are those of /Outer with the page as the fallback, so the
+    // cell takes /GS1 from /Outer (9) and /GS4 from the page (3)
+    QTest::newRow("cell of a form without resources") << QByteArray("/Inner Do") << fillByPattern << none << QByteArray("/GS1 gs 0 0 10 10 re S /GS4 gs 0 0 20 20 re S")
+                                                      << QList<PDFReal>({ 9, 3 }) << 0;
+}
+
+void ContentProcessorTest::nestedContentResources()
+{
+    QFETCH(QByteArray, outerContent);
+    QFETCH(QByteArray, innerContent);
+    QFETCH(QByteArray, glyphProcedure);
+    QFETCH(QByteArray, cellContent);
+    QFETCH(QList<PDFReal>, lineWidths);
+    QFETCH(int, failedOperators);
+
+    ContentProcessorRun run(createNestedResourcesDocument(outerContent, innerContent, glyphProcedure, cellContent));
+    const Recorder& recorder = *run.processor;
+    QCOMPARE(strokedLineWidths(recorder), lineWidths);
+
+    const std::vector<Recorder::Event> failures = recorder.eventsOfKind(Recorder::EventKind::Failed);
+    QCOMPARE(int(failures.size()), failedOperators);
+    for (const Recorder::Event& failure : failures)
+    {
+        QCOMPARE(failure.text, QByteArray("gs"));
+    }
+}
+
+void ContentProcessorTest::nestedContentResourcesOfAppearance()
+{
+    // An annotation appearance is drawn as PDFAnnotationManager draws it (pdfannotation.cpp): a
+    // processor of the page of the annotation, initializeProcessor, the public processForm with
+    // the resources of the appearance stream "/Inner Do 0 0 20 20 re S" (the line width 1 of
+    // Table 51 for its own path). A form without /Resources drawn by the appearance looks a name
+    // up in the appearance first (NOTES.txt 7.8.3): /GS1 = 9 of the appearance, not 5 of the page;
+    // /GS2 = 7 of the appearance; a name the appearance does not define in the page: /GS4 = 3.
+    // Two rows give the appearance only /XObject << /Inner >>: it has no /ExtGState at all, so
+    // every name of that category comes from the page (/GS1 = 5, /GS4 = 3). The last row gives
+    // it /ExtGState << /GS1 null >>: an entry with the null value defines nothing (ISO 32000-2,
+    // 7.3.7), /GS1 comes from the page (5).
+    struct Row
+    {
+        QByteArray innerContent;
+        int variant;    ///< 0: the resources of /Outer; 1: /XObject only; 2: /XObject and /ExtGState << /GS1 null >>
+        PDFReal lineWidth;
+    };
+    for (const Row& row : { Row{ "/GS1 gs 0 0 10 10 re S", 0, 9 },
+                            Row{ "/GS2 gs 0 0 10 10 re S", 0, 7 },
+                            Row{ "/GS4 gs 0 0 10 10 re S", 0, 3 },
+                            Row{ "/GS1 gs 0 0 10 10 re S", 1, 5 },
+                            Row{ "/GS4 gs 0 0 10 10 re S", 1, 3 },
+                            Row{ "/GS1 gs 0 0 10 10 re S", 2, 5 } })
+    {
+        ContentProcessorRun run(createNestedResourcesDocument(QByteArray(), row.innerContent, QByteArray("60 0 d0"), QByteArray()), false, false);
+        Recorder& recorder = *run.processor;
+
+        // The resources of the appearance: those of /Outer (its /Inner is the form of the row),
+        // or a dictionary with its /XObject only
+        const PDFObject& outer = run.document.getObject(run.document.getDictionaryFromObject(
+            run.document.getDictionaryFromObject(run.document.getCatalog()->getPage(0)->getResources())->get("XObject"))->get("Outer"));
+        QVERIFY(outer.isStream());
+        const PDFObject outerResources = run.document.getObject(outer.getStream()->getDictionary()->get("Resources"));
+        QVERIFY(outerResources.isDictionary());
+        PDFObject appearanceResources = outerResources;
+        if (row.variant != 0)
+        {
+            PDFDictionaryBuilder resources;
+            resources.addEntry(PDFInplaceOrMemoryString("XObject"), outerResources.getDictionary()->get("XObject"));
+            if (row.variant == 2)
+            {
+                PDFDictionaryBuilder states;
+                states.addEntry(PDFInplaceOrMemoryString("GS1"), PDFObject::createNull());
+                resources.addEntry(PDFInplaceOrMemoryString("ExtGState"), PDFObject::createDictionary(std::move(states)));
+            }
+            appearanceResources = PDFObject::createDictionary(std::move(resources));
+        }
+
+        recorder.initializeProcessor();
+        recorder.processForm(QTransform(), QRectF(0, 0, 100, 100), appearanceResources, PDFObject(), "/Inner Do 0 0 20 20 re S", 0);
+
+        // The form drawn by the appearance as the row says, then the path of the appearance
+        QCOMPARE(strokedLineWidths(recorder), QList<PDFReal>({ row.lineWidth, 1 }));
+        QVERIFY(recorder.eventsOfKind(Recorder::EventKind::Failed).empty());
+    }
 }
 
 void ContentProcessorTest::documentSimpleFonts()

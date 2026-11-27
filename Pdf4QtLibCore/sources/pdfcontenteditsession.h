@@ -201,6 +201,18 @@ public:
     /// The new object of a provisional reference; a null object for any other reference
     PDFObject getNewObject(PDFObjectReference reference) const;
 
+    /// The object number the next new object gets (addNewObject). A command reads it before and
+    /// after its computation: the objects with the numbers between are the ones it has created
+    /// (PDFContentCommand::getNewObjects).
+    PDFInteger getNextNewObjectNumber() const;
+
+    /// Drops a new object nothing refers to any more: an object of a command merged into the
+    /// next one, which the merged command does not name (a move by the arrow keys copies
+    /// a pattern with every press - only the last copy is used), and the objects of an undone
+    /// command, which left the undo stack. Its number is not given again. Nothing happens for
+    /// a reference, which is no new object.
+    void removeNewObject(PDFObjectReference reference);
+
     // ---- state of the editor outside of undo (zadani.md RE-16, QE.8: until the tool closes) ----
 
     bool isNodeLocked(const PDFContentNodeReference& node) const;

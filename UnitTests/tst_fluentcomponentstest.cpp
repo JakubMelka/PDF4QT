@@ -31,6 +31,7 @@
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfcomponentsections.h"
 #include "pdfcomponentwindow.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
@@ -196,6 +197,25 @@ public:
         if (source == "Certificate chain")
         {
             return QStringLiteral("Zertifikatskette");
+        }
+        return QString();
+    }
+
+    virtual bool isEmpty() const override { return false; }
+};
+
+/// Translates the text of the mixed state (the shared context of the fields)
+class MixedTestTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+
+        if (QByteArrayView(context) == "pdf::PDFSpinBox" && QByteArrayView(sourceText) == "Mixed")
+        {
+            return QStringLiteral("Gemischt");
         }
         return QString();
     }
@@ -763,7 +783,42 @@ private slots:
     void deferredDeletionEndOfWatchedParts();
     void deferredDeletionMoreButtonRetiredMenu();
 
+    // Components of Edit Content (stage E1, zadani_gui.md 4.25)
+    void expanderCard();
+    void expanderCardGeometry();
+    void pathBar();
+    void pathBarShortening();
+    void pathBarKeyboard();
+    void rowToggleActions();
+    void mixedSpinBox();
+    void mixedDoubleSpinBox();
+    void mixedComboBox();
+    void mixedColorSwatchRow();
+    void mixedSpinBoxQtAffixes();
+    void spinBoxValueEntered();
+    void mixedAccessibility();
+    void mixedLanguageChange();
+    void mixedTextPalette();
+    void pathBarFocus();
+    void editContentIcons();
+    void editContentDeletionOrder();
+
 private:
+    /// A spin box with a prefix or a suffix of Qt in a window between two line edits (Tab
+    /// order: before, the spin box, after): the mixed state holds a pass by Tab and shows only
+    /// "Mixed"; \p heldText is the text of the held value, \p typedText the text of "7" entered
+    template<typename SpinBox>
+    static void checkMixedQtAffix(SpinBox* spin, QWidget* before, QWidget* after, const QString& heldText, const QString& typedText);
+
+    /// valueEntered of a spin box (range 0 - 100, value 5, in a shown window with \p other):
+    /// every commit of the user, never the program
+    template<typename SpinBox>
+    static void checkValueEntered(SpinBox* spin, QLineEdit* other);
+
+    /// A spin box deleted synchronously from inside of valueEntered for each kind of entry
+    template<typename SpinBox>
+    static void checkValueEnteredDeletion(QWidget* window);
+
     /// Sends the deferred deletions of the retired objects (the test body is the event loop level 0)
     static void settleRetired() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
 
@@ -879,6 +934,259 @@ int FluentComponentsTest::countAccessibleEvents(const QObject* object, QAccessib
         }
     }
     return count;
+}
+
+template<typename SpinBox>
+void FluentComponentsTest::checkMixedQtAffix(SpinBox* spin, QWidget* before, QWidget* after, const QString& heldText, const QString& typedText)
+{
+    QLineEdit* editor = spin->template findChild<QLineEdit*>();
+    QVERIFY(editor);
+    QCOMPARE(editor->text(), heldText);
+
+    // The state: only "Mixed" (the placeholder of an empty editor, no stray affix), the value held
+    spin->setMixed(true);
+    QCOMPARE(editor->text(), QString());
+    QVERIFY(spin->isMixed());
+    QCOMPARE(editor->placeholderText(), QStringLiteral("Mixed"));
+
+    // QAbstractSpinBox::clear called by the application writes the affixes alone: no value
+    spin->clear();
+    QCOMPARE(editor->text(), QString());
+    QVERIFY(spin->isMixed());
+
+    // A pass by Tab (the keyboard selects the text of a spin box) and Enter, Ctrl+A in the field:
+    // the state holds, the value is held
+    before->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(before, Qt::Key_Tab);
+    QVERIFY(spin->hasFocus());
+    QVERIFY(spin->isMixed());
+    QCOMPARE(editor->text(), QString());
+    QTest::keyClick(spin, Qt::Key_Return);
+    QTest::keyClick(spin, Qt::Key_A, Qt::ControlModifier);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(editor->text(), QString());
+    QTest::keyClick(spin, Qt::Key_Tab);
+    QVERIFY(after->hasFocus());
+    QVERIFY(spin->isMixed());
+    QCOMPARE(editor->text(), QString());
+    QCOMPARE(editor->placeholderText(), QStringLiteral("Mixed"));
+
+    // Typed and erased: back to the state
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    QVERIFY(!spin->isMixed());
+    QTest::keyClick(spin, Qt::Key_Backspace);
+    QTest::keyClick(spin, Qt::Key_Tab);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(editor->text(), QString());
+
+    // An entered value: the text of Qt with its affixes again
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    QTest::keyClick(spin, Qt::Key_Tab);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(editor->text(), typedText);
+    QCOMPARE(editor->placeholderText(), QString());
+
+    // Left by the program: the held value with its affixes
+    spin->setMixed(true);
+    spin->setMixed(false);
+    QCOMPARE(editor->text(), typedText);
+}
+
+template<typename SpinBox>
+void FluentComponentsTest::checkValueEntered(SpinBox* spin, QLineEdit* other)
+{
+    QSignalSpy enteredSpy(spin, &SpinBox::valueEntered);
+    const auto lastEntered = [&enteredSpy]() { return enteredSpy.constLast().at(0).toDouble(); };
+
+    // The program: setValue, the mixed state, steps by calls - nothing
+    spin->setValue(6);
+    spin->setMixed(true);
+    spin->setMixed(false);
+    spin->stepBy(1);
+    spin->stepUp();
+    spin->stepDown();
+    QCOMPARE(double(spin->value()), 7.0);
+    QCOMPARE(enteredSpy.count(), 0);
+
+    // The field passed without typing (also by Enter of the keyboard focus: see below) - nothing
+    spin->setFocus(Qt::TabFocusReason);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(enteredSpy.count(), 0);
+
+    // The value before typed again and the field left: an entry (Qt has no valueChanged for it)
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    QCOMPARE(enteredSpy.count(), 0);
+    QTest::keyClick(spin, Qt::Key_Tab);
+    QCOMPARE(enteredSpy.count(), 1);
+    QCOMPARE(lastEntered(), 7.0);
+    QVERIFY(!spin->hasFocus());
+
+    // The mixed state passed - nothing, the state stays; the held value typed - an entry
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(spin, Qt::Key_Return);
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(enteredSpy.count(), 1);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    other->setFocus(Qt::MouseFocusReason);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(enteredSpy.count(), 2);
+    QCOMPARE(lastEntered(), 7.0);
+
+    // Enter confirms always, also an unchanged value; leaving the field after it commits nothing more
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(spin, Qt::Key_Return);
+    QCOMPARE(enteredSpy.count(), 3);
+    QCOMPARE(lastEntered(), 7.0);
+    QTest::keyClicks(spin, QStringLiteral("8"));
+    QTest::keyClick(spin, Qt::Key_Enter, Qt::KeypadModifier);
+    QCOMPARE(enteredSpy.count(), 4);
+    QCOMPARE(lastEntered(), 8.0);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(enteredSpy.count(), 4);
+
+    // Steps of the keys, also from the mixed state (each one is an entry)
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(spin, Qt::Key_Up);
+    QCOMPARE(enteredSpy.count(), 5);
+    QCOMPARE(lastEntered(), 9.0);
+    QTest::keyClick(spin, Qt::Key_PageUp);
+    QCOMPARE(enteredSpy.count(), 6);
+    QCOMPARE(lastEntered(), 19.0);
+    spin->setMixed(true);
+    QTest::keyClick(spin, Qt::Key_Down);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(enteredSpy.count(), 7);
+    QCOMPARE(lastEntered(), 18.0);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(enteredSpy.count(), 7);
+
+    // The wheel
+    QWheelEvent wheel(QPointF(5, 5), spin->mapToGlobal(QPointF(5, 5)), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(spin, &wheel);
+    QCOMPARE(enteredSpy.count(), 8);
+    QCOMPARE(lastEntered(), 19.0);
+
+    // The button of the step up (pressed and released at once: one step)
+    QStyleOptionSpinBox option;
+    option.initFrom(spin);
+    option.buttonSymbols = spin->buttonSymbols();
+    option.subControls = QStyle::SC_SpinBoxEditField | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown | QStyle::SC_SpinBoxFrame;
+    option.frame = spin->hasFrame();
+    const QRect upButton = spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, spin);
+    QVERIFY(!upButton.isEmpty());
+    QTest::mousePress(spin, Qt::LeftButton, Qt::NoModifier, upButton.center());
+    QTest::mouseRelease(spin, Qt::LeftButton, Qt::NoModifier, upButton.center());
+    QCOMPARE(enteredSpy.count(), 9);
+    QCOMPARE(lastEntered(), 20.0);
+
+    // Step up of the context menu (a queued call of the slot, as the menu calls it)
+    QMetaObject::invokeMethod(spin, "stepUp", Qt::QueuedConnection);
+    QCoreApplication::processEvents();
+    QCOMPARE(enteredSpy.count(), 10);
+    QCOMPARE(lastEntered(), 21.0);
+
+    // commitEntry: the typed text of a panel, which commits before a save (keyboard tracking off:
+    // the text is not interpreted yet); nothing without a typed text
+    spin->setKeyboardTracking(false);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("42"));
+    QCOMPARE(double(spin->value()), 21.0);
+    spin->commitEntry();
+    QCOMPARE(enteredSpy.count(), 11);
+    QCOMPARE(lastEntered(), 42.0);
+    QCOMPARE(double(spin->value()), 42.0);
+    spin->commitEntry();
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(enteredSpy.count(), 11);
+
+    // Keyboard tracking off, the held value typed into the mixed field: an entry
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("42"));
+    QTest::keyClick(spin, Qt::Key_Tab);
+    QCOMPARE(enteredSpy.count(), 12);
+    QCOMPARE(lastEntered(), 42.0);
+
+    // A mixed field with a typed and erased text left: no entry, the state again
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("3"));
+    QTest::keyClick(spin, Qt::Key_Backspace);
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(enteredSpy.count(), 12);
+    spin->setMixed(false);
+
+    // A retired spin box sends nothing (retire moves the focus out of the field with a typed text)
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("50"));
+    pdf::PDFDeferredDeletion::retire(spin);
+    QCOMPARE(enteredSpy.count(), 12);
+}
+
+template<typename SpinBox>
+void FluentComponentsTest::checkValueEnteredDeletion(QWidget* window)
+{
+    // Every kind of entry: a slot deletes the spin box synchronously (the signal is the last
+    // use of the spin box by the library and by Qt)
+    for (int kind = 0; kind < 6; ++kind)
+    {
+        SpinBox* spin = new SpinBox(window);
+        spin->setRange(0, 100);
+        spin->setValue(5);
+        spin->show();
+        QPointer<SpinBox> guard(spin);
+        connect(spin, &SpinBox::valueEntered, window, [spin]() { delete spin; });
+        spin->setFocus(Qt::TabFocusReason);
+        QVERIFY(spin->hasFocus());
+
+        switch (kind)
+        {
+            case 0:
+                QTest::keyClick(spin, Qt::Key_Return);
+                break;
+            case 1:
+                QTest::keyClicks(spin, QStringLiteral("7"));
+                QTest::keyClick(spin, Qt::Key_Tab);
+                break;
+            case 2:
+                QTest::keyClick(spin, Qt::Key_Up);
+                break;
+            case 3:
+            {
+                QWheelEvent wheel(QPointF(5, 5), spin->mapToGlobal(QPointF(5, 5)), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+                QApplication::sendEvent(spin, &wheel);
+                break;
+            }
+            case 4:
+            {
+                QStyleOptionSpinBox option;
+                option.initFrom(spin);
+                option.buttonSymbols = spin->buttonSymbols();
+                option.subControls = QStyle::SC_SpinBoxEditField | QStyle::SC_SpinBoxUp | QStyle::SC_SpinBoxDown | QStyle::SC_SpinBoxFrame;
+                option.frame = spin->hasFrame();
+                const QPoint up = spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, spin).center();
+                QTest::mousePress(spin, Qt::LeftButton, Qt::NoModifier, up);
+                break;
+            }
+            default:
+                QMetaObject::invokeMethod(spin, "stepUp", Qt::QueuedConnection);
+                QCoreApplication::processEvents();
+                break;
+        }
+        QVERIFY2(!guard, qPrintable(QStringLiteral("kind %1").arg(kind)));
+        if (kind == 4)
+        {
+            QTest::mouseRelease(window, Qt::LeftButton);
+        }
+        QApplication::processEvents();
+    }
 }
 
 QImage FluentComponentsTest::render(const std::function<void(QPainter&)>& paint, QSize size, qreal scale)
@@ -13727,7 +14035,8 @@ void FluentComponentsTest::delegateGallery()
     {
         QVERIFY2(liveNodes.contains(QString::fromLatin1(node)), node);
     }
-    QCOMPARE(delegateViews.value(QStringLiteral("23-panels")), 3);
+    // The three views of the Font row and the list of the toggle actions of Edit Content (1647:22520)
+    QCOMPARE(delegateViews.value(QStringLiteral("23-panels")), 4);
 
     for (const pdffluentgallery::GalleryPages::Page& page : pages)
     {
@@ -21919,6 +22228,1382 @@ void FluentComponentsTest::deferredDeletionMoreButtonRetiredMenu()
     settleRetired();
 }
 
+
+// ------------------------------------------------- Components of Edit Content
+
+/// Row of the objects of Edit Content with the toggles eye (hidden) and lock (locked):
+/// a bookmark row with two 20 x 20 actions at its trailing side (1647:22520)
+class FluentComponentsTestToggleDelegate : public pdf::PDFBookmarkDelegate
+{
+public:
+    static constexpr int HiddenRole = Qt::UserRole + 1;
+    static constexpr int LockedRole = Qt::UserRole + 2;
+    static constexpr int HideAction = 1;
+    static constexpr int LockAction = 2;
+    static constexpr int PlainAction = 3;
+
+    using pdf::PDFBookmarkDelegate::PDFBookmarkDelegate;
+
+    /// Lock at x 272 - 292, eye at 248 - 268 of a row 300 wide, a plain action only in the menu
+    virtual QList<Action> getActions(const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QList<Action> actions;
+        if (!index.isValid())
+        {
+            return actions;
+        }
+
+        const QRectF rect(option.rect);
+        const qreal top = rect.top() + qFloor((rect.height() - 20.0) / 2.0);
+        Action lock;
+        lock.id = LockAction;
+        lock.rect = QRectF(rect.right() + 1.0 - 8.0 - 20.0, top, 20.0, 20.0);
+        lock.text = QStringLiteral("Lock");
+        lock.checkable = true;
+        lock.checked = index.data(LockedRole).toBool();
+        lock.iconName = QStringLiteral("unlock");
+        lock.checkedIconName = QStringLiteral("lock");
+        lock.role = LockedRole;
+
+        Action hide = lock;
+        hide.id = HideAction;
+        hide.rect.translate(-24.0, 0.0);
+        hide.text = QStringLiteral("Hide");
+        hide.checked = index.data(HiddenRole).toBool();
+        hide.iconName = QStringLiteral("eye");
+        hide.checkedIconName = QStringLiteral("eye-off");
+        hide.role = HiddenRole;
+
+        Action plain;
+        plain.id = PlainAction;
+        plain.text = QStringLiteral("Rename");
+
+        actions << lock << hide << plain;
+        return actions;
+    }
+
+protected:
+    virtual bool hasActions() const override { return true; }
+
+    virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const pdf::PDFComponentPainter::State& state) const override
+    {
+        pdf::PDFBookmarkDelegate::paintItem(painter, option, index, state);
+        paintToggleActions(painter, option, index, state);
+    }
+};
+
+void FluentComponentsTest::expanderCard()
+{
+    pdf::PDFExpanderCard card(QStringLiteral("Transparency"));
+    card.setFixedWidth(287);
+    QSignalSpy expandedSpy(&card, &pdf::PDFExpanderCard::expandedChanged);
+
+    // A section without anything to expand: no link, no card
+    QVERIFY(!card.isExpanded());
+    QVERIFY(!card.isExpandable());
+    QCOMPARE(card.getTitle(), QStringLiteral("Transparency"));
+    QVERIFY(!card.getExpandLink()->isVisibleTo(&card));
+    QVERIFY(!card.getCard()->isVisibleTo(&card));
+    QVERIFY(!card.getBadge()->isVisibleTo(&card));
+
+    // The summary of a collapsed card (1647:21849) makes it expandable: the link Expand
+    card.setSummaryText(QStringLiteral("Opacity 100 % · blend mode Normal"));
+    QWidget* expandedContent = new QWidget();
+    card.setExpandedWidget(expandedContent);
+    QCOMPARE(expandedContent->parentWidget(), card.getCard());
+    QVERIFY(card.isExpandable());
+    QVERIFY(card.getExpandLink()->isVisibleTo(&card));
+    QCOMPARE(card.getExpandLink()->text(), QStringLiteral("Expand"));
+    QVERIFY(card.getSummaryLabel()->isVisibleTo(&card));
+    QVERIFY(!expandedContent->isVisibleTo(&card));
+    QCOMPARE(expandedSpy.count(), 0);
+
+    card.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&card));
+
+    // The link expands the card in place: the summary goes, the expanded widget comes (1647:48204)
+    QTest::mouseClick(card.getExpandLink(), Qt::LeftButton);
+    QCOMPARE(expandedSpy.count(), 1);
+    QCOMPARE(expandedSpy.at(0).at(0).toBool(), true);
+    QVERIFY(card.isExpanded());
+    QCOMPARE(card.getExpandLink()->text(), QStringLiteral("Collapse"));
+    QVERIFY(!card.getSummaryLabel()->isVisibleTo(&card));
+    QVERIFY(expandedContent->isVisibleTo(&card));
+    QCOMPARE(card.property("expanded").toBool(), true);
+
+    // No signal without a change
+    card.setExpanded(true);
+    QCOMPARE(expandedSpy.count(), 1);
+
+    // The keyboard: the link is a Tab stop only (as every text link), Space activates it
+    QCOMPARE(card.getExpandLink()->focusPolicy(), Qt::TabFocus);
+    card.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&card));
+    card.getExpandLink()->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(card.getExpandLink(), Qt::Key_Space);
+    QCOMPARE(expandedSpy.count(), 2);
+    QCOMPARE(expandedSpy.at(1).at(0).toBool(), false);
+    QVERIFY(!card.isExpanded());
+    QTest::keyClick(card.getExpandLink(), Qt::Key_Return);
+    QCOMPARE(expandedSpy.count(), 3);
+    card.toggleExpanded();
+    QCOMPARE(expandedSpy.count(), 4);
+    QVERIFY(!card.isExpanded());
+
+    // The state is kept, when the card stops being expandable
+    card.setExpanded(true);
+    card.setSummaryText(QString());
+    card.setExpandedWidget(nullptr);
+    QVERIFY(!card.isExpandable());
+    QVERIFY(card.isExpanded());
+    QVERIFY(!card.getExpandLink()->isVisibleTo(&card));
+
+    // The badge after the heading (a Tag, 1647:21725)
+    card.setBadgeText(QStringLiteral("Text"));
+    QVERIFY(card.getBadge()->isVisibleTo(&card));
+    QCOMPARE(card.getBadge()->text(), QStringLiteral("Text"));
+    QCOMPARE(card.getBadgeText(), QStringLiteral("Text"));
+    card.setBadgeText(QString());
+    QVERIFY(!card.getBadge()->isVisibleTo(&card));
+
+    // A replaced widget is retired, not deleted in the call (it may be the sender of a signal)
+    QPointer<QWidget> first = new QWidget();
+    card.setContentWidget(first);
+    QCOMPARE(card.getContentWidget(), first.data());
+    QVERIFY(card.getCard()->isVisibleTo(&card));
+    QPointer<QWidget> second = new QWidget();
+    card.setContentWidget(second);
+    QVERIFY(first);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(first));
+    QCOMPARE(card.getContentWidget(), second.data());
+    QPointer<QWidget> expandedRetired = expandedContent;
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(expandedRetired));
+    settleRetired();
+    QVERIFY(!first);
+    QVERIFY(!expandedRetired);
+    QVERIFY(second);
+
+    // A slot of expandedChanged may close the card (emit last; a close from a signal of its own subtree)
+    pdf::PDFExpanderCard* victim = new pdf::PDFExpanderCard(QStringLiteral("Arrange"));
+    victim->setSummaryText(QStringLiteral("Align"));
+    QPointer<pdf::PDFExpanderCard> victimGuard(victim);
+    connect(victim, &pdf::PDFExpanderCard::expandedChanged, victim, [victim]() { pdf::PDFDeferredDeletion::retireLater(victim); });
+    victim->show();
+    QTest::mouseClick(victim->getExpandLink(), Qt::LeftButton);
+    QTRY_VERIFY(!victimGuard || pdf::PDFDeferredDeletion::isRetired(victimGuard));
+    settleRetired();
+    QVERIFY(!victimGuard);
+
+    // The card deleted synchronously from its signal of setExpanded (nothing of it is used after the emit)
+    pdf::PDFExpanderCard* deleted = new pdf::PDFExpanderCard(QStringLiteral("Arrange"));
+    QPointer<pdf::PDFExpanderCard> deletedGuard(deleted);
+    connect(deleted, &pdf::PDFExpanderCard::expandedChanged, deleted, [deleted]() { delete deleted; });
+    deleted->setExpanded(true);
+    QVERIFY(!deletedGuard);
+}
+
+void FluentComponentsTest::expanderCardGeometry()
+{
+    // section-Transparency 1647:21843: header 16 high, the card 8 below it, its text at
+    // 13 / 13 (border 1 + padding 12), 287 wide; with a Tag the header is 21 (1647:21723)
+    QCOMPARE(Painter::getExpanderSpacing(), 8);
+    QCOMPARE(Painter::getExpanderCardSpacing(), 8);
+    QCOMPARE(Painter::getExpanderCardMargins(), QMargins(13, 13, 13, 13));
+    QCOMPARE(Painter::getExpanderCardRadius(), 10.0);
+
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    pdf::PDFExpanderCard* card = new pdf::PDFExpanderCard(QStringLiteral("Transparency"), &window);
+    card->setSummaryText(QStringLiteral("Opacity 100 % · blend mode Normal"));
+    layout->addWidget(card);
+    layout->addStretch(1);
+    window.setFixedWidth(287);
+    window.resize(287, 200);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    QCOMPARE(card->getExpandLink()->geometry().right(), 286);
+    QCOMPARE(card->getCard()->geometry(), QRect(0, 24, 287, card->getCard()->height()));
+    QCOMPARE(card->getSummaryLabel()->geometry().topLeft(), QPoint(13, 13));
+    QCOMPARE(card->getSummaryLabel()->width(), 261);
+    QCOMPARE(card->getTitleLabel()->x(), 0);
+
+    card->setBadgeText(QStringLiteral("Text"));
+    QApplication::processEvents();
+    QCOMPARE(card->getBadge()->height(), 21);
+    QCOMPARE(card->getCard()->y(), 29);
+    QCOMPARE(card->getBadge()->x(), card->getTitleLabel()->geometry().right() + 1 + 8);
+
+    // The card: bg/surface with border/default (no leak), the summary text/tertiary
+    const QImage image = renderWidget(card, 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+    QVERIFY(isNear(pixel(image, 0.0, 29.0 + 20.0), token(Color::BorderDefault)));
+    QVERIFY(isNear(pixel(image, 6.0, 29.0 + 20.0), token(Color::BgSurface)));
+    const QRect summaryArea(card->getSummaryLabel()->mapTo(card, QPoint(0, 0)), card->getSummaryLabel()->size());
+    QVERIFY(isNear(strongestInk(image, summaryArea, token(Color::BgSurface)), token(Color::TextTertiary), 40));
+
+    // Right-to-left: the link at the left edge
+    card->setLayoutDirection(Qt::RightToLeft);
+    QApplication::processEvents();
+    QCOMPARE(card->getExpandLink()->x(), 0);
+    QCOMPARE(card->getTitleLabel()->geometry().right(), 286);
+}
+
+void FluentComponentsTest::pathBar()
+{
+    // Constants of isolation-bar 1647:42965 and of breadcrumb 1647:21730
+    using Size = pdf::PDFPathBar::Size;
+    QCOMPARE(Painter::getPathBarSpacing(Size::Default), 8);
+    QCOMPARE(Painter::getPathBarSpacing(Size::Small), 4);
+    QCOMPARE(Painter::getPathSeparatorExtent(), 10);
+    QCOMPARE(Painter::getPathBarLineHeight(Size::Default), 16);
+    QCOMPARE(Painter::getPathBarLineHeight(Size::Small), 13);
+    QCOMPARE(Painter::getPathSegmentFont(Size::Default, false).pixelSize(), 12);
+    QCOMPARE(Painter::getPathSegmentFont(Size::Default, true).weight(), QFont::DemiBold);
+    QCOMPARE(Painter::getPathSegmentFont(Size::Small, false).pixelSize(), 11);
+    QCOMPARE(Painter::getPathSegmentFont(Size::Small, true).weight(), QFont::Medium);
+
+    pdf::PDFPathBar bar(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Chart area"), QStringLiteral("Revenue chart") });
+    QSignalSpy activatedSpy(&bar, &pdf::PDFPathBar::segmentActivated);
+    QCOMPARE(bar.getSegmentCount(), 3);
+    QVERIFY(!bar.getSegmentWidget(0)->isCurrent());
+    QVERIFY(!bar.getSegmentWidget(1)->isCurrent());
+    QVERIFY(bar.getSegmentWidget(2)->isCurrent());
+    QVERIFY(!bar.getSegmentWidget(2)->isInteractive());
+    QCOMPARE(bar.getSegmentWidget(0)->focusPolicy(), Qt::TabFocus);
+    QCOMPARE(bar.getSegmentWidget(2)->focusPolicy(), Qt::NoFocus);
+    QVERIFY(bar.getSegmentWidget(3) == nullptr);
+    QVERIFY(bar.getSegmentWidget(-1) == nullptr);
+
+    bar.resize(bar.sizeHint());
+    bar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bar));
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 1, 2 }));
+    QVERIFY(!bar.isShortened());
+    QCOMPARE(bar.height(), 16);
+
+    // The segments 8 + 10 + 8 apart (the chevron between them)
+    const int w0 = Painter::getPathSegmentSize(Painter::PathSegment{ QStringLiteral("Page 3"), Size::Default, false }).width();
+    const int w1 = Painter::getPathSegmentSize(Painter::PathSegment{ QStringLiteral("Chart area"), Size::Default, false }).width();
+    const int w2 = Painter::getPathSegmentSize(Painter::PathSegment{ QStringLiteral("Revenue chart"), Size::Default, true }).width();
+    QCOMPARE(bar.getSegmentWidget(0)->geometry(), QRect(0, 0, w0, 16));
+    QCOMPARE(bar.getSegmentWidget(1)->geometry(), QRect(w0 + 26, 0, w1, 16));
+    QCOMPARE(bar.getSegmentWidget(2)->x(), w0 + 26 + w1 + 26);
+    QCOMPARE(bar.sizeHint(), QSize(w0 + w1 + w2 + 52, 16));
+
+    // The links activate, the current segment does not
+    QTest::mouseClick(bar.getSegmentWidget(1), Qt::LeftButton);
+    QCOMPARE(activatedSpy.count(), 1);
+    QCOMPARE(activatedSpy.at(0).at(0).toInt(), 1);
+    QTest::mouseClick(bar.getSegmentWidget(2), Qt::LeftButton);
+    QCOMPARE(activatedSpy.count(), 1);
+    QTest::mouseClick(bar.getSegmentWidget(0), Qt::LeftButton);
+    QCOMPARE(activatedSpy.count(), 2);
+    QCOMPARE(activatedSpy.at(1).at(0).toInt(), 0);
+
+    // Colors: links text/accent, the current segment text/primary, separators icon/muted, no leak
+    const QImage image = renderWidget(&bar, 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+    QVERIFY(isNear(strongestInk(image, bar.getSegmentWidget(0)->geometry(), token(Color::BgSurface)), token(Color::TextAccent), 40));
+    QVERIFY(isNear(strongestInk(image, bar.getSegmentWidget(2)->geometry(), token(Color::BgSurface)), token(Color::TextPrimary), 40));
+    QVERIFY(isNear(strongestInk(image, QRect(w0 + 8, 3, 10, 10), token(Color::BgSurface)), token(Color::IconMuted), 40));
+
+    // The small size (breadcrumb 1647:21730: "Page 3" 37 wide, the chevron at 41, "Text" at 55)
+    pdf::PDFPathBar small(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Text") });
+    small.setBarSize(Size::Small);
+    small.resize(small.sizeHint());
+    small.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&small));
+    const int s0 = small.getSegmentWidget(0)->width();
+    QCOMPARE(small.height(), 13);
+    QCOMPARE(small.getSegmentWidget(1)->x(), s0 + 4 + 10 + 4);
+
+    // A slot of segmentActivated sets new segments: the clicked segment is retired, not deleted
+    QPointer<pdf::PDFPathSegment> clicked = bar.getSegmentWidget(1);
+    connect(&bar, &pdf::PDFPathBar::segmentActivated, &bar, [&bar](int index) { bar.setSegments(bar.getSegments().mid(0, index + 1)); });
+    QTest::mouseClick(clicked, Qt::LeftButton);
+    QCOMPARE(bar.getSegments(), QStringList({ QStringLiteral("Page 3"), QStringLiteral("Chart area") }));
+    QVERIFY(bar.getSegmentWidget(1)->isCurrent());
+    QVERIFY(clicked);
+    QTest::mouseClick(bar.getSegmentWidget(0), Qt::LeftButton);
+    QCOMPARE(bar.getSegmentCount(), 1);
+    QVERIFY(clicked);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(clicked));
+    settleRetired();
+    QVERIFY(!clicked);
+    QVERIFY(bar.getSegmentWidget(0)->isCurrent());
+
+    // Hostile depth (the core nests groups 256 deep, a path has one more segment): the bar keeps
+    // the list given, widgets only for the first segment and the last 255 - the ones between are
+    // in the ellipsis, also when the bar is wide enough for all; every index (the shown ones, the
+    // widgets, segmentActivated) is an index of the list given
+    QStringList deep;
+    for (int i = 0; i < 1000; ++i)
+    {
+        deep.append(QString::number(i));
+    }
+    bar.setSegments(deep);
+    QCOMPARE(bar.getSegmentCount(), 1000);
+    QCOMPARE(bar.getSegments(), deep);
+    QCOMPARE(bar.getSegmentWidget(0)->text(), QStringLiteral("0"));
+    QVERIFY(!bar.getSegmentWidget(0)->isCurrent());
+    QVERIFY(bar.getSegmentWidget(1) == nullptr);
+    QVERIFY(bar.getSegmentWidget(744) == nullptr);
+    QCOMPARE(bar.getSegmentWidget(745)->text(), QStringLiteral("745"));
+    QCOMPARE(bar.getSegmentWidget(999)->text(), QStringLiteral("999"));
+    QVERIFY(bar.getSegmentWidget(999)->isCurrent());
+    QVERIFY(bar.getSegmentWidget(1000) == nullptr);
+    bar.resize(bar.sizeHint());
+    QList<int> deepShown{ 0 };
+    for (int i = 745; i < 1000; ++i)
+    {
+        deepShown.append(i);
+    }
+    QCOMPARE(bar.getShownSegments(), deepShown);
+    QVERIFY(bar.isShortened());
+
+    // A link activated: the index of the list given (the slot above trims the path by it)
+    activatedSpy.clear();
+    bar.getSegmentWidget(998)->click();
+    QCOMPARE(activatedSpy.count(), 1);
+    QCOMPARE(activatedSpy.at(0).at(0).toInt(), 998);
+    QCOMPARE(bar.getSegmentCount(), 999);
+    QVERIFY(bar.getSegmentWidget(998)->isCurrent());
+    QCOMPARE(bar.getSegmentWidget(744)->text(), QStringLiteral("744"));
+    bar.getSegmentWidget(0)->click();
+    QCOMPARE(activatedSpy.count(), 2);
+    QCOMPARE(activatedSpy.at(1).at(0).toInt(), 0);
+    QCOMPARE(bar.getSegments(), QStringList({ QStringLiteral("0") }));
+    settleRetired();
+
+    // 100 000 segments: the widgets stay bounded
+    QStringList huge;
+    huge.reserve(100000);
+    for (int i = 0; i < 100000; ++i)
+    {
+        huge.append(QString::number(i));
+    }
+    bar.setSegments(huge);
+    QCOMPARE(bar.getSegmentCount(), 100000);
+    QCOMPARE(int(bar.findChildren<pdf::PDFPathSegment*>(Qt::FindDirectChildrenOnly).size()), 256);
+    QCOMPARE(bar.getShownSegments().constFirst(), 0);
+    QCOMPARE(bar.getShownSegments().constLast(), 99999);
+    bar.setSegments(QStringList());
+    QCOMPARE(bar.getSegmentCount(), 0);
+    QVERIFY(bar.getShownSegments().isEmpty());
+}
+
+void FluentComponentsTest::pathBarShortening()
+{
+    using Size = pdf::PDFPathBar::Size;
+    const QStringList segments{ QStringLiteral("Page 3"), QStringLiteral("Header and footer"), QStringLiteral("Chart area"),
+                                QStringLiteral("Legend"), QStringLiteral("Revenue chart"), QStringLiteral("Bars 2026") };
+    std::vector<int> widths;
+    for (int i = 0; i < segments.size(); ++i)
+    {
+        widths.push_back(Painter::getPathSegmentSize(Painter::PathSegment{ segments[i], Size::Default, i == segments.size() - 1 }).width());
+    }
+    const int unit = 8 + 10 + 8;
+    const int ellipsis = qCeil(Painter::getPathEllipsisWidth(Size::Default));
+    QCOMPARE(Painter::getPathEllipsis(), QString(QChar(0x2026)));
+
+    // The bar is a child: its resize is laid out at once
+    QWidget window;
+    window.resize(1200, 40);
+    pdf::PDFPathBar& bar = *new pdf::PDFPathBar(segments, &window);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // Everything fits: no ellipsis
+    const int full = widths[0] + widths[1] + widths[2] + widths[3] + widths[4] + widths[5] + 5 * unit;
+    bar.resize(full, 16);
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 1, 2, 3, 4, 5 }));
+    QVERIFY(!bar.isShortened());
+
+    // One pixel less: the segment after the first one goes first (it is wider than the
+    // ellipsis, which replaces it), "Page 3 > … > Chart area > Legend > Revenue chart > Bars 2026"
+    QVERIFY(widths[1] > ellipsis + 1);
+    bar.resize(full - 1, 16);
+    QVERIFY(bar.isShortened());
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 2, 3, 4, 5 }));
+    QVERIFY(!bar.getSegmentWidget(1)->isVisibleTo(&bar));
+
+    // Exactly "first > … > Revenue chart > last"
+    const int twoTrailing = widths[0] + ellipsis + widths[4] + widths[5] + 3 * unit;
+    bar.resize(twoTrailing, 16);
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 4, 5 }));
+    QVERIFY(!bar.getSegmentWidget(1)->isVisibleTo(&bar));
+    QVERIFY(bar.getSegmentWidget(4)->isVisibleTo(&bar));
+    bar.resize(twoTrailing - 1, 16);
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 5 }));
+
+    // The minimum: the first and the last segment elided down to an ellipsis each
+    QCOMPARE(bar.minimumSizeHint().width(), 3 * ellipsis + 2 * unit);
+    bar.resize(bar.minimumSizeHint().width(), 16);
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 5 }));
+    QCOMPARE(bar.getSegmentWidget(0)->width(), ellipsis);
+    QCOMPARE(bar.getSegmentWidget(5)->width(), ellipsis);
+
+    // Between: the first segment is elided before the last one
+    const int firstElided = ellipsis + 2 * unit + ellipsis + widths[5];
+    bar.resize(firstElided, 16);
+    QCOMPARE(bar.getSegmentWidget(0)->width(), ellipsis);
+    QCOMPARE(bar.getSegmentWidget(5)->width(), widths[5]);
+
+    // Right-to-left: the first segment at the right edge
+    bar.resize(full, 16);
+    bar.setLayoutDirection(Qt::RightToLeft);
+    QApplication::processEvents();
+    QCOMPARE(bar.getSegmentWidget(0)->geometry().right(), full - 1);
+    QCOMPARE(bar.getSegmentWidget(5)->x(), 0);
+}
+
+void FluentComponentsTest::pathBarKeyboard()
+{
+    pdf::PDFPathBar bar(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Chart area"), QStringLiteral("Legend"), QStringLiteral("Revenue chart") });
+    QSignalSpy activatedSpy(&bar, &pdf::PDFPathBar::segmentActivated);
+    bar.resize(bar.sizeHint());
+    bar.show();
+    bar.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&bar));
+
+    pdf::PDFPathSegment* first = bar.getSegmentWidget(0);
+    first->setFocus(Qt::TabFocusReason);
+    QVERIFY(first->hasFocus());
+
+    // Right / Left by the picture, the current segment is not reached
+    QTest::keyClick(first, Qt::Key_Right);
+    QVERIFY(bar.getSegmentWidget(1)->hasFocus());
+    QTest::keyClick(bar.getSegmentWidget(1), Qt::Key_End);
+    QVERIFY(bar.getSegmentWidget(2)->hasFocus());
+    QTest::keyClick(bar.getSegmentWidget(2), Qt::Key_Right);
+    QVERIFY(bar.getSegmentWidget(2)->hasFocus());
+    QTest::keyClick(bar.getSegmentWidget(2), Qt::Key_Home);
+    QVERIFY(first->hasFocus());
+    QTest::keyClick(first, Qt::Key_Left);
+    QVERIFY(first->hasFocus());
+
+    // Space, Enter and Return activate the focused link
+    QTest::keyClick(first, Qt::Key_Space);
+    QTest::keyClick(first, Qt::Key_Return);
+    QCOMPARE(activatedSpy.count(), 2);
+    QCOMPARE(activatedSpy.at(1).at(0).toInt(), 0);
+
+    // Right-to-left: Left goes to the next segment
+    bar.setLayoutDirection(Qt::RightToLeft);
+    QApplication::processEvents();
+    first->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(first, Qt::Key_Left);
+    QVERIFY(bar.getSegmentWidget(1)->hasFocus());
+    QTest::keyClick(bar.getSegmentWidget(1), Qt::Key_Right);
+    QVERIFY(first->hasFocus());
+
+    // A hidden segment (in the ellipsis) is skipped
+    bar.setLayoutDirection(Qt::LeftToRight);
+    bar.resize(bar.minimumSizeHint().width(), 16);
+    QApplication::processEvents();
+    QCOMPARE(bar.getShownSegments(), QList<int>({ 0, 3 }));
+    first->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(first, Qt::Key_Right);
+    QVERIFY(first->hasFocus());
+}
+
+void FluentComponentsTest::rowToggleActions()
+{
+    using Action = pdf::PDFRowDelegate::Action;
+    const Painter::State none(QStyle::State_Enabled);
+    const Painter::State hovered(QStyle::State_Enabled | QStyle::State_MouseOver);
+    const Painter::State focused(QStyle::State_Enabled | QStyle::State_HasFocus);
+
+    // Shown: an action, which is not a toggle, and a toggle, which is on, always; a toggle,
+    // which is off, under the pointer, with the focus ring, or while it is hovered / pressed
+    Action plain;
+    Action toggle;
+    toggle.checkable = true;
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(plain, none, QStyle::State_None));
+    QVERIFY(!pdf::PDFRowDelegate::isActionShown(toggle, none, QStyle::State_None));
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(toggle, hovered, QStyle::State_None));
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(toggle, focused, QStyle::State_None));
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(toggle, none, QStyle::State_MouseOver));
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(toggle, none, QStyle::State_Sunken));
+    toggle.checked = true;
+    QVERIFY(pdf::PDFRowDelegate::isActionShown(toggle, none, QStyle::State_None));
+
+    // The painter: the icon 12 centered, icon/muted, icon/default hovered, icon/strong pressed, icon/disabled
+    QCOMPARE(Painter::getRowToggleIconExtent(), 12);
+    const QRect area(4, 4, 20, 20);
+    const auto renderToggle = [&](QStyle::State flags)
+    {
+        return render([&](QPainter& painter) { Painter::paintRowToggleAction(&painter, QRectF(area), QStringLiteral("lock"), Painter::State(flags)); }, QSize(28, 28));
+    };
+    const auto ink = [&](QStyle::State flags) { return strongestInk(renderToggle(flags), QRect(8, 8, 12, 12), token(Color::BgSurface)); };
+
+    // No background: outside of the icon of 12 nothing is drawn
+    const QImage rest = renderToggle(QStyle::State_Enabled | QStyle::State_MouseOver | QStyle::State_Sunken);
+    QCOMPARE(countPixels(rest, QRect(0, 0, 28, 8), token(Color::BgSurface), 0), 28 * 8);
+    QCOMPARE(countPixels(rest, QRect(0, 20, 28, 8), token(Color::BgSurface), 0), 28 * 8);
+    QCOMPARE(countPixels(rest, QRect(0, 8, 8, 12), token(Color::BgSurface), 0), 8 * 12);
+    QVERIFY(isNear(ink(QStyle::State_Enabled), token(Color::IconMuted), 40));
+    QVERIFY(isNear(ink(QStyle::State_Enabled | QStyle::State_MouseOver), token(Color::IconDefault), 40));
+    QVERIFY(isNear(ink(QStyle::State_Enabled | QStyle::State_MouseOver | QStyle::State_Sunken), token(Color::IconStrong), 40));
+    QVERIFY(isNear(ink(QStyle::State_None), token(Color::IconDisabled), 40));
+
+    // The delegate: a toggle, which is off, is not drawn at rest, one, which is on, is
+    QStandardItemModel model;
+    QStandardItem* item = new QStandardItem(QStringLiteral("Path"));
+    item->setData(false, FluentComponentsTestToggleDelegate::HiddenRole);
+    item->setData(true, FluentComponentsTestToggleDelegate::LockedRole);
+    model.appendRow(item);
+    const QModelIndex index = model.index(0, 0);
+    FluentComponentsTestToggleDelegate delegate;
+    const QSize rowSize(300, 46);
+    const QRect lockIcon(272 + 4, 13 + 4, 12, 12);
+    const QRect eyeIcon(248 + 4, 13 + 4, 12, 12);
+
+    QImage image = renderDelegate(&delegate, index, QStyle::State_Enabled, rowSize);
+    QVERIFY(isNear(strongestInk(image, lockIcon, token(Color::BgSurface)), token(Color::IconMuted), 40));
+    QCOMPARE(countPixels(image, eyeIcon, token(Color::BgSurface), 2), 12 * 12);
+
+    image = renderDelegate(&delegate, index, QStyle::State_Enabled | QStyle::State_MouseOver, rowSize);
+    QVERIFY(countPixels(image, eyeIcon, token(Color::BgSurface), 2) < 12 * 12);
+
+    // The context menu: the toggles are checkable entries with their states
+    QListView view;
+    view.setModel(&model);
+    view.setItemDelegate(&delegate);
+    view.resize(300, 120);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QMenu* menu = delegate.createContextMenu(&view, index, &view);
+    QVERIFY(menu);
+    const QList<QAction*> menuActions = menu->actions();
+    QCOMPARE(menuActions.size(), 3);
+    QVERIFY(menuActions[0]->isCheckable());
+    QVERIFY(menuActions[0]->isChecked());
+    QVERIFY(menuActions[1]->isCheckable());
+    QVERIFY(!menuActions[1]->isChecked());
+    QVERIFY(!menuActions[2]->isCheckable());
+    menu->deleteLater();
+    settleRetired();
+
+    // A toggle with a role writes the new state into the model, then the signal
+    QSignalSpy triggeredSpy(&delegate, &pdf::PDFRowDelegate::actionTriggered);
+    QSignalSpy dataSpy(&model, &QAbstractItemModel::dataChanged);
+    delegate.triggerAction(&view, index, FluentComponentsTestToggleDelegate::HideAction);
+    QCOMPARE(model.data(index, FluentComponentsTestToggleDelegate::HiddenRole).toBool(), true);
+    QCOMPARE(dataSpy.count(), 1);
+    QCOMPARE(triggeredSpy.count(), 1);
+    QCOMPARE(triggeredSpy.at(0).at(1).toInt(), int(FluentComponentsTestToggleDelegate::HideAction));
+    delegate.triggerAction(&view, index, FluentComponentsTestToggleDelegate::LockAction);
+    QCOMPARE(model.data(index, FluentComponentsTestToggleDelegate::LockedRole).toBool(), false);
+    QCOMPARE(triggeredSpy.count(), 2);
+
+    // A click on the toggle in the view (it is shown under the pointer)
+    const QRect rowRect = view.visualRect(index);
+    const QPoint eyeCenter(rowRect.right() + 1 - 8 - 24 - 10, rowRect.center().y());
+    QTest::mouseMove(view.viewport(), eyeCenter);
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, Qt::NoModifier, eyeCenter);
+    QCOMPARE(model.data(index, FluentComponentsTestToggleDelegate::HiddenRole).toBool(), false);
+    QCOMPARE(triggeredSpy.count(), 3);
+    view.setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::mixedSpinBox()
+{
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFSpinBox* spin = new pdf::PDFSpinBox(&window);
+    QLineEdit* other = new QLineEdit(&window);
+    layout->addWidget(spin);
+    layout->addWidget(other);
+    spin->setRange(0, 100);
+    spin->setValue(5);
+    QSignalSpy valueSpy(spin, &QSpinBox::valueChanged);
+    QSignalSpy textSpy(spin, &QSpinBox::textChanged);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    // Entering the state emits nothing: the editor is empty and shows "Mixed", the value is held
+    spin->setMixed(true);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QString());
+    QCOMPARE(spin->findChild<QLineEdit*>()->placeholderText(), QStringLiteral("Mixed"));
+    QCOMPARE(spin->value(), 5);
+    QCOMPARE(valueSpy.count(), 0);
+    QCOMPARE(textSpy.count(), 0);
+
+    // "Mixed" in the color of a value (1647:49458: text/primary, not the muted placeholder);
+    // the field without the focus (no caret)
+    other->setFocus(Qt::TabFocusReason);
+    const QImage image = renderWidget(spin, 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+    const QRect editArea(spin->findChild<QLineEdit*>()->geometry());
+    const QColor mixedInk = strongestInk(image, editArea, token(Color::BgSurface));
+    if (!isNear(mixedInk, token(Color::TextPrimary), 40))
+    {
+        image.save(QDir::temp().filePath(QStringLiteral("pdf4qt_mixed_spin.png")));
+    }
+    QVERIFY2(isNear(mixedInk, token(Color::TextPrimary), 40), qPrintable(mixedInk.name(QColor::HexArgb) + QStringLiteral(" in ") + QString::number(editArea.x()) + QStringLiteral(",") +
+                                                                          QString::number(editArea.y()) + QStringLiteral(" ") + QString::number(editArea.width()) + QStringLiteral("x") + QString::number(editArea.height())));
+
+    // Focus in and out without a value: the state stays, no value signal
+    spin->setFocus(Qt::TabFocusReason);
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QString());
+    QCOMPARE(valueSpy.count(), 0);
+
+    // Leaving by the program: the held value again, no signal
+    spin->setMixed(false);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("5"));
+    QCOMPARE(spin->findChild<QLineEdit*>()->placeholderText(), QString());
+    QCOMPARE(valueSpy.count(), 0);
+    QCOMPARE(textSpy.count(), 0);
+
+    // The user types the held value and leaves the field: the value is emitted once
+    spin->setMixed(true);
+    // The held value typed and the field left: the state ends, Qt emits no change (equal
+    // value), the entry ends with editingFinished, where a panel reads isMixed and value
+    QSignalSpy finishedSpy(spin, &QAbstractSpinBox::editingFinished);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("5"));
+    QVERIFY(!spin->isMixed());
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(finishedSpy.count(), 1);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(spin->value(), 5);
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("5"));
+    QCOMPARE(valueSpy.count(), 0);
+
+    // The same value by Enter (Qt emits it itself on Enter with keyboard tracking): once
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("5"));
+    QTest::keyClick(spin, Qt::Key_Return);
+    QCOMPARE(valueSpy.count(), 1);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(valueSpy.count(), 1);
+
+    // Without keyboard tracking (the fields of the panels): no signal while typing
+    spin->setKeyboardTracking(false);
+    valueSpy.clear();
+    finishedSpy.clear();
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("5"));
+    QCOMPARE(valueSpy.count(), 0);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(finishedSpy.count(), 1);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(valueSpy.count(), 0);
+
+    // Another value: Qt's own single emission
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("42"));
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(valueSpy.count(), 1);
+    QCOMPARE(valueSpy.at(0).at(0).toInt(), 42);
+
+    // Typed and erased: back to the state, no signal
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    QTest::keyClick(spin, Qt::Key_Backspace);
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QString());
+    QCOMPARE(spin->value(), 42);
+    QCOMPARE(valueSpy.count(), 0);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("7"));
+    QTest::keyClick(spin, Qt::Key_Backspace);
+    QTest::keyClick(spin, Qt::Key_Return);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(valueSpy.count(), 0);
+    other->setFocus(Qt::TabFocusReason);
+
+    // A step steps from the held value (QAbstractSpinBox alone would only show it); at the
+    // bound the held value is shown, no change, no signal
+    spin->stepBy(1);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(valueSpy.count(), 1);
+    QCOMPARE(valueSpy.at(0).at(0).toInt(), 43);
+    spin->setValue(100);
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->stepBy(1);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(valueSpy.count(), 0);
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("100"));
+
+    // setValue by the program leaves the state with Qt's signal of a change
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->setValue(30);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("30"));
+    QCOMPARE(valueSpy.count(), 1);
+    spin->setMixed(true);
+    spin->setValue(30);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(valueSpy.count(), 1);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(valueSpy.count(), 1);
+
+    // The application's own placeholder comes back after the state
+    spin->findChild<QLineEdit*>()->setPlaceholderText(QStringLiteral("Width"));
+    spin->setMixed(true);
+    QCOMPARE(spin->findChild<QLineEdit*>()->placeholderText(), QStringLiteral("Mixed"));
+    spin->setMixed(false);
+    QCOMPARE(spin->findChild<QLineEdit*>()->placeholderText(), QStringLiteral("Width"));
+}
+
+void FluentComponentsTest::mixedDoubleSpinBox()
+{
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFDoubleSpinBox* spin = new pdf::PDFDoubleSpinBox(&window);
+    QLineEdit* other = new QLineEdit(&window);
+    layout->addWidget(spin);
+    layout->addWidget(other);
+    spin->setLocale(QLocale::c());
+    spin->setRange(0.0, 100.0);
+    spin->setDecimals(1);
+    spin->setValue(2.0);
+    spin->setKeyboardTracking(false);
+    QSignalSpy valueSpy(spin, &QDoubleSpinBox::valueChanged);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    spin->setMixed(true);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QString());
+    QCOMPARE(spin->value(), 2.0);
+    QCOMPARE(valueSpy.count(), 0);
+
+    // The held value typed: the state ends with the text of the value, no change, no signal
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("2"));
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(!spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("2.0"));
+    QCOMPARE(valueSpy.count(), 0);
+
+    // Leaving with an unacceptable text returns to the state
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("."));
+    other->setFocus(Qt::TabFocusReason);
+    QVERIFY(spin->isMixed());
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QString());
+    QCOMPARE(valueSpy.count(), 0);
+
+    // Another value by Enter: once
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->setFocus(Qt::TabFocusReason);
+    QTest::keyClicks(spin, QStringLiteral("2.5"));
+    QTest::keyClick(spin, Qt::Key_Return);
+    QCOMPARE(valueSpy.count(), 1);
+    QCOMPARE(valueSpy.at(0).at(0).toDouble(), 2.5);
+    other->setFocus(Qt::TabFocusReason);
+    QCOMPARE(valueSpy.count(), 1);
+
+    // The program leaves the state without a signal, a step emits
+    valueSpy.clear();
+    spin->setMixed(true);
+    spin->setMixed(false);
+    QCOMPARE(spin->findChild<QLineEdit*>()->text(), QStringLiteral("2.5"));
+    QCOMPARE(valueSpy.count(), 0);
+    spin->setMixed(true);
+    spin->stepBy(1);
+    QCOMPARE(valueSpy.count(), 1);
+    QCOMPARE(valueSpy.at(0).at(0).toDouble(), 3.5);
+}
+
+void FluentComponentsTest::mixedComboBox()
+{
+    pdf::PDFComboBox combo;
+    combo.addItems({ QStringLiteral("DeviceRGB"), QStringLiteral("DeviceCMYK"), QStringLiteral("DeviceGray") });
+    combo.setCurrentIndex(1);
+    combo.setFixedWidth(150);
+    QSignalSpy indexSpy(&combo, &QComboBox::currentIndexChanged);
+    QSignalSpy textSpy(&combo, &QComboBox::currentTextChanged);
+    QSignalSpy activatedSpy(&combo, &QComboBox::activated);
+    combo.show();
+    combo.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&combo));
+
+    combo.setMixed(true);
+    QVERIFY(combo.isMixed());
+    QCOMPARE(combo.currentIndex(), -1);
+    QCOMPARE(combo.getIndexBeforeMixed(), 1);
+    QCOMPARE(combo.placeholderText(), QStringLiteral("Mixed"));
+    QVERIFY(pdf::PDFWidgetStyleProperties::isSet(&combo, pdf::PDFWidgetStyleProperties::MIXED));
+    QCOMPARE(indexSpy.count(), 0);
+    QCOMPARE(textSpy.count(), 0);
+
+    // "Mixed" in the color of a value (1647:49442), not the muted placeholder
+    const QImage image = renderWidget(&combo, 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+    QVERIFY(isNear(strongestInk(image, QRect(12, 8, 60, 18), token(Color::BgSurface)), token(Color::TextPrimary), 40));
+
+    // An application placeholder (no item current) stays muted
+    pdf::PDFComboBox plain;
+    plain.addItem(QStringLiteral("A"));
+    plain.setPlaceholderText(QStringLiteral("Choose"));
+    plain.setCurrentIndex(-1);
+    plain.setFixedWidth(150);
+    const QImage plainImage = renderWidget(&plain, 1.0);
+    QVERIFY(isNear(strongestInk(plainImage, QRect(12, 8, 60, 18), token(Color::BgSurface)), token(Color::TextMuted), 40));
+
+    // Leaving by the program: the item before the state, no signal
+    combo.setMixed(false);
+    QVERIFY(!combo.isMixed());
+    QCOMPARE(combo.currentIndex(), 1);
+    QCOMPARE(combo.getIndexBeforeMixed(), -1);
+    QCOMPARE(combo.placeholderText(), QString());
+    QVERIFY(!pdf::PDFWidgetStyleProperties::isSet(&combo, pdf::PDFWidgetStyleProperties::MIXED));
+    QCOMPARE(indexSpy.count(), 0);
+    QCOMPARE(textSpy.count(), 0);
+
+    // The user chooses an item - also the one before the state - with the signals of Qt
+    combo.setMixed(true);
+    QTest::keyClick(&combo, Qt::Key_Down);
+    QVERIFY(!combo.isMixed());
+    QCOMPARE(combo.currentIndex(), 0);
+    QCOMPARE(indexSpy.count(), 1);
+    QCOMPARE(activatedSpy.count(), 1);
+    combo.setMixed(true);
+    combo.setCurrentIndex(0);
+    QVERIFY(!combo.isMixed());
+    QCOMPARE(indexSpy.count(), 2);
+}
+
+void FluentComponentsTest::mixedColorSwatchRow()
+{
+    using Option = pdf::PDFColorSwatchRow::Option;
+    pdf::PDFColorSwatchRow row;
+    row.setOptions(Option::Inline | Option::More);
+    int blackIndex = -1;
+    for (int i = 0; i < row.getSwatchCount(); ++i)
+    {
+        if (row.getEntry(i).token == Color::AnnotationBlack)
+        {
+            blackIndex = i;
+        }
+    }
+    QVERIFY(blackIndex >= 0);
+    const QColor black = row.getEntry(blackIndex).canonicalColor;
+    row.setColor(black);
+    QSignalSpy selectedSpy(&row, &pdf::PDFColorSwatchRow::colorSelected);
+    row.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&row));
+    QVERIFY(row.getSwatch(blackIndex)->isSelected());
+
+    // The state: no swatch selected, an invalid color, announced "Mixed", no signal
+    row.setMixed(true);
+    QVERIFY(row.isMixed());
+    QVERIFY(!row.getColor().isValid());
+    QVERIFY(!row.isNoColorSelected());
+    for (int i = 0; i < row.getSwatchCount(); ++i)
+    {
+        QVERIFY(!row.getSwatch(i)->isSelected());
+    }
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Mixed"));
+    QCOMPARE(selectedSpy.count(), 0);
+
+    // Leaving by the program: the color before the state, no signal
+    row.setMixed(false);
+    QVERIFY(!row.isMixed());
+    QCOMPARE(row.getColor().rgb(), black.rgb());
+    QVERIFY(row.getSwatch(blackIndex)->isSelected());
+    QCOMPARE(row.accessibleDescription(), QString());
+    QCOMPARE(selectedSpy.count(), 0);
+
+    // The user chooses the same color as before the state: it is emitted
+    row.setMixed(true);
+    QTest::mouseClick(row.getSwatch(blackIndex), Qt::LeftButton);
+    QVERIFY(!row.isMixed());
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.at(0).at(0).value<QColor>().rgb(), black.rgb());
+
+    // setColor leaves the state silently; the description of the application is kept
+    row.setMixed(true);
+    row.setColor(QColor(Qt::red));
+    QVERIFY(!row.isMixed());
+    QCOMPARE(selectedSpy.count(), 1);
+    row.setAccessibleDescription(QStringLiteral("Fill color"));
+    row.setMixed(true);
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Fill color"));
+    row.setMixed(false);
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Fill color"));
+}
+
+void FluentComponentsTest::mixedSpinBoxQtAffixes()
+{
+    // The prefix and the suffix of Qt (setPrefix / setSuffix: a part of the edited text, the
+    // application uses them) with the mixed state, both classes; QAbstractSpinBox selects the
+    // text between the affixes, which an empty editor does not have (no warning of QLineEdit)
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("setSelection")));
+
+    for (int variant = 0; variant < 4; ++variant)
+    {
+        QWidget window;
+        QVBoxLayout* layout = new QVBoxLayout(&window);
+        QLineEdit* before = new QLineEdit(&window);
+        layout->addWidget(before);
+        pdf::PDFSpinBox* spin = nullptr;
+        pdf::PDFDoubleSpinBox* doubleSpin = nullptr;
+        if (variant < 2)
+        {
+            spin = new pdf::PDFSpinBox(&window);
+            spin->setRange(0, 100);
+            if (variant == 0)
+            {
+                spin->setSuffix(QStringLiteral(" pt"));
+            }
+            else
+            {
+                spin->setPrefix(QStringLiteral("W: "));
+            }
+            spin->setValue(5);
+            layout->addWidget(spin);
+        }
+        else
+        {
+            doubleSpin = new pdf::PDFDoubleSpinBox(&window);
+            doubleSpin->setLocale(QLocale::c());
+            doubleSpin->setRange(0.0, 100.0);
+            doubleSpin->setDecimals(1);
+            if (variant == 2)
+            {
+                doubleSpin->setSuffix(QStringLiteral(" pt"));
+            }
+            else
+            {
+                doubleSpin->setPrefix(QStringLiteral("W: "));
+            }
+            doubleSpin->setValue(2.0);
+            layout->addWidget(doubleSpin);
+        }
+        QLineEdit* after = new QLineEdit(&window);
+        layout->addWidget(after);
+        window.show();
+        window.activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+
+        switch (variant)
+        {
+            case 0:
+                checkMixedQtAffix(spin, before, after, QStringLiteral("5 pt"), QStringLiteral("7 pt"));
+                break;
+            case 1:
+                checkMixedQtAffix(spin, before, after, QStringLiteral("W: 5"), QStringLiteral("W: 7"));
+                break;
+            case 2:
+                checkMixedQtAffix(doubleSpin, before, after, QStringLiteral("2.0 pt"), QStringLiteral("7.0 pt"));
+                break;
+            default:
+                checkMixedQtAffix(doubleSpin, before, after, QStringLiteral("W: 2.0"), QStringLiteral("W: 7.0"));
+                break;
+        }
+        if (QTest::currentTestFailed())
+        {
+            qWarning("variant %d", variant);
+            return;
+        }
+    }
+}
+
+void FluentComponentsTest::spinBoxValueEntered()
+{
+    // The one signal of a committed value (R4-2): both classes, keyboard tracking on (the
+    // default; switched off inside of the check), then deletions from inside of the signal
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        QWidget window;
+        QVBoxLayout* layout = new QVBoxLayout(&window);
+        QLineEdit* other = new QLineEdit(&window);
+        layout->addWidget(other);
+        pdf::PDFSpinBox* spin = nullptr;
+        pdf::PDFDoubleSpinBox* doubleSpin = nullptr;
+        if (variant == 0)
+        {
+            spin = new pdf::PDFSpinBox(&window);
+            spin->setRange(0, 100);
+            spin->setValue(5);
+            layout->addWidget(spin);
+        }
+        else
+        {
+            doubleSpin = new pdf::PDFDoubleSpinBox(&window);
+            doubleSpin->setLocale(QLocale::c());
+            doubleSpin->setDecimals(0);
+            doubleSpin->setRange(0.0, 100.0);
+            doubleSpin->setValue(5.0);
+            layout->addWidget(doubleSpin);
+        }
+        window.show();
+        window.activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+
+        if (spin)
+        {
+            checkValueEntered(spin, other);
+        }
+        else
+        {
+            checkValueEntered(doubleSpin, other);
+        }
+        settleRetired();
+        if (QTest::currentTestFailed())
+        {
+            qWarning("variant %d", variant);
+            return;
+        }
+
+        if (variant == 0)
+        {
+            checkValueEnteredDeletion<pdf::PDFSpinBox>(&window);
+        }
+        else
+        {
+            checkValueEnteredDeletion<pdf::PDFDoubleSpinBox>(&window);
+        }
+        if (QTest::currentTestFailed())
+        {
+            qWarning("variant %d", variant);
+            return;
+        }
+    }
+}
+
+void FluentComponentsTest::mixedAccessibility()
+{
+    // The mixed state is announced as the value "Mixed"; the held value (of one of the
+    // objects) is not presented - no value interface in the state
+    const QAccessible::UpdateHandler previousHandler = QAccessible::installUpdateHandler(&FluentComponentsTest::collectAccessibleEvent);
+    s_accessibleEvents.clear();
+
+    pdf::PDFSpinBox spin;
+    spin.setRange(0, 100);
+    spin.setValue(5);
+    QAccessibleInterface* spinAccessible = QAccessible::queryAccessibleInterface(&spin);
+    QVERIFY(spinAccessible);
+    QCOMPARE(spinAccessible->role(), QAccessible::SpinBox);
+    QCOMPARE(spinAccessible->text(QAccessible::Value), QStringLiteral("5"));
+    QVERIFY(spinAccessible->valueInterface());
+    QCOMPARE(spinAccessible->valueInterface()->currentValue().toInt(), 5);
+    QCOMPARE(spinAccessible->valueInterface()->maximumValue().toInt(), 100);
+    QVERIFY(spinAccessible->textInterface());
+    QCOMPARE(spinAccessible->textInterface()->characterCount(), 1);
+    QCOMPARE(spinAccessible->textInterface()->text(0, 1), QStringLiteral("5"));
+    QVERIFY(spinAccessible->state().editable);
+
+    spin.setMixed(true);
+    QCOMPARE(spinAccessible->text(QAccessible::Value), QStringLiteral("Mixed"));
+    QVERIFY(!spinAccessible->valueInterface());
+    QCOMPARE(spinAccessible->textInterface()->characterCount(), 0);
+    QCOMPARE(countAccessibleEvents(&spin, QAccessible::ValueChanged), 1);
+    spin.setMixed(false);
+    QCOMPARE(spinAccessible->text(QAccessible::Value), QStringLiteral("5"));
+    QVERIFY(spinAccessible->valueInterface());
+    QCOMPARE(spinAccessible->valueInterface()->currentValue().toInt(), 5);
+    QCOMPARE(countAccessibleEvents(&spin, QAccessible::ValueChanged), 2);
+
+    // The text interface edits the editor of the spin box
+    spinAccessible->editableTextInterface()->replaceText(0, 1, QStringLiteral("42"));
+    QCOMPARE(spin.findChild<QLineEdit*>()->text(), QStringLiteral("42"));
+    spinAccessible->textInterface()->setSelection(0, 0, 1);
+    QCOMPARE(spin.findChild<QLineEdit*>()->selectedText(), QStringLiteral("4"));
+
+    // The double spin box: Qt presents the text of the value, the held one in the state
+    pdf::PDFDoubleSpinBox doubleSpin;
+    doubleSpin.setLocale(QLocale::c());
+    doubleSpin.setDecimals(1);
+    doubleSpin.setValue(2.0);
+    QAccessibleInterface* doubleAccessible = QAccessible::queryAccessibleInterface(&doubleSpin);
+    QVERIFY(doubleAccessible);
+    QCOMPARE(doubleAccessible->text(QAccessible::Value), QStringLiteral("2.0"));
+    QVERIFY(doubleAccessible->valueInterface());
+    doubleSpin.setMixed(true);
+    QCOMPARE(doubleAccessible->text(QAccessible::Value), QStringLiteral("Mixed"));
+    QVERIFY(!doubleAccessible->valueInterface());
+    doubleSpin.setMixed(false);
+    QCOMPARE(doubleAccessible->text(QAccessible::Value), QStringLiteral("2.0"));
+    QCOMPARE(doubleAccessible->valueInterface()->currentValue().toDouble(), 2.0);
+
+    // The combo box: its value is the text of the current item (none in the state); the
+    // description says "Mixed", as the row of swatches, an application description is kept
+    pdf::PDFComboBox combo;
+    combo.addItems({ QStringLiteral("DeviceRGB"), QStringLiteral("DeviceCMYK") });
+    combo.setCurrentIndex(1);
+    QAccessibleInterface* comboAccessible = QAccessible::queryAccessibleInterface(&combo);
+    QVERIFY(comboAccessible);
+    s_accessibleEvents.clear();
+    combo.setMixed(true);
+    QCOMPARE(combo.accessibleDescription(), QStringLiteral("Mixed"));
+    QCOMPARE(comboAccessible->text(QAccessible::Description), QStringLiteral("Mixed"));
+    QCOMPARE(comboAccessible->text(QAccessible::Value), QString());
+    QCOMPARE(countAccessibleEvents(&combo, QAccessible::DescriptionChanged), 1);
+    combo.setMixed(false);
+    QCOMPARE(combo.accessibleDescription(), QString());
+    QCOMPARE(comboAccessible->text(QAccessible::Value), QStringLiteral("DeviceCMYK"));
+    QCOMPARE(countAccessibleEvents(&combo, QAccessible::DescriptionChanged), 2);
+    combo.setMixed(true);
+    combo.setCurrentIndex(0);
+    QCOMPARE(combo.accessibleDescription(), QString());
+    combo.setAccessibleDescription(QStringLiteral("Color space"));
+    combo.setMixed(true);
+    QCOMPARE(combo.accessibleDescription(), QStringLiteral("Color space"));
+    combo.setMixed(false);
+    QCOMPARE(combo.accessibleDescription(), QStringLiteral("Color space"));
+
+    QAccessible::installUpdateHandler(previousHandler);
+}
+
+void FluentComponentsTest::mixedLanguageChange()
+{
+    // "Mixed" follows a change of the language in every field in the state; an application
+    // description is kept
+    pdf::PDFColorSwatchRow row;
+    row.setMixed(true);
+    pdf::PDFComboBox combo;
+    combo.addItems({ QStringLiteral("A"), QStringLiteral("B") });
+    combo.setMixed(true);
+    pdf::PDFComboBox describedCombo;
+    describedCombo.addItem(QStringLiteral("A"));
+    describedCombo.setAccessibleDescription(QStringLiteral("Color space"));
+    describedCombo.setMixed(true);
+    pdf::PDFSpinBox spin;
+    spin.setMixed(true);
+    pdf::PDFDoubleSpinBox doubleSpin;
+    doubleSpin.setMixed(true);
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Mixed"));
+
+    MixedTestTranslator translator;
+    QCoreApplication::installTranslator(&translator);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::LanguageChange);
+    const QString translated = QStringLiteral("Gemischt");
+    QCOMPARE(row.accessibleDescription(), translated);
+    QCOMPARE(combo.placeholderText(), translated);
+    QCOMPARE(combo.accessibleDescription(), translated);
+    QCOMPARE(describedCombo.accessibleDescription(), QStringLiteral("Color space"));
+    QCOMPARE(spin.findChild<QLineEdit*>()->placeholderText(), translated);
+    QCOMPARE(QAccessible::queryAccessibleInterface(&spin)->text(QAccessible::Value), translated);
+    QCOMPARE(doubleSpin.findChild<QLineEdit*>()->placeholderText(), translated);
+
+    // Leaving the state after the change: no translated text is left behind
+    row.setMixed(false);
+    combo.setMixed(false);
+    QCOMPARE(row.accessibleDescription(), QString());
+    QCOMPARE(combo.accessibleDescription(), QString());
+
+    QCoreApplication::removeTranslator(&translator);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::LanguageChange);
+    QCOMPARE(row.accessibleDescription(), QString());
+    QCOMPARE(spin.findChild<QLineEdit*>()->placeholderText(), QStringLiteral("Mixed"));
+    QCOMPARE(describedCombo.accessibleDescription(), QStringLiteral("Color space"));
+}
+
+void FluentComponentsTest::mixedTextPalette()
+{
+    // "Mixed" is a value: the placeholder of the editor has the colors of its text in every
+    // group (text/primary, text/disabled), out of the state the muted placeholder again
+    pdf::PDFSpinBox spin;
+    QLineEdit* editor = spin.findChild<QLineEdit*>();
+    spin.setMixed(true);
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QPalette palette = editor->palette();
+        QCOMPARE(palette.color(QPalette::Active, QPalette::PlaceholderText), token(Color::TextPrimary));
+        QCOMPARE(palette.color(QPalette::Inactive, QPalette::PlaceholderText), token(Color::TextPrimary));
+        QCOMPARE(palette.color(QPalette::Disabled, QPalette::PlaceholderText), token(Color::TextDisabled));
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    spin.setMixed(false);
+    QCOMPARE(editor->palette().color(QPalette::Active, QPalette::PlaceholderText), token(Color::TextMuted));
+    QCOMPARE(editor->palette().color(QPalette::Disabled, QPalette::PlaceholderText), token(Color::TextMuted));
+}
+
+void FluentComponentsTest::pathBarFocus()
+{
+    // The focused link becomes the current segment (the slot trims the path): the focus goes to
+    // the nearest link before it; without a link it goes on along the focus chain (as Tab) - the
+    // window never stays without a focused widget
+    QWidget window;
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    QLineEdit* before = new QLineEdit(&window);
+    pdf::PDFPathBar* bar = new pdf::PDFPathBar(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Chart area"), QStringLiteral("Revenue chart") }, &window);
+    QLineEdit* after = new QLineEdit(&window);
+    layout->addWidget(before);
+    layout->addWidget(bar);
+    layout->addWidget(after);
+    connect(bar, &pdf::PDFPathBar::segmentActivated, bar, [bar](int index) { bar->setSegments(bar->getSegments().mid(0, index + 1)); });
+    bar->setMinimumWidth(bar->sizeHint().width());
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QVERIFY(!bar->isShortened());
+
+    bar->getSegmentWidget(1)->setFocus(Qt::TabFocusReason);
+    QVERIFY(bar->getSegmentWidget(1)->hasFocus());
+    QTest::keyClick(bar->getSegmentWidget(1), Qt::Key_Return);
+    QCOMPARE(bar->getSegmentCount(), 2);
+    QVERIFY(bar->getSegmentWidget(1)->isCurrent());
+    QCOMPARE(QApplication::focusWidget(), bar->getSegmentWidget(0));
+
+    QTest::keyClick(bar->getSegmentWidget(0), Qt::Key_Space);
+    QCOMPARE(bar->getSegmentCount(), 1);
+    QVERIFY(bar->getSegmentWidget(0)->isCurrent());
+    QCOMPARE(QApplication::focusWidget(), after);
+    settleRetired();
+
+    // A focused link, which a program makes current by new segments: the same
+    bar->setSegments(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Chart area"), QStringLiteral("Legend") });
+    bar->getSegmentWidget(1)->setFocus(Qt::TabFocusReason);
+    bar->setSegments(QStringList{ QStringLiteral("Page 3"), QStringLiteral("Chart area") });
+    QCOMPARE(QApplication::focusWidget(), bar->getSegmentWidget(0));
+    settleRetired();
+}
+
+void FluentComponentsTest::editContentIcons()
+{
+    // The 40 icons of Components / Icons (1617:1626 - 1617:1743) of Edit Content: each one
+    // exists, is a stroke of the design (2 units of 24) and takes the color of the theme
+    static constexpr const char* names[] =
+    {
+        "object-tree", "clip-path", "bezier-pen", "shape-ellipse", "shapes", "node-edit", "node-corner", "node-smooth",
+        "node-add", "node-remove", "eyedropper", "path-union", "path-subtract", "path-intersect", "path-exclude", "bring-front",
+        "send-back", "bring-forward", "send-backward", "structure-tag", "artifact", "reading-order", "rulers", "guides",
+        "grid-lines", "preview-exact", "find-replace", "text-wrap", "text-to-path", "marked-content", "transparency-group", "layer-add",
+        "make-unique", "annotations-underlay", "paste-in-place", "image-save", "image-crop", "group-enter", "flip-h", "flip-v"
+    };
+    QCOMPARE(int(std::size(names)), 40);
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QColor color = token(Color::IconDefault);
+        for (const char* name : names)
+        {
+            const QString iconName = QString::fromLatin1(name);
+            QVERIFY2(pdf::PDFThemeIcons::hasIcon(iconName), name);
+
+            QFile file(QStringLiteral(":/pdf4qtfluent/icons/%1.svg").arg(iconName));
+            QVERIFY2(file.open(QIODevice::ReadOnly), name);
+            const QByteArray data = file.readAll();
+            QVERIFY2(data.contains("viewBox=\"0 0 24 24\""), name);
+            QVERIFY2(data.contains("stroke-width=\"2\""), name);
+            QVERIFY2(data.contains(QByteArray("id=\"icon/") + name + "\""), name);
+
+            const QImage image = pdf::PDFThemeIcons::getPixmap(iconName, QSizeF(24, 24), 1.0, color).toImage().convertToFormat(QImage::Format_ARGB32);
+            int covered = 0;
+            int solid = 0;
+            for (int y = 0; y < image.height(); ++y)
+            {
+                for (int x = 0; x < image.width(); ++x)
+                {
+                    // The opaque pixels have the color exactly, the edges of the strokes are
+                    // the same color with a lower alpha (rounded by the premultiplication)
+                    const QColor pixelColor = image.pixelColor(x, y);
+                    if (pixelColor.alpha() > 0)
+                    {
+                        ++covered;
+                    }
+                    if (pixelColor.alpha() == 255)
+                    {
+                        ++solid;
+                        QVERIFY2(pixelColor.red() == color.red() && pixelColor.green() == color.green() && pixelColor.blue() == color.blue(), name);
+                    }
+                    else if (pixelColor.alpha() >= 128)
+                    {
+                        QVERIFY2(isNear(QColor(pixelColor.red(), pixelColor.green(), pixelColor.blue()), QColor(color.red(), color.green(), color.blue()), 6), name);
+                    }
+                }
+            }
+
+            // A stroke of 2 px: drawn, but neither empty nor a filled square
+            QVERIFY2(solid > 0, name);
+            QVERIFY2(covered >= 30, name);
+            QVERIFY2(covered < 24 * 24 / 2, name);
+        }
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+}
+
+void FluentComponentsTest::editContentDeletionOrder()
+{
+    // Expander card: every part deleted first by the application, then the card
+    for (int part = 0; part < 6; ++part)
+    {
+        pdf::PDFExpanderCard* card = new pdf::PDFExpanderCard(QStringLiteral("Text"));
+        card->setBadgeText(QStringLiteral("Text"));
+        card->setSummaryText(QStringLiteral("Summary"));
+        card->setContentWidget(new QWidget());
+        card->setExpandedWidget(new QWidget());
+        card->show();
+        QWidget* parts[] = { card->getContentWidget(), card->getExpandedWidget(), card->getBadge(), card->getExpandLink(), card->getSummaryLabel(), card->getCard() };
+        delete parts[part];
+        QApplication::processEvents();
+
+        // What is left works: the state, the texts, new widgets
+        card->toggleExpanded();
+        card->setSummaryText(QStringLiteral("Other"));
+        card->setBadgeText(QString());
+        card->setTitle(QStringLiteral("Title"));
+        card->setContentWidget(new QWidget());
+        card->setExpandedWidget(nullptr);
+        QVERIFY(card->isExpanded());
+        QApplication::processEvents();
+        delete card;
+        settleRetired();
+    }
+
+    // Path bar: a segment deleted by the application, then new segments and the keyboard
+    pdf::PDFPathBar* bar = new pdf::PDFPathBar(QStringList{ QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C") });
+    bar->show();
+    delete bar->getSegmentWidget(1);
+    QVERIFY(bar->getSegmentWidget(1) == nullptr);
+    bar->resize(10, 16);
+    bar->resize(400, 16);
+    QVERIFY(!bar->moveFocus(bar->getSegmentWidget(1), Qt::Key_Right));
+    QVERIFY(bar->moveFocus(bar->getSegmentWidget(0), Qt::Key_Right));
+    bar->setSegments(QStringList{ QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C"), QStringLiteral("D") });
+    QVERIFY(bar->getSegmentWidget(1) != nullptr);
+    QCOMPARE(bar->getShownSegments().size(), 4);
+
+    // The bar deleted from its own signal (deleteLater of the application)
+    QPointer<pdf::PDFPathBar> guard(bar);
+    connect(bar, &pdf::PDFPathBar::segmentActivated, bar, &QObject::deleteLater);
+    QTest::mouseClick(bar->getSegmentWidget(0), Qt::LeftButton);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!guard);
+
+    // A spin box in the state closed from the value signal of a step (deleteLater: Qt uses
+    // the spin box after its own signals), then a spin box deleted in the state
+    pdf::PDFSpinBox* spin = new pdf::PDFSpinBox();
+    spin->setRange(0, 10);
+    spin->setValue(5);
+    QPointer<pdf::PDFSpinBox> spinGuard(spin);
+    spin->setMixed(true);
+    connect(spin, &QSpinBox::valueChanged, spin, &QObject::deleteLater);
+    spin->stepBy(1);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!spinGuard);
+    pdf::PDFDoubleSpinBox* doubleSpin = new pdf::PDFDoubleSpinBox();
+    doubleSpin->setMixed(true);
+    delete doubleSpin;
+}
 
 QTEST_MAIN(FluentComponentsTest)
 

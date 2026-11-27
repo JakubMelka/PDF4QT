@@ -324,9 +324,62 @@ private:
     QPointF getLinePosition(const QPointF& position) const;
 };
 
+/// State "mixed" of a field of the value of several selected objects, which
+/// differ in it (edit-content-v2-multi-selected 1647:49437: the field shows
+/// "Mixed" in the color of a value). Shared by PDFSpinBox and PDFDoubleSpinBox.
+struct PDFMixedSpinBoxState
+{
+    bool isMixed = false;               ///< The field shows "Mixed"
+    bool isLeftByText = false;          ///< The state has been left by a text typed by the user, the entry is not finished
+    QString placeholderBeforeMixed;     ///< Placeholder of the editor of the application
+};
+
+/// Entry of the user into a spin box (PDFSpinBox, PDFDoubleSpinBox): valueEntered waits
+/// for the end of the outermost event of the spin box, which has made the entry
+struct PDFSpinBoxEntryState
+{
+    int eventDepth = 0;                 ///< Events of the spin box handled now (nested ones counted)
+    bool isCommitPending = false;       ///< An entry is committed, valueEntered follows at the end of the event
+};
+
 /// Spin box. The prefix and the suffix set by \p setDisplayPrefix and
 /// \p setDisplaySuffix are drawn muted beside the value, as the design has them
 /// (the prefix and the suffix of QSpinBox are a part of the edited text).
+///
+/// Entry of the user (\p valueEntered): a panel, which writes the value of a field
+/// into a document, connects only valueEntered and reads its argument (= \p value) -
+/// never valueChanged (Qt emits it while the user types, with keyboard tracking, and
+/// not for an entry equal to the value before) nor editingFinished (it comes also
+/// when nothing was typed); the keyboard tracking does not matter then. The signal is
+/// emitted, when the user commits a value: Enter / Return (always, also for an
+/// unchanged value), leaving the field (Tab, a click elsewhere, a deactivated window)
+/// after typing into it, a step (the arrows, Page Up / Down, the wheel, the buttons,
+/// Step up / down of the context menu), and \p commitEntry. It is emitted also for a
+/// value equal to the one before and when the field was mixed (it is not mixed any
+/// more then). It is not emitted by \p setValue, \p setMixed or \p stepBy / stepUp /
+/// stepDown called by the program, nor when the user leaves a field without typing
+/// into it (a mixed field stays mixed then; Enter in a mixed field without a text
+/// emits nothing either), nor by a retired spin box (PDFDeferredDeletion::retire moves
+/// the focus out of it). It is emitted as the last statement after Qt has handled the
+/// whole event (valueChanged and editingFinished of Qt come before it), so its slot
+/// may delete the spin box, also synchronously.
+///
+/// Mixed state (\p setMixed): the editor is empty and shows "Mixed" (translated)
+/// in the color of a value, also with a prefix and a suffix of Qt (setPrefix,
+/// setSuffix: they come back with the text of a value). Entering and leaving the
+/// state by the program never emits valueChanged / textChanged. In the state,
+/// \p value returns the value held before the state (the value set by the
+/// program), \p isMixed says it is not shown; accessibility presents the value
+/// "Mixed" (no value interface: the held number is not read out). The user leaves
+/// the state by entering a value: typing (accepted by Enter, by leaving the field or,
+/// with keyboard tracking, at each acceptable key), the arrows and the wheel (they
+/// step from the held value) - each entry ends with \p valueEntered. Leaving the
+/// field with an empty or unacceptable text returns to the state (no valueEntered).
+/// The library never emits a signal of QSpinBox itself (Qt emits them in its own
+/// code and uses the spin box after them). \p setValue by the program leaves the
+/// state: QAbstractSpinBox writes the text of the value with the signals of its
+/// editor blocked, so the state follows the text of the editor - a text in it ends
+/// the state (checked by \p isMixed and by the events).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFSpinBox : public QSpinBox
 {
     Q_OBJECT
@@ -340,18 +393,48 @@ public:
     const QString& getDisplaySuffix() const { return m_displaySuffix; }
     void setDisplaySuffix(const QString& suffix);
 
+    /// Mixed state, see the class; no value signal
+    bool isMixed() const;
+    void setMixed(bool mixed);
+
+    /// Commits an entry, which the user has typed and not confirmed yet, as Enter would
+    /// (a panel commits its pending values before a save or a change of the tool): the text
+    /// is interpreted and \p valueEntered is emitted (as the last statement). Nothing without
+    /// a typed entry; a mixed field without an acceptable text returns to the state.
+    void commitEntry();
+
+    virtual void stepBy(int steps) override;
+
+Q_SIGNALS:
+    /// The user has committed the value \p value (see the class: Enter, leaving the field
+    /// after typing, a step, commitEntry; also an unchanged value and from the mixed state;
+    /// never by the program's setValue / setMixed / stepBy). Emitted last, after Qt has
+    /// handled the event; a slot may delete the spin box.
+    void valueEntered(int value);
+
 protected:
+    virtual bool event(QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void focusInEvent(QFocusEvent* event) override;
+    virtual void focusOutEvent(QFocusEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
 
     /// The menu of QAbstractSpinBox shown by popup() (no nested event loop)
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
+    void onEditorTextChanged(const QString& text);
+    void onEditorTextEdited();
+    void emitPendingEntry();
+
     QString m_displayPrefix;
     QString m_displaySuffix;
+    mutable PDFMixedSpinBoxState m_mixed;
+    PDFSpinBoxEntryState m_entry;
 };
 
-/// Spin box of real numbers, see \p PDFSpinBox
+/// Spin box of real numbers, see \p PDFSpinBox (also its mixed state and valueEntered)
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFDoubleSpinBox : public QDoubleSpinBox
 {
     Q_OBJECT
@@ -365,6 +448,15 @@ public:
     const QString& getDisplaySuffix() const { return m_displaySuffix; }
     void setDisplaySuffix(const QString& suffix);
 
+    /// Mixed state, see \p PDFSpinBox; no value signal
+    bool isMixed() const;
+    void setMixed(bool mixed);
+
+    /// Commits an entry typed by the user and not confirmed yet, see \p PDFSpinBox::commitEntry
+    void commitEntry();
+
+    virtual void stepBy(int steps) override;
+
     /// The text has no trailing zeros of the fraction ("13", "2.5"; the size 1567:19204 shows "13"),
     /// the precision of decimals() stays for the values with a fraction
     bool isTrailingZerosHidden() const { return m_isTrailingZerosHidden; }
@@ -372,16 +464,31 @@ public:
 
     virtual QString textFromValue(double value) const override;
 
+Q_SIGNALS:
+    /// The user has committed the value \p value, see \p PDFSpinBox::valueEntered
+    void valueEntered(double value);
+
 protected:
+    virtual bool event(QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void focusInEvent(QFocusEvent* event) override;
+    virtual void focusOutEvent(QFocusEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
 
     /// The menu of QAbstractSpinBox shown by popup() (no nested event loop)
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
+    void onEditorTextChanged(const QString& text);
+    void onEditorTextEdited();
+    void emitPendingEntry();
+
     QString m_displayPrefix;
     QString m_displaySuffix;
     bool m_isTrailingZerosHidden = false;
+    mutable PDFMixedSpinBoxState m_mixed;
+    PDFSpinBoxEntryState m_entry;
 };
 
 /// Calendar of the design: cells of days with rounded shapes, no grid. The menu of the
@@ -463,7 +570,19 @@ private:
     void ensureCalendar();
 };
 
-/// Combo box
+/// Combo box.
+///
+/// Mixed state (\p setMixed, edit-content-v2-multi-selected 1647:49442): no item
+/// is current and the box shows "Mixed" (translated) in the color of a value.
+/// Entering and leaving the state by the program never emits currentIndexChanged,
+/// currentTextChanged or activated. In the state, currentIndex() is -1 (Qt's "no
+/// item"); \p getIndexBeforeMixed is the item, which was current before it, and
+/// setMixed(false) makes it current again (no signal). The user leaves the state
+/// by choosing an item (the signals of Qt, the index changes from -1); a
+/// setCurrentIndex of an item by the program leaves it too (with the signals of
+/// Qt). In the state the accessible description is "Mixed" (as the row of
+/// swatches; a description of the application is kept). For a box, which is not
+/// editable.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFComboBox : public QComboBox
 {
     Q_OBJECT
@@ -477,8 +596,28 @@ public:
     /// Select of 32 px with a muted prefix before the value ("Sort: Last opened")
     void setSelectPrefix(const QString& prefix);
 
+    /// Mixed state, see the class; no signal
+    bool isMixed() const { return m_isMixed; }
+    void setMixed(bool mixed);
+
+    /// The current item before the mixed state (-1 outside of the state)
+    int getIndexBeforeMixed() const { return m_isMixed ? m_indexBeforeMixed : -1; }
+
 protected:
     virtual bool event(QEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
+
+private:
+    void onCurrentIndexChanged(int index);
+    void leaveMixed();
+
+    /// The accessible description of the state (unless the application has its own)
+    void updateMixedDescription();
+
+    bool m_isMixed = false;
+    int m_indexBeforeMixed = -1;
+    QString m_placeholderBeforeMixed;
+    QString m_mixedDescription;         ///< The description set by the state (empty: none)
 };
 
 /// Status bar. It draws the message by the colors of the theme.

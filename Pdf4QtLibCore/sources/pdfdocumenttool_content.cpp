@@ -567,9 +567,12 @@ public:
         // another one would see the forms the other page has loaded beyond these limits, or miss
         // a form the other page reached too deep - its revision would differ from the listed one
         // on an unchanged document. When the walk is cut, the revision covers the page and the
-        // forms the walk has loaded, on both sides the same. The first page is compared in the
-        // session of the script, which holds nothing yet; every further one in a session of its
-        // own, which is released after the comparison.
+        // forms the walk has loaded, on both sides the same. Each page is loaded into the
+        // session of the script and compared there - the same revision unless such a limit cut
+        // the walk (the first page always: the session holds nothing yet). Only a page, whose
+        // revision differs there, is loaded once more in a session of its own, which is released
+        // after the comparison: equal hashes mean the same containers with the same content, so
+        // the session of the script never accepts a page the session of the page alone refuses.
         bool isSessionEmpty = true;
         for (const auto& revision : script->revisions)
         {
@@ -579,27 +582,24 @@ public:
                 return PDFDocumentToolResult::createFailed(QStringLiteral("%1: %2").arg(path, Tool::tr("The page %1 does not exist.").arg(revision.first)));
             }
 
-            const bool isComparedInScriptSession = isSessionEmpty;
+            const bool isComparedInEmptySession = isSessionEmpty;
             isSessionEmpty = false;
 
             QString errorText;
-            QByteArray currentRevision;
-            bool isLoaded = false;
-            if (isComparedInScriptSession)
-            {
-                isLoaded = loadPage(&session, revision.first - 1, control, &errorText);
-                currentRevision = isLoaded ? PDFContentJson::getPageRevision(&session, revision.first - 1) : QByteArray();
-            }
-            else
-            {
-                PDFContentEditSession pageSession(input.document, context.cms, nullptr);
-                isLoaded = loadPage(&pageSession, revision.first - 1, control, &errorText);
-                currentRevision = isLoaded ? PDFContentJson::getPageRevision(&pageSession, revision.first - 1) : QByteArray();
-            }
-
-            if (!isLoaded)
+            if (!loadPage(&session, revision.first - 1, control, &errorText))
             {
                 return createLoadFailure(control, path, errorText);
+            }
+            QByteArray currentRevision = PDFContentJson::getPageRevision(&session, revision.first - 1);
+
+            if (!isComparedInEmptySession && currentRevision != revision.second)
+            {
+                PDFContentEditSession pageSession(input.document, context.cms, nullptr);
+                if (!loadPage(&pageSession, revision.first - 1, control, &errorText))
+                {
+                    return createLoadFailure(control, path, errorText);
+                }
+                currentRevision = PDFContentJson::getPageRevision(&pageSession, revision.first - 1);
             }
 
             if (currentRevision.isEmpty() || currentRevision != revision.second)
@@ -607,11 +607,6 @@ public:
                 PDFDocumentToolResult result = PDFDocumentToolResult::createFailed(Tool::tr("The document changed in the meantime."));
                 result.data.insert(QStringLiteral("changedPage"), qint64(revision.first));
                 return result;
-            }
-
-            if (!isComparedInScriptSession && !loadPage(&session, revision.first - 1, control, &errorText))
-            {
-                return createLoadFailure(control, path, errorText);
             }
         }
 
@@ -710,6 +705,42 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolContent::getParameters() cons
     PDFDocumentToolPageSelection noPage;
     noPage.isNone = true;
     definitions.push_back(Definition::createPageSelection(tr, QString::fromLatin1(PARAMETER_SKIP_PAGES), QT_TR_NOOP("Skipped pages"), QT_TR_NOOP("Pages, which are not written"), noPage).setPanelOnly(true).setStored(false));
+
+    // The options of the display of the editor (zadani_gui.md 4.26: the menu View, the cards
+    // Grid and units and Preview, the left panel): the last values of the tool, given only by
+    // the panels and never in MCP; apply and list do not read them
+    PDFDocumentToolParameterDefinitions options;
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_RULERS), QT_TR_NOOP("Rulers"), QT_TR_NOOP("The rulers along the canvas are shown"), false));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_GRID), QT_TR_NOOP("Grid"), QT_TR_NOOP("The grid is shown on the canvas"), false));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_GUIDES), QT_TR_NOOP("Guides"), QT_TR_NOOP("The guides are shown on the canvas"), true));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_CLIPPING_PATHS), QT_TR_NOOP("Clipping paths"), QT_TR_NOOP("The outlines of the clipping paths are shown on the canvas"), false));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_INVISIBLE_TEXT), QT_TR_NOOP("Invisible text"), QT_TR_NOOP("The baselines of invisible text are shown on the canvas"), false));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_ANNOTATIONS), QT_TR_NOOP("Annotations and fields"), QT_TR_NOOP("The annotations and form fields are shown dimmed under the canvas"), true));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SHOW_READING_ORDER), QT_TR_NOOP("Reading order"), QT_TR_NOOP("The reading order of the tagged content is shown on the canvas"), false));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SNAP_TO_OBJECTS), QT_TR_NOOP("Snap to objects"), QT_TR_NOOP("A moved object snaps to the edges and centers of other objects"), true));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_SNAP_TO_GRID), QT_TR_NOOP("Snap to grid and guides"), QT_TR_NOOP("A moved object snaps to the grid and to the guides"), true));
+
+    std::vector<PDFDocumentToolParameterOption> units;
+    units.push_back({ QString::fromLatin1(UNITS_POINTS), QT_TR_NOOP("Points") });
+    units.push_back({ QString::fromLatin1(UNITS_MILLIMETERS), QT_TR_NOOP("Millimeters") });
+    units.push_back({ QString::fromLatin1(UNITS_INCHES), QT_TR_NOOP("Inches") });
+    options.push_back(Definition::createEnum(tr, QString::fromLatin1(PARAMETER_UNITS), QT_TR_NOOP("Units"), QT_TR_NOOP("The units of the rulers and of the fields of the cards"), std::move(units), QString::fromLatin1(UNITS_POINTS)));
+    options.push_back(Definition::createReal(tr, QString::fromLatin1(PARAMETER_GRID_SPACING), QT_TR_NOOP("Grid spacing"), QT_TR_NOOP("The distance of the lines of the grid in points"), 36.0, MINIMUM_GRID_SPACING, MAXIMUM_GRID_SPACING));
+
+    std::vector<PDFDocumentToolParameterOption> origins;
+    origins.push_back({ QString::fromLatin1(GRID_ORIGIN_BOTTOM_LEFT), QT_TR_NOOP("Bottom left") });
+    origins.push_back({ QString::fromLatin1(GRID_ORIGIN_TOP_LEFT), QT_TR_NOOP("Top left") });
+    options.push_back(Definition::createEnum(tr, QString::fromLatin1(PARAMETER_GRID_ORIGIN), QT_TR_NOOP("Origin"), QT_TR_NOOP("The corner of the page, from which the rulers and the grid are measured"), std::move(origins), QString::fromLatin1(GRID_ORIGIN_BOTTOM_LEFT)));
+
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_PREVIEW_OVERPRINT), QT_TR_NOOP("Simulate overprint"), QT_TR_NOOP("The preview simulates overprint"), true));
+    options.push_back(Definition::createBool(tr, QString::fromLatin1(PARAMETER_PREVIEW_ANNOTATIONS), QT_TR_NOOP("Show annotations and fields"), QT_TR_NOOP("The preview shows the annotations and form fields"), true));
+    options.push_back(Definition::createString(tr, QString::fromLatin1(PARAMETER_PREVIEW_PAPER_COLOR), QT_TR_NOOP("Paper color"), QT_TR_NOOP("The color of the paper of the preview as #rrggbb"), QStringLiteral("#ffffff")).setPanelOnly(true).setMaximumLength(9));
+    options.push_back(Definition::createString(tr, QString::fromLatin1(PARAMETER_LEFT_TAB), QT_TR_NOOP("Left panel tab"), QT_TR_NOOP("The tab of the left panel shown when the tool opens"), QStringLiteral("objects")).setPanelOnly(true).setMaximumLength(64));
+
+    for (Definition& option : options)
+    {
+        definitions.push_back(std::move(option.setStored(true).setPanelOnly(true).setMcpExcluded(true)));
+    }
 
     return definitions;
 }
@@ -1085,10 +1116,16 @@ PDFDocumentToolResult PDFDocumentToolContent::execute(const PDFDocumentToolConte
     result.data.insert(QString::fromLatin1(DATA_STRUCTURE), writeResult.isStructureChanged);
     result.data.insert(QString::fromLatin1(DATA_FONTS), qint64(writeResult.fontsAdded));
 
+    if (writeResult.isPagesChangedIncomplete)
+    {
+        result.data.insert(QString::fromLatin1(DATA_PAGES_CHANGED_INCOMPLETE), true);
+    }
+
     if (!writeResult.pagesChanged.empty())
     {
+        const QString pages = tr("%Ln page(s): %1", "", int(writeResult.pagesChanged.size())).arg(PDFDocumentPageOperations::formatPageNumbers(writeResult.pagesChanged));
         result.facts.push_back({ QString::fromLatin1(FACT_PAGES_CHANGED), tr("Pages changed"),
-                                 tr("%Ln page(s): %1", "", int(writeResult.pagesChanged.size())).arg(PDFDocumentPageOperations::formatPageNumbers(writeResult.pagesChanged)) });
+                                 writeResult.isPagesChangedIncomplete ? tr("%1 and possibly other pages, which use a changed form").arg(pages) : pages });
     }
 
     const QStringList objects = { tr("%Ln added", "objects", int(writeResult.objectsAdded)),

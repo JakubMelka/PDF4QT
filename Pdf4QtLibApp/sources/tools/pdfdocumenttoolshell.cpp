@@ -27,6 +27,8 @@
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentregistry.h"
+#include "pdfappcommand.h"
+#include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
@@ -606,6 +608,11 @@ PDFDocumentToolShell::~PDFDocumentToolShell()
 
 PDFAppToolUndoTarget* PDFDocumentToolShell::getUndoTarget() const
 {
+    // The own history of the GUI (KE.2) wins; no composite target exists next to it
+    if (m_ownUndoTarget)
+    {
+        return m_ownUndoTarget.data();
+    }
     if (m_undoTarget)
     {
         return m_undoTarget.data();
@@ -645,11 +652,15 @@ bool PDFDocumentToolShell::enter()
     connect(m_gui.data(), &PDFDocumentToolGUI::confirmStateChanged, this, &PDFDocumentToolShell::onConfirmStateChanged);
 
     // A tool, which changes the document of its tab (Redact Content), has its steps of the document
-    // in one Undo order with the parameters; the own tab has no document of its own
-    if (document && !m_host->isOwnTab() && m_gui->hasDocumentUndoSteps())
+    // in one Undo order with the parameters; the own tab has no document of its own. A tool with its own history
+    // (Edit Content, KE.2) gives its target instead: read once here, before the mode is entered (the view takes the
+    // target with the parts); the GUI owns it
+    m_ownUndoTarget = m_gui->getOwnUndoTarget();
+    if (!m_ownUndoTarget && document && !m_host->isOwnTab() && m_gui->hasDocumentUndoSteps())
     {
         m_undoTarget = new PDFAppToolCompositeUndoTarget(m_model, document, this);
     }
+    connect(m_gui.data(), &PDFDocumentToolGUI::documentCommandStatesChanged, this, &PDFDocumentToolShell::onDocumentCommandStatesChanged);
     connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::onWorkChanged);
     connect(m_gui.data(), &PDFDocumentToolGUI::ownTabStateChanged, this, &PDFDocumentToolShell::onWorkChanged);
     connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::updateStatus);
@@ -795,6 +806,17 @@ bool PDFDocumentToolShell::enter()
     {
         // Retired by a slot of the state (the tool was entered and is closed by its page): no preview
         return true;
+    }
+
+    // The actions of the window were refreshed by the entry of the mode, while this shell was not entered yet
+    // (getDocumentCommandState: NotHandled), and the tab asks its page, which the page of this tool becomes only
+    // after its route is applied (PDFAppNavigator sets the page of the tab after setRoute): a tool, which takes
+    // commands or asks before a save, has the actions refreshed from the event loop, once it is the page of its
+    // tab. Not a wait for a state: no signal tells the shell, that its page was installed. Nothing for a tool
+    // without the hooks.
+    if (hasSaveQuestion() || hasDocumentCommands())
+    {
+        QMetaObject::invokeMethod(this, &PDFDocumentToolShell::refreshDocumentCommands, Qt::QueuedConnection);
     }
 
     if (m_isPermissionRefused)
@@ -947,6 +969,16 @@ void PDFDocumentToolShell::close()
         m_permissionDialog->disconnect(this);
         PDFDeferredDeletion::retire(m_permissionDialog.data());
     }
+    m_saveAfterResultCommandId.clear();
+    m_saveQuestionCommandId.clear();
+    if (PDFMessageBox* saveQuestion = m_saveQuestion.data())
+    {
+        // The question of a save of a tool, which has ended without the user: closed without an answer (nothing is
+        // saved), retired as the dialog of the permission
+        m_saveQuestion = nullptr;
+        saveQuestion->disconnect(this);
+        PDFDeferredDeletion::retire(saveQuestion);
+    }
 
     // The close of the tab during the question of a file = Stop Export (R3): the end of the
     // runner cancels the run, which stops the sink and wakes the waiting thread
@@ -1040,9 +1072,274 @@ void PDFDocumentToolShell::setState(State state)
     }
 
     m_state = state;
+    if (state == State::Editing)
+    {
+        // A run, which has returned to the editing (stopped, failed, nothing to do, its result discarded), is not
+        // the run of the choice "Apply and Save" any more: no save follows a later result
+        m_saveAfterResultCommandId.clear();
+    }
     updateToolbar();
     updateStatus();
+
+    // The guard: a slot of the state may close the shell (retired, or deleted with its tab by a test); the commands
+    // of the tab follow the new state after the receivers of the state have seen it (the last call)
+    QPointer<PDFDocumentToolShell> guard(this);
     Q_EMIT stateChanged(state);
+    if (guard && !PDFDeferredDeletion::isRetired(this))
+    {
+        refreshDocumentCommands();
+    }
+}
+
+PDFAppToolCommandState PDFDocumentToolShell::getGUICommandState(const QString& commandId) const
+{
+    // Undo and Redo go to the undo target of the mode (the own target of the GUI, the composite target, the model):
+    // the handler of the document routes them (PDFAppDocumentModelCommandHandler), the GUI is never asked
+    if (!m_gui || commandId == PDFAppCommands::undo() || commandId == PDFAppCommands::redo())
+    {
+        return PDFAppToolCommandState::NotHandled;
+    }
+    return m_gui->getDocumentCommandState(commandId);
+}
+
+PDFAppToolCommandState PDFDocumentToolShell::getDocumentCommandState(const QString& commandId) const
+{
+    // The tool in the tab of a document, which is open: the commands of the own tab of a tool are those of its host
+    if (!m_gui || !m_host || m_host->isOwnTab() || m_state == State::Created || m_state == State::Closed || PDFDeferredDeletion::isRetired(this))
+    {
+        return PDFAppToolCommandState::NotHandled;
+    }
+
+    const PDFAppToolCommandState state = getGUICommandState(commandId);
+    if (state == PDFAppToolCommandState::Enabled && m_state != State::Editing)
+    {
+        // During a run and a decision the content of the tool is disabled: so are its commands (the handler of the
+        // document must not act on the hidden canvas of the document instead)
+        return PDFAppToolCommandState::Disabled;
+    }
+    return state;
+}
+
+bool PDFDocumentToolShell::hasDocumentCommands() const
+{
+    const PDFAppContext* context = m_host ? m_host->getContext() : nullptr;
+    if (!context || !m_gui || m_host->isOwnTab())
+    {
+        return false;
+    }
+
+    // Bounded by the registry of the commands of the application; the default GUI answers NotHandled at once
+    for (const PDFAppCommand* command : context->getCommandRegistry()->getCommands())
+    {
+        if (command && getGUICommandState(command->id) != PDFAppToolCommandState::NotHandled)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PDFDocumentToolShell::hasSaveQuestion() const
+{
+    return m_state == State::Editing && m_gui && !PDFDeferredDeletion::isRetired(this) && hasUnsavedWork() && m_gui->getSaveQuestion().isValid();
+}
+
+bool PDFDocumentToolShell::isDocumentReloadDeferred() const
+{
+    // Also during a run and a decision (the document is held by the operation then anyway)
+    const bool isOpen = m_state != State::Created && m_state != State::Closed;
+    return isOpen && m_gui && !PDFDeferredDeletion::isRetired(this) && m_gui->isDocumentReloadDeferred();
+}
+
+bool PDFDocumentToolShell::rememberSaveQuestion()
+{
+    const bool hasQuestion = hasSaveQuestion();
+    if (m_hadSaveQuestion == hasQuestion)
+    {
+        return false;
+    }
+    m_hadSaveQuestion = hasQuestion;
+    return true;
+}
+
+void PDFDocumentToolShell::updateSaveQuestionState()
+{
+    if (rememberSaveQuestion())
+    {
+        // The last call: a slot of the tab runs
+        onDocumentCommandStatesChanged();
+    }
+}
+
+void PDFDocumentToolShell::refreshDocumentCommands()
+{
+    // The question is remembered also for a GUI with commands (both operands are evaluated)
+    const bool isQuestionChanged = rememberSaveQuestion();
+    if (isQuestionChanged || hasDocumentCommands())
+    {
+        // The last call: a slot of the tab runs
+        onDocumentCommandStatesChanged();
+    }
+}
+
+bool PDFDocumentToolShell::handleDocumentCommand(const QString& commandId)
+{
+    if (getDocumentCommandState(commandId) != PDFAppToolCommandState::Enabled)
+    {
+        return false;
+    }
+
+    // The last call: the GUI may close the tool or the tab
+    return m_gui->handleDocumentCommand(commandId);
+}
+
+void PDFDocumentToolShell::onDocumentCommandStatesChanged()
+{
+    // The window reads the states of its actions from the tab (PDFAppMainWindow::onTabCommandStatesChanged); the
+    // toolbar of the tool follows the view of the tab. The last call: a slot of the tab runs.
+    PDFAppTab* tab = (m_host && m_state != State::Closed && !PDFDeferredDeletion::isRetired(this)) ? m_host->getTab() : nullptr;
+    if (tab)
+    {
+        Q_EMIT tab->commandStatesChanged();
+    }
+}
+
+bool PDFDocumentToolShell::requestSaveQuestion(const QString& commandId)
+{
+    if (PDFMessageBox* openQuestion = m_saveQuestion.data())
+    {
+        if (openQuestion->isVisible())
+        {
+            // One question at a time: the open one comes forward, its answer saves by its own command
+            openQuestion->raise();
+            return true;
+        }
+
+        // An answered question is hidden until its deletion (WA_DeleteOnClose): a new one is asked
+        openQuestion->disconnect(this);
+        m_saveQuestion = nullptr;
+    }
+
+    // Only a tool, which is edited and holds work of the user, asks (a run and a decision keep the document busy:
+    // the save is disabled by the saver itself)
+    if (!m_gui || !m_host || m_state != State::Editing || PDFDeferredDeletion::isRetired(this) || !hasUnsavedWork())
+    {
+        return false;
+    }
+
+    const PDFAppToolSaveQuestion question = m_gui->getSaveQuestion();
+    if (!question.isValid())
+    {
+        return false;
+    }
+
+    // edit-content-v2-save-prompt: Cancel leading; the save without the work of the tool and the run of the tool
+    // (the Primary button) trailing. The dialog belongs to the window and to this shell (retired with it), it
+    // deletes itself when closed; open - never exec.
+    QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
+    PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, question.title, question.text, QDialogButtonBox::NoButton, parent);
+    dialog->setObjectName(QStringLiteral("toolSaveQuestion"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    const bool hasApply = !question.applyText.isEmpty();
+    QPushButton* cancelButton = dialog->addActionButton(question.cancelText.isEmpty() ? tr("Cancel") : question.cancelText, PDFMessageBox::ActionPosition::Leading, false);
+    cancelButton->setObjectName(QStringLiteral("toolSaveCancel"));
+    connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
+    QPushButton* saveButton = dialog->addActionButton(question.saveText, PDFMessageBox::ActionPosition::Trailing, !hasApply);
+    saveButton->setObjectName(QStringLiteral("toolSaveWithoutChanges"));
+    connect(saveButton, &QPushButton::clicked, this, &PDFDocumentToolShell::onSaveQuestionSaveClicked);
+    if (hasApply)
+    {
+        QPushButton* applyButton = dialog->addActionButton(question.applyText, PDFMessageBox::ActionPosition::Trailing, true);
+        applyButton->setObjectName(QStringLiteral("toolSaveApply"));
+        if (!question.applyIconName.isEmpty())
+        {
+            applyButton->setIcon(PDFThemeIcons::getIcon(question.applyIconName));
+        }
+        connect(applyButton, &QPushButton::clicked, this, &PDFDocumentToolShell::onSaveQuestionApplyClicked);
+    }
+    m_saveQuestion = dialog;
+    m_saveQuestionCommandId = commandId;
+    PDFDeferredDeletion::setOwner(dialog, this);
+    if (parent)
+    {
+        PDFAppMainWindow::prepareDialog(dialog, parent);
+    }
+
+    // The show runs code of the application (the scrim, the activation): a shell retired by it has asked nothing,
+    // but the save is not done either - the tool, which asked, is gone
+    dialog->open();
+    return true;
+}
+
+void PDFDocumentToolShell::onSaveQuestionSaveClicked()
+{
+    const QString commandId = m_saveQuestionCommandId;
+    m_saveQuestionCommandId.clear();
+    if (PDFMessageBox* dialog = m_saveQuestion.data())
+    {
+        m_saveQuestion = nullptr;
+        dialog->disconnect(this);
+        dialog->accept();
+    }
+    if (PDFDeferredDeletion::isRetired(this) || !m_host)
+    {
+        return;
+    }
+
+    // The document of the tab is saved as it is and the tool stays open with its work. The functions of the handler
+    // do not ask the tool again (only the execution of the command does). The last call: the save runs code of the
+    // application (its dialog of the file, its slots).
+    PDFAppDocumentFileCommandHandler* handler = PDFAppDocumentFileCommandHandler::find(m_host->getDocumentTab());
+    if (!handler)
+    {
+        return;
+    }
+    if (commandId == PDFAppCommands::saveAs())
+    {
+        handler->saveAs();
+        return;
+    }
+
+    // Save of a document, which has nothing of its own to save (the command was enabled only by the question of the
+    // tool, PDFAppDocumentFileCommandHandler::isEnabled), writes nothing: the file is not rewritten without a change,
+    // as the command Save never does (PDFAppDocumentSaver::canSave; also a locked document). A document with changes,
+    // whose file cannot be written any more (made read-only while the question was open; R3-4), goes the flow of the
+    // application for such a file: the saver says why and offers Save As (as the close of a tab saves).
+    const PDFAppDocumentSaver* saver = handler->getSaver();
+    const PDFAppDocument* document = m_host->getDocumentTab() ? m_host->getDocumentTab()->getDocument() : nullptr;
+    const bool isUnwritableChange = saver && document && document->isReady() && document->isModified() && !document->isLocked() && !saver->isRunning();
+    if (saver && (saver->canSave() || isUnwritableChange))
+    {
+        handler->save();
+    }
+}
+
+void PDFDocumentToolShell::onSaveQuestionApplyClicked()
+{
+    const QString commandId = m_saveQuestionCommandId;
+    m_saveQuestionCommandId.clear();
+    if (PDFMessageBox* dialog = m_saveQuestion.data())
+    {
+        m_saveQuestion = nullptr;
+        dialog->disconnect(this);
+        dialog->accept();
+    }
+    if (PDFDeferredDeletion::isRetired(this) || m_state != State::Editing)
+    {
+        return;
+    }
+
+    // The usual run with its result dialog (zadani_gui.md 4.21: the facts of the result stay visible); the save
+    // follows only a result kept in the tab (onDialogDecided). A confirmation, which starts no run (the Primary
+    // button is disabled, a permission is asked first), is no run of this choice: setState(Editing) and the check
+    // below forget the save.
+    m_saveAfterResultCommandId = commandId;
+    QPointer<PDFDocumentToolShell> guard(this);
+    confirm();
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_state == State::Editing)
+    {
+        m_saveAfterResultCommandId.clear();
+    }
 }
 
 void PDFDocumentToolShell::updateToolbar()
@@ -2383,7 +2680,14 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result,
     dialog->QDialog::open();
     if (!PDFDeferredDeletion::isRetired(this))
     {
+        // The dialog of an export opens from the state Editing (openExportDialog): the commands of the tool and its
+        // save question follow the decision (the last call; the guard as in setState)
+        QPointer<PDFDocumentToolShell> guard(this);
         Q_EMIT stateChanged(m_state);
+        if (guard && !PDFDeferredDeletion::isRetired(this))
+        {
+            refreshDocumentCommands();
+        }
     }
 }
 
@@ -2507,6 +2811,13 @@ void PDFDocumentToolShell::onParameterChanged(const QString& name)
         updateToolbar();
         updateStatus();
         updatePreview();
+
+        // A parameter may be the work of the user (the last call; a shell retired by a slot of the preview refreshes
+        // nothing)
+        if (!PDFDeferredDeletion::isRetired(this))
+        {
+            updateSaveQuestionState();
+        }
     }
 }
 
@@ -2514,11 +2825,17 @@ void PDFDocumentToolShell::onConfirmStateChanged()
 {
     ++m_workStamp;
     updateToolbar();
+
+    // The work of the user may have come or gone with the Primary button: Save follows the save question (the last call)
+    updateSaveQuestionState();
 }
 
 void PDFDocumentToolShell::onWorkChanged()
 {
     ++m_workStamp;
+
+    // The last call, as in onConfirmStateChanged
+    updateSaveQuestionState();
 }
 
 void PDFDocumentToolShell::onPreviewProgress(int percentage, const QString& stepText)
@@ -2571,7 +2888,14 @@ void PDFDocumentToolShell::onRunStarted()
     updateProgress(0, QString());
     updateToolbar();
 
+    // The commands of the tool are Disabled during the run and its save question is gone: the actions of the window
+    // follow after the receivers of the state (the last call; the guard as in setState)
+    QPointer<PDFDocumentToolShell> guard(this);
     Q_EMIT stateChanged(m_state);
+    if (guard && !PDFDeferredDeletion::isRetired(this))
+    {
+        refreshDocumentCommands();
+    }
 }
 
 void PDFDocumentToolShell::onRunProgress(int percentage, const QString& stepText)
@@ -2989,6 +3313,14 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
         request.folderToOpen = QFileInfo(decided.filePath).absolutePath();
     }
 
+    // "Apply and Save" of the save question (zadani_gui.md 4.21): only the result kept in this tab is saved by the
+    // page after the tool has closed; a copy, an overwritten file or another tab are what the user chose instead
+    if (decided.action == PDFAppToolResultOutcome::Action::Kept)
+    {
+        request.saveCommandId = m_saveAfterResultCommandId;
+    }
+    m_saveAfterResultCommandId.clear();
+
     // R16 (336:3572): the new document replaces the own tab - its bytes, or the written file
     if (decided.action == PDFAppToolResultOutcome::Action::OpenedInThisTab)
     {
@@ -3327,7 +3659,14 @@ void PDFDocumentToolShell::onLanguageChanged()
         return;
     }
 
+    // retranslate is code of the tool: a GUI, which commits a pending entry of the user there, runs slots that may
+    // close the tab (the shell is retired, its GUI and model are gone) - nothing is built in a closed tab then
+    QPointer<PDFDocumentToolShell> guard(this);
     m_gui->retranslate();
+    if (!guard || m_state == State::Closed || !m_gui || !m_tool || !m_model)
+    {
+        return;
+    }
     m_model->updateDefinitionTexts(m_tool->getParameters());
 
     // The parts are made of translated texts; the values live in the model

@@ -535,6 +535,27 @@ PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenInputFileNamesSettin
     return settings;
 }
 
+QString PDFAppFileDialogs::getImageFilter()
+{
+    // The formats QImageReader reads now (its plugins), in its order
+    QStringList patterns;
+    for (const QByteArray& format : QImageReader::supportedImageFormats())
+    {
+        patterns << QStringLiteral("*.") + QString::fromLatin1(format);
+    }
+    return QCoreApplication::translate("pdf::PDFAppFileDialogs", "Images (%1);;All files (*)").arg(patterns.join(QLatin1Char(' ')));
+}
+
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenImageFileNamesSettings(const QString& folder, bool isMultiple)
+{
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = isMultiple ? PDFAppFileDialogRequest::Mode::OpenFiles : PDFAppFileDialogRequest::Mode::OpenFile;
+    settings.title = isMultiple ? QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open Images") : QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open Image");
+    settings.path = folder;
+    settings.filter = getImageFilter();
+    return settings;
+}
+
 PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getExistingDirectorySettings(const QString& folder, const QString& title)
 {
     PDFAppFileDialogRequest::Settings settings;

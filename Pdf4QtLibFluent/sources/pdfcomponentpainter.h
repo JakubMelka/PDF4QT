@@ -2568,6 +2568,118 @@ public:
 
     /// Draws the code box into the rectangle (the focus ring of State_HasFocus inside)
     static void paintCodeBox(QPainter* painter, const QRectF& rect, const CodeBox& box, const State& state);
+
+    // ----------------------------------------------------------- Expander card
+
+    /// Section of a panel with a heading and a card (section-Transparency of
+    /// edit-content-v2 1647:21843 collapsed, of -transparency 1647:48204
+    /// expanded): the header (the heading Semi Bold 13 text/primary, an optional
+    /// Tag, the Text link Expand / Collapse at the trailing side, gap 8), below it
+    /// (gap 8) the card bg/surface with border/default, radius 10, padding 12
+    /// inside of the border, its items 8 apart; the summary of a collapsed card
+    /// Regular 11 text/tertiary.
+
+    /// Returns the font of the heading of a section (Semi Bold 13)
+    static QFont getExpanderTitleFont();
+
+    /// Returns the font of the summary of a collapsed card (Regular 11)
+    static QFont getExpanderSummaryFont();
+
+    /// Returns the gap of the items of the header and between the header and the card (8)
+    static int getExpanderSpacing();
+
+    /// Returns the distances of the items of the card from its edges (border 1 + padding 12)
+    static QMargins getExpanderCardMargins();
+
+    /// Returns the gap of the items of the card (8)
+    static int getExpanderCardSpacing();
+
+    /// Returns the radius of the card (10)
+    static qreal getExpanderCardRadius();
+
+    /// Draws the surface of the card into the rectangle: bg/surface with
+    /// border/default (a disabled card keeps it, its content is disabled)
+    static void paintExpanderCard(QPainter* painter, const QRectF& rect, const State& state);
+
+    // ---------------------------------------------------------------- Path bar
+
+    /// Size of a path bar (breadcrumbs without routes): Default - the bar of a
+    /// group above the page (isolation-bar 1647:42965): the links Regular 12
+    /// text/accent, the current segment Semi Bold 12 text/primary, gap 8, line 16;
+    /// Small - the path of types of the Selection card (breadcrumb 1647:21730):
+    /// Regular 11 / Medium 11, gap 4, line 13. The separators are the chevron 10
+    /// icon/muted (pointing to the trailing side).
+    enum class PathBarSize
+    {
+        Default,
+        Small
+    };
+
+    /// Content of a segment of a path bar: a link, or the current segment (the
+    /// last one, not a link). The text is data.
+    struct PathSegment
+    {
+        QString text;
+        PathBarSize size = PathBarSize::Default;
+        bool current = false;
+    };
+
+    /// Returns the valid size (an invalid value is Default)
+    static PathBarSize normalized(PathBarSize size);
+
+    /// Returns the font of a segment (\p isUnderlined: a link under the pointer)
+    static QFont getPathSegmentFont(PathBarSize size, bool isCurrent, bool isUnderlined = false);
+
+    /// Returns the gap between a segment and a separator (8 / 4)
+    static int getPathBarSpacing(PathBarSize size);
+
+    /// Returns the height of the line of a path bar (16 / 13)
+    static int getPathBarLineHeight(PathBarSize size);
+
+    /// Returns the extent of a separator (10)
+    static int getPathSeparatorExtent();
+
+    /// Returns the radius of the shape of a link of a path (its focus ring outside, 4)
+    static qreal getPathSegmentRadius();
+
+    /// Returns the ellipsis, which replaces the hidden segments ("…")
+    static QString getPathEllipsis();
+
+    /// Returns the width of the text of the segment (not elided)
+    static qreal getPathSegmentTextWidth(const PathSegment& segment);
+
+    /// Returns the size of the segment: its text and the line of the size
+    static QSize getPathSegmentSize(const PathSegment& segment);
+
+    /// Draws the segment into the rectangle (a too narrow rectangle elides its
+    /// text at its end, in the direction of the text). A link is text/accent,
+    /// pressed text/accent-pressed, underlined under the pointer; the current
+    /// segment text/primary; disabled text/disabled. The focus ring of
+    /// State_HasFocus lies outside (radius 4).
+    static void paintPathSegment(QPainter* painter, const QRectF& rect, const PathSegment& segment, const State& state);
+
+    /// Draws a separator (the chevron to the trailing side of the state) centered in the rectangle
+    static void paintPathSeparator(QPainter* painter, const QRectF& rect, const State& state);
+
+    /// Draws the ellipsis of the hidden segments (text/tertiary, the font of a link) centered vertically
+    static void paintPathEllipsis(QPainter* painter, const QRectF& rect, PathBarSize size, const State& state);
+
+    /// Returns the width of the ellipsis of the hidden segments
+    static qreal getPathEllipsisWidth(PathBarSize size);
+
+    // ------------------------------------------------------ Row toggle action
+
+    /// Toggle action of a row (the eye and the lock of a row of the objects,
+    /// edit-content-v2-objects-nested 1647:22603 / 1647:22644 / 1647:22666): the
+    /// icon 12 icon/muted centered in the rectangle, icon/default under the
+    /// pointer, icon/strong pressed, icon/disabled disabled; no background. The
+    /// caller chooses the icon by the state (eye / eye-off, lock).
+
+    /// Returns the extent of the icon of a toggle action (12)
+    static int getRowToggleIconExtent();
+
+    /// Draws the toggle action into the rectangle
+    static void paintRowToggleAction(QPainter* painter, const QRectF& rect, const QString& iconName, const State& state);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFComponentPainter::StrengthCriteria)

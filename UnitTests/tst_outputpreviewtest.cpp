@@ -25,12 +25,19 @@
 // mode 1 only for the current color of DeviceCMYK in a DeviceCMYK group, never for an image, never for the
 // compositing of a group (B211, R7-7: ISO 32000-2, 8.6.7, 11.7.4.3, Table 146), the inks of the process space
 // for a page group of RGB (B196), the box of the ratios (Q7.6, R7-8), /All and /None (8.6.6.4), the limit of
-// the spot inks (476:11703), the printed annotations (Q7.8) and the tool review.output-preview. The expected
+// the spot inks (476:11703), the printed annotations (Q7.8), the tool review.output-preview and the switch of the
+// overprint simulation of the transparency renderer (the Preview of Edit Content). The expected
 // values come from the specification: a page of 100 x 100 points is rendered at 100 pixels, one pixel is
 // one point; a point is 25.4 / 72 mm.
 
 #include "outputpreviewtestpdf.h"
+#include "pdfcms.h"
+#include "pdfconstants.h"
 #include "pdfdocumenttool_outputpreview.h"
+#include "pdffont.h"
+#include "pdfoptionalcontent.h"
+#include "pdfrenderer.h"
+#include "pdftransparencyrenderer.h"
 #include "testlocaleguard.h"
 
 #include <QElapsedTimer>
@@ -52,6 +59,7 @@ private slots:
     void overprintModeOneStencilMask();
     void overprintModeOneRgbGroup();
     void groupCompositingIgnoresOverprint();
+    void overprintSimulationSwitchedOff();
     void pageGroupRgbMeasuredInProcessInks();
     void ratioOfTrimBox();
     void separationAllAndNone();
@@ -259,6 +267,82 @@ void OutputPreviewTest::groupCompositingIgnoresOverprint()
     QCOMPARE(qRound(tintAt(result, QPoint(25, 50), "Cyan")), 100);
     QCOMPARE(qRound(tintAt(result, QPoint(25, 50), "Magenta")), 0);
     QCOMPARE(qRound(tintAt(result, QPoint(75, 50), "Magenta")), 100);
+}
+
+void OutputPreviewTest::overprintSimulationSwitchedOff()
+{
+    // The Preview of Edit Content without Simulate overprint (PDFTransparencyRendererSettings::
+    // DisableOverprintSimulation, off by default). ISO 32000-2, 8.6.7: with the overprint on, a
+    // DeviceCMYK color in the overprint mode 1 leaves the backdrop in its zero components, and a
+    // Separation color (any mode) changes only its own colorant; with the overprint off "painting a
+    // color in any color space shall cause the corresponding areas of unspecified colorants to be
+    // erased (painted with a tint value of 0.0)". A magenta page; cyan by OP true / OPM 1 on the
+    // left half; the spot ink Spot1 by OP true / OPM 0 on the bottom right quarter. The process
+    // inks are C, M, Y, K, the spot ink the fifth channel; y of the pixels grows down.
+    OutputPreviewTestPdf pdf;
+    pdf.addPage("0 1 0 0 k 0 0 100 100 re f /GSopm gs 1 0 0 0 k 0 0 50 100 re f /GSop0 gs /CS1 cs 1 scn 50 0 50 50 re f",
+                "<< /ColorSpace << /CS1 " + OutputPreviewTestPdf::separation("Spot1") + " >> " + overprintStates() + " >>");
+    const PDFDocument document = pdf.read();
+    const PDFPage* page = document.getCatalog()->getPage(0);
+    QVERIFY(page);
+
+    PDFOptionalContentActivity optionalContentActivity(&document, OCUsage::Print, nullptr);
+    PDFCMSManager cmsManager(nullptr);
+    cmsManager.setDocument(&document);
+    cmsManager.setSettings(PDFCMSSettings());
+    PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    PDFICCProfileCache iccProfileCache;
+    const PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(&document), &optionalContentActivity);
+    fontCache.setDocument(modifiedDocument);
+    iccProfileCache.setDocument(modifiedDocument);
+    PDFInkMapper inkMapper(&cmsManager, &document);
+    inkMapper.createSpotColors(true);
+    QCOMPARE(inkMapper.getActiveSpotColorCount(), size_t(1));
+    const PDFCMSPointer cms = cmsManager.getCurrentCMS();
+
+    // The tints of C, M, Y, K, Spot1 at a pixel of the process image (times the opacity)
+    const auto render = [&](bool isOverprintSimulated)
+    {
+        PDFTransparencyRendererSettings settings;
+        settings.flags.setFlag(PDFTransparencyRendererSettings::SaveOriginalProcessImage, true);
+        settings.flags.setFlag(PDFTransparencyRendererSettings::DisableOverprintSimulation, !isOverprintSimulated);
+        const QSize imageSize(100, 100);
+        const QTransform pagePointToDevicePoint = PDFRenderer::createPagePointToDevicePointMatrix(page, QRectF(QPointF(0.0, 0.0), QSizeF(imageSize)));
+        PDFTransparencyRenderer renderer(page, &document, &fontCache, &iccProfileCache, cms.data(), &optionalContentActivity, &inkMapper, settings, pagePointToDevicePoint);
+        renderer.beginPaint(imageSize);
+        const QList<PDFRenderError> errors = renderer.processContents();
+        renderer.endPaint();
+        return std::make_pair(renderer.getOriginalProcessBitmap(), errors.size());
+    };
+    const auto tints = [](const PDFFloatBitmapWithColorSpace& bitmap, int x, int y)
+    {
+        const PDFPixelFormat format = bitmap.getPixelFormat();
+        const PDFConstColorBuffer pixel = bitmap.getPixel(size_t(x), size_t(y));
+        const PDFColorComponent alpha = format.hasOpacityChannel() ? pixel[format.getOpacityChannelIndex()] : 1.0f;
+        QList<int> result;
+        for (uint8_t i = 0; i < format.getColorChannelCount(); ++i)
+        {
+            result << qRound(pixel[i] * alpha * 100.0f);
+        }
+        return result;
+    };
+
+    // The default simulates the overprint (the old rendering does not change)
+    QVERIFY(!PDFTransparencyRendererSettings().flags.testFlag(PDFTransparencyRendererSettings::DisableOverprintSimulation));
+
+    //                                       C    M    Y  K  Spot1
+    const auto simulated = render(true);
+    QCOMPARE(simulated.second, qsizetype(0));
+    QCOMPARE(simulated.first.getPixelFormat().getColorChannelCount(), uint8_t(5));
+    QCOMPARE(tints(simulated.first, 25, 50), QList<int>({ 100, 100, 0, 0, 0 }));   // cyan over magenta: OPM 1 keeps M
+    QCOMPARE(tints(simulated.first, 75, 75), QList<int>({ 0, 100, 0, 0, 100 }));   // Spot1 over magenta: OP keeps M
+    QCOMPARE(tints(simulated.first, 75, 25), QList<int>({ 0, 100, 0, 0, 0 }));     // magenta alone
+
+    const auto knockedOut = render(false);
+    QCOMPARE(knockedOut.second, qsizetype(0));
+    QCOMPARE(tints(knockedOut.first, 25, 50), QList<int>({ 100, 0, 0, 0, 0 }));    // M of the cyan is 0: erased
+    QCOMPARE(tints(knockedOut.first, 75, 75), QList<int>({ 0, 0, 0, 0, 100 }));    // C, M, Y, K of Spot1 are 0: erased
+    QCOMPARE(tints(knockedOut.first, 75, 25), QList<int>({ 0, 100, 0, 0, 0 }));    // magenta alone, as before
 }
 
 void OutputPreviewTest::pageGroupRgbMeasuredInProcessInks()

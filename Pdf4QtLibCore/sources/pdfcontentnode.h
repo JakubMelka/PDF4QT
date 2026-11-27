@@ -229,6 +229,16 @@ public:
         bool isModified = false;                        ///< Changed by the editor: written canonically
         bool hasClipEffect = false;                     ///< A clipping path, a path with W, a text with a rendering mode 4 to 7: never wrapped (R-1)
 
+        /// Set by the tree builder for a node, at which the content ends with something left
+        /// open, so that content written behind it would join it (PDFContentContainer::
+        /// getAppendIndex puts new content in front of it): an Opaque node of a path without
+        /// a painting operator (an operator behind it would paint or end that path too); an
+        /// Opaque span, in which a bracket (q, BT, BDC), a path or the data of an inline image
+        /// without an end is still open; an unclosed TextObject with a text of the rendering mode
+        /// 4 to 7 (the ET written in front of new content makes the clip real for it, ISO
+        /// 32000-2, 9.3.6). Copied with the data; never set by an editor.
+        bool isOpenEnd = false;
+
         // Group
         int saveDepth = 0;                              ///< Number of q of the chain (>= 1)
 
@@ -287,6 +297,7 @@ public:
     const PDFContentStateOverride* getOverride() const { return m_data.override ? &*m_data.override : nullptr; }
     bool isModified() const { return m_data.isModified; }
     bool hasClipEffect() const { return m_data.hasClipEffect; }
+    bool isOpenEnd() const { return m_data.isOpenEnd; }
     const Data& getData() const { return m_data; }
 
     /// A leaf never has children (every kind except Root, Group, MarkedContent, TextObject)
@@ -320,7 +331,9 @@ struct PDFContentIssue
         InvalidMarkedContentId, ///< MCID out of range or used twice
         UndefinedResource,      ///< An operation names a resource, which the dictionary does not define
         InvalidContainer,       ///< The key names nothing of the document, or the build cannot start (a form or a pattern without its page, no font cache or color management): there is no container
-        IgnoredColorOperator    ///< A color operator in the cell of an uncolored tiling pattern (/PaintType 2), ignored by the standard (ISO 32000-2, 8.7.3.3): one issue per container, at the first such operator; the operation is not flagged Failed (it stays in the tree, sets no color and is the source of none)
+        IgnoredColorOperator,   ///< A color operator in the cell of an uncolored tiling pattern (/PaintType 2), ignored by the standard (ISO 32000-2, 8.7.3.3): one issue per container, at the first such operator; the operation is not flagged Failed (it stays in the tree, sets no color and is the source of none)
+        StateLimit,             ///< A value of the graphics state is longer than a state of a node keeps (a dash array of more than 128 elements, a color of more than 32 components; limits of the tree builder): the content, in which it is in effect, is one Opaque node; one issue per such span, at the operation, which sets it
+        ContentSizeLimit        ///< The decoded streams of the content are larger than the tree builder reads (512 MB together): the container is empty and read-only
     };
 
     Kind kind = Kind::OperatorFailed;
@@ -365,6 +378,7 @@ public:
         bool isReadOnly = false;                        ///< A stream could not be decoded: shown, never changed, never written
         bool isColorIgnored = false;                    ///< The cell of an uncolored tiling pattern (/PaintType 2): color operators written into it have no effect
         PDFInteger inheritedResourcesPageIndex = -1;    ///< A form or a pattern cell without /Resources of its own: the index of the page, whose resources it was built with; -1 for a page and for a container with its own /Resources
+        PDFObject inheritedResources;                   ///< A form or a pattern cell without /Resources of its own drawn by a content with resources of its own: the resources it was built with (getInheritedResources); null otherwise
     };
 
     explicit PDFContentContainer(Data data);
@@ -395,7 +409,25 @@ public:
     /// added to such a container (R-4).
     PDFInteger getInheritedResourcesPageIndex() const { return m_data.inheritedResourcesPageIndex; }
 
+    /// The resources a form or a pattern cell without /Resources of its own was built with, when
+    /// the content drawing it has resources of its own (PDFContentBuildContext::callerResources):
+    /// a direct dictionary, per category the dictionary of the caller with the names of the page
+    /// the caller does not define (NOTES.txt 7.8.3), as the renderer draws it there. Null, when
+    /// the container was built with the resources of the page alone (getInheritedResourcesPageIndex),
+    /// for a page and for a container with its own /Resources. The document writer compares every
+    /// other place drawing the container with these and copies them, when a name was added (R-4).
+    const PDFObject& getInheritedResources() const { return m_data.inheritedResources; }
+
     const Data& getData() const { return m_data; }
+
+    /// The number of this version of the content: every container made by the tree builder or
+    /// by PDFContentContainerEditor::build gets a new number (unique in the process, never 0),
+    /// and a container made by PDFContentContainerDifference gets the number of the version it
+    /// stands for. Two containers of one key with the same number have the same content, also
+    /// when they are two objects (undo and redo make a version again, when nobody holds the old
+    /// object any more): a command tells by it, whether the model is the one it was applied to.
+    /// A container made by hand from the data of another one (getData) gets a number of its own.
+    quint64 getVersion() const { return m_version; }
 
     /// The node of an identifier, nullptr when there is none
     PDFContentNodePointer getNode(PDFContentNodeId id) const;
@@ -422,9 +454,13 @@ public:
     ///    are PDFContentOperationList::getTail and are written after everything else);
     ///  - the rest of a content after an inline image without an end (an Opaque node, which
     ///    holds the refused operation BI): whatever is written after it, is image data;
-    ///  - an unclosed node (isUnclosed), whose own last child is such a rest or a node of this
-    ///    kind again (a group, a marked content or a text object, which the content does not
-    ///    close before the image).
+    ///  - a node, at which the content ends with something left open (PDFContentNode::isOpenEnd:
+    ///    a path without a painting operator, an opaque span with an open bracket, an unclosed
+    ///    text object, which clips): whatever is written after it, would join it;
+    ///  - an unclosed node (isUnclosed), whose own last child is such a rest, such an open end
+    ///    or a node of this kind again (a group, a marked content or a text object, which the
+    ///    content does not close before it) - except an unclosed group around a clipping text
+    ///    object: the Q the model writes behind it ends the clip.
     /// A content can have both a rest of an inline image and a tail node behind it: new content
     /// goes before both (the index is the number of the children less two then).
     ///
@@ -462,19 +498,140 @@ public:
     ///          (nothing is open) and an unknown identifier
     bool isUnclosed(PDFContentNodeId id) const;
 
+    /// The override, with which the written content draws a node, as an override of the node
+    /// itself (for the canvas, which draws a node of a text object, whose wrap moves or recolors
+    /// the whole object): the own override of the node (PDFContentNode::getOverride) composed
+    /// with the overrides of its ancestors - the wrap of an ancestor (R-1: q, M cm, properties,
+    /// the operations of the ancestor, Q) is around the node too.
+    ///  - transform: the matrix T of "T cm" in front of the node, so that T x (the matrix of
+    ///    PDFContentNode::getState of the node) is the matrix, with which the written content
+    ///    draws it. An ancestor A with the matrix M and the matrix S at its beginning changes
+    ///    the matrix R of the node into R x S^-1 x M x S; the own override comes last.
+    ///  - properties: the values of the wraps, which still reach the node. A property, which an
+    ///    operation sets between the beginning of an ancestor and the node (the symbolic state of
+    ///    the node has another source of it than the symbolic state of the ancestor), is not
+    ///    taken from the wrap of that ancestor; a nearer wrap wins over a farther one, the own
+    ///    override over every wrap. A node without a symbolic state takes every value of a wrap.
+    /// The cost is the depth of the node.
+    /// \returns no value for an unknown node and when a matrix needed on the way (of the node, of
+    ///          an ancestor with an override) cannot be inverted; an empty override, when no
+    ///          override reaches the node
+    std::optional<PDFContentStateOverride> getEffectiveOverride(PDFContentNodeId id) const;
+
     /// Nothing of the container differs from the content it was loaded from: no node is modified,
     /// has an override or has moved, no operation is generated or suppressed, no resource added.
     /// Such a container is never written.
     bool isUnchanged() const;
 
 private:
+    friend class PDFContentContainerDifference;
+
     class Index;
+
+    /// A container with a given number of its version (PDFContentContainerDifference)
+    /// \param operationCount The operations of the pool, which belong to the version (see
+    ///        m_operationCount)
+    explicit PDFContentContainer(Data data, quint64 version, size_t operationCount);
+
+    /// A new number of a version
+    static quint64 allocateVersion();
 
     Data m_data;
 
     /// The nodes by their identifiers. It is built by the constructor and never changed (so
     /// every thread reads it without a lock); it points to nodes, which m_data.root owns.
     std::shared_ptr<const Index> m_index;
+
+    quint64 m_version = 0;
+
+    /// The number of the operations of the pool, which belong to this version: all of them. The
+    /// version before a change, which PDFContentContainerDifference makes again, has the first
+    /// operations of the pool only (PDFContentOperationList::getPrefix), so the operations the
+    /// change appended are neither kept by it nor copied by the next command.
+    size_t m_operationCount = 0;
+};
+
+/// The difference of two versions of a container: what a command changed, in a size proportional
+/// to the change - the nodes the command named or created and their operations - and not to the
+/// container (zadani_jadro.md 4.5: a command holds the difference, not a snapshot of a page).
+/// A command keeps it for undo and redo instead of the two versions: a version of a container
+/// has an index of all its nodes and a root with all its children, which no other version
+/// shares.
+///
+/// What is kept: for every node, which is in both versions at the same place and whose children
+/// differ, the places of the children taken away and put in (index and node) and a copy of its
+/// data before and after; a leaf, which was replaced, as one child taken away and one put in;
+/// the operations appended to the pool and the flags changed; the entries added to the
+/// resources. The nodes kept are shared with the versions (a subtree, which was removed, is kept
+/// as it was).
+///
+/// A version owns exactly its operations: getBefore cuts the operations the change appended
+/// away (PDFContentOperationList::getPrefix) and restores the flags, getAfter appends them
+/// again at their indices - a version made again has the same operations, the same cost of the
+/// next difference and the same limits as the old object. The numbers of the versions
+/// (PDFContentContainer::getVersion) are kept and given to the containers made here.
+///
+/// A difference, which cannot be kept so (other data of the container differ, a tree with an
+/// identifier used twice or deeper than the editor allows, resources, which are not the old
+/// ones with entries added behind), keeps both versions instead: it is right, but not small
+/// (isCompact is false).
+///
+/// Threads and ownership: an immutable value with shared storage (a copy costs one pointer); it
+/// co-owns the nodes, operations and resource objects it keeps and points to nothing else. Used
+/// by the thread of the session.
+class PDF4QTLIBCORESHARED_EXPORT PDFContentContainerDifference
+{
+public:
+    /// No difference: isValid is false
+    PDFContentContainerDifference();
+    ~PDFContentContainerDifference();
+
+    PDFContentContainerDifference(const PDFContentContainerDifference&);
+    PDFContentContainerDifference(PDFContentContainerDifference&&) noexcept;
+    PDFContentContainerDifference& operator=(const PDFContentContainerDifference&);
+    PDFContentContainerDifference& operator=(PDFContentContainerDifference&&) noexcept;
+
+    /// The difference of two versions of one container. \p after is made from \p before by
+    /// editors (one command, or several ones), so the versions share what was not changed; the
+    /// cost is the number of the children of the nodes, whose children differ, never more than
+    /// the two trees.
+    /// \returns a difference, which is not valid, when a container is missing or the keys differ
+    static PDFContentContainerDifference create(const PDFContentContainerPointer& before, const PDFContentContainerPointer& after);
+
+    bool isValid() const;
+
+    /// The difference is kept by the changed places only (see the class comment)
+    bool isCompact() const;
+
+    /// The numbers of the two versions (0 for a difference, which is not valid)
+    quint64 getVersionBefore() const;
+    quint64 getVersionAfter() const;
+
+    /// The version after the change, made from the version before it: \p before is the
+    /// container the difference was created from, or a container with the same content
+    /// (a version made by getBefore). The new container has the number getVersionAfter.
+    /// \returns nullptr, when the container is not that version (its number differs, or the
+    ///          places of the difference are not in it)
+    PDFContentContainerPointer getAfter(const PDFContentContainerPointer& before) const;
+
+    /// The version before the change, made from the version after it; as getAfter
+    PDFContentContainerPointer getBefore(const PDFContentContainerPointer& after) const;
+
+    /// The number of the items the difference keeps: nodes and places of children, copies of
+    /// node data, operations, flags, resource entries (a difference, which is not compact: the
+    /// nodes of both versions). A measure of the memory of an undo step, which does not depend
+    /// on the allocator.
+    size_t getStoredItemCount() const;
+
+    /// Appends every object the kept nodes (of both versions), their data and the added
+    /// resource entries hold: the values of the overrides, the property lists, the XObjects.
+    /// A command finds the new objects of the session it still names so
+    /// (PDFContentEditSession::addNewObject).
+    void addObjects(std::vector<PDFObject>* objects) const;
+
+private:
+    class Impl;
+    std::shared_ptr<const Impl> m_impl;
 };
 
 /// Changes a container into a new one (the old one stays as it is - undo keeps it). Used by the
@@ -518,6 +675,36 @@ public:
     /// below it, which were not asked for since their change - not the whole changed subtree
     /// every time. A node returned earlier stays valid and unchanged, whatever the editor does.
     PDFContentNodePointer getNode(PDFContentNodeId id) const;
+
+    // ---- the tree being changed, read without making a node ----
+    //
+    // getNode of a node with children costs its children again after every change below it.
+    // A command over many children of one parent (Select All and Delete) asks these functions
+    // instead: each costs the logarithm of the number of the children at most, whatever was
+    // changed before. All of them answer for the tree as it is now; after build() they answer
+    // as for an unknown node.
+
+    /// The parent of a node; not valid for the root and for an unknown node
+    PDFContentNodeId getParentId(PDFContentNodeId id) const;
+
+    /// Index of a node among the children of its parent; -1 for the root and for an unknown node
+    PDFInteger getIndexInParent(PDFContentNodeId id) const;
+
+    /// Number of the children of a node; 0 for a leaf and for an unknown node
+    PDFInteger getChildCount(PDFContentNodeId id) const;
+
+    /// The child of a node at an index; not valid for an index out of range and an unknown node
+    PDFContentNodeId getChildId(PDFContentNodeId parentId, PDFInteger index) const;
+
+    /// The data of a node as they are now (its identifier and the identifier of its parent
+    /// included); nullptr for an unknown node. The pointer is valid until the next change of
+    /// the editor (insertNode, setNodeData, removeNode, moveNode, build).
+    const PDFContentNode::Data* getNodeData(PDFContentNodeId id) const;
+
+    /// A child of the node changes the clipping path for what follows it: it has a clipping
+    /// effect (PDFContentNode::hasClipEffect) or its leak says so
+    /// (PDFContentStateLeak::isClipChanged). False for a leaf and for an unknown node.
+    bool isClipChangedByChildren(PDFContentNodeId id) const;
 
     /// Inserts a new node under a parent at an index of its children: -1 (at the end), or
     /// 0 ... the number of the children (the node gets this index). The identifier of \p data

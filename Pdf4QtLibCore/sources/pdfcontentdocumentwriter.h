@@ -71,8 +71,7 @@ struct PDFContentWriteResult
     std::vector<PDFContentContainerKey> changedContainers;
 
     /// Status::DocumentChanged: the structure of the document is not the one the modified
-    /// structure model of the snapshot was read from (the structure is read again and compared
-    /// with everything the model keeps from its reading)
+    /// structure model of the snapshot was read from (its source fingerprint differs)
     bool isStructureOutdated = false;
 
     /// The changed containers of forms and of patterns, which were not written, because a
@@ -83,6 +82,7 @@ struct PDFContentWriteResult
 
     // Facts of the result (zadani_jadro.md 4.6)
     std::vector<PDFInteger> pagesChanged;   ///< Indices of the changed pages, ascending: computed by the document writer over the whole document - every page, whose content reaches a written container (PDFResourceWalk), also a page the session never loaded
+    bool isPagesChangedIncomplete = false;  ///< A form or a pattern was written and the walk over the resources was stopped by its limits: pagesChanged may miss pages, which use it
     PDFInteger objectsAdded = 0;
     PDFInteger objectsEdited = 0;
     PDFInteger objectsRemoved = 0;
@@ -95,8 +95,8 @@ struct PDFContentWriteResult
 /// Writes a snapshot of a session into a document builder.
 ///
 /// Order (zadani_jadro.md 4.4): (0) the fingerprint of every container of the snapshot is
-/// computed over the given document and compared, and a modified structure model is compared
-/// with the structure of the document read again, (1) the new objects of the snapshot
+/// computed over the given document and compared, and so is the source fingerprint of a modified
+/// structure model (PDFContentStructureModel::getSourceFingerprint), (1) the new objects of the snapshot
 /// (PDFContentEditSnapshot::newObjects: pattern copies, later images, fonts, forms), which the
 /// written containers reach, are added to the builder and their provisional references are
 /// replaced by the real ones everywhere the writer writes (overrides, resources -
@@ -112,26 +112,31 @@ struct PDFContentWriteResult
 ///   /Resources dictionary (PDFContentResources::write - R-4); a form and a pattern get their
 ///   stream and their own /Resources rewritten.
 /// - A form or a pattern without /Resources of its own (no entry, a null value or a reference to
-///   an object, which does not exist: ISO 32000-2, 7.3.7 and 7.3.10) uses the resources of the
-///   page it is drawn on (7.8.3) and stays so: it is written without the entry. Only when a name
-///   was added, it gets a dictionary: a copy of the resources of the page it was built with
-///   (PDFContentContainer::getInheritedResourcesPageIndex) with the added names. The copy is
-///   right only when every page, which reaches the container, gives the names its operations use
-///   the same objects as that page does (when its content draws a form, a pattern or a Type 3
-///   font, which has no resources of its own either: every name of the page); otherwise the
-///   container is refused with an error, which names the pages - no page changes its look
-///   silently.
+///   an object, which does not exist: ISO 32000-2, 7.3.7 and 7.3.10) takes a name from the
+///   content, which draws it, and a name that content lacks from the page (NOTES.txt 7.8.3), and
+///   stays so: it is written without the entry. Only when a name was added, it gets a dictionary:
+///   a copy of the resources it was built with (PDFContentContainer::getInheritedResources, else
+///   those of its page, getInheritedResourcesPageIndex) with the added names. A changed one is
+///   written only when every place, which draws it (a page, a form, an appearance, also through
+///   a chain of content without resources), gives every name its written content uses or keeps
+///   by value the same object as the resources it was built with - also when no name was added
+///   (when its content draws a form, a pattern or a Type 3 font without resources of its own and
+///   a name was added: every name of those resources, and no place defines an added name);
+///   otherwise the container is refused with an error, which names the pages - no page changes
+///   its look silently.
 /// - A read-only container is never written.
 /// - A skipped page stays as it is: its own container is not written, and neither is a changed
 ///   form or pattern, which the page uses - also when a written page uses it too
 ///   (PDFContentWriteResult::skippedContainers says so).
-/// - The structure (a modified model): it is written whole or not at all. It is refused with an
-///   error, when a changed container is left out because of a skipped page (the tags of the
-///   content, which stays as it is, would be written changed: the error is listed under the
-///   skipped page), and when the structure objects of the builder (the entry of the catalog, the
-///   root, the elements, the nodes of the parent tree) are not those of \p document any more (a
-///   second snapshot with a change of the structure written into one builder). A model, which
-///   was not read from \p document, is Status::DocumentChanged.
+/// - The structure (a modified model): its changes of the tagged content of a container left
+///   out (by its key /StructParents) are not written (PDFContentStructureModel::
+///   withoutChangesOfKeys), the others are. It is refused with an error under the skipped page,
+///   when the two cannot be separated (an element with changed children of the left-out
+///   content and of another one; a key of a left-out container, which a written container has
+///   too, with a change), and when the structure objects of the builder (the entry of the
+///   catalog, the root, the elements, the nodes of the parent tree) are not those of
+///   \p document any more (a second snapshot with a change of the structure written into one
+///   builder). A model, which was not read from \p document, is Status::DocumentChanged.
 /// - An error of any kind writes nothing (the document of the builder is unchanged then).
 ///
 /// Threads and ownership: static and reentrant; runs in the thread of the run of the tool. It

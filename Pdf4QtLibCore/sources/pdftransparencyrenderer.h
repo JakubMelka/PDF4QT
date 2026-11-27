@@ -650,6 +650,13 @@ struct PDFTransparencyRendererSettings
         /// only the device image hides them (Output Preview: the area of an ink does
         /// not depend on whether it is shown)
         OriginalProcessImageWithoutMask = 0x0800,
+
+        /// The overprint is not simulated: the overprint parameters of the graphics state
+        /// (/OP, /op, /OPM) are ignored and every painted object is composited as with
+        /// overprint off (ISO 32000-2, 8.6.7: every colorant of the process color space is
+        /// painted, those the color does not specify with the tint 0). The Preview of Edit
+        /// Content without Simulate overprint. Off by default (the overprint is simulated).
+        DisableOverprintSimulation  = 0x1000,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)

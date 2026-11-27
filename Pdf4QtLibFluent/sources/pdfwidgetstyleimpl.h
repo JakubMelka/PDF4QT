@@ -277,6 +277,17 @@ public:
     /// Returns true, if windows of popups can be translucent on the platform
     static bool isTranslucencyAvailable();
 
+    /// Returns true, if the widget is the viewport of a QGraphicsView
+    static bool isGraphicsViewViewport(const QWidget* widget);
+
+    /// The viewport of a QGraphicsView gets the palette of the leak color with
+    /// bg/track as Base and Window (\p isApplied) or loses it: QGraphicsView fills
+    /// its cached background (CacheBackground) by the brush of the background role
+    /// of the viewport (the style draws the viewport itself, PE_Widget). Called by
+    /// the polish, the unpolish and the change of the theme; the cached content of
+    /// the view is reset.
+    static void applyGraphicsViewPalette(QWidget* viewport, bool isApplied);
+
     /// Returns the kind of the popup window, PopupKind::None for other widgets
     static PopupKind getPopupKind(const QWidget* widget);
 

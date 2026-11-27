@@ -826,7 +826,8 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
     QRectF rect(style()->subControlRect(QStyle::CC_ComboBox, option, QStyle::SC_ComboBoxEditField, widget));
 
     const QComboBox* comboBox = qobject_cast<const QComboBox*>(widget);
-    const bool isPlaceholder = comboBox && comboBox->currentIndex() < 0 && !comboBox->placeholderText().isEmpty();
+    const bool isPlaceholder = comboBox && comboBox->currentIndex() < 0 && !comboBox->placeholderText().isEmpty() &&
+                               !PDFWidgetStyleProperties::isSet(comboBox, PDFWidgetStyleProperties::MIXED);
 
     const int alignment = Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(state.rightToLeft);
 

@@ -63,6 +63,7 @@
 #include <QTextLayout>
 #include <QTextOption>
 #include <QToolButton>
+#include <QValidator>
 #include <QtMath>
 
 #include <cmath>
@@ -104,11 +105,263 @@ public:
         return direction == Qt::RightToLeft ? QMargins(end, 0, start, 0) : QMargins(start, 0, end, 0);
     }
 
+    /// The placeholder of the editor is a value ("Mixed" of the mixed state): it has
+    /// the color of the text, not text/muted (edit-content-v2-multi-selected 1647:49458)
+    static constexpr const char* PLACEHOLDER_AS_TEXT = "_pdf4qt_placeholderAsText";
+
+    /// Returns the text of the mixed state ("Mixed", translated)
+    static QString getMixedText()
+    {
+        return QCoreApplication::translate("pdf::PDFSpinBox", "Mixed");
+    }
+
+    /// Shows the placeholder of the editor as a value (\p isValue) or as a placeholder
+    static void setPlaceholderAsValue(QWidget* editor, bool isValue)
+    {
+        editor->setProperty(PLACEHOLDER_AS_TEXT, isValue ? QVariant(true) : QVariant());
+        if (editor->property(TEXT_COLOR).isValid())
+        {
+            applyTextPalette(editor);
+        }
+    }
+
+    /// Empties the editor of a spin box in the mixed state (signals blocked: no text of the user).
+    /// The validator of the editor (QSpinBoxValidator) adds the prefix and the suffix of Qt to
+    /// every text, also to an empty one: it is detached for the write (setValidator does not
+    /// validate the text again); the next text typed by the user gets the affixes from it, as
+    /// in a spin box cleared by Qt.
+    static void clearEditor(QLineEdit* editor)
+    {
+        if (!editor)
+        {
+            return;
+        }
+
+        const QSignalBlocker blocker(editor);
+        const QPointer<const QValidator> validator = editor->validator();
+        editor->setValidator(nullptr);
+        editor->setText(QString());
+        editor->setValidator(validator.data());
+    }
+
+    /// A text edited by the user (QLineEdit::textEdited) makes the editor modified. The editor of
+    /// a spin box is not modified after the validator of Qt has added the prefix or the suffix to
+    /// the typed text (QWidgetLineControl::internalSetText resets the state) - the entry of the
+    /// user (the mixed state left by typing, valueEntered when the field is left) needs it.
+    static void markEditorModified(QLineEdit* editor)
+    {
+        if (editor && !editor->isModified())
+        {
+            editor->setModified(true);
+        }
+    }
+
+    /// Tells accessibility the new value of a spin box ("Mixed" or the value shown again)
+    static void notifyValueChanged(QAbstractSpinBox* spinBox, const QVariant& value)
+    {
+#if QT_CONFIG(accessibility)
+        QAccessibleValueChangeEvent event(spinBox, value);
+        QAccessible::updateAccessibility(&event);
+#else
+        Q_UNUSED(spinBox);
+        Q_UNUSED(value);
+#endif
+    }
+
+    /// Enters the mixed state of a spin box: the editor is cleared (QAbstractSpinBox::clear:
+    /// no value signal, the held value stays, the text is not interpreted) and shows "Mixed"
+    /// as its placeholder. QAbstractSpinBox::clear leaves the prefix and the suffix of Qt in the
+    /// editor, which would hide the placeholder: the editor is emptied (clearEditor). The signals
+    /// of the editor are blocked - the text written here is no text of the user.
+    static void enterMixed(QAbstractSpinBox* spinBox, QLineEdit* editor, PDFMixedSpinBoxState& state)
+    {
+        state = PDFMixedSpinBoxState();
+        state.isMixed = true;
+
+        if (editor)
+        {
+            state.placeholderBeforeMixed = editor->placeholderText();
+            editor->setPlaceholderText(getMixedText());
+            setPlaceholderAsValue(editor, true);
+        }
+
+        {
+            const QSignalBlocker blocker(editor);
+            spinBox->clear();
+        }
+        clearEditor(editor);
+        spinBox->update();
+        notifyValueChanged(spinBox, getMixedText());
+    }
+
+    /// The editor of a mixed spin box is empty (no text, no affix of Qt)
+    static bool isMixedEditorEmpty(const QLineEdit* editor, const PDFMixedSpinBoxState& state)
+    {
+        return state.isMixed && editor && editor->text().isEmpty();
+    }
+
+    /// QAbstractSpinBox selects the text between its prefix and suffix (focus by Tab, Enter): an
+    /// empty editor of the mixed state has no suffix, the selection would start before the text
+    /// (a warning of QLineEdit::setSelection). Returns true, if the selection would do so.
+    static bool isSelectionOutsideOfEditor(const QLineEdit* editor, const PDFMixedSpinBoxState& state, const QString& suffix)
+    {
+        return isMixedEditorEmpty(editor, state) && !suffix.isEmpty();
+    }
+
+    /// The prefix and the suffix of Qt are shown in the empty editor of the mixed state, while
+    /// QAbstractSpinBox handles Enter (it selects the text between them); signals blocked
+    /// \returns true, if they are shown (hideQtAffixes is to be called then)
+    static bool showQtAffixes(QLineEdit* editor, const PDFMixedSpinBoxState& state, const QString& suffix, const QString& affixes)
+    {
+        if (!isSelectionOutsideOfEditor(editor, state, suffix))
+        {
+            return false;
+        }
+
+        const QSignalBlocker blocker(editor);
+        editor->setText(affixes);
+        return true;
+    }
+
+    /// The editor of the mixed state is empty again after showQtAffixes (unless the state was
+    /// left meanwhile - a slot of a signal of Qt has set a value)
+    static void hideQtAffixes(QLineEdit* editor, const PDFMixedSpinBoxState& state, const QString& affixes)
+    {
+        if (editor && state.isMixed && editor->text() == affixes)
+        {
+            clearEditor(editor);
+        }
+    }
+
+    /// An entry of the user is committed (Enter, leaving the field after typing, a step):
+    /// valueEntered follows at the end of the outermost event of the spin box. A call outside
+    /// of an event of the spin box (the program: setValue, stepBy) is no entry of the user.
+    static void requestEntry(PDFSpinBoxEntryState& entry)
+    {
+        if (entry.eventDepth > 0)
+        {
+            entry.isCommitPending = true;
+        }
+    }
+
+    /// Takes the pending entry of the spin box at the end of its outermost event
+    /// \returns true, if valueEntered is to be emitted now (the text is committed then)
+    static bool takePendingEntry(QAbstractSpinBox* spinBox, QLineEdit* editor, PDFSpinBoxEntryState& entry, bool isMixed)
+    {
+        if (entry.eventDepth > 0 || !entry.isCommitPending)
+        {
+            return false;
+        }
+        entry.isCommitPending = false;
+
+        // A retired spin box sends nothing (PDFDeferredDeletion::retire moves the focus out of
+        // it); a field, which is mixed (Enter without a text), has no entry
+        if (isMixed || PDFDeferredDeletion::isRetired(spinBox))
+        {
+            return false;
+        }
+
+        // The text is committed: leaving the field without typing again commits nothing
+        if (editor)
+        {
+            editor->setModified(false);
+        }
+        return true;
+    }
+
+    /// The editor of a spin box no longer shows "Mixed"
+    static void restorePlaceholder(QLineEdit* editor, PDFMixedSpinBoxState& state)
+    {
+        if (editor)
+        {
+            editor->setPlaceholderText(state.placeholderBeforeMixed);
+            setPlaceholderAsValue(editor, false);
+        }
+        state.placeholderBeforeMixed.clear();
+    }
+
+    /// A text of the editor leaves the mixed state; a text of the user (the editor
+    /// is modified - a text set by the spin box itself is not) begins an entry. The
+    /// prefix and the suffix of Qt alone (\p affixes: QAbstractSpinBox::clear called
+    /// by the application) are no value: the editor is emptied, the state stays.
+    static void onMixedEditorTextChanged(QLineEdit* editor, PDFMixedSpinBoxState& state, const QString& text, const QString& affixes)
+    {
+        if (!state.isMixed || text.isEmpty())
+        {
+            return;
+        }
+
+        if (editor && text == affixes)
+        {
+            clearEditor(editor);
+            return;
+        }
+
+        state.isMixed = false;
+        state.isLeftByText = editor && editor->isModified();
+        restorePlaceholder(editor, state);
+    }
+
+    /// A text of the editor ends the state also, when QAbstractSpinBox has written it with
+    /// the signals of the editor blocked (setValue by the program, QAbstractSpinBoxPrivate::updateEdit);
+    /// a text of the user (the editor is modified) begins an entry
+    static void syncMixed(QLineEdit* editor, PDFMixedSpinBoxState& state, const QString& affixes)
+    {
+        if (editor)
+        {
+            onMixedEditorTextChanged(editor, state, editor->text(), affixes);
+        }
+    }
+
+    /// Returns true, if the text of the editor is a value (as is, or after its fixup)
+    static bool isSpinBoxTextAcceptable(const QAbstractSpinBox* spinBox, const QLineEdit* editor)
+    {
+        QString text = editor ? editor->displayText() : QString();
+        int position = 0;
+        if (spinBox->validate(text, position) == QValidator::Acceptable)
+        {
+            return true;
+        }
+        spinBox->fixup(text);
+        return spinBox->validate(text, position) == QValidator::Acceptable;
+    }
+
+    /// Before the spin box finishes an entry (Enter, the loss of the focus): an entry of the
+    /// mixed state with an empty or unacceptable text returns to the state
+    /// \returns true, if the spin box is to enter the mixed state again
+    static bool isMixedEntryAbandoned(const QAbstractSpinBox* spinBox, const QLineEdit* editor, const PDFMixedSpinBoxState& state)
+    {
+        return !state.isMixed && state.isLeftByText && !isSpinBoxTextAcceptable(spinBox, editor);
+    }
+
+    /// Before the spin box finishes an entry (Enter, the loss of the focus): an abandoned entry
+    /// returns to the state, a finished one ends the tracking of the entry
+    static void finishMixedEntry(QAbstractSpinBox* spinBox, QLineEdit* editor, PDFMixedSpinBoxState& state, const QString& affixes)
+    {
+        syncMixed(editor, state, affixes);
+        if (isMixedEntryAbandoned(spinBox, editor, state))
+        {
+            enterMixed(spinBox, editor, state);
+        }
+        state.isLeftByText = false;
+    }
+
     static void applyTextPalette(QWidget* widget)
     {
         const PDFThemeColors::Color text = static_cast<PDFThemeColors::Color>(widget->property(TEXT_COLOR).toInt());
         const PDFThemeColors::Color disabledText = static_cast<PDFThemeColors::Color>(widget->property(DISABLED_TEXT_COLOR).toInt());
-        widget->setPalette(PDFThemeWidgetHelper::createTextPalette(text, disabledText));
+        QPalette palette = PDFThemeWidgetHelper::createTextPalette(text, disabledText);
+        if (widget->property(PLACEHOLDER_AS_TEXT).toBool())
+        {
+            // The placeholder is a value: the tokens of the text (as createTextPalette has
+            // them), no color read back from a palette
+            const PDFThemeColors& theme = PDFThemeManager::getInstance()->getTheme();
+            for (QPalette::ColorGroup group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled })
+            {
+                palette.setColor(group, QPalette::PlaceholderText, theme.getColor(group == QPalette::Disabled ? disabledText : text));
+            }
+        }
+        widget->setPalette(palette);
     }
 
     /// Sets the width of the prefix or of the suffix, which is drawn beside the value of a spin box
@@ -194,7 +447,9 @@ public:
     /// \param lineEdit Line edit of the spin box (QAbstractSpinBox::lineEdit is protected)
     /// \param stepEnabled Enabled steps of the spin box (QAbstractSpinBox::stepEnabled is protected)
     /// \param event Event of the context menu
-    static void showSpinBoxContextMenu(QAbstractSpinBox* spinBox, QLineEdit* lineEdit, QAbstractSpinBox::StepEnabled stepEnabled, QContextMenuEvent* event)
+    /// \param isEditorSelected Select All selects the editor (the empty editor of the mixed state,
+    ///        isSelectionOutsideOfEditor), not the text between the affixes of Qt
+    static void showSpinBoxContextMenu(QAbstractSpinBox* spinBox, QLineEdit* lineEdit, QAbstractSpinBox::StepEnabled stepEnabled, QContextMenuEvent* event, bool isEditorSelected)
     {
         QMenu* menu = lineEdit ? lineEdit->createStandardContextMenu() : nullptr;
         if (!menu)
@@ -228,7 +483,14 @@ public:
         stepDownAction->setEnabled(stepEnabled.testFlag(QAbstractSpinBox::StepDownEnabled));
         menu->addSeparator();
 
-        QObject::connect(selectAllAction, &QAction::triggered, spinBox, &QAbstractSpinBox::selectAll, Qt::QueuedConnection);
+        if (isEditorSelected)
+        {
+            QObject::connect(selectAllAction, &QAction::triggered, lineEdit, &QLineEdit::selectAll, Qt::QueuedConnection);
+        }
+        else
+        {
+            QObject::connect(selectAllAction, &QAction::triggered, spinBox, &QAbstractSpinBox::selectAll, Qt::QueuedConnection);
+        }
         QObject::connect(stepUpAction, &QAction::triggered, spinBox, &QAbstractSpinBox::stepUp, Qt::QueuedConnection);
         QObject::connect(stepDownAction, &QAction::triggered, spinBox, &QAbstractSpinBox::stepDown, Qt::QueuedConnection);
 
@@ -1521,10 +1783,446 @@ void PDFPlainTextEdit::init()
     PDFThemeWidgetHelper::bindTextPalette(this, isReadOnly() ? PDFThemeColors::TextSecondary : PDFThemeColors::TextPrimary);
 }
 
+#if QT_CONFIG(accessibility)
+/// Spin box of the library (PDFSpinBox, PDFDoubleSpinBox) for accessibility: the interface of
+/// QAccessibleSpinBox / QAccessibleDoubleSpinBox of Qt 6.11 (rangecontrols.cpp: the role, the
+/// value, the text of the editor forwarded as QAccessibleLineEdit has it), except the mixed state:
+/// the value is "Mixed" and there is no value interface - the held value of one of the selected
+/// objects is not presented as their common value (UIA RangeValue, NVDA)
+class PDFSpinBoxAccessible : public QAccessibleWidgetV2, public QAccessibleValueInterface, public QAccessibleTextInterface, public QAccessibleEditableTextInterface
+{
+public:
+    explicit PDFSpinBoxAccessible(QAbstractSpinBox* spinBox) :
+        QAccessibleWidgetV2(spinBox, QAccessible::SpinBox)
+    {
+        addControllingSignal(qobject_cast<QDoubleSpinBox*>(spinBox) ? QStringLiteral("valueChanged(double)") : QStringLiteral("valueChanged(int)"));
+    }
+
+    QAbstractSpinBox* spinBox() const { return qobject_cast<QAbstractSpinBox*>(object()); }
+
+    /// The editor of the spin box (QAbstractSpinBox::lineEdit is protected)
+    QLineEdit* editor() const
+    {
+        const QAbstractSpinBox* box = spinBox();
+        return box ? box->findChild<QLineEdit*>(QStringLiteral("qt_spinbox_lineedit"), Qt::FindDirectChildrenOnly) : nullptr;
+    }
+
+    bool isMixed() const
+    {
+        if (const PDFSpinBox* box = qobject_cast<const PDFSpinBox*>(object()))
+        {
+            return box->isMixed();
+        }
+        if (const PDFDoubleSpinBox* box = qobject_cast<const PDFDoubleSpinBox*>(object()))
+        {
+            return box->isMixed();
+        }
+        return false;
+    }
+
+    virtual QAccessible::State state() const override
+    {
+        QAccessible::State state = QAccessibleWidgetV2::state();
+        const QAbstractSpinBox* box = spinBox();
+        if (box && box->isReadOnly())
+        {
+            state.readOnly = true;
+        }
+        else
+        {
+            state.editable = true;
+        }
+        return state;
+    }
+
+    virtual QString text(QAccessible::Text textType) const override
+    {
+        if (textType != QAccessible::Value)
+        {
+            return QAccessibleWidgetV2::text(textType);
+        }
+
+        if (isMixed())
+        {
+            return PDFFluentWidgetsHelper::getMixedText();
+        }
+        if (const PDFDoubleSpinBox* box = qobject_cast<const PDFDoubleSpinBox*>(object()))
+        {
+            return box->textFromValue(box->value());
+        }
+        const QAbstractSpinBox* box = spinBox();
+        return box ? box->text() : QString();
+    }
+
+    virtual void* interface_cast(QAccessible::InterfaceType type) override
+    {
+        switch (type)
+        {
+            case QAccessible::ValueInterface:
+                return isMixed() ? nullptr : static_cast<QAccessibleValueInterface*>(this);
+            case QAccessible::TextInterface:
+                return static_cast<QAccessibleTextInterface*>(this);
+            case QAccessible::EditableTextInterface:
+                return static_cast<QAccessibleEditableTextInterface*>(this);
+            default:
+                return QAccessibleWidgetV2::interface_cast(type);
+        }
+    }
+
+    // QAccessibleValueInterface (QAccessibleAbstractSpinBox: the properties of the spin box)
+    virtual QVariant currentValue() const override { return object()->property("value"); }
+    virtual void setCurrentValue(const QVariant& value) override { object()->setProperty("value", value); }
+    virtual QVariant maximumValue() const override { return object()->property("maximum"); }
+    virtual QVariant minimumValue() const override { return object()->property("minimum"); }
+    virtual QVariant minimumStepSize() const override { return object()->property("singleStep"); }
+
+    // QAccessibleTextInterface (QAccessibleLineEdit over the editor)
+    virtual void selection(int selectionIndex, int* startOffset, int* endOffset) const override
+    {
+        *startOffset = *endOffset = 0;
+        const QLineEdit* lineEdit = editor();
+        if (selectionIndex == 0 && lineEdit)
+        {
+            *startOffset = lineEdit->selectionStart();
+            *endOffset = *startOffset + int(lineEdit->selectedText().size());
+        }
+    }
+
+    virtual int selectionCount() const override
+    {
+        const QLineEdit* lineEdit = editor();
+        return lineEdit && lineEdit->hasSelectedText() ? 1 : 0;
+    }
+
+    virtual void addSelection(int startOffset, int endOffset) override { setSelection(0, startOffset, endOffset); }
+
+    virtual void removeSelection(int selectionIndex) override
+    {
+        QLineEdit* lineEdit = editor();
+        if (selectionIndex == 0 && lineEdit)
+        {
+            lineEdit->deselect();
+        }
+    }
+
+    virtual void setSelection(int selectionIndex, int startOffset, int endOffset) override
+    {
+        QLineEdit* lineEdit = editor();
+        if (selectionIndex == 0 && lineEdit)
+        {
+            lineEdit->setSelection(startOffset, endOffset - startOffset);
+        }
+    }
+
+    virtual int cursorPosition() const override
+    {
+        const QLineEdit* lineEdit = editor();
+        return lineEdit ? lineEdit->cursorPosition() : 0;
+    }
+
+    virtual void setCursorPosition(int position) override
+    {
+        if (QLineEdit* lineEdit = editor())
+        {
+            lineEdit->setCursorPosition(position);
+        }
+    }
+
+    virtual QString text(int startOffset, int endOffset) const override
+    {
+        const QLineEdit* lineEdit = editor();
+        if (!lineEdit || startOffset > endOffset)
+        {
+            return QString();
+        }
+        return lineEdit->displayText().mid(startOffset, endOffset - startOffset);
+    }
+
+    virtual QString textBeforeOffset(int offset, QAccessible::TextBoundaryType boundaryType, int* startOffset, int* endOffset) const override
+    {
+        return QAccessibleTextInterface::textBeforeOffset(offset == -2 ? cursorPosition() : offset, boundaryType, startOffset, endOffset);
+    }
+
+    virtual QString textAfterOffset(int offset, QAccessible::TextBoundaryType boundaryType, int* startOffset, int* endOffset) const override
+    {
+        return QAccessibleTextInterface::textAfterOffset(offset == -2 ? cursorPosition() : offset, boundaryType, startOffset, endOffset);
+    }
+
+    virtual QString textAtOffset(int offset, QAccessible::TextBoundaryType boundaryType, int* startOffset, int* endOffset) const override
+    {
+        return QAccessibleTextInterface::textAtOffset(offset == -2 ? cursorPosition() : offset, boundaryType, startOffset, endOffset);
+    }
+
+    virtual int characterCount() const override
+    {
+        const QLineEdit* lineEdit = editor();
+        return lineEdit ? int(lineEdit->displayText().size()) : 0;
+    }
+
+    virtual QRect characterRect(int offset) const override
+    {
+        // As QAccessibleLineEdit: the advance of the text before the character (the position of
+        // the cursor of a line of plain text), the top margin of the text, in global coordinates
+        const QLineEdit* lineEdit = editor();
+        const QString character = text(offset, offset + 1);
+        if (!lineEdit || character.isEmpty())
+        {
+            return QRect();
+        }
+
+        const QFontMetrics metrics(lineEdit->font());
+        const int x = metrics.horizontalAdvance(lineEdit->displayText().left(offset));
+        QRect rect(x, lineEdit->textMargins().top(), metrics.horizontalAdvance(character), metrics.height());
+        rect.moveTo(lineEdit->mapToGlobal(rect.topLeft()));
+        return rect;
+    }
+
+    virtual int offsetAtPoint(const QPoint& point) const override
+    {
+        QLineEdit* lineEdit = editor();
+        return lineEdit ? lineEdit->cursorPositionAt(lineEdit->mapFromGlobal(point)) : -1;
+    }
+
+    virtual void scrollToSubstring(int startIndex, int endIndex) override
+    {
+        setCursorPosition(endIndex);
+        setCursorPosition(startIndex);
+    }
+
+    virtual QString attributes(int offset, int* startOffset, int* endOffset) const override
+    {
+        // A line edit has no text attributes
+        *startOffset = *endOffset = offset;
+        return QString();
+    }
+
+    // QAccessibleEditableTextInterface (QAccessibleLineEdit)
+    virtual void deleteText(int startOffset, int endOffset) override
+    {
+        if (QLineEdit* lineEdit = editor())
+        {
+            lineEdit->setText(lineEdit->text().remove(startOffset, endOffset - startOffset));
+        }
+    }
+
+    virtual void insertText(int offset, const QString& text) override
+    {
+        if (QLineEdit* lineEdit = editor())
+        {
+            lineEdit->setText(lineEdit->text().insert(offset, text));
+        }
+    }
+
+    virtual void replaceText(int startOffset, int endOffset, const QString& text) override
+    {
+        if (QLineEdit* lineEdit = editor())
+        {
+            lineEdit->setText(lineEdit->text().replace(startOffset, endOffset - startOffset, text));
+        }
+    }
+
+    static QAccessibleInterface* create(const QString& className, QObject* object)
+    {
+        Q_UNUSED(className);
+
+        // A spin box in its destructor is a QWidget already (no cast succeeds)
+        if (qobject_cast<PDFSpinBox*>(object) || qobject_cast<PDFDoubleSpinBox*>(object))
+        {
+            return new PDFSpinBoxAccessible(static_cast<QAbstractSpinBox*>(object));
+        }
+        return nullptr;
+    }
+
+    /// Installs the factory once for the whole application
+    static void ensureFactory()
+    {
+        static const bool isFactoryInstalled = installFactory();
+        Q_UNUSED(isFactoryInstalled);
+    }
+
+private:
+    static bool installFactory()
+    {
+        QAccessible::installFactory(&PDFSpinBoxAccessible::create);
+        return true;
+    }
+};
+#endif
+
 PDFSpinBox::PDFSpinBox(QWidget* parent) :
     QSpinBox(parent)
 {
+#if QT_CONFIG(accessibility)
+    PDFSpinBoxAccessible::ensureFactory();
+#endif
+
     PDFThemeWidgetHelper::bindTextPalette(lineEdit());
+
+    // The mixed state is left by a text typed into the editor; a text of the user is an entry
+    connect(lineEdit(), &QLineEdit::textEdited, this, &PDFSpinBox::onEditorTextEdited);
+    connect(lineEdit(), &QLineEdit::textChanged, this, &PDFSpinBox::onEditorTextChanged);
+}
+
+bool PDFSpinBox::isMixed() const
+{
+    PDFFluentWidgetsHelper::syncMixed(lineEdit(), m_mixed, prefix() + suffix());
+    return m_mixed.isMixed;
+}
+
+void PDFSpinBox::setMixed(bool mixed)
+{
+    if (isMixed() == mixed)
+    {
+        return;
+    }
+
+    if (mixed)
+    {
+        PDFFluentWidgetsHelper::enterMixed(this, lineEdit(), m_mixed);
+    }
+    else
+    {
+        m_mixed.isMixed = false;
+        m_mixed.isLeftByText = false;
+        PDFFluentWidgetsHelper::restorePlaceholder(lineEdit(), m_mixed);
+
+        // The editor shows the held value again: setValue of the same value emits nothing
+        setValue(value());
+        PDFFluentWidgetsHelper::notifyValueChanged(this, value());
+    }
+}
+
+void PDFSpinBox::commitEntry()
+{
+    PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, prefix() + suffix());
+    if (!lineEdit() || !lineEdit()->isModified() || isMixed())
+    {
+        return;
+    }
+
+    // Qt interprets the text (valueChanged of a changed value), then the entry
+    const QPointer<PDFSpinBox> guard(this);
+    interpretText();
+    if (guard)
+    {
+        m_entry.isCommitPending = true;
+        emitPendingEntry();
+    }
+}
+
+void PDFSpinBox::stepBy(int steps)
+{
+    // A step in the mixed state steps from the held value (QAbstractSpinBox would not
+    // step from the empty text, it would only show the held value)
+    if (isMixed())
+    {
+        setMixed(false);
+    }
+
+    // A step of an event (the keys, the wheel, the buttons, the menu) is an entry
+    PDFFluentWidgetsHelper::requestEntry(m_entry);
+    QSpinBox::stepBy(steps);
+}
+
+bool PDFSpinBox::event(QEvent* event)
+{
+    // An entry is signalled, when Qt has handled the outermost event of the spin box,
+    // which has made it: Qt uses the spin box after a step and after its own signals,
+    // a slot of valueEntered may delete it
+    const QPointer<PDFSpinBox> guard(this);
+    ++m_entry.eventDepth;
+    const bool result = QSpinBox::event(event);
+    if (guard)
+    {
+        --m_entry.eventDepth;
+        emitPendingEntry();
+    }
+    return result;
+}
+
+void PDFSpinBox::emitPendingEntry()
+{
+    if (PDFFluentWidgetsHelper::takePendingEntry(this, lineEdit(), m_entry, isMixed()))
+    {
+        Q_EMIT valueEntered(value());
+    }
+}
+
+void PDFSpinBox::keyPressEvent(QKeyEvent* event)
+{
+    const QString affixes = prefix() + suffix();
+    const bool isEnter = event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return;
+    if (isEnter)
+    {
+        PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, affixes);
+        PDFFluentWidgetsHelper::requestEntry(m_entry);
+    }
+
+    // The empty editor of the mixed state: nothing to select
+    if (event == QKeySequence::SelectAll && isMixed() && PDFFluentWidgetsHelper::isMixedEditorEmpty(lineEdit(), m_mixed))
+    {
+        event->accept();
+        return;
+    }
+
+    if (isEnter && PDFFluentWidgetsHelper::showQtAffixes(lineEdit(), m_mixed, suffix(), affixes))
+    {
+        const QPointer<PDFSpinBox> guard(this);
+        QSpinBox::keyPressEvent(event);
+        if (guard)
+        {
+            PDFFluentWidgetsHelper::hideQtAffixes(lineEdit(), m_mixed, affixes);
+        }
+        return;
+    }
+
+    QSpinBox::keyPressEvent(event);
+}
+
+void PDFSpinBox::focusInEvent(QFocusEvent* event)
+{
+    // QAbstractSpinBox selects the text between its affixes for the keyboard, which the
+    // empty editor of the mixed state does not have
+    if (isMixed() && PDFFluentWidgetsHelper::isSelectionOutsideOfEditor(lineEdit(), m_mixed, suffix()) &&
+        (event->reason() == Qt::TabFocusReason || event->reason() == Qt::BacktabFocusReason))
+    {
+        QFocusEvent focusIn(event->type(), Qt::OtherFocusReason);
+        QSpinBox::focusInEvent(&focusIn);
+        return;
+    }
+    QSpinBox::focusInEvent(event);
+}
+
+void PDFSpinBox::focusOutEvent(QFocusEvent* event)
+{
+    // A text typed by the user is committed (an abandoned entry is mixed again, its editor
+    // is not modified)
+    PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, prefix() + suffix());
+    if (lineEdit() && lineEdit()->isModified())
+    {
+        PDFFluentWidgetsHelper::requestEntry(m_entry);
+    }
+    QSpinBox::focusOutEvent(event);
+}
+
+void PDFSpinBox::changeEvent(QEvent* event)
+{
+    QSpinBox::changeEvent(event);
+
+    if (event->type() == QEvent::LanguageChange && isMixed() && lineEdit())
+    {
+        lineEdit()->setPlaceholderText(PDFFluentWidgetsHelper::getMixedText());
+    }
+}
+
+void PDFSpinBox::onEditorTextChanged(const QString& text)
+{
+    PDFFluentWidgetsHelper::onMixedEditorTextChanged(lineEdit(), m_mixed, text, prefix() + suffix());
+}
+
+void PDFSpinBox::onEditorTextEdited()
+{
+    PDFFluentWidgetsHelper::markEditorModified(lineEdit());
 }
 
 void PDFSpinBox::setDisplayPrefix(const QString& prefix)
@@ -1551,13 +2249,180 @@ void PDFSpinBox::contextMenuEvent(QContextMenuEvent* event)
 {
     QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
     QSpinBox::mouseReleaseEvent(&release);
-    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
+    const bool isEditorSelected = isMixed() && PDFFluentWidgetsHelper::isMixedEditorEmpty(lineEdit(), m_mixed);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event, isEditorSelected);
 }
 
 PDFDoubleSpinBox::PDFDoubleSpinBox(QWidget* parent) :
     QDoubleSpinBox(parent)
 {
+#if QT_CONFIG(accessibility)
+    PDFSpinBoxAccessible::ensureFactory();
+#endif
+
     PDFThemeWidgetHelper::bindTextPalette(lineEdit());
+
+    // The mixed state is left by a text typed into the editor; a text of the user is an entry
+    connect(lineEdit(), &QLineEdit::textEdited, this, &PDFDoubleSpinBox::onEditorTextEdited);
+    connect(lineEdit(), &QLineEdit::textChanged, this, &PDFDoubleSpinBox::onEditorTextChanged);
+}
+
+bool PDFDoubleSpinBox::isMixed() const
+{
+    PDFFluentWidgetsHelper::syncMixed(lineEdit(), m_mixed, prefix() + suffix());
+    return m_mixed.isMixed;
+}
+
+void PDFDoubleSpinBox::setMixed(bool mixed)
+{
+    if (isMixed() == mixed)
+    {
+        return;
+    }
+
+    if (mixed)
+    {
+        PDFFluentWidgetsHelper::enterMixed(this, lineEdit(), m_mixed);
+    }
+    else
+    {
+        m_mixed.isMixed = false;
+        m_mixed.isLeftByText = false;
+        PDFFluentWidgetsHelper::restorePlaceholder(lineEdit(), m_mixed);
+
+        // The editor shows the held value again: setValue of the same value emits nothing
+        setValue(value());
+        PDFFluentWidgetsHelper::notifyValueChanged(this, value());
+    }
+}
+
+void PDFDoubleSpinBox::commitEntry()
+{
+    PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, prefix() + suffix());
+    if (!lineEdit() || !lineEdit()->isModified() || isMixed())
+    {
+        return;
+    }
+
+    // Qt interprets the text (valueChanged of a changed value), then the entry
+    const QPointer<PDFDoubleSpinBox> guard(this);
+    interpretText();
+    if (guard)
+    {
+        m_entry.isCommitPending = true;
+        emitPendingEntry();
+    }
+}
+
+void PDFDoubleSpinBox::stepBy(int steps)
+{
+    // A step in the mixed state steps from the held value (QAbstractSpinBox would not
+    // step from the empty text, it would only show the held value)
+    if (isMixed())
+    {
+        setMixed(false);
+    }
+
+    // A step of an event (the keys, the wheel, the buttons, the menu) is an entry
+    PDFFluentWidgetsHelper::requestEntry(m_entry);
+    QDoubleSpinBox::stepBy(steps);
+}
+
+bool PDFDoubleSpinBox::event(QEvent* event)
+{
+    // See PDFSpinBox::event: valueEntered at the end of the outermost event
+    const QPointer<PDFDoubleSpinBox> guard(this);
+    ++m_entry.eventDepth;
+    const bool result = QDoubleSpinBox::event(event);
+    if (guard)
+    {
+        --m_entry.eventDepth;
+        emitPendingEntry();
+    }
+    return result;
+}
+
+void PDFDoubleSpinBox::emitPendingEntry()
+{
+    if (PDFFluentWidgetsHelper::takePendingEntry(this, lineEdit(), m_entry, isMixed()))
+    {
+        Q_EMIT valueEntered(value());
+    }
+}
+
+void PDFDoubleSpinBox::keyPressEvent(QKeyEvent* event)
+{
+    const QString affixes = prefix() + suffix();
+    const bool isEnter = event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return;
+    if (isEnter)
+    {
+        PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, affixes);
+        PDFFluentWidgetsHelper::requestEntry(m_entry);
+    }
+
+    // The empty editor of the mixed state: nothing to select
+    if (event == QKeySequence::SelectAll && isMixed() && PDFFluentWidgetsHelper::isMixedEditorEmpty(lineEdit(), m_mixed))
+    {
+        event->accept();
+        return;
+    }
+
+    if (isEnter && PDFFluentWidgetsHelper::showQtAffixes(lineEdit(), m_mixed, suffix(), affixes))
+    {
+        const QPointer<PDFDoubleSpinBox> guard(this);
+        QDoubleSpinBox::keyPressEvent(event);
+        if (guard)
+        {
+            PDFFluentWidgetsHelper::hideQtAffixes(lineEdit(), m_mixed, affixes);
+        }
+        return;
+    }
+
+    QDoubleSpinBox::keyPressEvent(event);
+}
+
+void PDFDoubleSpinBox::focusInEvent(QFocusEvent* event)
+{
+    // See PDFSpinBox::focusInEvent
+    if (isMixed() && PDFFluentWidgetsHelper::isSelectionOutsideOfEditor(lineEdit(), m_mixed, suffix()) &&
+        (event->reason() == Qt::TabFocusReason || event->reason() == Qt::BacktabFocusReason))
+    {
+        QFocusEvent focusIn(event->type(), Qt::OtherFocusReason);
+        QDoubleSpinBox::focusInEvent(&focusIn);
+        return;
+    }
+    QDoubleSpinBox::focusInEvent(event);
+}
+
+void PDFDoubleSpinBox::focusOutEvent(QFocusEvent* event)
+{
+    // See PDFSpinBox::focusOutEvent
+    PDFFluentWidgetsHelper::finishMixedEntry(this, lineEdit(), m_mixed, prefix() + suffix());
+    if (lineEdit() && lineEdit()->isModified())
+    {
+        PDFFluentWidgetsHelper::requestEntry(m_entry);
+    }
+    QDoubleSpinBox::focusOutEvent(event);
+}
+
+void PDFDoubleSpinBox::changeEvent(QEvent* event)
+{
+    QDoubleSpinBox::changeEvent(event);
+
+    if (event->type() == QEvent::LanguageChange && isMixed() && lineEdit())
+    {
+        lineEdit()->setPlaceholderText(PDFFluentWidgetsHelper::getMixedText());
+    }
+}
+
+void PDFDoubleSpinBox::onEditorTextChanged(const QString& text)
+{
+    PDFFluentWidgetsHelper::onMixedEditorTextChanged(lineEdit(), m_mixed, text, prefix() + suffix());
+}
+
+void PDFDoubleSpinBox::onEditorTextEdited()
+{
+    PDFFluentWidgetsHelper::markEditorModified(lineEdit());
 }
 
 void PDFDoubleSpinBox::setDisplayPrefix(const QString& prefix)
@@ -1584,7 +2449,8 @@ void PDFDoubleSpinBox::contextMenuEvent(QContextMenuEvent* event)
 {
     QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
     QDoubleSpinBox::mouseReleaseEvent(&release);
-    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
+    const bool isEditorSelected = isMixed() && PDFFluentWidgetsHelper::isMixedEditorEmpty(lineEdit(), m_mixed);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event, isEditorSelected);
 }
 
 void PDFDoubleSpinBox::setTrailingZerosHidden(bool isHidden)
@@ -2033,7 +2899,7 @@ bool PDFCalendarWidget::eventFilter(QObject* watched, QEvent* event)
                 stepEnabled.setFlag(QAbstractSpinBox::StepDownEnabled, yearEdit->value() > yearEdit->minimum());
             }
         }
-        PDFFluentWidgetsHelper::showSpinBoxContextMenu(yearEdit, yearEdit->findChild<QLineEdit*>(), stepEnabled, static_cast<QContextMenuEvent*>(event));
+        PDFFluentWidgetsHelper::showSpinBoxContextMenu(yearEdit, yearEdit->findChild<QLineEdit*>(), stepEnabled, static_cast<QContextMenuEvent*>(event), false);
         return true;
     }
 
@@ -2109,7 +2975,7 @@ void PDFDateTimeEdit::contextMenuEvent(QContextMenuEvent* event)
 {
     QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
     QDateTimeEdit::mouseReleaseEvent(&release);
-    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event, false);
 }
 
 void PDFDateTimeEdit::ensureCalendar()
@@ -2135,7 +3001,78 @@ void PDFDateTimeEdit::init()
 PDFComboBox::PDFComboBox(QWidget* parent) :
     QComboBox(parent)
 {
+    // The mixed state is left, when an item becomes current (connected first, so the
+    // slots of the application see the box out of the state)
+    connect(this, &QComboBox::currentIndexChanged, this, &PDFComboBox::onCurrentIndexChanged);
+}
 
+void PDFComboBox::setMixed(bool mixed)
+{
+    if (m_isMixed == mixed)
+    {
+        return;
+    }
+
+    // Entering and leaving the state by the program emits nothing
+    const QSignalBlocker blocker(this);
+    if (mixed)
+    {
+        m_indexBeforeMixed = currentIndex();
+        m_placeholderBeforeMixed = placeholderText();
+        m_isMixed = true;
+        PDFWidgetStyleProperties::set(this, PDFWidgetStyleProperties::MIXED, true);
+        setPlaceholderText(PDFFluentWidgetsHelper::getMixedText());
+        setCurrentIndex(-1);
+        updateMixedDescription();
+    }
+    else
+    {
+        // The item first: QComboBox::setPlaceholderText of an empty placeholder makes
+        // the first item current, when no item is current
+        setCurrentIndex(m_indexBeforeMixed);
+        leaveMixed();
+    }
+    update();
+}
+
+void PDFComboBox::changeEvent(QEvent* event)
+{
+    QComboBox::changeEvent(event);
+
+    if (event->type() == QEvent::LanguageChange && m_isMixed)
+    {
+        setPlaceholderText(PDFFluentWidgetsHelper::getMixedText());
+        updateMixedDescription();
+    }
+}
+
+void PDFComboBox::updateMixedDescription()
+{
+    // As PDFColorSwatchRow: the description of the state, unless the application has its own
+    const QString description = m_isMixed ? PDFFluentWidgetsHelper::getMixedText() : QString();
+    if (accessibleDescription().isEmpty() || accessibleDescription() == m_mixedDescription)
+    {
+        setAccessibleDescription(description);
+    }
+    m_mixedDescription = description;
+}
+
+void PDFComboBox::onCurrentIndexChanged(int index)
+{
+    if (m_isMixed && index >= 0)
+    {
+        leaveMixed();
+    }
+}
+
+void PDFComboBox::leaveMixed()
+{
+    m_isMixed = false;
+    m_indexBeforeMixed = -1;
+    PDFWidgetStyleProperties::set(this, PDFWidgetStyleProperties::MIXED, false);
+    setPlaceholderText(m_placeholderBeforeMixed);
+    m_placeholderBeforeMixed.clear();
+    updateMixedDescription();
 }
 
 void PDFComboBox::setCompact(bool compact)

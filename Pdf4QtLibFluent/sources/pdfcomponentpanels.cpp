@@ -40,6 +40,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QMouseEvent>
@@ -69,6 +70,12 @@ class PDFComponentPanelsHelper
 {
 public:
     PDFComponentPanelsHelper() = delete;
+
+    /// Returns the text of the mixed state ("Mixed", the translation shared with the fields)
+    static QString getMixedText()
+    {
+        return QCoreApplication::translate("pdf::PDFSpinBox", "Mixed");
+    }
 
     static constexpr int FIELD_HEIGHT = 32;
     static constexpr int FIELD_MIN_WIDTH = 64;
@@ -4332,7 +4339,64 @@ bool PDFColorSwatchRow::isNoColorSelected() const
 
 void PDFColorSwatchRow::setColor(const QColor& color)
 {
-    selectColor(color);
+    // The color is copied: the reference may belong to an object deleted by a slot of a swatch
+    const QColor value = color;
+    leaveMixed();
+    selectColor(value);
+}
+
+void PDFColorSwatchRow::setMixed(bool mixed)
+{
+    if (m_isMixed == mixed)
+    {
+        return;
+    }
+
+    if (mixed)
+    {
+        m_selectionBeforeMixed = m_selection;
+        m_colorBeforeMixed = m_color;
+        m_isMixed = true;
+        m_selection = Selection::Nothing;
+        m_color = QColor();
+        updateMixedDescription();
+
+        // No signal of the row (the swatches emit toggled, whose slot may delete the row)
+        updateSelection();
+    }
+    else
+    {
+        const Selection selection = m_selectionBeforeMixed;
+        const QColor color = m_colorBeforeMixed;
+        leaveMixed();
+        m_selection = selection;
+        m_color = color;
+        updateSelection();
+    }
+}
+
+void PDFColorSwatchRow::leaveMixed()
+{
+    if (!m_isMixed)
+    {
+        return;
+    }
+
+    m_isMixed = false;
+    m_selectionBeforeMixed = Selection::Nothing;
+    m_colorBeforeMixed = QColor();
+    updateMixedDescription();
+}
+
+void PDFColorSwatchRow::updateMixedDescription()
+{
+    // The description of the state, unless the application has its own
+    const QString description = m_isMixed ? PDFComponentPanelsHelper::getMixedText() : QString();
+    if (accessibleDescription().isEmpty() || accessibleDescription() == m_mixedDescription)
+    {
+        setAccessibleDescription(description);
+    }
+    m_mixedDescription = description;
 }
 
 bool PDFColorSwatchRow::selectColor(const QColor& color)
@@ -4853,6 +4917,7 @@ void PDFColorSwatchRow::onSwatchClicked()
 
     // The state is changed first, the signal is the last (its slot may delete the row)
     const QColor color = m_entries.at(index).canonicalColor;
+    leaveMixed();
     m_selection = color.isValid() ? Selection::Color : Selection::NoColor;
     m_color = color;
     QPointer<PDFColorSwatchRow> guard(this);
@@ -4882,6 +4947,7 @@ void PDFColorSwatchRow::onPaletteColorSelected(const QColor& color)
 {
     // The color is copied (the reference belongs to the palette, a slot may delete it)
     const QColor selected = color;
+    leaveMixed();
     QPointer<PDFColorSwatchRow> guard(this);
     if (!selectColor(selected) || !guard)
     {
@@ -4956,6 +5022,9 @@ void PDFColorSwatchRow::changeEvent(QEvent* event)
     {
         case QEvent::LanguageChange:
             retranslate();
+
+            // "Mixed" of the state in the new language (a description of the application is kept)
+            updateMixedDescription();
             break;
 
         case QEvent::LayoutDirectionChange:

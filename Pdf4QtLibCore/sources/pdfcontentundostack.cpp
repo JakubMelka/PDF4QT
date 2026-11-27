@@ -47,6 +47,17 @@ public:
     {
         if (position < steps.size())
         {
+            // What only the dropped commands name is remembered for the session (plain values:
+            // the commands themselves are destroyed here, as before)
+            for (size_t i = position; i < steps.size(); ++i)
+            {
+                for (const PDFContentCommandPointer& command : steps[i].commands)
+                {
+                    const std::vector<PDFObjectReference> objects = command->getNewObjects();
+                    droppedNewObjects.insert(droppedNewObjects.end(), objects.cbegin(), objects.cend());
+                }
+            }
+
             steps.erase(std::next(steps.begin(), position), steps.end());
 
             if (cleanPosition && *cleanPosition > position)
@@ -87,6 +98,7 @@ public:
     std::optional<size_t> cleanPosition = 0;    ///< No value: the clean state cannot be reached any more
     int macroDepth = 0;                         ///< Number of the open macros
     Step macro;                                 ///< The commands of the outermost open macro
+    std::vector<PDFObjectReference> droppedNewObjects;  ///< The new objects of the undone commands dropped since takeDroppedNewObjects
 };
 
 PDFContentUndoStack::PDFContentUndoStack() :
@@ -242,6 +254,34 @@ bool PDFContentUndoStack::isClean() const
 void PDFContentUndoStack::clear()
 {
     m_impl = std::make_unique<Impl>();
+}
+
+size_t PDFContentUndoStack::getStoredItemCount() const
+{
+    size_t count = 0;
+
+    // The commands of an open macro are kept too
+    for (const PDFContentCommandPointer& command : m_impl->macro.commands)
+    {
+        count += command->getStoredItemCount();
+    }
+
+    for (const Step& step : m_impl->steps)
+    {
+        for (const PDFContentCommandPointer& command : step.commands)
+        {
+            count += command->getStoredItemCount();
+        }
+    }
+
+    return count;
+}
+
+std::vector<PDFObjectReference> PDFContentUndoStack::takeDroppedNewObjects()
+{
+    std::vector<PDFObjectReference> result = std::move(m_impl->droppedNewObjects);
+    m_impl->droppedNewObjects.clear();
+    return result;
 }
 
 }   // namespace pdf

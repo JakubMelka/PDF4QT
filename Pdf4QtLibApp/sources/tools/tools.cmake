@@ -297,4 +297,43 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfappmeasureoverlay.h
     sources/tools/pdfappmeasuredialogs.cpp
     sources/tools/pdfappmeasuredialogs.h
+    # Edit Content, stage E1 (GUI_overhaul/edit_tool/zadani.md 11.3): the files of the skeleton (the coordinator
+    # changes them), then the files of the packages P11 (canvas), P12 (tabs Objects and Pages), P13 (cards) and
+    # P14 (GUI of the tool, shell, keys)
+    sources/tools/pdfappeditcontentregistry.cpp
+    sources/tools/pdfappeditcontentregistry.h
+    sources/tools/pdfappeditcontentcontext.cpp
+    sources/tools/pdfappeditcontentcontext.h
+    sources/tools/pdfappeditcontentview.cpp
+    sources/tools/pdfappeditcontentview.h
+    sources/tools/pdfappeditcontentscene.cpp
+    sources/tools/pdfappeditcontentscene.h
+    sources/tools/pdfappeditcontentitems.cpp
+    sources/tools/pdfappeditcontentitems.h
+    sources/tools/pdfappeditcontentselection.cpp
+    sources/tools/pdfappeditcontentselection.h
+    sources/tools/pdfappeditcontentpreview.cpp
+    sources/tools/pdfappeditcontentpreview.h
+    sources/tools/pdfappeditcontenttools.cpp
+    sources/tools/pdfappeditcontenttools.h
+    sources/tools/pdfappeditcontentpanels_objects.cpp
+    sources/tools/pdfappeditcontentpanels_objects.h
+    sources/tools/pdfappeditcontentpanels_pages.cpp
+    sources/tools/pdfappeditcontentpanels_pages.h
+    sources/tools/pdfappeditcontentmenus.cpp
+    sources/tools/pdfappeditcontentmenus.h
+    sources/tools/pdfappeditcontentcards.cpp
+    sources/tools/pdfappeditcontentcards.h
+    sources/tools/pdfappeditcontentcards_appearance.cpp
+    sources/tools/pdfappeditcontentcards_appearance.h
+    sources/tools/pdfappeditcontentcards_geometry.cpp
+    sources/tools/pdfappeditcontentcards_geometry.h
+    sources/tools/pdfapptoolgui_content.cpp
+    sources/tools/pdfapptoolgui_content.h
+    sources/tools/pdfappeditcontentnotices.cpp
+    sources/tools/pdfappeditcontentnotices.h
+    sources/tools/pdfappeditcontentundo.cpp
+    sources/tools/pdfappeditcontentundo.h
+    sources/tools/pdfappeditcontentkeyboard.cpp
+    sources/tools/pdfappeditcontentkeyboard.h
 )

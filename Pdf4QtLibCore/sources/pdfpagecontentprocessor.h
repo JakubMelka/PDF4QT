@@ -993,6 +993,25 @@ private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
 
+    /// Initializes the resources dictionaries of a content without /Resources of its own (a
+    /// form, the cell of a tiling pattern, a glyph procedure of a Type 3 font, an annotation
+    /// appearance): a name is looked up in the dictionaries in effect - those of the content,
+    /// which draws it - and a name they do not define in the resource dictionary of the page
+    /// (NOTES.txt 7.8.3: a deliberate deviation from ISO 32000-2, 7.8.3 and Table 110, which name
+    /// the page only; PDFium, pdf.js and MuPDF look in the drawing content first)
+    void initInheritedDictionaries();
+
+    /// The dictionary of one category of initInheritedDictionaries: \p callerDictionary (the one
+    /// in effect), and the entries of \p pageDictionary under the names \p callerDictionary does
+    /// not define (an entry with the null value defines nothing); \p pageDictionary, when the
+    /// caller has none. Merged dictionaries are kept until the processor ends (their address is a
+    /// key of the cache of the color spaces); above MAXIMUM_INHERITED_DICTIONARY_ENTRIES entries
+    /// of all of them the caller dictionary alone is given.
+    const PDFDictionary* getInheritedDictionary(const PDFDictionary* pageDictionary, const PDFDictionary* callerDictionary);
+
+    /// Most entries of all merged dictionaries of getInheritedDictionary of one processor
+    static constexpr size_t MAXIMUM_INHERITED_DICTIONARY_ENTRIES = 1048576;
+
     /// Returns the color space of the given name from the current color space
     /// dictionary. Color spaces are cached, because content streams usually
     /// select the same color space many times, and its creation can be expensive
@@ -1419,6 +1438,24 @@ private:
     const PDFDictionary* m_shadingDictionary;
     const PDFDictionary* m_patternDictionary;
     ProcedureSets m_procedureSets;
+
+    /// The dictionaries of the resources of the page (initDictionaries of the page): the
+    /// fallback of initInheritedDictionaries
+    struct PageResourceDictionaries
+    {
+        const PDFDictionary* colorSpaceDictionary = nullptr;
+        const PDFDictionary* fontDictionary = nullptr;
+        const PDFDictionary* xobjectDictionary = nullptr;
+        const PDFDictionary* extendedGraphicStateDictionary = nullptr;
+        const PDFDictionary* propertiesDictionary = nullptr;
+        const PDFDictionary* shadingDictionary = nullptr;
+        const PDFDictionary* patternDictionary = nullptr;
+    };
+    PageResourceDictionaries m_pageResourceDictionaries;
+
+    /// getInheritedDictionary: (page dictionary, caller dictionary) -> the merged dictionary
+    std::map<std::pair<const PDFDictionary*, const PDFDictionary*>, PDFObject> m_inheritedDictionaries;
+    size_t m_inheritedDictionaryEntryCount = 0;
 
     // Default color spaces
     PDFColorSpacePointer m_deviceGrayColorSpace;

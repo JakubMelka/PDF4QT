@@ -44,6 +44,7 @@
 #include "pdfcontenttreebuilder.h"
 
 #include "pdfcatalog.h"
+#include "pdfconstants.h"
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdffont.h"
@@ -64,6 +65,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -547,6 +549,366 @@ void PDFContentTreeBuilderSource::hashResources(QCryptographicHash& hash, const 
     }
 }
 
+/// The names, which content without /Resources of its own drawn by a content uses (item 5 of
+/// PB0S3, A1L2-4; PDFContentResources::getReservedNames). Such content - a form XObject, a tiling
+/// pattern, a Type 3 font - takes its names from the content, which draws it, and a name that
+/// content does not define from the page (NOTES.txt 7.8.3). A name added to the resources of the
+/// content being built must not become one of them:
+///  - a page: every such content drawn on the page at any depth (through forms, patterns and
+///    fonts with resources of their own too: their inheriting content takes a name they do not
+///    define from the page);
+///  - a form or a pattern cell: such content, which it draws directly or through other such
+///    content (content with resources of its own is the caller of what it draws).
+/// The walk reads the dictionaries; it decodes and scans only the streams of the content without
+/// resources, whose every name token is taken (the operators are not interpreted: more names than
+/// needed, never fewer, as far as the walk goes).
+///
+/// Bounds (hostile input): one visited set of the references of the whole walk, the depth
+/// MAXIMUM_DEPTH, MAXIMUM_ITEMS objects looked at, MAXIMUM_SCANNED_CONTENTS contents (a form, a
+/// cell, each glyph procedure of a Type 3 font, also one, which is no stream), MAXIMUM_SCANNED_BYTES
+/// decoded bytes and MAXIMUM_NAMES names; beyond them the walk stops (the names found so far are
+/// reserved, the rest is not known). The cost is linear in what the walk reads (review R2-5): the
+/// names of a scanned content are looked up in an index of each dictionary, made once per walk
+/// (not a loop over the dictionary per content).
+///
+/// The walk runs at each build of a container (each build reads the document anew); it is not
+/// cached between builds: its inputs (the document, the resources of the page and of the caller)
+/// belong to the session, and a cache keyed by them could go stale silently.
+///
+/// Threads and ownership: static functions; called by the builder in its thread, reads the
+/// document only.
+class PDFContentTreeBuilderReservedNames
+{
+public:
+    PDFContentTreeBuilderReservedNames() = delete;
+
+    static constexpr int MAXIMUM_DEPTH = 32;
+    static constexpr size_t MAXIMUM_ITEMS = 65536;
+    static constexpr size_t MAXIMUM_SCANNED_CONTENTS = 1024;
+    static constexpr qint64 MAXIMUM_SCANNED_BYTES = qint64(64) * 1024 * 1024;
+    static constexpr size_t MAXIMUM_NAMES = 65536;
+
+    /// The names of the content without resources the content built draws.
+    /// \param document The document
+    /// \param pageResources The resources of the page of the content (dereferenced or not)
+    /// \param resources The resources the content was interpreted with (its own, the merged ones
+    ///        of a content without them, those of the page)
+    /// \param isPage The content is a page
+    /// \param operations The operations of the content: the forms, patterns and fonts they name
+    ///        are the beginning of the walk
+    static std::set<QByteArray> collect(const PDFDocument* document,
+                                        const PDFObject& pageResources,
+                                        const PDFObject& resources,
+                                        bool isPage,
+                                        const PDFContentOperationList& operations);
+
+    /// The names, which are not keys of the dictionary (nullptr: all of them). The keys are read
+    /// once (linear in the dictionary), each name is looked up in them.
+    static std::set<QByteArray> getNamesNotIn(const std::set<QByteArray>& names, const PDFDictionary* dictionary);
+
+private:
+    struct Item
+    {
+        PDFObject object;           ///< A form, a pattern, a font (a reference or a direct object)
+        PDFObject callerResources;  ///< The resources of the content, which draws it
+        int depth = 0;
+    };
+
+    /// Key -> the index of its first entry (PDFDictionary::get finds the first one)
+    using DictionaryIndex = std::map<QByteArray, size_t>;
+
+    /// The dictionaries of the document, which the walk looked a name up in, with their indices.
+    /// The dictionaries are owned by the document (or by a resource dictionary of it), which
+    /// outlives the walk: their addresses do not change during it.
+    using DictionaryIndices = std::map<const PDFDictionary*, DictionaryIndex>;
+
+    /// The dictionary of a category of a resource dictionary (dereferenced), nullptr when none
+    static const PDFDictionary* getCategory(const PDFDocument* document, const PDFObject& resources, const char* key);
+
+    /// The index of a dictionary, made at the first call for it
+    static const DictionaryIndex& getIndex(DictionaryIndices& indices, const PDFDictionary* dictionary);
+
+    /// Adds every name token of a content stream to \p names (and to \p contentNames); false,
+    /// when a bound is reached
+    static bool scan(const QByteArray& content, std::set<QByteArray>& names, std::set<QByteArray>& contentNames);
+};
+
+std::set<QByteArray> PDFContentTreeBuilderReservedNames::collect(const PDFDocument* document,
+                                                                 const PDFObject& pageResources,
+                                                                 const PDFObject& resources,
+                                                                 bool isPage,
+                                                                 const PDFContentOperationList& operations)
+{
+    static const char* const drawnCategories[] = { "XObject", "Pattern", "Font" };
+
+    std::set<QByteArray> names;
+    std::vector<Item> queue;
+    std::set<PDFObjectReference> visited;
+    DictionaryIndices indices;
+
+    // The beginning: what the operations name in the three categories
+    std::set<std::pair<PDFContentResourceCategory, QByteArray>> usedNames;
+    for (size_t i = 0; i < operations.getCount(); ++i)
+    {
+        for (const PDFContentResourceName& name : operations.getOperation(i).getResourceNames())
+        {
+            if (name.category == PDFContentResourceCategory::XObject || name.category == PDFContentResourceCategory::Pattern || name.category == PDFContentResourceCategory::Font)
+            {
+                usedNames.emplace(name.category, name.name);
+            }
+        }
+    }
+    for (const auto& usedName : usedNames)
+    {
+        if (const PDFDictionary* dictionary = getCategory(document, resources, PDFContentResources::getCategoryKey(usedName.first).constData()))
+        {
+            const DictionaryIndex& index = getIndex(indices, dictionary);
+            auto it = index.find(usedName.second);
+            if (it != index.cend() && !dictionary->getValue(it->second).isNull() && queue.size() < MAXIMUM_ITEMS)
+            {
+                queue.push_back(Item{ dictionary->getValue(it->second), resources, 1 });
+            }
+        }
+    }
+
+    size_t scannedContents = 0;
+    qint64 scannedBytes = 0;
+    for (size_t i = 0; i < queue.size(); ++i)
+    {
+        const Item item = queue[i];
+        if (item.depth > MAXIMUM_DEPTH || (item.object.isReference() && !visited.insert(item.object.getReference()).second))
+        {
+            continue;
+        }
+
+        // The content streams and the resources of the object: a form or a tiling pattern (one
+        // stream), a Type 3 font (its glyph procedures); anything else draws nothing
+        const PDFObject& object = document->getObject(item.object);
+        bool isForm = false;
+        const PDFDictionary* procedures = nullptr;
+        PDFObject ownResources;
+        if (object.isStream())
+        {
+            const PDFDictionary* dictionary = object.getStream()->getDictionary();
+            const PDFObject& subtype = document->getObject(dictionary->get("Subtype"));
+            const PDFObject& patternType = document->getObject(dictionary->get("PatternType"));
+            if ((subtype.isName() && subtype.getString() == "Form") || (patternType.isInt() && patternType.getInteger() == 1))
+            {
+                isForm = true;
+                ownResources = document->getObject(dictionary->get("Resources"));
+            }
+        }
+        else if (object.isDictionary())
+        {
+            const PDFDictionary* dictionary = object.getDictionary();
+            const PDFObject& subtype = document->getObject(dictionary->get("Subtype"));
+            if (subtype.isName() && subtype.getString() == "Type3")
+            {
+                procedures = document->getDictionaryFromObject(dictionary->get("CharProcs"));
+                ownResources = document->getObject(dictionary->get("Resources"));
+            }
+        }
+
+        const size_t contentCount = isForm ? 1 : (procedures ? procedures->getCount() : 0);
+        if (contentCount == 0)
+        {
+            continue;
+        }
+
+        if (!ownResources.isNull())
+        {
+            // A caller of its own: what it draws without resources takes its names first and a
+            // name it lacks from the page - the walk of a page goes on, the walk of another
+            // content ends here
+            if (isPage)
+            {
+                for (const char* key : drawnCategories)
+                {
+                    if (const PDFDictionary* dictionary = getCategory(document, ownResources, key))
+                    {
+                        for (size_t j = 0; j < dictionary->getCount() && queue.size() < MAXIMUM_ITEMS; ++j)
+                        {
+                            queue.push_back(Item{ dictionary->getValue(j), ownResources, item.depth + 1 });
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Without resources: every name of its streams is reserved; what it draws is looked up
+        // in the page and in its caller (as the processor looks it up)
+        std::set<QByteArray> contentNames;
+        bool isComplete = true;
+        for (size_t j = 0; j < contentCount; ++j)
+        {
+            // Every content counts, also a glyph procedure, which is no stream: a font with
+            // many such entries drawn by many contents costs no more than the bound
+            if (++scannedContents > MAXIMUM_SCANNED_CONTENTS)
+            {
+                isComplete = false;
+                break;
+            }
+
+            const PDFObject& stream = document->getObject(isForm ? item.object : procedures->getValue(j));
+            if (!stream.isStream())
+            {
+                continue;
+            }
+
+            QByteArray data;
+            try
+            {
+                data = document->getDecodedStream(stream.getStream());
+            }
+            catch (const PDFException&)
+            {
+                continue;
+            }
+
+            scannedBytes += data.size();
+            if (scannedBytes > MAXIMUM_SCANNED_BYTES || !scan(data, names, contentNames))
+            {
+                isComplete = false;
+                break;
+            }
+        }
+
+        // Each name looked up in the index of the dictionary: the cost is the number of the names
+        // of the content (bounded by the decoded bytes), not the size of the dictionary
+        for (const char* key : drawnCategories)
+        {
+            const PDFDictionary* pageDictionary = nullptr;
+            for (const PDFObject* lookupResources : { &pageResources, &item.callerResources })
+            {
+                const PDFDictionary* dictionary = getCategory(document, *lookupResources, key);
+                if (!dictionary || contentNames.empty() || (lookupResources != &pageResources && dictionary == pageDictionary))
+                {
+                    // (the caller is the page: its entries are in the queue already)
+                    continue;
+                }
+                pageDictionary = lookupResources == &pageResources ? dictionary : pageDictionary;
+
+                const DictionaryIndex& index = getIndex(indices, dictionary);
+                for (auto it = contentNames.cbegin(); it != contentNames.cend() && queue.size() < MAXIMUM_ITEMS; ++it)
+                {
+                    auto itEntry = index.find(*it);
+                    if (itEntry != index.cend())
+                    {
+                        queue.push_back(Item{ dictionary->getValue(itEntry->second), item.callerResources, item.depth + 1 });
+                    }
+                }
+            }
+        }
+
+        if (!isComplete)
+        {
+            break;
+        }
+    }
+
+    return names;
+}
+
+std::set<QByteArray> PDFContentTreeBuilderReservedNames::getNamesNotIn(const std::set<QByteArray>& names, const PDFDictionary* dictionary)
+{
+    if (!dictionary || names.empty())
+    {
+        return names;
+    }
+
+    std::set<QByteArray> keys;
+    for (size_t i = 0; i < dictionary->getCount(); ++i)
+    {
+        keys.insert(dictionary->getKey(i).getString());
+    }
+
+    std::set<QByteArray> result;
+    std::set_difference(names.cbegin(), names.cend(), keys.cbegin(), keys.cend(), std::inserter(result, result.end()));
+    return result;
+}
+
+const PDFDictionary* PDFContentTreeBuilderReservedNames::getCategory(const PDFDocument* document, const PDFObject& resources, const char* key)
+{
+    const PDFDictionary* dictionary = document->getDictionaryFromObject(resources);
+    return dictionary ? document->getDictionaryFromObject(dictionary->get(key)) : nullptr;
+}
+
+const PDFContentTreeBuilderReservedNames::DictionaryIndex& PDFContentTreeBuilderReservedNames::getIndex(DictionaryIndices& indices, const PDFDictionary* dictionary)
+{
+    auto it = indices.find(dictionary);
+    if (it == indices.end())
+    {
+        DictionaryIndex index;
+        for (size_t i = 0; i < dictionary->getCount(); ++i)
+        {
+            // The first entry of a key written twice (PDFDictionary::get)
+            index.emplace(dictionary->getKey(i).getString(), i);
+        }
+        it = indices.emplace(dictionary, std::move(index)).first;
+    }
+    return it->second;
+}
+
+bool PDFContentTreeBuilderReservedNames::scan(const QByteArray& content, std::set<QByteArray>& names, std::set<QByteArray>& contentNames)
+{
+    using TokenType = PDFLexicalAnalyzer::TokenType;
+
+    PDFLexicalAnalyzer analyzer(content.constData(), content.constData() + content.size());
+    try
+    {
+        while (!analyzer.isAtEnd())
+        {
+            const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+            if (token.type == TokenType::EndOfFile)
+            {
+                break;
+            }
+
+            if (token.type == TokenType::Name)
+            {
+                if (names.size() >= MAXIMUM_NAMES)
+                {
+                    return false;
+                }
+
+                const QByteArray name = token.data.toByteArray();
+                names.insert(name);
+                contentNames.insert(name);
+            }
+            else if (token.type == TokenType::Command && token.data.toByteArray() == "ID")
+            {
+                // The data of an inline image are no tokens: the scan goes on behind EI, as
+                // the processor reads it (white space, EI, white space or the end)
+                qsizetype position = analyzer.pos();
+                while (true)
+                {
+                    position = content.indexOf("EI", position);
+                    if (position < 0)
+                    {
+                        return true;
+                    }
+
+                    const bool isSpaceBefore = position > 0 && PDFLexicalAnalyzer::isWhitespace(content[position - 1]);
+                    const bool isSpaceAfter = position + 2 >= content.size() || PDFLexicalAnalyzer::isWhitespace(content[position + 2]);
+                    if (isSpaceBefore && isSpaceAfter)
+                    {
+                        break;
+                    }
+                    position += 2;
+                }
+                analyzer.seek(position + 2);
+            }
+        }
+    }
+    catch (const PDFException&)
+    {
+        // A stream, which is no content, has no more names
+    }
+
+    return true;
+}
+
 /// Cancels the processing, when the caller cancels it, or when the builder has seen more
 /// operations than a container can have (the rest of the content is not interpreted then).
 ///
@@ -769,9 +1131,51 @@ private:
     /// the value of that name in the font resources). Null, when there is none.
     PDFObject getExtGStateFont(const PDFObject& value) const;
 
+    /// The entries of all merged category dictionaries of createInheritedResources at most: the
+    /// value of PDFPageContentProcessor::MAXIMUM_INHERITED_DICTIONARY_ENTRIES (private there),
+    /// so that the builder gives up the merging, where the processor gives it up
+    static constexpr size_t MAXIMUM_INHERITED_DICTIONARY_ENTRIES = 1048576;
+
+    /// The resources of a content without /Resources of its own drawn by a content with the
+    /// resources \p callerResources, exactly as PDFPageContentProcessor::initInheritedDictionaries
+    /// and getInheritedDictionary make them (NOTES.txt 7.8.3): per category (in their order
+    /// there: ColorSpace, Font, XObject, ExtGState, Properties, Shading, Pattern) the dictionary
+    /// of the caller; the one of the page, when the caller has none; when both differ, every entry
+    /// of the caller with a value other than null and the entries of the page under the names the
+    /// caller does not define - unless the entries of the two would exceed what is left of
+    /// MAXIMUM_INHERITED_DICTIONARY_ENTRIES (the caller alone then). /ProcSet is left out: the
+    /// processor keeps the procedure sets in effect, but nothing reads them.
+    /// \returns a direct /Resources dictionary; null, when the caller has no resource
+    ///          dictionary (the processor takes the page then)
+    static PDFObject createInheritedResources(const PDFDocument* document, const PDFObject& pageResources, const PDFObject& callerResources);
+
+    /// The most components of a color of a state of a node (PDF_MAX_COLOR_COMPONENTS, the number
+    /// of colorants the library takes elsewhere, PDF 1.7 Annex C). A DeviceN space has as many
+    /// components as the content names colorants (/DeviceN with any number of names), and a
+    /// state keeps its colors by value: the components are copied with every new state and
+    /// compared after every operation, as the dash array was - the content, in which a longer
+    /// color is in effect, is an opaque node, as for MAXIMUM_DASH_LENGTH.
+    static constexpr size_t MAXIMUM_COLOR_COMPONENTS = PDF_MAX_COLOR_COMPONENTS;
+
     /// The state of the processor has a value, which the states of the nodes do not take: a dash
-    /// array longer than MAXIMUM_DASH_LENGTH
+    /// array longer than MAXIMUM_DASH_LENGTH, a color of more than MAXIMUM_COLOR_COMPONENTS
     static bool isStateOverLimit(const PDFPageContentProcessorState& state);
+
+    /// The stroking or the filling color has more than MAXIMUM_COLOR_COMPONENTS components
+    static bool isColorOverLimit(const PDFPageContentProcessorState& state);
+
+    /// The text of the issue and the reason of the opaque node of a state over its limit
+    static QString getStateLimitIssueText(const PDFPageContentProcessorState& state);
+    static QString getStateLimitReason(const PDFPageContentProcessorState& state);
+
+    /// The color, which stands for a color over the limit in a state: one component, which is not
+    /// a number - equal to no color (the components are compared by value), itself included, so
+    /// a node placed behind sets its own color (R-2). It is the state of a place only (the end
+    /// state behind an opaque node, the initial state of a form), never a value a node sets.
+    static PDFColor createColorMarker();
+
+    /// Replaces the colors over MAXIMUM_COLOR_COMPONENTS of a state by createColorMarker
+    static void replaceColorsOverLimit(PDFPageContentProcessorState& state);
 
     /// Makes the operation being finished the beginning of an opaque span: the state of the
     /// processor is over its limit since this operation (afterOperation calls it, before the
@@ -849,6 +1253,23 @@ private:
     void fillMarkedData(PDFContentNode::Data& data, const CurrentOperation& current);
     void fillTextShow(BuildNode& node, const CurrentOperation& current);
     void updateTextPosition(const CurrentOperation& current);
+
+    /// Td, TD, T* and the first step of ' and ": Tlm moves by (tx, ty), Tm = Tlm (9.4.2). The
+    /// text position is known afterwards, when Tlm was known and the move is finite: no show
+    /// changes Tlm, so a show the layout did not follow (m_isTextPositionUnknown) or a glyph
+    /// without a width before it does not matter any more (the layout starts its completeness
+    /// anew at Tlm). A move out of the finite numbers is not made by the layout: Tlm is unknown.
+    void moveTextLine(PDFReal tx, PDFReal ty);
+
+    /// Tm: Tm = Tlm = the matrix (9.4.2): the text position is known afterwards, unless the
+    /// matrix is not finite (the layout does not set it: Tlm is unknown)
+    void setTextMatrix(const QTransform& matrix);
+
+    /// The layout of the text object starts anew at its text line matrix (Tm = Tlm, complete)
+    void restartTextLayoutAtLine();
+
+    static bool isFiniteMatrix(const QTransform& matrix);
+
     QRectF getTextBoundingBox(const PDFContentNode::Data& data, const QTransform& currentTransformationMatrix) const;
 
     // Opaque spans
@@ -871,6 +1292,9 @@ private:
     PDFContentTreeBuilderControl m_control;
     bool m_isInheritedUnknown;      ///< A form, a pattern cell: an inherited property has an unknown value
     PDFInteger m_inheritedResourcesPageIndex;   ///< A form, a pattern cell without /Resources of its own: the page, whose resources the processor uses; -1 otherwise
+    PDFObject m_pageResources;                  ///< The resources of the page of the content
+    PDFObject m_callerResources;                ///< PDFContentBuildContext::callerResources of a form, a pattern cell without /Resources of its own; null otherwise
+    PDFObject m_inheritedResources;             ///< createInheritedResources of m_callerResources: the resources the content is interpreted with; null = those of the page
 
     PDFContentOperationList m_operations;
     size_t m_operationCount = 0;
@@ -897,6 +1321,8 @@ private:
     // The text object
     int m_textFrameIndex = -1;
     bool m_isTextClipping = false;
+    bool m_isTextPositionUnknown = false;   ///< A show of the text object was executed, but not laid out (fillTextShow: no show after it is complete, until Tlm puts the text where the standard says)
+    bool m_isTextLineMatrixUnknown = false; ///< Tlm of the text object is not the one of the standard (an opaque ' or ", a move out of the finite numbers): only Tm makes the position known again
     std::optional<PDFContentTextLayout> m_textLayout;   ///< The text matrices of the last text object begun; no value, when no text is laid out
 
     // The states
@@ -932,6 +1358,13 @@ PDFContentTreeBuilderProcessor::PDFContentTreeBuilderProcessor(const PDFContentT
     m_inheritedSoftMask(PDFObject::createDictionary(PDFDictionaryBuilder()))
 {
     setOperationControl(&m_control);
+
+    m_pageResources = page->getResources();
+    if (source->key.kind != PDFContentContainerKey::Kind::Page && source->resources.isNull())
+    {
+        m_callerResources = context.callerResources;
+        m_inheritedResources = createInheritedResources(document, page->getResources(), m_callerResources);
+    }
 
     m_frames.push_back(std::make_unique<BuildNode>());
     m_frames.back()->data.kind = PDFContentNodeKind::Root;
@@ -988,7 +1421,11 @@ void PDFContentTreeBuilderProcessor::run(const PDFContentResolvedStatePointer& i
             {
                 try
                 {
-                    processForm(QTransform(), m_source->boundingBox, m_source->resources, m_source->transparencyGroup, m_source->streams.front().data, m_source->structuralParentKey);
+                    // Without /Resources of its own: null resources make the processor take
+                    // those of the page (its caller is the page here); the resources merged with
+                    // those of the real caller give the names the renderer gives (item 1 of PB0S3)
+                    const PDFObject& resources = m_inheritedResources.isNull() ? m_source->resources : m_inheritedResources;
+                    processForm(QTransform(), m_source->boundingBox, resources, m_source->transparencyGroup, m_source->streams.front().data, m_source->structuralParentKey);
                 }
                 catch (const PDFException& exception)
                 {
@@ -1394,6 +1831,22 @@ void PDFContentTreeBuilderProcessor::afterOperation()
         updateTextPosition(m_current);
     }
     refreshResolvedState();
+
+    // A text show, which the processor has executed, but which is no TextShow node (too many
+    // operands: an opaque node): it moved the text matrix, the layout did not follow it - the
+    // positions of the shows after it in the text object are not known (A2L2-4)
+    // (the category of such an operation is Other: the operator tells)
+    if (getCategory(m_current.contentOperator) == Category::TextShow && !m_current.isFailed && isInsideText() &&
+        !(m_current.afterAction == AfterAction::FinishLeaf && m_current.leaf && m_current.leaf->data.kind == PDFContentNodeKind::TextShow))
+    {
+        m_isTextPositionUnknown = true;
+
+        // ' and " move Tlm by T* first (9.4.3, Table 107): the layout did not see it either
+        if (m_current.contentOperator == Operator::TextNextLineShowText || m_current.contentOperator == Operator::TextSetSpacingAndShowText)
+        {
+            m_isTextLineMatrixUnknown = true;
+        }
+    }
 
     switch (m_current.afterAction)
     {
@@ -1857,14 +2310,144 @@ void PDFContentTreeBuilderProcessor::addIssue(PDFContentIssue::Kind kind, const 
     m_issues.push_back(std::move(pendingIssue));
 }
 
+PDFObject PDFContentTreeBuilderProcessor::createInheritedResources(const PDFDocument* document, const PDFObject& pageResources, const PDFObject& callerResources)
+{
+    const PDFObject& callerObject = document->getObject(callerResources);
+    if (!callerObject.isDictionary())
+    {
+        return PDFObject();
+    }
+
+    const PDFObject& pageObject = document->getObject(pageResources);
+    const PDFDictionary* pageDictionary = pageObject.isDictionary() ? pageObject.getDictionary() : nullptr;
+    const PDFDictionary* callerDictionary = callerObject.getDictionary();
+
+    // The dictionary of a category as PDFPageContentProcessor::initDictionaries reads it: the
+    // dereferenced value of the key, when it is a dictionary
+    auto getCategory = [document](const PDFDictionary* resources, const char* key) -> PDFObject
+    {
+        if (resources && resources->hasKey(key))
+        {
+            const PDFObject& object = document->getObject(resources->get(key));
+            if (object.isDictionary())
+            {
+                return object;
+            }
+        }
+        return PDFObject();
+    };
+
+    // The order of initInheritedDictionaries: the budget of the entries is spent in this order
+    static const char* const categoryKeys[] = { "ColorSpace", "Font", "XObject", "ExtGState", "Properties", "Shading", "Pattern" };
+
+    PDFDictionaryBuilder result;
+    size_t entryCount = 0;
+    for (const char* key : categoryKeys)
+    {
+        const PDFObject pageCategory = getCategory(pageDictionary, key);
+        const PDFObject callerCategory = getCategory(callerDictionary, key);
+        const PDFDictionary* pageCategoryDictionary = pageCategory.isDictionary() ? pageCategory.getDictionary() : nullptr;
+        const PDFDictionary* callerCategoryDictionary = callerCategory.isDictionary() ? callerCategory.getDictionary() : nullptr;
+
+        PDFObject value;
+        if (!callerCategoryDictionary)
+        {
+            // The caller has no dictionary of the category: every name from the page
+            value = pageCategory;
+        }
+        else if (!pageCategoryDictionary || callerCategoryDictionary == pageCategoryDictionary)
+        {
+            value = callerCategory;
+        }
+        else
+        {
+            const size_t count = pageCategoryDictionary->getCount() + callerCategoryDictionary->getCount();
+            if (count > MAXIMUM_INHERITED_DICTIONARY_ENTRIES - qMin(entryCount, MAXIMUM_INHERITED_DICTIONARY_ENTRIES))
+            {
+                // Above the budget the processor takes the caller alone
+                value = callerCategory;
+            }
+            else
+            {
+                entryCount += count;
+
+                // The entries of the caller (an entry with the null value defines nothing), then
+                // those of the page under the names the caller does not define
+                std::set<QByteArray> callerNames;
+                PDFDictionaryBuilder merged;
+                for (size_t i = 0; i < callerCategoryDictionary->getCount(); ++i)
+                {
+                    if (!callerCategoryDictionary->getValue(i).isNull())
+                    {
+                        callerNames.insert(callerCategoryDictionary->getKey(i).getString());
+                        merged.addEntry(callerCategoryDictionary->getKey(i), callerCategoryDictionary->getValue(i));
+                    }
+                }
+                for (size_t i = 0; i < pageCategoryDictionary->getCount(); ++i)
+                {
+                    if (!callerNames.count(pageCategoryDictionary->getKey(i).getString()))
+                    {
+                        merged.addEntry(pageCategoryDictionary->getKey(i), pageCategoryDictionary->getValue(i));
+                    }
+                }
+                value = PDFObject::createDictionary(std::move(merged));
+            }
+        }
+
+        if (!value.isNull())
+        {
+            result.addEntry(PDFInplaceOrMemoryString(key), std::move(value));
+        }
+    }
+
+    return PDFObject::createDictionary(std::move(result));
+}
+
 bool PDFContentTreeBuilderProcessor::isStateOverLimit(const PDFPageContentProcessorState& state)
 {
-    return state.getLineDashPattern().getDashArray().size() > MAXIMUM_DASH_LENGTH;
+    return state.getLineDashPattern().getDashArray().size() > MAXIMUM_DASH_LENGTH || isColorOverLimit(state);
+}
+
+bool PDFContentTreeBuilderProcessor::isColorOverLimit(const PDFPageContentProcessorState& state)
+{
+    return state.getStrokeColorOriginal().size() > MAXIMUM_COLOR_COMPONENTS || state.getFillColorOriginal().size() > MAXIMUM_COLOR_COMPONENTS;
+}
+
+QString PDFContentTreeBuilderProcessor::getStateLimitIssueText(const PDFPageContentProcessorState& state)
+{
+    return isColorOverLimit(state) ? PDFTranslationContext::tr("A color has too many components.")
+                                   : PDFTranslationContext::tr("The dash pattern of a line has too many elements.");
+}
+
+QString PDFContentTreeBuilderProcessor::getStateLimitReason(const PDFPageContentProcessorState& state)
+{
+    return isColorOverLimit(state) ? PDFTranslationContext::tr("Content with a color of too many components")
+                                   : PDFTranslationContext::tr("Content with a dash pattern of too many elements");
+}
+
+PDFColor PDFContentTreeBuilderProcessor::createColorMarker()
+{
+    PDFColor marker;
+    marker.push_back(std::numeric_limits<PDFColorComponent>::quiet_NaN());
+    return marker;
+}
+
+void PDFContentTreeBuilderProcessor::replaceColorsOverLimit(PDFPageContentProcessorState& state)
+{
+    if (state.getStrokeColorOriginal().size() > MAXIMUM_COLOR_COMPONENTS)
+    {
+        state.setStrokeColor(state.getStrokeColor(), createColorMarker());
+    }
+    if (state.getFillColorOriginal().size() > MAXIMUM_COLOR_COMPONENTS)
+    {
+        state.setFillColor(state.getFillColor(), createColorMarker());
+    }
 }
 
 void PDFContentTreeBuilderProcessor::startCaptureForStateLimit()
 {
-    // The operation, which has brought the state over its limit, is d or gs: a state operator,
+    // The operation, which has brought the state over its limit, is d or gs, or a color operator
+    // (cs, scn, sc and their stroking twins): a state operator,
     // so it is the last operation of the open state run, or (with too many operands) the opaque
     // leaf of the operation. It is taken out of there and begins the opaque span. Q cannot bring
     // such a state back outside of an opaque span: the span, in which the state was set, does
@@ -1897,9 +2480,9 @@ void PDFContentTreeBuilderProcessor::startCaptureForStateLimit()
         return;
     }
 
-    addIssue(PDFContentIssue::Kind::OperandLimit, PDFTranslationContext::tr("The dash pattern of a line has too many elements."), true, index);
+    addIssue(PDFContentIssue::Kind::StateLimit, getStateLimitIssueText(*getGraphicState()), true, index);
 
-    const QString reason = PDFTranslationContext::tr("Content with a dash pattern of too many elements");
+    const QString reason = getStateLimitReason(*getGraphicState());
     if (m_frames.size() > 1)
     {
         // Inside of open nodes: the span begins with the outermost of them, so that it holds
@@ -1919,9 +2502,9 @@ void PDFContentTreeBuilderProcessor::startCaptureBeforeOperation()
 {
     // The span takes what is open (the outermost open node, or the path under construction);
     // structureOperation adds the operation to it then
-    addIssue(PDFContentIssue::Kind::OperandLimit, PDFTranslationContext::tr("The dash pattern of a line has too many elements."), true, m_current.index);
+    addIssue(PDFContentIssue::Kind::StateLimit, getStateLimitIssueText(*getGraphicState()), true, m_current.index);
 
-    const QString reason = PDFTranslationContext::tr("Content with a dash pattern of too many elements");
+    const QString reason = getStateLimitReason(*getGraphicState());
     if (m_frames.size() > 1)
     {
         startCaptureFromFrame(1, reason);
@@ -1955,14 +2538,21 @@ void PDFContentTreeBuilderProcessor::takeEndState()
 
 PDFContentResolvedStatePointer PDFContentTreeBuilderProcessor::createStateWithDashMarker() const
 {
-    const PDFReal marker = std::numeric_limits<PDFReal>::quiet_NaN();
-    PDFLineDashPattern pattern;
-    pattern.setDashArray({ marker, marker });
-    pattern.setDashOffset(marker);
-
     // The copy holds the long array for a moment only
     PDFPageContentProcessorState copy = *getGraphicState();
-    copy.setLineDashPattern(std::move(pattern));
+
+    if (copy.getLineDashPattern().getDashArray().size() > MAXIMUM_DASH_LENGTH)
+    {
+        const PDFReal marker = std::numeric_limits<PDFReal>::quiet_NaN();
+        PDFLineDashPattern pattern;
+        pattern.setDashArray({ marker, marker });
+        pattern.setDashOffset(marker);
+        copy.setLineDashPattern(std::move(pattern));
+    }
+
+    // A color of too many components: the marker of one not-a-number component (item 4 of PB0S3)
+    replaceColorsOverLimit(copy);
+
     copy.setTextMatrix(QTransform());
     copy.setTextLineMatrix(QTransform());
     copy.setStateFlags(PDFPageContentProcessorState::StateUnchanged);
@@ -2011,8 +2601,13 @@ void PDFContentTreeBuilderProcessor::refreshResolvedState()
     if (isStateOverLimit(copy))
     {
         // Only the first state of a content can be made of such a state (the initial state of
-        // a form given by the caller): no state holds a value over the limit
-        copy.setLineDashPattern(PDFLineDashPattern());
+        // a form given by the caller): no state holds a value over the limit. A color has no
+        // short value of its own space: the marker, which equals no color
+        if (copy.getLineDashPattern().getDashArray().size() > MAXIMUM_DASH_LENGTH)
+        {
+            copy.setLineDashPattern(PDFLineDashPattern());
+        }
+        replaceColorsOverLimit(copy);
     }
     copy.setStateFlags(PDFPageContentProcessorState::StateUnchanged);
 
@@ -3131,6 +3726,8 @@ void PDFContentTreeBuilderProcessor::openFrame(PDFContentNodeKind kind)
         {
             m_textFrameIndex = int(m_frames.size());
             m_isTextClipping = false;
+            m_isTextPositionUnknown = false;
+            m_isTextLineMatrixUnknown = false;
             if (m_options.layoutText)
             {
                 // The text matrices of every text object start at the identity (9.4.1)
@@ -3356,7 +3953,7 @@ void PDFContentTreeBuilderProcessor::updateTextPosition(const CurrentOperation& 
             {
                 if (readNumbers(operands, 2, numbers))
                 {
-                    m_textLayout->moveByOffset(numbers[0], numbers[1]);
+                    moveTextLine(numbers[0], numbers[1]);
                 }
                 break;
             }
@@ -3365,13 +3962,14 @@ void PDFContentTreeBuilderProcessor::updateTextPosition(const CurrentOperation& 
             {
                 if (readNumbers(operands, 6, numbers))
                 {
-                    m_textLayout->setMatrix(QTransform(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5]));
+                    setTextMatrix(QTransform(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5]));
                 }
                 break;
             }
 
             case Operator::TextMoveByLeading:
-                m_textLayout->moveByLeading(getGraphicState()->getTextLeading());
+                // T* is 0 -Tl Td
+                moveTextLine(0.0, -getGraphicState()->getTextLeading());
                 break;
 
             default:
@@ -3382,6 +3980,55 @@ void PDFContentTreeBuilderProcessor::updateTextPosition(const CurrentOperation& 
     {
         // The layout of the text object goes on from where it was
     }
+}
+
+void PDFContentTreeBuilderProcessor::moveTextLine(PDFReal tx, PDFReal ty)
+{
+    // The layout makes the same move (PDFContentTextLayout::moveByOffset), unless it is not finite
+    const bool isFinite = isFiniteMatrix(QTransform::fromTranslate(tx, ty) * m_textLayout->getTextLineMatrix());
+    m_textLayout->moveByOffset(tx, ty);
+
+    if (!isFinite)
+    {
+        m_isTextLineMatrixUnknown = true;
+    }
+    else if (!m_isTextLineMatrixUnknown)
+    {
+        restartTextLayoutAtLine();
+    }
+}
+
+void PDFContentTreeBuilderProcessor::setTextMatrix(const QTransform& matrix)
+{
+    m_textLayout->setMatrix(matrix);
+
+    if (!isFiniteMatrix(matrix))
+    {
+        m_isTextLineMatrixUnknown = true;
+        return;
+    }
+
+    // The matrix replaces Tm and Tlm, whatever they were
+    m_isTextLineMatrixUnknown = false;
+    restartTextLayoutAtLine();
+}
+
+void PDFContentTreeBuilderProcessor::restartTextLayoutAtLine()
+{
+    // Tm = Tlm: the state of the layout after the operator is the state of a text object
+    // beginning with "Tlm Tm" - the matrices are those, the completeness of the glyphs shown
+    // before does not reach behind it
+    const QTransform lineMatrix = m_textLayout->getTextLineMatrix();
+    m_textLayout->beginText();
+    m_textLayout->setMatrix(lineMatrix);
+    m_isTextPositionUnknown = false;
+}
+
+bool PDFContentTreeBuilderProcessor::isFiniteMatrix(const QTransform& matrix)
+{
+    return std::isfinite(matrix.m11()) && std::isfinite(matrix.m12()) && std::isfinite(matrix.m13()) &&
+           std::isfinite(matrix.m21()) && std::isfinite(matrix.m22()) && std::isfinite(matrix.m23()) &&
+           std::isfinite(matrix.m31()) && std::isfinite(matrix.m32()) && std::isfinite(matrix.m33());
 }
 
 void PDFContentTreeBuilderProcessor::fillTextShow(BuildNode& node, const CurrentOperation& current)
@@ -3418,6 +4065,13 @@ void PDFContentTreeBuilderProcessor::fillTextShow(BuildNode& node, const Current
 
     const Operands& operands = m_operations.getOperation(current.index).getOperands();
     const bool canShow = !current.isFailed && textState.font;
+
+    // The show begins at the position of the standard only, when every show before it in the
+    // text object was laid out completely (A2L2-4: a glyph without a width, a show, which is no
+    // TextShow node, a vertical font before it - the layout of the text object since its last
+    // Tm, or since a relative move of Tlm, while Tlm was known: moveTextLine). ' and " move Tlm
+    // first and ask again.
+    bool isStartKnown = m_textLayout->isComplete() && !m_isTextPositionUnknown;
 
     if (textState.font)
     {
@@ -3458,7 +4112,8 @@ void PDFContentTreeBuilderProcessor::fillTextShow(BuildNode& node, const Current
                 // string ' is T* string Tj: the line moves, whenever the operand can be read
                 if (isString(operands, 0))
                 {
-                    m_textLayout->moveByLeading(textState.leading);
+                    moveTextLine(0.0, -textState.leading);
+                    isStartKnown = m_textLayout->isComplete() && !m_isTextPositionUnknown;
                     if (canShow)
                     {
                         data.textItems = m_textLayout->showString(operands[0].data.toByteArray(), textState);
@@ -3473,7 +4128,8 @@ void PDFContentTreeBuilderProcessor::fillTextShow(BuildNode& node, const Current
                 // aw ac string " is aw Tw ac Tc string '
                 if (readNumbers(operands, 2, numbers) && isString(operands, 2))
                 {
-                    m_textLayout->moveByLeading(textState.leading);
+                    moveTextLine(0.0, -textState.leading);
+                    isStartKnown = m_textLayout->isComplete() && !m_isTextPositionUnknown;
                     if (canShow)
                     {
                         data.textItems = m_textLayout->showString(operands[2].data.toByteArray(), textState);
@@ -3522,7 +4178,7 @@ void PDFContentTreeBuilderProcessor::fillTextShow(BuildNode& node, const Current
                     break;
                 }
             }
-            data.isTextComplete = isComplete;
+            data.isTextComplete = isComplete && isStartKnown;
         }
     }
     catch (const PDFException&)
@@ -3820,14 +4476,32 @@ void PDFContentTreeBuilderProcessor::finishContent()
     takeEndState();
     if (m_capture.isActive)
     {
+        // A span, in which something is still open (a bracket, a path, the data of an inline
+        // image without an end): content written behind it would be a part of it
+        const Capture& capture = m_capture;
+        m_capture.node->data.isOpenEnd = capture.pendingSave > 0 || capture.pendingMarked > 0 || capture.pendingText > 0 ||
+                                         capture.isPathPending || capture.isUntilEnd;
         finishCapture();
     }
 
+    if (m_leafMode == LeafMode::Path && m_openLeaf)
+    {
+        // A path without a painting operator: the painting operator of content written behind
+        // it would paint it too (closeOpenLeaf makes it an opaque node)
+        m_openLeaf->data.isOpenEnd = true;
+    }
     closeOpenLeaf();
 
     while (m_frames.size() > 1)
     {
         splitPartialGroup();
+
+        // A text object of the rendering modes 4 to 7 without its ET: the ET, which the model
+        // writes in front of content behind it, makes the clip real for that content (9.3.6)
+        if (m_frames.back()->data.kind == PDFContentNodeKind::TextObject && int(m_frames.size()) - 1 == m_textFrameIndex && m_isTextClipping)
+        {
+            m_frames.back()->data.isOpenEnd = true;
+        }
         closeTopFrame(getSnapshot());
     }
 }
@@ -3966,9 +4640,7 @@ PDFContentBuildResult PDFContentTreeBuilderProcessor::createResult()
 
     if (m_source->isOverSize)
     {
-        // The header has no kind of its own for it: the nearest one, a content, which is
-        // read-only, because its streams are not read
-        addIssue(PDFContentIssue::Kind::UndecodableStream, PDFTranslationContext::tr("The content is too large, it cannot be changed."), false, 0);
+        addIssue(PDFContentIssue::Kind::ContentSizeLimit, PDFTranslationContext::tr("The content is too large, it cannot be changed."), false, 0);
     }
     else if (m_source->isReadOnly)
     {
@@ -4076,13 +4748,55 @@ PDFContentBuildResult PDFContentTreeBuilderProcessor::createResult()
     containerData.isReadOnly = m_source->isReadOnly;
     containerData.isColorIgnored = m_source->isUncoloredPatternCell;
     containerData.inheritedResourcesPageIndex = m_inheritedResourcesPageIndex;
+    containerData.inheritedResources = m_inheritedResources;
 
     editor.getResources() = PDFContentResources::read(document, m_source->resources, editor.getOperations());
+
+    // The names, which content without resources drawn by this one uses: a name added to these
+    // resources must not become one of them (A1L2-4). The resources the content was interpreted
+    // with: its own, the merged ones of the caller, or those of the page. Such content looks a
+    // name up in the content drawing it first, a name that content lacks in the page (NOTES.txt
+    // 7.8.3): only for a page is a name the page defines no risk (the page has it already, the
+    // allocator never gives it). For a form or a pattern cell every name counts: a name added to
+    // it would hide the name of the page from such content. A content without resources of its
+    // own also reserves every name it was interpreted with: the document writer gives it a copy
+    // of them with the added names, so an added name never takes the place of one of them.
+    const bool isPage = m_source->key.kind == PDFContentContainerKey::Kind::Page;
+    const PDFObject& interpretedResources = !m_source->resources.isNull() ? m_source->resources : (!m_inheritedResources.isNull() ? m_inheritedResources : m_pageResources);
+    if (!m_isOverLimit && !m_source->isOverSize)
+    {
+        std::set<QByteArray> names = PDFContentTreeBuilderReservedNames::collect(document, m_pageResources, interpretedResources, isPage, editor.getOperations());
+        const PDFDictionary* pageDictionary = isPage ? document->getDictionaryFromObject(m_pageResources) : nullptr;
+        const PDFDictionary* inheritedDictionary = (!isPage && m_source->resources.isNull()) ? document->getDictionaryFromObject(interpretedResources) : nullptr;
+        for (const PDFContentResourceCategory category : PDFContentResources::getCategories())
+        {
+            // The keys of the category are read once (review R2-5), not once per name
+            const QByteArray categoryKey = PDFContentResources::getCategoryKey(category);
+            const PDFDictionary* pageCategory = pageDictionary ? document->getDictionaryFromObject(pageDictionary->get(categoryKey)) : nullptr;
+            std::set<QByteArray> categoryNames = pageDictionary ? PDFContentTreeBuilderReservedNames::getNamesNotIn(names, pageCategory) : names;
+            if (const PDFDictionary* inheritedCategory = inheritedDictionary ? document->getDictionaryFromObject(inheritedDictionary->get(categoryKey)) : nullptr)
+            {
+                for (size_t i = 0; i < inheritedCategory->getCount() && categoryNames.size() < PDFContentTreeBuilderReservedNames::MAXIMUM_NAMES; ++i)
+                {
+                    categoryNames.insert(inheritedCategory->getKey(i).getString());
+                }
+            }
+            editor.getResources().setReservedNames(category, std::move(categoryNames));
+        }
+    }
 
     result.container = editor.build();
     result.issues = std::move(issues);
     result.usedForms = std::move(m_usedForms);
     result.usedPatternCells = std::move(m_usedPatternCells);
+
+    // The caller of what this content draws: the content itself with its own resources, else
+    // its own caller (the processor merges the dictionaries of the page and of that caller
+    // again for the nested content: the result is the same); the page for a page
+    if (m_source->key.kind != PDFContentContainerKey::Kind::Page)
+    {
+        result.nestedCallerResources = m_source->resources.isNull() ? m_callerResources : m_source->resources;
+    }
     return result;
 }
 

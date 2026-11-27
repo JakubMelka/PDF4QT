@@ -34,6 +34,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QGraphicsView>
 #include <QRubberBand>
 #include <QScrollArea>
 #include <QSplitter>
@@ -572,10 +573,17 @@ void PDFWidgetStyleContainers::polish(QWidget* widget)
             rubberBand->setAttribute(Qt::WA_TranslucentBackground, true);
         }
     }
+    else if (PDFWidgetStyleImpl::isGraphicsViewViewport(widget))
+    {
+        // The cached background of a graphics view is filled by the palette of the viewport
+        PDFWidgetStyleImpl::applyGraphicsViewPalette(widget, true);
+    }
 }
 
 void PDFWidgetStyleContainers::unpolish(QWidget* widget)
 {
+    PDFWidgetStyleImpl::applyGraphicsViewPalette(widget, false);
+
     const QVariant savedMargins = widget->property(SAVED_MARGINS);
     if (savedMargins.isValid())
     {
@@ -681,6 +689,17 @@ void PDFWidgetStyleContainers::drawWidgetBackground(const QStyleOption* option, 
     if (widget->isWindow() || PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::CANVAS))
     {
         PDFStylePainter::fillRect(painter, rect, Color::BgCanvas);
+        return;
+    }
+
+    // The viewport of a graphics view is the area around the content of a scene (the
+    // canvas of Edit Content, zadani_gui.md 4.15): bg/track. QGraphicsView would fill it
+    // by the palette (autoFillBackground of QGraphicsView::setupViewport), which the
+    // style turns off (ensureStyledBackground).
+    const QGraphicsView* graphicsView = qobject_cast<const QGraphicsView*>(widget->parentWidget());
+    if (graphicsView && graphicsView->viewport() == widget)
+    {
+        PDFStylePainter::fillRect(painter, rect, Color::BgTrack);
         return;
     }
 

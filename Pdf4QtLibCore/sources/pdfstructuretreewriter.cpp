@@ -75,11 +75,8 @@ public:
 
     /// Checks, that the document of the builder is the one the model was read from.
     /// \returns the error, empty when the model can be written
-    static QString check(const Context& context)
+    static QString check(const PDFDocumentBuilder* builder, const Model& model)
     {
-        const PDFDocumentBuilder* builder = context.builder;
-        const Model& model = *context.model;
-
         const PDFObject catalog = builder->getObjectByReference(builder->getCatalogReference());
         if (!catalog.isDictionary())
         {
@@ -497,20 +494,34 @@ PDFStructureTreeWriteResult PDFStructureTreeWriter::write(PDFDocumentBuilder* bu
         return result;
     }
 
-    PDFStructureTreeWriterHelper::Context context;
-    context.builder = builder;
-    context.model = &model;
-
-    const QString error = PDFStructureTreeWriterHelper::check(context);
+    const QString error = PDFStructureTreeWriterHelper::check(builder, model);
     if (!error.isEmpty())
     {
         result.errors.push_back(error);
         return result;
     }
 
+    PDFStructureTreeWriterHelper::Context context;
+    context.builder = builder;
+    context.model = &model;
     PDFStructureTreeWriterHelper::write(context);
     result.isWritten = true;
     return result;
+}
+
+QString PDFStructureTreeWriter::check(const PDFDocumentBuilder* builder, const PDFContentStructureModel& model)
+{
+    if (model.isEmpty() || !model.isModified())
+    {
+        return QString();
+    }
+
+    if (!builder)
+    {
+        return PDFTranslationContext::tr("There is no document to write the structure into.");
+    }
+
+    return PDFStructureTreeWriterHelper::check(builder, model);
 }
 
 }   // namespace pdf

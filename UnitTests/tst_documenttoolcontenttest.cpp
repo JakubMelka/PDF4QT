@@ -61,15 +61,20 @@
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdffont.h"
+#include "pdfmeshqualitysettings.h"
 #include "pdfobject.h"
 #include "pdfoperationcontrol.h"
 #include "pdfoptionalcontent.h"
 #include "pdfpage.h"
 #include "pdfprogress.h"
+#include "pdfrenderer.h"
 #include "pdfsecurityhandler.h"
 
 #include <QtTest>
 #include <QByteArray>
+#include <QColor>
+#include <QImage>
+#include <QPainter>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -197,12 +202,17 @@ private Q_SLOTS:
     void writerFormResourcesNull_data();
     void writerFormResourcesNull();
     void writerFormInheritedContexts();
+    void writerFormPageResourcesRendered();
     void writerFormInheritedWrittenNames_data();
     void writerFormInheritedWrittenNames();
+    void writerFormInheritedChain();
+    void writerFormInheritedTwoCallers();
     void writerFormBehindWalkLimit();
     void writerBatchTwoPages();
     void writerStructure();
     void writerStructureSkippedPages();
+    void writerStructureSkippedTaggedPage();
+    void writerStructureSkippedParagraphAcrossPages();
     void writerStructureOutdated_data();
     void writerStructureOutdated();
     void writerStructureTwice();
@@ -215,6 +225,7 @@ private Q_SLOTS:
 
     // ---- tool ----
     void toolDeclaration();
+    void toolDisplayOptions();
     void toolModes();
     void toolCheckGivenParameters_data();
     void toolCheckGivenParameters();
@@ -276,6 +287,10 @@ private:
 
     static PDFContentContainerKey pageKey(const PDFDocument& document, PDFInteger pageIndex);
     static PDFContentContainerPointer buildContainer(const PDFDocument& document, const PDFContentContainerKey& key, PDFInteger pageIndex);
+
+    /// A form without resources of its own built as drawn by a content with the resources
+    /// \p callerResources (PDFContentBuildContext::callerResources, as the session gives them)
+    static PDFContentContainerPointer buildContainer(const PDFDocument& document, const PDFContentContainerKey& key, PDFInteger pageIndex, const PDFObject& callerResources);
     static PDFContentContainerPointer buildPage(const PDFDocument& document, PDFInteger pageIndex) { return buildContainer(document, pageKey(document, pageIndex), pageIndex); }
 
     /// The nodes of a kind in the order of the content
@@ -409,6 +424,11 @@ PDFContentContainerKey DocumentToolContentTest::pageKey(const PDFDocument& docum
 
 PDFContentContainerPointer DocumentToolContentTest::buildContainer(const PDFDocument& document, const PDFContentContainerKey& key, PDFInteger pageIndex)
 {
+    return buildContainer(document, key, pageIndex, PDFObject());
+}
+
+PDFContentContainerPointer DocumentToolContentTest::buildContainer(const PDFDocument& document, const PDFContentContainerKey& key, PDFInteger pageIndex, const PDFObject& callerResources)
+{
     // The caches live only for the call: a container does not need them afterwards
     PDFCMSGeneric cms;
     PDFFontCache fontCache(32, 32);
@@ -419,6 +439,7 @@ PDFContentContainerPointer DocumentToolContentTest::buildContainer(const PDFDocu
     context.fontCache = &fontCache;
     context.cms = &cms;
     context.pageIndex = pageIndex;
+    context.callerResources = callerResources;
 
     return PDFContentTreeBuilder::build(&document, key, nullptr, context, PDFContentBuildOptions(), nullptr, nullptr).container;
 }
@@ -2673,10 +2694,11 @@ void DocumentToolContentTest::writerFormResourcesNull()
 void DocumentToolContentTest::writerFormInheritedContexts()
 {
     // A form without /Resources, which gets a name (the alpha 0.5 of its path needs /GS1), gets a
-    // copy of the resources of the page it was read with. The copy takes the place of what the
-    // form was drawn with before - on every page, and in this library also inside of every other
-    // content, which draws it. Each case below is one place, where the copy would change, what
-    // somebody sees; the writer refuses it there, and writes it, where nothing changes.
+    // copy of the resources it was read with. The copy takes the place of what the form was drawn
+    // with before at every place drawing it: the resources of the content drawing it, and a name
+    // that content does not define from the page (NOTES.txt 7.8.3). Each case below is one place,
+    // where the copy would change, what somebody sees; the writer refuses it there, and writes
+    // it, where nothing changes.
     const PDFObject addedGraphicState = Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "ca", PDFObject::createReal(0.5) } });
 
     const auto addForm = [](PDFDocumentBuilder* builder, const QByteArray& content, Documents::DictionaryEntries resources, bool hasResources)
@@ -2751,10 +2773,11 @@ void DocumentToolContentTest::writerFormInheritedContexts()
     // ---- 2. The form draws another form without /Resources. Two pages draw it:
     //        /Fm2 "/Fm3 Do 0 0 10 10 re f"    (edited)        /Fm3 "/GQ gs 0 0 5 5 re f"
     //        page 1, page 2: "/Fm2 Do", /XObject << /Fm2 /Fm3 >> /ExtGState << /GQ << /LW ... >> >>
-    //      /Fm2 itself uses the name /Fm3 only, and both pages give it the same form. But in this
-    //      library /Fm3, drawn by /Fm2, looks its name /GQ up in the resources /Fm2 is drawn with:
-    //      a copy of the resources of the page 2 in /Fm2 would give it the /GQ of the page 2 also
-    //      on the page 1. So every name of the pages must agree. ----
+    //      /Fm2 itself uses the name /Fm3 only, and both pages give it the same form. /Fm3, drawn
+    //      by /Fm2, takes its names from /Fm2 first (NOTES.txt 7.8.3): today /Fm2 inherits them
+    //      from the page drawing it, after the write it has the copy of the page 2 - the page 1
+    //      would draw /Fm3 with the /GQ of the page 2. Nobody knows here, which names /Fm3 uses,
+    //      so every name of the page 2 must be the same object on the page 1. ----
     const auto nestedDocument = [&](PDFReal lineWidth1, PDFReal lineWidth2, PDFObject* outerForm, PDFObject* innerForm)
     {
         PDFDocumentBuilder builder;
@@ -2762,16 +2785,43 @@ void DocumentToolContentTest::writerFormInheritedContexts()
         *outerForm = addForm(&builder, "/Fm3 Do 0 0 10 10 re f", { }, false);
         for (const PDFReal lineWidth : { lineWidth1, lineWidth2 })
         {
-            addPage(&builder, "/Fm2 Do", { { "XObject", Documents::createDictionaryObject({ { "Fm2", *outerForm }, { "Fm3", *innerForm } }) },
-                                           { "ExtGState", Documents::createDictionaryObject({ { "GQ", graphicStateObject(lineWidth) } }) } });
+            // A line width 0: the page has no /ExtGState
+            Documents::DictionaryEntries resources = { { "XObject", Documents::createDictionaryObject({ { "Fm2", *outerForm }, { "Fm3", *innerForm } }) } };
+            if (lineWidth > 0.0)
+            {
+                resources.push_back({ "ExtGState", Documents::createDictionaryObject({ { "GQ", graphicStateObject(lineWidth) } }) });
+            }
+            addPage(&builder, "/Fm2 Do", std::move(resources));
         }
         return builder.build();
     };
 
     {
+        // The pages give /GQ other values: /Fm3 would take the /GQ of the page 2 from the copy
+        // on the page 1 too - refused under both pages
         PDFObject outerForm;
         PDFObject innerForm;
         const PDFDocument document = nestedDocument(6.0, 3.0, &outerForm, &innerForm);
+
+        Written written;
+        writeForm(document, outerForm, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+
+        QVERIFY(written.result.status == Status::PageErrors);
+        QCOMPARE(written.result.errors.size(), size_t(2));
+        QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("pages 1 give it other resources than the page 2")), qPrintable(formErrorText(written, 0)));
+        QCOMPARE(formErrorText(written, 1), formErrorText(written, 0));
+        QVERIFY(written.isBuilderUntouched);
+    }
+
+    {
+        // The page 1 has no /GQ: /Fm3 would take the /GQ of the page 2 from the copy there too
+        PDFObject outerForm;
+        PDFObject innerForm;
+        const PDFDocument document = nestedDocument(0.0, 3.0, &outerForm, &innerForm);
 
         Written written;
         writeForm(document, outerForm, 1, &written);
@@ -2805,10 +2855,44 @@ void DocumentToolContentTest::writerFormInheritedContexts()
                                                                          { "ExtGState", Documents::createDictionaryObject({ { "GQ", graphicStateObject(6.0) }, { "GS1", addedGraphicState } }) } }));
     }
 
-    // ---- 3. The new name of the form is a name of the page: /GS1. The form does not use the
-    //      /GS1 of the page (the allocator of the names avoids every name its content uses), so
-    //      in its copy the new state takes its place. A form inside, which has no resources
-    //      either, could use the /GS1 of the page - and would get the new state: refused. ----
+    {
+        // The same, the page 1 has one more name /GS1, which the page 2 (read with) does not
+        // have: the new state gets /GS1 there, and /Fm3 would take it from the copy on the page 1
+        // in place of the /GS1 of the page 1 - refused
+        PDFDocumentBuilder builder;
+        const PDFObject innerForm = addForm(&builder, "/GQ gs 0 0 5 5 re f", { }, false);
+        const PDFObject outerForm = addForm(&builder, "/Fm3 Do 0 0 10 10 re f", { }, false);
+        for (int pageIndex = 0; pageIndex < 2; ++pageIndex)
+        {
+            Documents::DictionaryEntries states = { { "GQ", graphicStateObject(6.0) } };
+            if (pageIndex == 0)
+            {
+                states.push_back({ "GS1", graphicStateObject(9.0) });
+            }
+            addPage(&builder, "/Fm2 Do", { { "XObject", Documents::createDictionaryObject({ { "Fm2", outerForm }, { "Fm3", innerForm } }) },
+                                           { "ExtGState", Documents::createDictionaryObject(std::move(states)) } });
+        }
+        const PDFDocument document = builder.build();
+
+        Written written;
+        writeForm(document, outerForm, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+
+        QVERIFY(written.result.status == Status::PageErrors);
+        QCOMPARE(written.result.errors.size(), size_t(2));
+        QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("pages 1 give it other resources than the page 2")), qPrintable(formErrorText(written, 0)));
+        QVERIFY(written.isBuilderUntouched);
+    }
+
+    // ---- 3. The page defines /GS1, which the content of the form does not use. The tree builder
+    //      reserves every name of the resources a form without resources of its own was read
+    //      with (the copy holds them all), so the new state gets /GS2 and the copy keeps the /GS1
+    //      of the page. A form inside, which has no resources either, takes /GS1 from /Fm2 first
+    //      (NOTES.txt 7.8.3) - from the copy after the write, where it is still the state of the
+    //      page. ----
     {
         // One page; /Fm2 draws no other content
         PDFDocumentBuilder builder;
@@ -2826,7 +2910,8 @@ void DocumentToolContentTest::writerFormInheritedContexts()
 
         QVERIFY(written.result.status == Status::Success);
         QVERIFY(written.resources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Fm2", form } }) },
-                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(6.0) }, { "GS1", addedGraphicState } }) } }));
+                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(6.0) }, { "GS1", graphicStateObject(9.0) },
+                                                                                                                             { "GS2", addedGraphicState } }) } }));
     }
 
     {
@@ -2845,63 +2930,290 @@ void DocumentToolContentTest::writerFormInheritedContexts()
             return;
         }
 
-        QVERIFY(written.result.status == Status::PageErrors);
-        QCOMPARE(written.result.errors.size(), size_t(1));
-        QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("GS1")), qPrintable(formErrorText(written, 0)));
-        QVERIFY(written.isBuilderUntouched);
+        QVERIFY2(written.result.status == Status::Success, qPrintable(formErrorText(written, 0)));
+        QVERIFY(written.resources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Fm2", outerForm }, { "Fm3", innerForm } }) },
+                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GS1", graphicStateObject(9.0) }, { "GS2", addedGraphicState } }) } }));
+
+        // An added name, which is a name of the resources of the build (here forced: the reserved
+        // names are cleared, so the allocator gives /GS1), would hide the /GS1 of the page from
+        // /Fm3 in the copy: refused
+        const PDFContentContainerPointer container = buildContainer(document, PDFContentContainerKey::createForm(outerForm.getReference()), 0);
+        PDFContentContainerEditor editor(container);
+        editor.getResources().setReservedNames(PDFContentResourceCategory::ExtGState, std::set<QByteArray>());
+        QCOMPARE(editor.getResources().addObject(PDFContentResourceCategory::ExtGState, "GS", addedGraphicState), QByteArray("GS1"));
+        PDFDocumentBuilder hidingBuilder(&document);
+        const PDFContentWriteResult hiding = Writer::write(&document, snapshotOf({ editor.build() }), &hidingBuilder, Writer::Options(), nullptr, nullptr);
+        QVERIFY(hiding.status == Status::PageErrors);
+        QVERIFY2(hiding.errors.at(0).front().text.contains(QStringLiteral("the new resource “GS1” would hide a resource of the same name")), qPrintable(hiding.errors.at(0).front().text));
+        QVERIFY(*hidingBuilder.getStorage() == document.getStorage());
     }
 
     // ---- 4. The form is drawn by another form, which has resources of its own:
-    //        page "/FmH Do", /XObject << /FmH >> /ExtGState << /GP << /LW 6 >> >>
-    //        /FmH "/Fm2 Do", /Resources << /XObject << /Fm2 >> /ExtGState << /GP << /LW ... >> >> >>
-    //        /Fm2 "/GP gs 1 0 0 rg 0 0 10 10 re f", no /Resources
-    //      This library draws /Fm2 with the dictionaries of /FmH; a copy of the resources of the
-    //      page in /Fm2 takes their place. It is right only when /FmH gives /GP the same state. ----
-    const auto outerFormDocument = [&](PDFReal outerLineWidth, PDFObject* form, PDFObject* outerForm)
+    //        page "/FmH Do", /XObject << /FmH /Fx >> /ExtGState << /GP << /LW 6 >> >>
+    //        /FmH "/Fm2 Do", /Resources << /XObject << /Fm2 >> /ExtGState << /GP << /LW w >> [/GX << /LW 2 >>] >> >>
+    //        /Fm2 "/GP gs 1 0 0 rg 0 0 10 10 re f" (or "/GX gs ...", "/Fx Do ..."), no /Resources
+    //        /Fx  "0 0 1 1 re f", no /Resources
+    //      /Fm2 takes its names from /FmH first, a name /FmH lacks (/Fx, /FmH) from the page
+    //      (NOTES.txt 7.8.3). Read as the session reads it (the caller resources of the build are
+    //      those of /FmH), the tree has the objects of /FmH and the copy holds them: written. Read
+    //      with the page alone, the tree has the objects of the page: written only where /FmH
+    //      gives the used names the same objects (w = 6), else refused. The copy: the dictionaries
+    //      of /FmH with the entries of the page /FmH lacks behind them, and the new state. ----
+    const auto outerFormDocument = [&](PDFReal outerLineWidth, const QByteArray& content, bool hasExtra, PDFObject* form, PDFObject* outerForm, PDFObject* innerForm)
     {
         PDFDocumentBuilder builder;
-        *form = Documents::addFormWithoutResourcesObject(&builder);
+        *form = addForm(&builder, content, { }, false);
+        *innerForm = addForm(&builder, "0 0 1 1 re f", { }, false);
+        Documents::DictionaryEntries states = { { "GP", graphicStateObject(outerLineWidth) } };
+        if (hasExtra)
+        {
+            states.push_back({ "GX", graphicStateObject(2.0) });
+        }
         *outerForm = addForm(&builder, "/Fm2 Do", { { "XObject", Documents::createDictionaryObject({ { "Fm2", *form } }) },
-                                                  { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(outerLineWidth) } }) } }, true);
-        addPage(&builder, "/FmH Do", { { "XObject", Documents::createDictionaryObject({ { "FmH", *outerForm } }) },
+                                                  { "ExtGState", Documents::createDictionaryObject(std::move(states)) } }, true);
+        addPage(&builder, "/FmH Do", { { "XObject", Documents::createDictionaryObject({ { "FmH", *outerForm }, { "Fx", *innerForm } }) },
                                        { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(6.0) } }) } });
         return builder.build();
     };
 
+    struct OuterRow
+    {
+        const char* name;
+        QByteArray content;
+        bool hasExtra;
+        PDFReal outerLineWidth;
+        bool isReadWithCaller;
+        bool isRefused;
+    };
+    for (const OuterRow& row : { OuterRow{ "read with the outer form: its /GP", QByteArray("/GP gs 1 0 0 rg 0 0 10 10 re f"), false, 3.0, true, false },
+                                 OuterRow{ "read with the outer form: a name only of the outer form", QByteArray("/GX gs 1 0 0 rg 0 0 10 10 re f"), true, 3.0, true, false },
+                                 OuterRow{ "read with the outer form: a form without resources inside", QByteArray("/Fx Do 1 0 0 rg 0 0 10 10 re f"), false, 3.0, true, false },
+                                 OuterRow{ "read with the page: the outer form gives /GP another object", QByteArray("/GP gs 1 0 0 rg 0 0 10 10 re f"), false, 3.0, false, true },
+                                 OuterRow{ "read with the page: a name only of the outer form", QByteArray("/GX gs 1 0 0 rg 0 0 10 10 re f"), true, 3.0, false, true },
+                                 OuterRow{ "read with the page: the outer form gives /GP an equal object", QByteArray("/GP gs 1 0 0 rg 0 0 10 10 re f"), false, 6.0, false, false },
+                                 // /Fx would take a name from the copy of the page first, where
+                                 // today it has those of /FmH: /FmH defines /Fm2, the page does not
+                                 OuterRow{ "read with the page: a form without resources inside", QByteArray("/Fx Do 1 0 0 rg 0 0 10 10 re f"), false, 6.0, false, true } })
     {
         PDFObject form;
         PDFObject outerForm;
-        const PDFDocument document = outerFormDocument(3.0, &form, &outerForm);
+        PDFObject innerForm;
+        const PDFDocument document = outerFormDocument(row.outerLineWidth, row.content, row.hasExtra, &form, &outerForm, &innerForm);
+        const PDFObject outerResources = document.getObject(outerForm).getStream()->getDictionary()->get("Resources");
+
+        const PDFContentContainerPointer container = buildContainer(document, PDFContentContainerKey::createForm(form.getReference()), 0, row.isReadWithCaller ? outerResources : PDFObject());
+        QVERIFY2(container != nullptr, row.name);
+        const PDFContentContainerPointer edited = setOverride(container, nodesOfKind(*container, PDFContentNodeKind::Path).back()->getId(), alphaOverride());
+        QVERIFY2(edited != nullptr, row.name);
 
         Written written;
-        writeForm(document, form, 0, &written);
-        if (QTest::currentTestFailed())
+        PDFDocumentBuilder builder(&document);
+        written.result = Writer::write(&document, snapshotOf({ edited }), &builder, Writer::Options(), nullptr, nullptr);
+        written.isBuilderUntouched = *builder.getStorage() == document.getStorage();
+        written.resources = builder.getObjectByReference(form.getReference()).getStream()->getDictionary()->get("Resources");
+
+        if (row.isRefused)
         {
-            return;
+            QVERIFY2(written.result.status == Status::PageErrors, row.name);
+            QVERIFY2(written.result.errors.size() == 1, row.name);
+            QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("a form or an annotation of the page 1, which draws it, gives it other resources than those it was read with")), qPrintable(formErrorText(written, 0)));
+            QVERIFY2(written.isBuilderUntouched, row.name);
+            continue;
         }
 
-        QVERIFY(written.result.status == Status::PageErrors);
-        QCOMPARE(written.result.errors.size(), size_t(1));
-        QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("a form or an annotation of the page 1 gives it other resources than the page 1")), qPrintable(formErrorText(written, 0)));
-        QVERIFY(written.isBuilderUntouched);
+        QVERIFY2(written.result.status == Status::Success, qPrintable(QString::fromLatin1(row.name) + QStringLiteral(": ") + formErrorText(written, 0)));
+        if (row.isReadWithCaller)
+        {
+            Documents::DictionaryEntries states = { { "GP", graphicStateObject(row.outerLineWidth) } };
+            if (row.hasExtra)
+            {
+                states.push_back({ "GX", graphicStateObject(2.0) });
+            }
+            states.push_back({ "GS1", addedGraphicState });
+            QVERIFY2(written.resources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Fm2", form }, { "FmH", outerForm }, { "Fx", innerForm } }) },
+                                                                              { "ExtGState", Documents::createDictionaryObject(std::move(states)) } }), row.name);
+        }
+        else
+        {
+            QVERIFY2(written.resources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "FmH", outerForm }, { "Fx", innerForm } }) },
+                                                                              { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(6.0) }, { "GS1", addedGraphicState } }) } }), row.name);
+        }
     }
 
+    // ---- 5. The fallback of the outer form differs between two pages:
+    //        page 1, page 2: "/FmH Do", /XObject << /FmH /Fx >> /ExtGState << /GZ << /LW 2 >> >>
+    //                        (the page 2: /GZ << /LW z >>, and maybe /GS1 << /LW 9 >>)
+    //        /FmH "/Fm2 Do", /Resources << /XObject << /Fm2 >> >> (no /ExtGState)
+    //        /Fm2 "/GZ gs 0 0 10 10 re f" or "/Fx Do 0 0 10 10 re f", no /Resources
+    //      /Fm2 is read with /FmH on the page 1. /FmH lacks /GZ: on each page /Fm2 takes it from
+    //      that page, so z = 9 changes the look on the page 2 (refused under both pages, which
+    //      name the page 2). With /Fx inside, /Fx would take the new /GS1 from the copy on the
+    //      page 2, where today it takes the /GS1 of the page: refused too. ----
+    struct FallbackRow
     {
-        PDFObject form;
-        PDFObject outerForm;
-        const PDFDocument document = outerFormDocument(6.0, &form, &outerForm);
+        const char* name;
+        QByteArray content;
+        PDFReal secondLineWidth;
+        bool hasSecondName;
+        bool isRefused;
+    };
+    for (const FallbackRow& row : { FallbackRow{ "the pages give the fallback other objects", QByteArray("/GZ gs 0 0 10 10 re f"), 9.0, false, true },
+                                    FallbackRow{ "the pages give the fallback equal objects", QByteArray("/GZ gs 0 0 10 10 re f"), 2.0, false, false },
+                                    FallbackRow{ "a form without resources inside, the page 2 defines the new name", QByteArray("/Fx Do 0 0 10 10 re f"), 2.0, true, true },
+                                    FallbackRow{ "a form without resources inside, no page defines the new name", QByteArray("/Fx Do 0 0 10 10 re f"), 2.0, false, false } })
+    {
+        PDFDocumentBuilder builder;
+        const PDFObject form = addForm(&builder, row.content, { }, false);
+        const PDFObject innerForm = addForm(&builder, "0 0 1 1 re f", { }, false);
+        const PDFObject outerForm = addForm(&builder, "/Fm2 Do", { { "XObject", Documents::createDictionaryObject({ { "Fm2", form } }) } }, true);
+        for (int pageIndex = 0; pageIndex < 2; ++pageIndex)
+        {
+            Documents::DictionaryEntries states = { { "GZ", graphicStateObject(pageIndex == 0 ? 2.0 : row.secondLineWidth) } };
+            if (row.hasSecondName && pageIndex == 1)
+            {
+                states.push_back({ "GS1", graphicStateObject(9.0) });
+            }
+            addPage(&builder, "/FmH Do", { { "XObject", Documents::createDictionaryObject({ { "FmH", outerForm }, { "Fx", innerForm } }) },
+                                           { "ExtGState", Documents::createDictionaryObject(std::move(states)) } });
+        }
+        const PDFDocument document = builder.build();
+        QCOMPARE(document.getCatalog()->getPageCount(), size_t(2));
+
+        const PDFObject outerResources = document.getObject(outerForm).getStream()->getDictionary()->get("Resources");
+        const PDFContentContainerPointer container = buildContainer(document, PDFContentContainerKey::createForm(form.getReference()), 0, outerResources);
+        QVERIFY2(container != nullptr, row.name);
+        const PDFContentContainerPointer edited = setOverride(container, nodesOfKind(*container, PDFContentNodeKind::Path).back()->getId(), alphaOverride());
+        QVERIFY2(edited != nullptr, row.name);
 
         Written written;
-        writeForm(document, form, 0, &written);
-        if (QTest::currentTestFailed())
+        PDFDocumentBuilder writtenBuilder(&document);
+        written.result = Writer::write(&document, snapshotOf({ edited }), &writtenBuilder, Writer::Options(), nullptr, nullptr);
+        written.isBuilderUntouched = *writtenBuilder.getStorage() == document.getStorage();
+        if (row.isRefused)
         {
-            return;
+            QVERIFY2(written.result.status == Status::PageErrors, row.name);
+            QVERIFY2(written.result.errors.size() == 2, row.name);
+            QVERIFY2(formErrorText(written, 0).contains(QStringLiteral("pages 2 give it other resources than the page 1")), qPrintable(formErrorText(written, 0)));
+            QVERIFY2(written.isBuilderUntouched, row.name);
         }
-
-        QVERIFY(written.result.status == Status::Success);
-        QVERIFY(written.resources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "FmH", outerForm } }) },
-                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GP", graphicStateObject(6.0) }, { "GS1", addedGraphicState } }) } }));
+        else
+        {
+            QVERIFY2(written.result.status == Status::Success, qPrintable(QString::fromLatin1(row.name) + QStringLiteral(": ") + formErrorText(written, 0)));
+            QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 0, 1 }));
+        }
     }
+}
+
+void DocumentToolContentTest::writerFormPageResourcesRendered()
+{
+    // The reading, the writing and the rendering give a name of a form without /Resources the
+    // same object: the one of the form drawing it, and a name that form lacks the one of the page
+    // (NOTES.txt 7.8.3, the owner's decision of 2026-11-27).
+    //   page   "/FmH Do", /XObject << /FmH >> /ExtGState << /GA << /ca 0.2 >> /GB << /ca 0.5 >> >>
+    //   /FmH   "/Fm2 Do", /Resources << /XObject << /Fm2 >> /ExtGState << /GA << /ca 1 >> >> >>
+    //   /Fm2   "/GA gs 1 0 0 rg 0 0 50 50 re f /GB gs 0 1 0 rg 100 0 50 50 re f
+    //           /GA gs 0 0 1 rg 50 50 50 50 re f", no /Resources
+    // The red square [0 50] x [0 50] is drawn with the /GA of /FmH: opaque red (the page-first
+    // order would make it pale, 0.2). The green square [100 150] x [0 50] takes /GB from the page
+    // (the fallback: /FmH has no /GB): green with the alpha 0.5 over white, (128, 255, 128) - the
+    // rule of before 2026-11-27 left /GB undefined and the green opaque. The blue square
+    // [50 100] x [50 100] (opaque) gets the alpha 0.5 by the editor (a new name /GS1): /Fm2 gets a
+    // copy of the resources it was read with - the dictionaries of /FmH with the entries of the
+    // page it lacks - and /GS1. After the write red and green are as before, blue is (128, 128, 255).
+    const auto alphaState = [](PDFReal alpha)
+    {
+        return Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "ca", PDFObject::createReal(alpha) } });
+    };
+
+    PDFDocumentBuilder documentBuilder;
+    const PDFObject form = Documents::addStreamObject(&documentBuilder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                          { "BBox", Documents::createIntegerArrayObject({ 0, 0, 200, 200 }) } },
+                                                      "/GA gs 1 0 0 rg 0 0 50 50 re f /GB gs 0 1 0 rg 100 0 50 50 re f /GA gs 0 0 1 rg 50 50 50 50 re f");
+    const PDFObject outerResources = Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Fm2", form } }) },
+                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GA", alphaState(1.0) } }) } });
+    const PDFObject outerForm = Documents::addStreamObject(&documentBuilder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                               { "BBox", Documents::createIntegerArrayObject({ 0, 0, 200, 200 }) },
+                                                                               { "Resources", outerResources } },
+                                                           "/Fm2 Do");
+    const PDFObjectReference page = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+    documentBuilder.mergeTo(page, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "FmH", outerForm } }) },
+                                                                                                                         { "ExtGState", Documents::createDictionaryObject({ { "GA", alphaState(0.2) },
+                                                                                                                                                                            { "GB", alphaState(0.5) } }) } }) },
+                                                                      { "Contents", Documents::addStreamObject(&documentBuilder, Documents::DictionaryEntries(), "/FmH Do") } }));
+    const PDFDocument document = documentBuilder.build();
+
+    // Renders the page 200 x 200 into 200 x 200 pixels; the color at a point of the page
+    const auto render = [](const PDFDocument& renderedDocument)
+    {
+        PDFCMSGeneric cms;
+        PDFFontCache fontCache(32, 32);
+        PDFICCProfileCache iccProfileCache;
+        PDFOptionalContentActivity activity(&renderedDocument, OCUsage::View, nullptr);
+        fontCache.setDocument(PDFModifiedDocument(const_cast<PDFDocument*>(&renderedDocument), &activity));
+        iccProfileCache.setDocument(PDFModifiedDocument(const_cast<PDFDocument*>(&renderedDocument), &activity));
+
+        PDFRenderer renderer(&renderedDocument, &fontCache, &iccProfileCache, &cms, &activity, PDFRenderer::Features(), PDFMeshQualitySettings());
+        QImage image(Documents::PAGE_SIZE, Documents::PAGE_SIZE, QImage::Format_RGB888);
+        image.fill(Qt::white);
+        {
+            QPainter painter(&image);
+            renderer.render(&painter, QRectF(0, 0, image.width(), image.height()), 0);
+        }
+        return image;
+    };
+    const auto colorAt = [](const QImage& image, int x, int y) { return QColor(image.pixel(x, image.height() - 1 - y)); };
+    const auto isOpaque = [](const QColor& color, int red, int green, int blue)
+    {
+        return qAbs(color.red() - red) < 20 && qAbs(color.green() - green) < 20 && qAbs(color.blue() - blue) < 20;
+    };
+
+    // Before: red and blue opaque, green half transparent
+    const QImage before = render(document);
+    QVERIFY2(isOpaque(colorAt(before, 25, 25), 255, 0, 0), qPrintable(colorAt(before, 25, 25).name()));
+    QVERIFY2(isOpaque(colorAt(before, 125, 25), 128, 255, 128), qPrintable(colorAt(before, 125, 25).name()));
+    QVERIFY2(isOpaque(colorAt(before, 75, 75), 0, 0, 255), qPrintable(colorAt(before, 75, 75).name()));
+
+    // The reading, as the session reads it: drawn by /FmH (its resources are the caller resources
+    // of the build). The red path has the alpha 1 of /FmH, the green one the 0.5 of the page.
+    const PDFContentContainerPointer container = buildContainer(document, PDFContentContainerKey::createForm(form.getReference()), 0, outerResources);
+    QVERIFY(container != nullptr);
+    QCOMPARE(container->getInheritedResourcesPageIndex(), PDFInteger(0));
+    const std::vector<PDFContentNodePointer> paths = nodesOfKind(*container, PDFContentNodeKind::Path);
+    QCOMPARE(paths.size(), size_t(3));
+    QCOMPARE(paths[0]->getState()->getState().getAlphaFilling(), 1.0);
+    QCOMPARE(paths[1]->getState()->getState().getAlphaFilling(), 0.5);
+    QCOMPARE(paths[2]->getState()->getState().getAlphaFilling(), 1.0);
+    const PDFContentContainerPointer edited = setOverride(container, paths[2]->getId(), alphaOverride());
+    QVERIFY(edited != nullptr);
+
+    // The writing: a copy of the resources of the build with the new name
+    PDFDocumentBuilder builder(&document);
+    const PDFContentWriteResult result = Writer::write(&document, snapshotOf({ edited }), &builder, Writer::Options(), nullptr, nullptr);
+    QVERIFY2(result.status == Status::Success, qPrintable(result.errors.empty() ? QString() : result.errors.cbegin()->second.front().text));
+    QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+    QVERIFY(!result.isPagesChangedIncomplete);
+    const PDFDocument written = builder.build();
+    const PDFObject writtenResources = written.getObject(written.getObjectByReference(form.getReference()).getStream()->getDictionary()->get("Resources"));
+    const PDFObject addedState = Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "ca", PDFObject::createReal(0.5) } });
+    QVERIFY(writtenResources == Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Fm2", form }, { "FmH", outerForm } }) },
+                                                                    { "ExtGState", Documents::createDictionaryObject({ { "GA", alphaState(1.0) }, { "GB", alphaState(0.5) }, { "GS1", addedState } }) } }));
+
+    // After: red and green as before, blue blended with the white page by 0.5
+    const QImage after = render(written);
+    QVERIFY2(isOpaque(colorAt(after, 25, 25), 255, 0, 0), qPrintable(colorAt(after, 25, 25).name()));
+    QVERIFY2(isOpaque(colorAt(after, 125, 25), 128, 255, 128), qPrintable(colorAt(after, 125, 25).name()));
+    QVERIFY2(isOpaque(colorAt(after, 75, 75), 128, 128, 255), qPrintable(colorAt(after, 75, 75).name()));
+
+    // Read with the page alone (the tree has the alpha 0.2 of the page for /GA): the write would
+    // draw the red square pale under /FmH - refused, nothing written
+    const PDFContentContainerPointer pageRead = buildContainer(document, PDFContentContainerKey::createForm(form.getReference()), 0);
+    QVERIFY(pageRead != nullptr);
+    QCOMPARE(nodesOfKind(*pageRead, PDFContentNodeKind::Path)[0]->getState()->getState().getAlphaFilling(), 0.2);
+    PDFDocumentBuilder refusedBuilder(&document);
+    const PDFContentWriteResult refused = Writer::write(&document, snapshotOf({ setOverride(pageRead, nodesOfKind(*pageRead, PDFContentNodeKind::Path)[2]->getId(), alphaOverride()) }),
+                                                       &refusedBuilder, Writer::Options(), nullptr, nullptr);
+    QVERIFY(refused.status == Status::PageErrors);
+    QVERIFY(*refusedBuilder.getStorage() == document.getStorage());
 }
 
 void DocumentToolContentTest::writerFormInheritedWrittenNames_data()
@@ -3047,9 +3359,11 @@ void DocumentToolContentTest::writerFormInheritedWrittenNames()
     }
 
     // ---- A form without resources /Fx ("0 0 1 1 re f", the same object on both pages) drawn
-    //      before the path: the content of /Fm2 draws content, which inherits too, so the pages
-    //      must agree in every category (the strict comparison); the page 2 has /ExtGState
-    //      << /GQ >>, the page 1 has no /ExtGState. The form /Fm2 uses no other name. ----
+    //      before the path: the content of /Fm2 draws content, which inherits too, so every name
+    //      of the recorded page must be a name of the other page (the strict comparison: /Fx
+    //      would take a name its page does not define from the copy in /Fm2, NOTES.txt); the page
+    //      1 has /ExtGState << /GQ >>, the page 2 has no /ExtGState. The form /Fm2 uses no other
+    //      name. ----
     const QByteArray formAndPath = "/Fx Do 0 0 10 10 re f";
     PDFObject innerForm;
     const ResourcesOfPage forms = [&innerForm](PDFDocumentBuilder* builder, const PDFObject& form, int pageIndex)
@@ -3061,14 +3375,14 @@ void DocumentToolContentTest::writerFormInheritedWrittenNames()
         }
 
         Documents::DictionaryEntries entries = { { "XObject", Documents::createDictionaryObject({ { "Fm2", form }, { "Fx", innerForm } }) } };
-        if (pageIndex == 1)
+        if (pageIndex == 0)
         {
             entries.emplace_back("ExtGState", Documents::createDictionaryObject({ { "GQ", graphicStateObject(9.0) } }));
         }
         return entries;
     };
 
-    // The use of /Fx is written: the pages differ in /ExtGState, the form is refused
+    // The use of /Fx is written: the page 2 does not define the /GQ of the page 1, the form is refused
     if (isFormUse)
     {
         Written data;
@@ -3097,7 +3411,275 @@ void DocumentToolContentTest::writerFormInheritedWrittenNames()
         QVERIFY(!data.written.getDecodedStream(stream.getStream()).contains("Fx"));
         const PDFDictionary* resources = stream.getStream()->getDictionary()->get("Resources").getDictionary();
         QVERIFY(resources != nullptr);
-        QVERIFY(resources->get("ExtGState") == Documents::createDictionaryObject({ { "GS1", addedGraphicState } }));
+        QVERIFY(resources->get("ExtGState") == Documents::createDictionaryObject({ { "GQ", graphicStateObject(9.0) }, { "GS1", addedGraphicState } }));
+    }
+}
+
+void DocumentToolContentTest::writerFormInheritedChain()
+{
+    // Review R2-1: a form without /Resources reached through a chain of content without resources
+    // has the caller of the chain as its caller (NOTES.txt 7.8.3: each content without resources
+    // passes the resources of the content drawing it on, with the page as the fallback):
+    //   page   /XObject << /F [/FmA] >> [/ExtGState << /GX << /LW g >> >>], content "/FmA Do"
+    //   A      resources << /ExtGState << /GX << /LW 2 >> >> + the intermediary I >>
+    //   I      without resources: a form "/F Do", a tiling pattern cell "/F Do", a Type 3 glyph
+    //          procedure "1000 0 d0 /F Do", or A itself is the appearance stream of an
+    //          annotation of the page, which draws the form F' "/F Do"
+    //   F      without resources: "/GX gs 0 0 10 10 re S 0 0 5 5 re f"
+    // The renderer draws F with /GX of A (2): I takes /F from the page (A has no /F) and passes
+    // the resources of A on. The walk over the resources knows no edge from I to F; the page and
+    // A are the places drawing F. F is read with the page (as a page drawing it directly would
+    // give it), its filled path gets the alpha 0.5 (a new name). With g = 9 the tree has the
+    // width 9, the copy of the page would give F the width 9 under A too: refused, nothing
+    // written. With g = 2 (an equal state) both places agree: written with the copy of the page.
+    // Read with A as the caller (the session does so), g = 9 is refused by the page: it names F
+    // and might draw it directly with its /GX.
+    enum class Intermediary
+    {
+        Form,
+        Pattern,
+        Type3,
+        Appearance
+    };
+
+    struct ChainDocument
+    {
+        PDFDocument document;
+        PDFObject form;             ///< F
+        PDFObject callerResources;  ///< The resources of A
+    };
+
+    const auto createChainDocument = [](Intermediary intermediary, PDFReal pageLineWidth)
+    {
+        PDFDocumentBuilder builder;
+        ChainDocument result;
+        result.form = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                             { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, "/GX gs 0 0 10 10 re S 0 0 5 5 re f");
+
+        Documents::DictionaryEntries callerEntries = { { "ExtGState", Documents::createDictionaryObject({ { "GX", graphicStateObject(2.0) } }) } };
+        QByteArray callerContent;
+        switch (intermediary)
+        {
+            case Intermediary::Form:
+            case Intermediary::Appearance:
+            {
+                const PDFObject inner = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                               { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, "/F Do");
+                callerEntries.push_back({ "XObject", Documents::createDictionaryObject({ { "Fp", inner } }) });
+                callerContent = "/Fp Do";
+                break;
+            }
+
+            case Intermediary::Pattern:
+            {
+                const PDFObject cell = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("Pattern") }, { "PatternType", PDFObject::createInteger(1) },
+                                                                              { "PaintType", PDFObject::createInteger(1) }, { "TilingType", PDFObject::createInteger(1) },
+                                                                              { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                                                              { "XStep", PDFObject::createInteger(10) }, { "YStep", PDFObject::createInteger(10) } }, "/F Do");
+                callerEntries.push_back({ "Pattern", Documents::createDictionaryObject({ { "Pc", cell } }) });
+                callerContent = "/Pattern cs /Pc scn 0 0 10 10 re f";
+                break;
+            }
+
+            case Intermediary::Type3:
+            {
+                const PDFObject procedure = Documents::addStreamObject(&builder, Documents::DictionaryEntries(), "1000 0 d0 /F Do");
+                const PDFObject font = Documents::addObject(&builder, Documents::createDictionaryObject({ { "Type", PDFObject::createName("Font") }, { "Subtype", PDFObject::createName("Type3") },
+                                                                                                        { "FontBBox", Documents::createIntegerArrayObject({ 0, 0, 1000, 1000 }) },
+                                                                                                        { "FontMatrix", Documents::createArrayObject({ PDFObject::createReal(0.001), PDFObject::createInteger(0), PDFObject::createInteger(0),
+                                                                                                                                                       PDFObject::createReal(0.001), PDFObject::createInteger(0), PDFObject::createInteger(0) }) },
+                                                                                                        { "CharProcs", Documents::createDictionaryObject({ { "g", procedure } }) },
+                                                                                                        { "Encoding", Documents::createDictionaryObject({ { "Differences", Documents::createArrayObject({ PDFObject::createInteger(65), PDFObject::createName("g") }) } }) },
+                                                                                                        { "FirstChar", PDFObject::createInteger(65) },
+                                                                                                        { "LastChar", PDFObject::createInteger(65) },
+                                                                                                        { "Widths", Documents::createIntegerArrayObject({ 1000 }) } }));
+                callerEntries.push_back({ "Font", Documents::createDictionaryObject({ { "T3", font } }) });
+                callerContent = "BT /T3 1 Tf (A) Tj ET";
+                break;
+            }
+        }
+
+        result.callerResources = Documents::createDictionaryObject(callerEntries);
+        const PDFObject caller = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                        { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                                                        { "Resources", result.callerResources } }, callerContent);
+
+        Documents::DictionaryEntries forms = { { "F", result.form } };
+        if (intermediary != Intermediary::Appearance)
+        {
+            forms.push_back({ "FmA", caller });
+        }
+        Documents::DictionaryEntries pageEntries = { { "XObject", Documents::createDictionaryObject(std::move(forms)) } };
+        if (pageLineWidth > 0.0)
+        {
+            pageEntries.push_back({ "ExtGState", Documents::createDictionaryObject({ { "GX", graphicStateObject(pageLineWidth) } }) });
+        }
+
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+        Documents::DictionaryEntries pageDictionary = { { "Resources", Documents::createDictionaryObject(std::move(pageEntries)) },
+                                                        { "Contents", Documents::addStreamObject(&builder, Documents::DictionaryEntries(), intermediary == Intermediary::Appearance ? "" : "/FmA Do") } };
+        if (intermediary == Intermediary::Appearance)
+        {
+            const PDFObject annotation = Documents::addObject(&builder, Documents::createDictionaryObject({ { "Type", PDFObject::createName("Annot") }, { "Subtype", PDFObject::createName("Square") },
+                                                                                                         { "Rect", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) },
+                                                                                                         { "AP", Documents::createDictionaryObject({ { "N", caller } }) } }));
+            pageDictionary.push_back({ "Annots", Documents::createArrayObject({ annotation }) });
+        }
+        builder.mergeTo(page, Documents::createDictionaryObject(std::move(pageDictionary)));
+        result.document = builder.build();
+        return result;
+    };
+
+    struct Row
+    {
+        const char* name;
+        Intermediary intermediary;
+        PDFReal pageLineWidth;
+        bool isReadWithCaller;
+        bool isRefused;
+        const char* errorText;
+    };
+    const char* const callerError = "a form or an annotation of the page 1, which draws it, gives it other resources than those it was read with";
+    const char* const pageError = "pages 1 give it other resources than the page 1";
+    for (const Row& row : { Row{ "a form in the chain, the page has another /GX", Intermediary::Form, 9.0, false, true, callerError },
+                            Row{ "a pattern cell in the chain, the page has another /GX", Intermediary::Pattern, 9.0, false, true, callerError },
+                            Row{ "a glyph procedure in the chain, the page has another /GX", Intermediary::Type3, 9.0, false, true, callerError },
+                            Row{ "an appearance with a form in the chain, the page has another /GX", Intermediary::Appearance, 9.0, false, true, callerError },
+                            Row{ "a form in the chain, the page agrees", Intermediary::Form, 2.0, false, false, "" },
+                            Row{ "a pattern cell in the chain, the page agrees", Intermediary::Pattern, 2.0, false, false, "" },
+                            Row{ "a glyph procedure in the chain, the page agrees", Intermediary::Type3, 2.0, false, false, "" },
+                            Row{ "an appearance with a form in the chain, the page agrees", Intermediary::Appearance, 2.0, false, false, "" },
+                            Row{ "read with the caller of the chain, the page has another /GX", Intermediary::Form, 9.0, true, true, pageError },
+                            Row{ "read with the caller of the chain, the page has no /GX", Intermediary::Form, 0.0, true, true, pageError },
+                            Row{ "read with the caller of the chain, the page agrees", Intermediary::Form, 2.0, true, false, "" } })
+    {
+        const ChainDocument chain = createChainDocument(row.intermediary, row.pageLineWidth);
+        const PDFContentContainerPointer container = buildContainer(chain.document, PDFContentContainerKey::createForm(chain.form.getReference()), 0,
+                                                                    row.isReadWithCaller ? chain.callerResources : PDFObject());
+        QVERIFY2(container != nullptr, row.name);
+        const std::vector<PDFContentNodePointer> paths = nodesOfKind(*container, PDFContentNodeKind::Path);
+        QVERIFY2(paths.size() == 2, row.name);
+        QVERIFY2(paths[0]->getState()->getState().getLineWidth() == (row.isReadWithCaller ? 2.0 : (row.pageLineWidth > 0.0 ? row.pageLineWidth : 1.0)), row.name);
+        const PDFContentContainerPointer edited = setOverride(container, paths[1]->getId(), alphaOverride());
+        QVERIFY2(edited != nullptr, row.name);
+
+        PDFDocumentBuilder builder(&chain.document);
+        const PDFContentWriteResult result = Writer::write(&chain.document, snapshotOf({ edited }), &builder, Writer::Options(), nullptr, nullptr);
+        const QString errorText = result.errors.empty() ? QString() : result.errors.cbegin()->second.front().text;
+        if (row.isRefused)
+        {
+            QVERIFY2(result.status == Status::PageErrors, row.name);
+            QVERIFY2(result.errors.size() == 1 && result.errors.count(0), row.name);
+            QVERIFY2(errorText.contains(QString::fromLatin1(row.errorText)), qPrintable(QString::fromLatin1(row.name) + QStringLiteral(": ") + errorText));
+            QVERIFY2(*builder.getStorage() == chain.document.getStorage(), row.name);
+            continue;
+        }
+
+        QVERIFY2(result.status == Status::Success, qPrintable(QString::fromLatin1(row.name) + QStringLiteral(": ") + errorText));
+        QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+
+        // The copy holds /GX << /LW 2 >> (of the page or of A, equal objects) and the new state
+        const PDFObject writtenResources = builder.getObject(builder.getObjectByReference(chain.form.getReference()).getStream()->getDictionary()->get("Resources"));
+        QVERIFY2(writtenResources.isDictionary(), row.name);
+        const PDFObject states = builder.getObject(writtenResources.getDictionary()->get("ExtGState"));
+        QVERIFY2(states == Documents::createDictionaryObject({ { "GX", graphicStateObject(2.0) },
+                                                                { "GS1", Documents::createDictionaryObject({ { "Type", PDFObject::createName("ExtGState") }, { "ca", PDFObject::createReal(0.5) } }) } }), row.name);
+    }
+}
+
+void DocumentToolContentTest::writerFormInheritedTwoCallers()
+{
+    // Review R2-2: a form without /Resources drawn by two forms with resources of their own,
+    // which give one name two objects - a file of the kind the rule of NOTES.txt 7.8.3 is for:
+    //   page   /XObject << /FmA /FmB >>, content "/FmA Do /FmB Do" (no /ExtGState)
+    //   A      "/F Do", /Resources << /XObject << /F >> /ExtGState << /GX << /LW 2 >> >> >>
+    //   B      "/F Do", /Resources << /XObject << /F >> /ExtGState << /GX << /LW b >> >> >>
+    //   F      "/GX gs 0 0 10 10 re S 5 5 m 6 6 l S", no /Resources
+    // F is read as drawn by A (the session takes the first use in the order of the document): its
+    // paths have the width 2. The written content is right under A only, unless B gives /GX the
+    // same object (b = 2). Checked also when no name is added (the form keeps no /Resources):
+    //  - the second path is deleted: the written content uses /GX;
+    //  - the state run "/GX gs" is deleted and the second path keeps its width by an override of
+    //    the width 2 (what R-2 / R-3 write): the written content no longer names /GX, but holds
+    //    a value the build took from it (the source of the property in the state of the path).
+    // b = 9: refused under the page, nothing written (in B the paths had the width 9, the second
+    // one would get 2); b = 2: written, without /Resources.
+    for (const PDFReal secondWidth : { 9.0, 2.0 })
+    {
+        for (const bool isValueKept : { false, true })
+        {
+            PDFDocumentBuilder documentBuilder;
+            const PDFObject form = Documents::addStreamObject(&documentBuilder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                                  { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) } }, "/GX gs 0 0 10 10 re S 5 5 m 6 6 l S");
+            const auto callerResources = [&form](PDFReal lineWidth)
+            {
+                return Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "F", form } }) },
+                                                           { "ExtGState", Documents::createDictionaryObject({ { "GX", graphicStateObject(lineWidth) } }) } });
+            };
+            const PDFObject resourcesA = callerResources(2.0);
+            const PDFObject formA = Documents::addStreamObject(&documentBuilder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                                   { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) }, { "Resources", resourcesA } }, "/F Do");
+            const PDFObject formB = Documents::addStreamObject(&documentBuilder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                                   { "BBox", Documents::createIntegerArrayObject({ 0, 0, 10, 10 }) }, { "Resources", callerResources(secondWidth) } }, "/F Do");
+            const PDFObjectReference page = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+            documentBuilder.mergeTo(page, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "FmA", formA }, { "FmB", formB } }) } }) },
+                                                                              { "Contents", Documents::addStreamObject(&documentBuilder, Documents::DictionaryEntries(), "/FmA Do /FmB Do") } }));
+            const PDFDocument document = documentBuilder.build();
+
+            PDFContentContainerPointer container = buildContainer(document, PDFContentContainerKey::createForm(form.getReference()), 0, resourcesA);
+            QVERIFY(container != nullptr);
+            const std::vector<PDFContentNodePointer> paths = nodesOfKind(*container, PDFContentNodeKind::Path);
+            QCOMPARE(paths.size(), size_t(2));
+            QCOMPARE(paths[1]->getState()->getState().getLineWidth(), 2.0);
+
+            QByteArray expectedContent;
+            if (isValueKept)
+            {
+                const std::vector<PDFContentNodePointer> runs = nodesOfKind(*container, PDFContentNodeKind::StateRun);
+                QCOMPARE(runs.size(), size_t(1));
+                container = removeNode(container, runs[0]->getId());
+                QVERIFY(container != nullptr);
+
+                PDFContentStateValue width;
+                width.kind = PDFContentStateValue::Kind::Real;
+                width.real = 2.0;
+                PDFContentStateOverride override;
+                override.properties[PDFContentStateProperty::LineWidth] = width;
+                container = setOverride(container, paths[1]->getId(), override);
+            }
+            else
+            {
+                container = removeNode(container, paths[1]->getId());
+                expectedContent = "/GX gs 0 0 10 10 re S";
+            }
+            QVERIFY(container != nullptr);
+
+            PDFDocumentBuilder builder(&document);
+            const PDFContentWriteResult result = Writer::write(&document, snapshotOf({ container }), &builder, Writer::Options(), nullptr, nullptr);
+            const QString errorText = result.errors.empty() ? QString() : result.errors.cbegin()->second.front().text;
+            if (secondWidth != 2.0)
+            {
+                QVERIFY2(result.status == Status::PageErrors, qPrintable(QString::number(int(isValueKept))));
+                QCOMPARE(result.errors.size(), size_t(1));
+                QVERIFY2(errorText.contains(QStringLiteral("a form or an annotation of the page 1, which draws it, gives it other resources than those it was read with")), qPrintable(errorText));
+                QVERIFY(*builder.getStorage() == document.getStorage());
+                continue;
+            }
+
+            QVERIFY2(result.status == Status::Success, qPrintable(errorText));
+            const PDFDocument writtenDocument = builder.build();
+            const PDFObject& stream = writtenDocument.getObjectByReference(form.getReference());
+            QVERIFY(!stream.getStream()->getDictionary()->hasKey("Resources"));
+            const QByteArray written = writtenDocument.getDecodedStream(stream.getStream());
+            if (isValueKept)
+            {
+                QVERIFY2(!written.contains("GX") && written.contains(" w"), written.constData());
+            }
+            else
+            {
+                QCOMPARE(written, expectedContent);
+            }
+        }
     }
 }
 
@@ -3131,13 +3713,38 @@ void DocumentToolContentTest::writerFormBehindWalkLimit()
     QVERIFY(original != nullptr);
     const PDFContentEditSnapshot snapshot = snapshotOf({ removeNode(original, nodesOfKind(*original, PDFContentNodeKind::Path)[0]->getId()) });
 
-    // No page is skipped: the form is written
+    // No page is skipped: the form is written. The result says, that the page 2 may use it too
+    // (the walk did not reach every page): the page 1 is the only page found
     {
         PDFDocumentBuilder builder(&document);
         const PDFContentWriteResult result = Writer::write(&document, snapshot, &builder, Writer::Options(), nullptr, nullptr);
         QVERIFY(result.status == Status::Success);
         QVERIFY(result.skippedContainers.empty());
         QCOMPARE(result.objectsRemoved, PDFInteger(1));
+        QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+        QVERIFY(result.isPagesChangedIncomplete);
+
+        // The tool says it: the data key and the text of the fact of the changed pages
+        Tool tool;
+        const PDFDocumentToolResult toolResult = tool.run(contextOf(document), applyParameters(std::make_shared<const PDFContentEditSnapshot>(snapshot)), nullptr, nullptr);
+        QVERIFY2(toolResult.isSuccess(), qPrintable(toolResult.message));
+        QCOMPARE(QByteArray(Tool::DATA_PAGES_CHANGED_INCOMPLETE), QByteArray("pagesChangedIncomplete"));
+        QCOMPARE(toolResult.data.value(QStringLiteral("pagesChangedIncomplete")).toBool(false), true);
+        const auto isPagesFact = [](const PDFDocumentToolFact& fact) { return fact.id == QLatin1String("pagesChanged"); };
+        const auto fact = std::find_if(toolResult.facts.cbegin(), toolResult.facts.cend(), isPagesFact);
+        QVERIFY(fact != toolResult.facts.cend());
+        QVERIFY2(fact->value.contains(QStringLiteral("possibly other pages")), qPrintable(fact->value));
+    }
+
+    // A write of the page 1 alone needs no walk: complete
+    {
+        const PDFContentContainerPointer page = buildPage(document, 0);
+        const PDFContentEditSnapshot pageSnapshot = snapshotOf({ appendRectangle(page, "0 0 5 5", FIRST_NEW_NODE) });
+        PDFDocumentBuilder builder(&document);
+        const PDFContentWriteResult result = Writer::write(&document, pageSnapshot, &builder, Writer::Options(), nullptr, nullptr);
+        QVERIFY(result.status == Status::Success);
+        QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+        QVERIFY(!result.isPagesChangedIncomplete);
     }
 
     // The page 2 is skipped: the walk was not complete, so the form may be one of its forms -
@@ -3329,7 +3936,8 @@ void DocumentToolContentTest::writerStructureSkippedPages()
     // The tagged page and a page without tags. On the tagged page the sequence /Span << /MCID 1 >>
     // is deleted: the model loses the child of the element and the item 1 of the array of the
     // page in the parent tree (zadani_jadro.md 4.12). The model of a snapshot is one for the
-    // whole document and is written whole.
+    // whole document; the changes of a skipped page are taken out of it (owner 2026-11-26,
+    // step B0; until then a skipped page with changed tags was refused as a whole).
     const PDFDocument document = createTaggedTwoPagesDocument();
     const PDFContentStructureModelPointer model = PDFContentStructureModel::read(&document, nullptr);
     const PDFContentStructureModelPointer changedModel = modelWithoutSequence(document, 1);
@@ -3371,38 +3979,25 @@ void DocumentToolContentTest::writerStructureSkippedPages()
     }
 
     // ---- The tagged page is skipped (the reason of a skip does not matter here). Its content
-    //      would stay as it is - with /MCID 1 and the text (Second) - while the parent tree
-    //      written from the model would say, that the identifier 1 of the page belongs to
-    //      nothing (ISO 32000-2, 14.7.5.4). The write is refused under the skipped page;
-    //      nothing is written. ----
+    //      stays as it is - with /MCID 1 and the text (Second) - so its tags stay too: the
+    //      change of the key 0 (/StructParents of the page) is taken out of the model, which has
+    //      no other change; no structure is written (ISO 32000-2, 14.7.5.4: the parent tree
+    //      still names the Span for the identifier 1). The other page is written. ----
     {
         const PDFContentWriteResult result = write({ taggedPage, plainValid }, changedModel, { 0 }, &isBuilderUntouched);
-        QVERIFY(result.status == Status::PageErrors);
-        QCOMPARE(result.errors.size(), size_t(1));
-        QCOMPARE(result.errors.begin()->first, PDFInteger(0));
-        const std::vector<PDFContentWriteError>& errors = result.errors.begin()->second;
-        QCOMPARE(errors.size(), size_t(1));
-        QVERIFY(errors[0].container == taggedPage->getKey());
-        QVERIFY(!errors[0].nodeId.isValid());
-        QVERIFY2(errors[0].text.contains(QStringLiteral("cannot be left out")), qPrintable(errors[0].text));
+        QVERIFY2(result.status == Status::Success, qPrintable(result.errors.empty() ? QString() : result.errors.cbegin()->second.front().text));
         QVERIFY(!result.isStructureChanged);
-        QVERIFY(result.pagesChanged.empty());
-        QVERIFY(isBuilderUntouched);
+        QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 1 }));
+        QVERIFY(!isBuilderUntouched);
     }
 
-    // ---- The page without tags is skipped. The model does not tell reliably, which page a
-    //      change of it belongs to (a deleted sequence, whose children do not agree with the
-    //      parent tree, changes elements only), so the rule is the coarse one: with any changed
-    //      page left out, a changed structure is not written, and the content of the other
-    //      pages is not written without it. The user undoes the changes of the page instead. ----
+    // ---- The page without tags is skipped: it has no key (/StructParents), so no change of the
+    //      structure is its; the structure and the tagged page are written ----
     {
         const PDFContentWriteResult result = write({ taggedPage, plainBroken }, changedModel, { 1 }, &isBuilderUntouched);
-        QVERIFY(result.status == Status::PageErrors);
-        QCOMPARE(result.errors.size(), size_t(1));
-        QCOMPARE(result.errors.begin()->first, PDFInteger(1));
-        QVERIFY(result.errors.begin()->second[0].container == plainBroken->getKey());
-        QVERIFY2(result.errors.begin()->second[0].text.contains(QStringLiteral("cannot be left out")), qPrintable(result.errors.begin()->second[0].text));
-        QVERIFY(isBuilderUntouched);
+        QVERIFY2(result.status == Status::Success, qPrintable(result.errors.empty() ? QString() : result.errors.cbegin()->second.front().text));
+        QVERIFY(result.isStructureChanged);
+        QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
     }
 
     // ---- A skipped page, which leaves no change out, refuses nothing: a page the snapshot has
@@ -3422,6 +4017,443 @@ void DocumentToolContentTest::writerStructureSkippedPages()
         QVERIFY(result.status == Status::Success);
         QVERIFY(!result.isStructureChanged);
         QCOMPARE(result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+    }
+}
+
+void DocumentToolContentTest::writerStructureSkippedTaggedPage()
+{
+    // Two tagged pages (ISO 32000-2, 14.7): each has the content
+    //   "/P << /MCID 0 >> BDC 0 0 10 10 re f EMC /P << /MCID 1 >> BDC 20 20 10 10 re f EMC
+    //    /Span << /MCID 2 >> BDC 40 40 10 10 re f EMC"
+    // and the structure
+    //   root  /K [A B C]  /ParentTree << /Nums [ 0 [A A C]  1 [B B C] ] >>   (page 1 /StructParents 0, page 2 1)
+    //   A     /S /P /Pg page1 /K [0 1]
+    //   B     /S /P /Pg page2 /K [0 1]
+    //   C     /S /Span /K [ << /Type /MCR /Pg page1 /MCID 2 >> << /Type /MCR /Pg page2 /MCID 2 >> ]
+    // Sequences are deleted on both pages and the page 2 is skipped: its content stays, so its
+    // tags stay (the parent tree item 1 as in the document, B not written); the changes of the
+    // page 1 are written. C lists content of both pages: when the deletions change it for both
+    // pages, they are separated child by child (writerStructureSkippedParagraphAcrossPages).
+    PDFDocumentBuilder documentBuilder;
+    const PDFObjectReference page1 = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+    const PDFObjectReference page2 = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+    const QByteArray content = "/P << /MCID 0 >> BDC 0 0 10 10 re f EMC /P << /MCID 1 >> BDC 20 20 10 10 re f EMC /Span << /MCID 2 >> BDC 40 40 10 10 re f EMC";
+    const PDFObjectReference root = documentBuilder.addObject(PDFObject::createInteger(0));
+    const PDFObjectReference a = documentBuilder.addObject(PDFObject::createInteger(0));
+    const PDFObjectReference b = documentBuilder.addObject(PDFObject::createInteger(0));
+    const PDFObjectReference c = documentBuilder.addObject(PDFObject::createInteger(0));
+    const auto ref = [](PDFObjectReference reference) { return PDFObject::createReference(reference); };
+    const auto element = [&ref](const char* type, PDFObjectReference parent, PDFObjectReference page, PDFObject kids)
+    {
+        Documents::DictionaryEntries entries = { { "Type", PDFObject::createName("StructElem") }, { "S", PDFObject::createName(type) }, { "P", ref(parent) } };
+        if (page.isValid())
+        {
+            entries.push_back({ "Pg", ref(page) });
+        }
+        entries.push_back({ "K", std::move(kids) });
+        return Documents::createDictionaryObject(std::move(entries));
+    };
+    const auto reference2 = [&ref](PDFObjectReference page)
+    {
+        return Documents::createDictionaryObject({ { "Type", PDFObject::createName("MCR") }, { "Pg", ref(page) }, { "MCID", PDFObject::createInteger(2) } });
+    };
+    documentBuilder.setObject(a, element("P", root, page1, Documents::createIntegerArrayObject({ 0, 1 })));
+    documentBuilder.setObject(b, element("P", root, page2, Documents::createIntegerArrayObject({ 0, 1 })));
+    documentBuilder.setObject(c, element("Span", root, PDFObjectReference(), Documents::createArrayObject({ reference2(page1), reference2(page2) })));
+    documentBuilder.setObject(root, Documents::createDictionaryObject({ { "Type", PDFObject::createName("StructTreeRoot") },
+                                                                         { "K", Documents::createArrayObject({ ref(a), ref(b), ref(c) }) },
+                                                                         { "ParentTree", Documents::createDictionaryObject({ { "Nums", Documents::createArrayObject({
+                                                                             PDFObject::createInteger(0), Documents::createArrayObject({ ref(a), ref(a), ref(c) }),
+                                                                             PDFObject::createInteger(1), Documents::createArrayObject({ ref(b), ref(b), ref(c) }) }) } }) },
+                                                                         { "ParentTreeNextKey", PDFObject::createInteger(2) } }));
+    for (const auto& page : { std::make_pair(page1, 0), std::make_pair(page2, 1) })
+    {
+        documentBuilder.mergeTo(page.first, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ }) },
+                                                                                { "Contents", Documents::addStreamObject(&documentBuilder, Documents::DictionaryEntries(), content) },
+                                                                                { "StructParents", PDFObject::createInteger(page.second) } }));
+    }
+    documentBuilder.mergeTo(documentBuilder.getCatalogReference(), Documents::createDictionaryObject({ { "StructTreeRoot", ref(root) } }));
+    const PDFDocument document = documentBuilder.build();
+
+    const PDFContentStructureModelPointer model = PDFContentStructureModel::read(&document, nullptr);
+    QVERIFY(model != nullptr);
+    QVERIFY(model->getIssues().empty());
+
+    // The page without the sequences of the identifiers
+    const auto pageWithout = [&document](PDFInteger pageIndex, std::set<PDFInteger> mcids)
+    {
+        PDFContentContainerPointer container = buildPage(document, pageIndex);
+        for (const PDFContentNodePointer& node : nodesOfKind(*container, PDFContentNodeKind::MarkedContent))
+        {
+            if (node->getData().mcid && mcids.count(*node->getData().mcid))
+            {
+                container = removeNode(container, node->getId());
+            }
+        }
+        return container;
+    };
+
+    struct Written
+    {
+        PDFContentWriteResult result;
+        PDFDocument document;
+    };
+    const auto write = [&](const std::vector<std::pair<PDFInteger, PDFInteger>>& deleted, PDFInteger skippedPage, Written* written)
+    {
+        std::vector<PDFContentStructureChange> changes;
+        std::map<PDFInteger, std::set<PDFInteger>> mcids;
+        for (const auto& sequence : deleted)
+        {
+            changes.push_back(model->getChangeForDelete(sequence.first, sequence.second, true));
+            QVERIFY(changes.back().action == PDFContentStructureChange::Action::RemoveSequence);
+            mcids[sequence.first].insert(sequence.second);
+        }
+
+        std::vector<PDFContentContainerPointer> containers;
+        for (const auto& page : mcids)
+        {
+            containers.push_back(pageWithout(page.first, page.second));
+        }
+        PDFContentEditSnapshot snapshot = snapshotOf(containers);
+        snapshot.structure = model->applied(changes);
+        Writer::Options options;
+        options.skippedPages = { skippedPage };
+
+        PDFDocumentBuilder builder(&document);
+        written->result = Writer::write(&document, snapshot, &builder, options, nullptr, nullptr);
+        written->document = builder.build();
+    };
+
+    const auto nums = [](const PDFDocument& writtenDocument, int index)
+    {
+        const PDFDictionary* catalog = writtenDocument.getDictionaryFromObject(writtenDocument.getTrailerDictionary()->get("Root"));
+        const PDFDictionary* structureRoot = writtenDocument.getDictionaryFromObject(catalog->get("StructTreeRoot"));
+        const PDFObject& numbers = writtenDocument.getObject(writtenDocument.getDictionaryFromObject(structureRoot->get("ParentTree"))->get("Nums"));
+        QStringList items;
+        for (const PDFObject& item : *writtenDocument.getObject(numbers.getArray()->getItem(size_t(2 * index + 1))).getArray())
+        {
+            items << (item.isReference() ? QString("%1 R").arg(item.getReference().objectNumber) : item.isNull() ? QString("null") : QString("?"));
+        }
+        return items;
+    };
+    const auto kids = [](const PDFDocument& writtenDocument, PDFObjectReference reference)
+    {
+        QStringList items;
+        for (const PDFObject& item : *writtenDocument.getObject(writtenDocument.getDictionaryFromObject(PDFObject::createReference(reference))->get("K")).getArray())
+        {
+            items << (item.isInt() ? QString::number(item.getInteger()) : item.isDictionary() ? QString("MCR %1").arg(item.getDictionary()->get("Pg").getReference().objectNumber) : QString("?"));
+        }
+        return items;
+    };
+    const QString A = QString("%1 R").arg(a.objectNumber);
+    const QString B = QString("%1 R").arg(b.objectNumber);
+    const QString C = QString("%1 R").arg(c.objectNumber);
+    const QString mcr2 = QString("MCR %1").arg(page2.objectNumber);
+
+    // ---- The sequence 0 of both pages; the page 2 is skipped: A loses 0, B and the item 1 stay ----
+    {
+        Written written;
+        write({ { 0, 0 }, { 1, 0 } }, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(written.result.errors.empty() ? QString() : written.result.errors.cbegin()->second.front().text));
+        QVERIFY(written.result.isStructureChanged);
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+        QCOMPARE(kids(written.document, a), QStringList({ "1" }));
+        QVERIFY(written.document.getObjectByReference(b) == document.getObjectByReference(b));
+        QVERIFY(written.document.getObjectByReference(c) == document.getObjectByReference(c));
+        QCOMPARE(nums(written.document, 0), QStringList({ "null", A, C }));
+        QCOMPARE(nums(written.document, 1), QStringList({ B, B, C }));
+        QCOMPARE(pageContent(written.document, 1), content);
+    }
+
+    // ---- The sequence 2 of the page 1 and 0 of the page 2; the page 2 is skipped: C is
+    //      changed by the page 1 only and keeps its child of the page 2 ----
+    {
+        Written written;
+        write({ { 0, 2 }, { 1, 0 } }, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(written.result.errors.empty() ? QString() : written.result.errors.cbegin()->second.front().text));
+        QCOMPARE(kids(written.document, c), QStringList({ mcr2 }));
+        QVERIFY(written.document.getObjectByReference(a) == document.getObjectByReference(a));
+        QVERIFY(written.document.getObjectByReference(b) == document.getObjectByReference(b));
+        QCOMPARE(nums(written.document, 0), QStringList({ A, A, "null" }));
+        QCOMPARE(nums(written.document, 1), QStringList({ B, B, C }));
+    }
+
+    // ---- The sequence 2 of both pages: C is changed by both; the changes are separated child by
+    //      child (review R2-3): C keeps the child of the skipped page and loses the other one ----
+    const QString mcr1 = QString("MCR %1").arg(page1.objectNumber);
+    for (const PDFInteger skippedPage : { 0, 1 })
+    {
+        Written written;
+        write({ { 0, 2 }, { 1, 2 } }, skippedPage, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(written.result.errors.empty() ? QString() : written.result.errors.cbegin()->second.front().text));
+        QVERIFY(written.result.isStructureChanged);
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 1 - skippedPage }));
+        QCOMPARE(kids(written.document, c), QStringList({ skippedPage == 0 ? mcr1 : mcr2 }));
+        QCOMPARE(nums(written.document, 0), skippedPage == 0 ? QStringList({ A, A, C }) : QStringList({ A, A, "null" }));
+        QCOMPARE(nums(written.document, 1), skippedPage == 0 ? QStringList({ B, B, "null" }) : QStringList({ B, B, C }));
+        QVERIFY(written.document.getObjectByReference(a) == document.getObjectByReference(a));
+        QVERIFY(written.document.getObjectByReference(b) == document.getObjectByReference(b));
+        QCOMPARE(pageContent(written.document, skippedPage), content);
+    }
+
+    // The same without a skipped page: C loses both children
+    {
+        Written written;
+        write({ { 0, 2 }, { 1, 2 } }, 5, &written);
+        QVERIFY(written.result.status == Status::Success);
+        QVERIFY(written.document.getDictionaryFromObject(PDFObject::createReference(c))->get("K").isNull());
+        QCOMPARE(nums(written.document, 0), QStringList({ A, A, "null" }));
+        QCOMPARE(nums(written.document, 1), QStringList({ B, B, "null" }));
+    }
+}
+
+void DocumentToolContentTest::writerStructureSkippedParagraphAcrossPages()
+{
+    // Review R2-3: a paragraph across a page break is one element, whose /K lists tagged content
+    // of both pages (ISO 32000-2, 14.7.5). The edits are made by the commands of a session, the
+    // page skipped keeps its content and its tags, the written page gets its changes, /K keeps
+    // the reading order. The document (written by hand):
+    //   page 1 (/StructParents 0): /P << /MCID 0 >> BDC 0 0 10 10 re f 2 2 5 5 re f EMC
+    //                              /P << /MCID 1 >> BDC 20 20 10 10 re f EMC
+    //                              /P << /MCID 2 >> BDC 40 40 10 10 re f EMC
+    //   page 2 (/StructParents 1): the same and /P << /MCID 3 >> BDC 60 60 10 10 re f 62 62 5 5 re f EMC
+    //   root /K [P Q] /ParentTree << /Nums [ 0 [P P Q]  1 [P P Q Q] ] >> /ParentTreeNextKey 2
+    //   P    /S /P /Pg page1 /K [0 1 R(p2,0) R(p2,1)]       (R(p,m) = << /Type /MCR /Pg p /MCID m >>)
+    //   Q    /S /P /Pg page1 /K [R(p2,2) 2 R(p2,3)]         (content of the page 1 between content of the page 2)
+    // A split (Bring to Front of the first path of a sequence of two paths) gives the rest the
+    // identifier above the array of the page (3 on the page 1, 4 on the page 2), right behind the
+    // original in /K and in the content.
+    const QByteArray content1 = "/P << /MCID 0 >> BDC 0 0 10 10 re f 2 2 5 5 re f EMC /P << /MCID 1 >> BDC 20 20 10 10 re f EMC /P << /MCID 2 >> BDC 40 40 10 10 re f EMC";
+    const QByteArray content2 = content1 + " /P << /MCID 3 >> BDC 60 60 10 10 re f 62 62 5 5 re f EMC";
+
+    PDFDocumentBuilder documentBuilder;
+    const PDFObjectReference page1 = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+    const PDFObjectReference page2 = documentBuilder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+    const PDFObjectReference root = documentBuilder.addObject(PDFObject::createInteger(0));
+    const PDFObjectReference p = documentBuilder.addObject(PDFObject::createInteger(0));
+    const PDFObjectReference q = documentBuilder.addObject(PDFObject::createInteger(0));
+    const auto ref = [](PDFObjectReference reference) { return PDFObject::createReference(reference); };
+    const auto mcr = [&ref](PDFObjectReference page, PDFInteger mcid)
+    {
+        return Documents::createDictionaryObject({ { "Type", PDFObject::createName("MCR") }, { "Pg", ref(page) }, { "MCID", PDFObject::createInteger(mcid) } });
+    };
+    const auto element = [&ref](PDFObjectReference parent, PDFObjectReference page, PDFObject kids)
+    {
+        return Documents::createDictionaryObject({ { "Type", PDFObject::createName("StructElem") }, { "S", PDFObject::createName("P") }, { "P", ref(parent) },
+                                                   { "Pg", ref(page) }, { "K", std::move(kids) } });
+    };
+    documentBuilder.setObject(p, element(root, page1, Documents::createArrayObject({ PDFObject::createInteger(0), PDFObject::createInteger(1), mcr(page2, 0), mcr(page2, 1) })));
+    documentBuilder.setObject(q, element(root, page1, Documents::createArrayObject({ mcr(page2, 2), PDFObject::createInteger(2), mcr(page2, 3) })));
+    documentBuilder.setObject(root, Documents::createDictionaryObject({ { "Type", PDFObject::createName("StructTreeRoot") },
+                                                                         { "K", Documents::createArrayObject({ ref(p), ref(q) }) },
+                                                                         { "ParentTree", Documents::createDictionaryObject({ { "Nums", Documents::createArrayObject({
+                                                                             PDFObject::createInteger(0), Documents::createArrayObject({ ref(p), ref(p), ref(q) }),
+                                                                             PDFObject::createInteger(1), Documents::createArrayObject({ ref(p), ref(p), ref(q), ref(q) }) }) } }) },
+                                                                         { "ParentTreeNextKey", PDFObject::createInteger(2) } }));
+    documentBuilder.mergeTo(page1, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ }) },
+                                                                       { "Contents", Documents::addStreamObject(&documentBuilder, Documents::DictionaryEntries(), content1) },
+                                                                       { "StructParents", PDFObject::createInteger(0) } }));
+    documentBuilder.mergeTo(page2, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ }) },
+                                                                       { "Contents", Documents::addStreamObject(&documentBuilder, Documents::DictionaryEntries(), content2) },
+                                                                       { "StructParents", PDFObject::createInteger(1) } }));
+    documentBuilder.mergeTo(documentBuilder.getCatalogReference(), Documents::createDictionaryObject({ { "StructTreeRoot", ref(root) } }));
+    const PDFDocument document = documentBuilder.build();
+    QVERIFY(PDFContentStructureModel::read(&document, nullptr)->getIssues().empty());
+
+    // The edits of one case: a delete of a sequence (its marked content), a split of a sequence
+    enum class Edit { Delete, Split };
+    struct Step
+    {
+        Edit edit;
+        PDFInteger pageIndex;
+        PDFInteger mcid;
+    };
+
+    struct Written
+    {
+        PDFContentWriteResult result;
+        PDFDocument document;
+    };
+    const auto write = [&document](const std::vector<Step>& steps, PDFInteger skippedPage, Written* written)
+    {
+        PDFContentEditSession session(PDFDocumentPointer(new PDFDocument(document)), PDFCMSPointer(), nullptr);
+        QVERIFY(session.loadStructure(nullptr));
+        for (const Step& step : steps)
+        {
+            QString errorText;
+            const PDFContentContainerKey key = session.getPageKey(step.pageIndex);
+            QVERIFY(key.isValid() && (session.getContainer(key) || session.loadContainer(key, nullptr, &errorText)));
+            const PDFContentContainerPointer container = session.getContainer(key);
+
+            PDFContentNodePointer sequence;
+            for (const PDFContentNodePointer& node : nodesOfKind(*container, PDFContentNodeKind::MarkedContent))
+            {
+                if (node->getData().mcid == step.mcid)
+                {
+                    sequence = node;
+                }
+            }
+            QVERIFY(sequence != nullptr);
+
+            PDFContentCommandPointer command;
+            if (step.edit == Edit::Delete)
+            {
+                command = PDFContentCommandFactory::createDelete({ PDFContentNodeReference{ key, sequence->getId() } });
+            }
+            else
+            {
+                QCOMPARE(sequence->getChildren().size(), size_t(2));
+                command = PDFContentCommandFactory::createReorder({ PDFContentNodeReference{ key, sequence->getChildren().front()->getId() } },
+                                                                  PDFContentNodeReference{ key, container->getRoot()->getId() }, -1,
+                                                                  PDFContentCommandFactory::ReorderMode::KeepLayerAndTag);
+            }
+            QVERIFY2(session.execute(command, &errorText), qPrintable(errorText));
+        }
+
+        const PDFContentEditSnapshotPointer snapshot = session.createSnapshot();
+        QVERIFY(snapshot != nullptr);
+        Writer::Options options;
+        options.skippedPages = { skippedPage };
+
+        PDFDocumentBuilder builder(&document);
+        written->result = Writer::write(&document, *snapshot, &builder, options, nullptr, nullptr);
+        written->document = builder.build();
+    };
+
+    // /K of an element: "<integer>", "MCR <page object> <MCID>"
+    const auto kids = [](const PDFDocument& writtenDocument, PDFObjectReference reference)
+    {
+        QStringList items;
+        for (const PDFObject& item : *writtenDocument.getObject(writtenDocument.getDictionaryFromObject(PDFObject::createReference(reference))->get("K")).getArray())
+        {
+            const PDFDictionary* dictionary = item.isDictionary() ? item.getDictionary() : nullptr;
+            items << (item.isInt() ? QString::number(item.getInteger()) : dictionary ? QString("MCR %1 %2").arg(dictionary->get("Pg").getReference().objectNumber).arg(dictionary->get("MCID").getInteger()) : QString("?"));
+        }
+        return items;
+    };
+    const auto nums = [](const PDFDocument& writtenDocument, int index)
+    {
+        const PDFDictionary* catalog = writtenDocument.getDictionaryFromObject(writtenDocument.getTrailerDictionary()->get("Root"));
+        const PDFDictionary* structureRoot = writtenDocument.getDictionaryFromObject(catalog->get("StructTreeRoot"));
+        const PDFObject& numbers = writtenDocument.getObject(writtenDocument.getDictionaryFromObject(structureRoot->get("ParentTree"))->get("Nums"));
+        QStringList items;
+        for (const PDFObject& item : *writtenDocument.getObject(numbers.getArray()->getItem(size_t(2 * index + 1))).getArray())
+        {
+            items << (item.isReference() ? QString("%1 R").arg(item.getReference().objectNumber) : item.isNull() ? QString("null") : QString("?"));
+        }
+        return items;
+    };
+    const QString P = QString("%1 R").arg(p.objectNumber);
+    const QString Q = QString("%1 R").arg(q.objectNumber);
+    const auto r2 = [&page2](int mcid) { return QString("MCR %1 %2").arg(page2.objectNumber).arg(mcid); };
+    const auto errorOf = [](const Written& written) { return written.result.errors.empty() ? QString() : written.result.errors.cbegin()->second.front().text; };
+
+    // ---- A removal on each page: the page 2 skipped, then the page 1 skipped ----
+    {
+        Written written;
+        write({ { Edit::Delete, 0, 1 }, { Edit::Delete, 1, 0 } }, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(errorOf(written)));
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+        QCOMPARE(kids(written.document, p), QStringList({ "0", r2(0), r2(1) }));
+        QCOMPARE(nums(written.document, 0), QStringList({ P, "null", Q }));
+        QCOMPARE(nums(written.document, 1), QStringList({ P, P, Q, Q }));
+        QCOMPARE(pageContent(written.document, 1), content2);
+        QVERIFY(written.document.getObjectByReference(q) == document.getObjectByReference(q));
+    }
+    {
+        Written written;
+        write({ { Edit::Delete, 0, 1 }, { Edit::Delete, 1, 0 } }, 0, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(errorOf(written)));
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 1 }));
+        QCOMPARE(kids(written.document, p), QStringList({ "0", "1", r2(1) }));
+        QCOMPARE(nums(written.document, 0), QStringList({ P, P, Q }));
+        QCOMPARE(nums(written.document, 1), QStringList({ "null", P, Q, Q }));
+        QCOMPARE(pageContent(written.document, 0), content1);
+    }
+
+    // ---- A split on the written page 2, a removal on the skipped page 1: the new part right
+    //      behind its original, the 0 of the page 1 stays ----
+    {
+        Written written;
+        write({ { Edit::Split, 1, 0 }, { Edit::Delete, 0, 0 } }, 0, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(errorOf(written)));
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 1 }));
+        QCOMPARE(kids(written.document, p), QStringList({ "0", "1", r2(0), r2(4), r2(1) }));
+        QCOMPARE(nums(written.document, 0), QStringList({ P, P, Q }));
+        QCOMPARE(nums(written.document, 1), QStringList({ P, P, Q, Q, P }));
+        QCOMPARE(pageContent(written.document, 0), content1);
+        QVERIFY(pageContent(written.document, 1).contains("/MCID 4"));
+    }
+
+    // ---- A split on the written page 1, a removal on the skipped page 2 ----
+    {
+        Written written;
+        write({ { Edit::Split, 0, 0 }, { Edit::Delete, 1, 1 } }, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(errorOf(written)));
+        QCOMPARE(written.result.pagesChanged, std::vector<PDFInteger>({ 0 }));
+        QCOMPARE(kids(written.document, p), QStringList({ "0", "3", "1", r2(0), r2(1) }));
+        QCOMPARE(nums(written.document, 0), QStringList({ P, P, Q, P }));
+        QCOMPARE(nums(written.document, 1), QStringList({ P, P, Q, Q }));
+        QCOMPARE(pageContent(written.document, 1), content2);
+    }
+
+    // ---- Still refused: on the page 2 the sequence 3 is split (the rest gets 4) and its
+    //      original deleted, on the page 1 the 2 is deleted: Q is [R(p2,2) R(p2,4)]. Without the
+    //      page 1 the restored 2 belongs in front of R(p2,4), if it came from R(p2,3), behind it,
+    //      if it came from R(p2,2): the page 1 skipped is refused under the page 1, nothing is
+    //      written. Without the page 2 it is separable. ----
+    {
+        Written written;
+        write({ { Edit::Split, 1, 3 }, { Edit::Delete, 1, 3 }, { Edit::Delete, 0, 2 } }, 0, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY(written.result.status == Status::PageErrors);
+        QCOMPARE(written.result.errors.size(), size_t(1));
+        QCOMPARE(written.result.errors.begin()->first, PDFInteger(0));
+        QVERIFY2(errorOf(written).contains(QStringLiteral("cannot be left out alone")), qPrintable(errorOf(written)));
+        QVERIFY(!written.result.isStructureChanged);
+    }
+    {
+        Written written;
+        write({ { Edit::Split, 1, 3 }, { Edit::Delete, 1, 3 }, { Edit::Delete, 0, 2 } }, 1, &written);
+        if (QTest::currentTestFailed())
+        {
+            return;
+        }
+        QVERIFY2(written.result.status == Status::Success, qPrintable(errorOf(written)));
+        QCOMPARE(kids(written.document, q), QStringList({ r2(2), r2(3) }));
+        QCOMPARE(nums(written.document, 0), QStringList({ P, P, "null" }));
+        QCOMPARE(nums(written.document, 1), QStringList({ P, P, Q, Q }));
     }
 }
 
@@ -4261,14 +5293,17 @@ void DocumentToolContentTest::toolDeclaration()
         QVERIFY2(!definition.getSourceTitle().isEmpty(), qPrintable(definition.getName()));
         QVERIFY2(!definition.getSourceDescription().isEmpty(), qPrintable(definition.getName()));
 
-        // Nothing of a run is a last value of the tool: the values belong to one document
-        if (definition.getName() != QLatin1String("mode"))
+        // Nothing of a run is a last value of the tool: the values belong to one document. The
+        // mode and the options of the display of the editor are (zadani_gui.md 4.26; the test
+        // toolDisplayOptions).
+        if (definition.getName() != QLatin1String("mode") && names.size() <= 8)
         {
             QVERIFY2(!definition.isStored(), qPrintable(definition.getName()));
         }
     }
-    QCOMPARE(names, QStringList({ QStringLiteral("mode"), QStringLiteral("session"), QStringLiteral("operations"), QStringLiteral("pages"),
-                                  QStringLiteral("depth"), QStringLiteral("offset"), QStringLiteral("maximumObjects"), QStringLiteral("skipPages") }));
+    QCOMPARE(names.mid(0, 8), QStringList({ QStringLiteral("mode"), QStringLiteral("session"), QStringLiteral("operations"), QStringLiteral("pages"),
+                                            QStringLiteral("depth"), QStringLiteral("offset"), QStringLiteral("maximumObjects"), QStringLiteral("skipPages") }));
+    QCOMPARE(names.size(), 8 + 16);
 
     const auto find = [&definitions](const char* name) { return PDFDocumentToolParameters::find(definitions, QString::fromLatin1(name)); };
 
@@ -4360,6 +5395,157 @@ void DocumentToolContentTest::toolDeclaration()
     QCOMPARE(QByteArray(PDFContentJson::KEY_TYPE), QByteArray("type"));
     QCOMPARE(QByteArray(PDFContentJson::KEY_ID), QByteArray("id"));
     QCOMPARE(QByteArray(PDFContentJson::KEY_AS), QByteArray("as"));
+}
+
+void DocumentToolContentTest::toolDisplayOptions()
+{
+    using Type = PDFDocumentToolParameterType;
+
+    // zadani_gui.md 4.26, zadani.md 9.3: the options of the display of the editor are stored
+    // parameters of the tool, which only the panels give and which never go through MCP; a run
+    // does not read them. Names, types and defaults by hand from PDFAppEditContentOptions
+    // (pe1s4_state.md, request 2): the menu View, the cards Grid and units and Preview, the left
+    // panel. The second value is another valid value, which is stored and restored.
+    struct Option
+    {
+        const char* name;
+        Type type;
+        QVariant defaultValue;
+        QVariant otherValue;
+    };
+    const std::vector<Option> expected = {
+        { "showRulers", Type::Bool, false, true },
+        { "showGrid", Type::Bool, false, true },
+        { "showGuides", Type::Bool, true, false },
+        { "showClippingPaths", Type::Bool, false, true },
+        { "showInvisibleText", Type::Bool, false, true },
+        { "showAnnotations", Type::Bool, true, false },
+        { "showReadingOrder", Type::Bool, false, true },
+        { "snapToObjects", Type::Bool, true, false },
+        { "snapToGrid", Type::Bool, true, false },
+        { "units", Type::Enum, QStringLiteral("pt"), QStringLiteral("mm") },
+        { "gridSpacing", Type::Real, 36.0, 12.5 },
+        { "gridOrigin", Type::Enum, QStringLiteral("bottom-left"), QStringLiteral("top-left") },
+        { "previewOverprint", Type::Bool, true, false },
+        { "previewAnnotations", Type::Bool, true, false },
+        { "previewPaperColor", Type::String, QStringLiteral("#ffffff"), QStringLiteral("#336699") },
+        { "leftTab", Type::String, QStringLiteral("objects"), QStringLiteral("layers") },
+    };
+
+    Tool tool;
+    const PDFDocumentToolParameterDefinitions definitions = tool.getParameters();
+    QString errorMessage;
+    QVERIFY2(PDFDocumentToolParameters::isValid(definitions, &errorMessage), qPrintable(errorMessage));
+
+    // The options follow the parameters of a run, in the order above
+    QStringList names;
+    for (size_t i = 8; i < definitions.size(); ++i)
+    {
+        names << definitions[i].getName();
+    }
+    QStringList expectedNames;
+    for (const Option& option : expected)
+    {
+        expectedNames << QString::fromLatin1(option.name);
+    }
+    QCOMPARE(names, expectedNames);
+
+    QVariantMap otherValues;
+    for (const Option& option : expected)
+    {
+        const QString name = QString::fromLatin1(option.name);
+        const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(definitions, name);
+        QVERIFY2(definition != nullptr, option.name);
+        QVERIFY2(definition->getType() == option.type, option.name);
+        QVERIFY2(definition->getDefaultValue() == option.defaultValue, option.name);
+
+        // Stored as the last value of the tool, given only by the panels, never in MCP
+        QVERIFY2(definition->isStored(), option.name);
+        QVERIFY2(definition->isPanelOnly(), option.name);
+        QVERIFY2(definition->isMcpExcluded(), option.name);
+        QVERIFY2(!definition->isRequired(), option.name);
+
+        // Stored and restored: the value written into the database of the last values and read
+        // back (PDFToolParameterRepository::setValues / getValues) is the value
+        QVariant normalized;
+        QCOMPARE(definition->normalize(option.otherValue, &normalized), QString());
+        QVERIFY2(normalized == option.otherValue, option.name);
+        const std::optional<QVariant> restored = definition->fromStorageValue(definition->toStorageValue(normalized));
+        QVERIFY2(restored.has_value() && *restored == option.otherValue, option.name);
+        const std::optional<QVariant> restoredDefault = definition->fromStorageValue(definition->toStorageValue(option.defaultValue));
+        QVERIFY2(restoredDefault.has_value() && *restoredDefault == option.defaultValue, option.name);
+
+        otherValues.insert(name, option.otherValue);
+    }
+
+    // The values of the enumerations and the range of the grid (points)
+    const auto find = [&definitions](const char* name) { return PDFDocumentToolParameters::find(definitions, QString::fromLatin1(name)); };
+    QStringList units;
+    for (const PDFDocumentToolParameterOption& option : find(Tool::PARAMETER_UNITS)->getOptions())
+    {
+        units << option.id;
+    }
+    QCOMPARE(units, QStringList({ QStringLiteral("pt"), QStringLiteral("mm"), QStringLiteral("in") }));
+    QStringList origins;
+    for (const PDFDocumentToolParameterOption& option : find(Tool::PARAMETER_GRID_ORIGIN)->getOptions())
+    {
+        origins << option.id;
+    }
+    QCOMPARE(origins, QStringList({ QStringLiteral("bottom-left"), QStringLiteral("top-left") }));
+
+    QVariant normalized;
+    QVERIFY(!find(Tool::PARAMETER_UNITS)->normalize(QStringLiteral("km"), &normalized).isEmpty());
+    QVERIFY(!find(Tool::PARAMETER_GRID_SPACING)->normalize(0.5, &normalized).isEmpty());
+    QVERIFY(!find(Tool::PARAMETER_GRID_SPACING)->normalize(1000.5, &normalized).isEmpty());
+    QCOMPARE(find(Tool::PARAMETER_GRID_SPACING)->normalize(1000.0, &normalized), QString());
+    QVERIFY(!find(Tool::PARAMETER_PREVIEW_PAPER_COLOR)->normalize(QStringLiteral("#0123456789"), &normalized).isEmpty());
+
+    // ---- MCP is unchanged: the schema has the five parameters of the listing and the mode
+    //      only (toolDeclaration), and the JSON of the values (the results and the activity of
+    //      MCP) has none of the options ----
+    const QJsonObject schema = PDFDocumentToolParameters::toJsonSchema(definitions);
+    QCOMPARE(schema.value(QStringLiteral("properties")).toObject().keys(),
+             QStringList({ QStringLiteral("depth"), QStringLiteral("maximumObjects"), QStringLiteral("mode"), QStringLiteral("offset"), QStringLiteral("pages") }));
+    QVariantMap values = PDFDocumentToolParameters::getDefaultValues(definitions);
+    for (auto it = otherValues.cbegin(); it != otherValues.cend(); ++it)
+    {
+        values.insert(it.key(), it.value());
+    }
+    const QJsonObject json = PDFDocumentToolParameters::toJson(definitions, values);
+    for (const QString& name : std::as_const(expectedNames))
+    {
+        QVERIFY2(!json.contains(name), qPrintable(name));
+    }
+
+    // ---- A run does not read them: apply and list give the same result with other values ----
+    const PDFDocument document = createPagesDocument({ TWO_PATHS, ONE_PATH });
+    const PDFDocumentToolContext context = contextOf(document);
+    const PDFContentContainerPointer original = buildPage(document, 0);
+    const PDFContentEditSnapshotPointer snapshot = snapshotPointerOf({ removeNode(original, nodesOfKind(*original, PDFContentNodeKind::Path)[1]->getId()) });
+
+    QVariantMap applyWithOptions = applyParameters(snapshot);
+    QVariantMap listWithOptions = listParameters(QStringLiteral("1-2"));
+    for (auto it = otherValues.cbegin(); it != otherValues.cend(); ++it)
+    {
+        applyWithOptions.insert(it.key(), it.value());
+        listWithOptions.insert(it.key(), it.value());
+    }
+
+    const PDFDocumentToolResult applied = tool.run(context, applyParameters(snapshot), nullptr, nullptr);
+    const PDFDocumentToolResult appliedWithOptions = tool.run(context, applyWithOptions, nullptr, nullptr);
+    QVERIFY2(applied.isSuccess(), qPrintable(applied.message));
+    QVERIFY2(appliedWithOptions.isSuccess(), qPrintable(appliedWithOptions.message));
+    QCOMPARE(appliedWithOptions.data, applied.data);
+    QCOMPARE(appliedWithOptions.documents.size(), size_t(1));
+    QCOMPARE(pageContent(*appliedWithOptions.documents[0].document, 0), QByteArray("1 0 0 rg\n10 10 50 50 re\nf\n0 0 1 rg"));
+    QCOMPARE(pageContent(*appliedWithOptions.documents[0].document, 1), QByteArray(ONE_PATH));
+
+    const PDFDocumentToolResult listed = tool.run(context, listParameters(QStringLiteral("1-2")), nullptr, nullptr);
+    const PDFDocumentToolResult listedWithOptions = tool.run(context, listWithOptions, nullptr, nullptr);
+    QVERIFY2(listed.isSuccess(), qPrintable(listed.message));
+    QVERIFY2(listedWithOptions.isSuccess(), qPrintable(listedWithOptions.message));
+    QCOMPARE(listedWithOptions.data, listed.data);
+    QCOMPARE(listedWithOptions.data.value(QStringLiteral("pages")).toArray().size(), 2);
 }
 
 void DocumentToolContentTest::toolModes()
@@ -4917,6 +6103,7 @@ void DocumentToolContentTest::toolSkippedPageForm()
     QCOMPARE(result.data.value(QStringLiteral("pagesChanged")).toArray(), QJsonArray({ 1, 2 }));
     QCOMPARE(result.data.value(QStringLiteral("objectsRemoved")).toInt(-1), 2);
     QVERIFY(!result.data.contains(QStringLiteral("formsNotWritten")));
+    QVERIFY(!result.data.contains(QStringLiteral("pagesChangedIncomplete")));
     QCOMPARE(std::count_if(result.facts.cbegin(), result.facts.cend(), isNotWrittenFact), 0);
 
     // ---- The form is the only change: with its page skipped nothing is written, and the

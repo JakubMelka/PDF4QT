@@ -229,6 +229,10 @@ private:
     static void addDocumentDelegates(GalleryBuilder& builder);
     static void addPanelsDelegates(GalleryBuilder& builder);
 
+    // Components of Edit Content (galleryeditcontentpages.cpp): Expander card, Path bar,
+    // toggle actions of a row, the mixed state; added to the page of the panels
+    static void addEditContentPanels(GalleryBuilder& builder);
+
     // Frames of the page AI of step 7 (galleryaipages.cpp)
     static Page createAiPage(QWidget* parent);
 

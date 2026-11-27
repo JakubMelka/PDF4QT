@@ -444,7 +444,8 @@ if(PDF4QT_INSTALL_INCLUDE)
     # Install public headers from Pdf4QtLibCore/include
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Pdf4QtLibCore/sources/
             DESTINATION ${PDF4QT_INSTALL_INCLUDE_DIR}/Pdf4QtLibCore
-            FILES_MATCHING PATTERN "*.h")
+            FILES_MATCHING PATTERN "*.h"
+            PATTERN "pdfcontentcommandengine.h" EXCLUDE)
 
     # Install generated export header
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pdf4qtlibcore_export.h

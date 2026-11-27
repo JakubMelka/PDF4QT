@@ -186,6 +186,14 @@ public:
     /// Step 7c, package P7: Measure and its dialogs (reviewmeasure, measurepresetsdialog):
     /// apptoolpageslifetime_review_c_measure.cpp
     static void registerReviewMeasureScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Edit Content, stage E1 (zadani.md 11.3): P14, the GUI of the tool and its three orders of destruction
+    /// (content): apptoolpageslifetime_content.cpp; P11 the canvas: apptoolpageslifetime_content_canvas.cpp; P12 the
+    /// tabs and the menus: apptoolpageslifetime_content_panels.cpp; P13 the cards: apptoolpageslifetime_content_cards.cpp
+    static void registerContentScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+    static void registerContentCanvasScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+    static void registerContentPanelsScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+    static void registerContentCardsScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

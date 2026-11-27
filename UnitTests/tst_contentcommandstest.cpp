@@ -53,6 +53,7 @@
 #include <QThreadPool>
 #include <QWeakPointer>
 
+#include <algorithm>
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -425,7 +426,10 @@ private Q_SLOTS:
     void refusedCommandDropsNewObjects();
     void reorderKeepsTagThroughGroup();
     void copyKeepsLayer();
-    void copyIntoSequenceIsRefused();
+    void copyIntoTaggedContent_data();
+    void copyIntoTaggedContent();
+    void copyIntoSequenceWhichCannotBeSplit();
+    void copyIntoTaggedLayer();
     void transformTextWithPatternInside();
     void copyAndStrokeWithPattern();
     void copyGroupWithPatternToOtherPage();
@@ -445,6 +449,26 @@ private Q_SLOTS:
     void orderOfContentAtItsPlace();
     void copyNeverMakesPatternPaintItself();
     void pathOfFormBehindDeepPath();
+
+    // ---- block B, step B0, package S1 (pb0_core.md): the debts of block A ----
+    void undoRedoMakesVersionsAgain();
+    void undoStepKeepsDifference();
+    void manySiblings_data();
+    void manySiblings();
+    void newObjectsFollowUndoStack();
+    void structureUndoKeepsDifference();
+    void commandWithoutEffectIsRefusedAsUnchanged();
+    void stateValuesAreCompared();
+    void copyNamesResourcesOfTarget();
+    void nodesInsideUnclosedNode_data();
+    void nodesInsideUnclosedNode();
+    void placeBehindUnclosedClippingText();
+
+    // ---- fixes of the review R1 of step B0 (GUI_overhaul/review/pb0_review_R1.md) ----
+    void undoDropsOperationsOfCommand();
+    void setAppearanceOfInheritedValueInForm();
+    void reorderInOrderOfFixedPriorities();
+    void commandOnStructureReadAgain();
 
 private:
     /// A page with a content, the font /F1 and the tiling pattern /P1 with /Matrix [2 0 0 2 3 4]
@@ -514,11 +538,15 @@ private:
         return QByteArray("/P << /MCID 0 >> BDC 0 0 10 10 re f 20 0 10 10 re f 40 0 10 10 re f EMC /Span << /MCID 1 >> BDC 60 0 10 10 re f EMC 80 0 10 10 re f");
     }
 
-    static PDFDocument taggedDocument(const QByteArray& content = taggedContent())
+    /// \param spanChild The marked content identifier the element Span lists as its child (1;
+    ///        with 0 two elements list the sequence 0, which the parent tree gives to P alone)
+    static PDFDocument taggedDocument(const QByteArray& content = taggedContent(),
+                                      const Documents::ResourcesFactory& createResources = &Documents::createNoResources,
+                                      PDFInteger spanChild = 1)
     {
         return Documents::createDocumentFromObjects([content](PDFDocumentBuilder* builder) { return Documents::addStreamObject(builder, Documents::DictionaryEntries(), content); },
-                                                    &Documents::createNoResources,
-                                                    [](PDFDocumentBuilder* builder, PDFObjectReference pageReference)
+                                                    createResources,
+                                                    [spanChild](PDFDocumentBuilder* builder, PDFObjectReference pageReference)
         {
             const PDFObject page = PDFObject::createReference(pageReference);
             const PDFObject root = PDFObject::createReference(builder->addObject(PDFObject()));
@@ -545,7 +573,7 @@ private:
                                                                                                { "S", PDFObject::createName("Span") },
                                                                                                { "P", documentElement },
                                                                                                { "Pg", page },
-                                                                                               { "K", PDFObject::createInteger(1) } }));
+                                                                                               { "K", PDFObject::createInteger(spanChild) } }));
             builder->mergeTo(pageReference, Documents::createDictionaryObject({ { "StructParents", PDFObject::createInteger(0) } }));
             builder->mergeTo(builder->getCatalogReference(), Documents::createDictionaryObject({ { "MarkInfo", Documents::createDictionaryObject({ { "Marked", PDFObject::createBool(true) } }) },
                                                                                                  { "StructTreeRoot", root } }));
@@ -4013,8 +4041,10 @@ void ContentCommandsTest::registerType()
     const Factory::Creator contentCommandsTestCreator = &ContentCommandsTestCreators::create;
     const Factory::Creator contentCommandsSilentCreator = &ContentCommandsTestCreators::createNothing;
 
-    // The basic commands are registered without anybody asking; the types are sorted
-    const std::vector<QByteArray> basicTypes = { "clear_page", "copy", "delete", "group", "reorder", "set_appearance", "set_transparency", "transform", "ungroup" };
+    // The commands of the core are registered without anybody asking - the basic ones and the
+    // ones of the later command files (stage E1: align, distribute, match_size of
+    // pdfcontentarrange.cpp); the types are sorted
+    const std::vector<QByteArray> basicTypes = { "align", "clear_page", "copy", "delete", "distribute", "group", "match_size", "reorder", "set_appearance", "set_transparency", "transform", "ungroup" };
     QCOMPARE(Factory::getTypes(), basicTypes);
 
     // A command file of a later stage registers its types the same way: no change of the base
@@ -4029,7 +4059,7 @@ void ContentCommandsTest::registerType()
     QVERIFY(!Factory::registerType("test_custom", contentCommandsSilentCreator));
     QVERIFY(Factory::registerType("test_silent", contentCommandsSilentCreator));
 
-    const std::vector<QByteArray> allTypes = { "clear_page", "copy", "delete", "group", "reorder", "set_appearance", "set_transparency", "test_custom", "test_silent", "transform", "ungroup" };
+    const std::vector<QByteArray> allTypes = { "align", "clear_page", "copy", "delete", "distribute", "group", "match_size", "reorder", "set_appearance", "set_transparency", "test_custom", "test_silent", "transform", "ungroup" };
     QCOMPARE(Factory::getTypes(), allTypes);
 
     // The factory gives the operation to the creator of its type
@@ -5373,27 +5403,263 @@ void ContentCommandsTest::copyKeepsLayer()
     }
 }
 
-void ContentCommandsTest::copyIntoSequenceIsRefused()
+void ContentCommandsTest::copyIntoTaggedContent_data()
 {
-    // zadani_jadro.md 4.12: "a copy is without an MCID". Placed into a sequence of the structure
-    // it would be content of that sequence: the paragraph would read the square twice. The
-    // place is refused; beside the sequence the copy is made (structureCopyAndClear).
-    ContentCommandsFixture fixture(taggedDocument());
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<int>("sourceKind");
+    QTest::addColumn<int>("sourceIndex");
+    QTest::addColumn<int>("parentKind");
+    QTest::addColumn<int>("parentIndex");
+    QTest::addColumn<int>("place");
+    QTest::addColumn<QByteArray>("expected");      // Empty: the copy is refused
+    QTest::addColumn<QList<int>>("paragraph");     // /K of the element P afterwards
+
+    const int path = int(Kind::Path);
+    const int marked = int(Kind::MarkedContent);
+
+    const QByteArray a("0 0 10 10 re f");
+    const QByteArray b("20 0 10 10 re f");
+    const QByteArray c("40 0 10 10 re f");
+    const QByteArray d("60 0 10 10 re f");
+    const QByteArray e("80 0 10 10 re f");
+    const QByteArray span("/Span << /MCID 1 >> BDC " + d + " EMC");
+    const QByteArray p0("/P << /MCID 0 >> BDC ");
+    const QByteArray p2("/P << /MCID 2 >> BDC ");
+
+    // The page of taggedDocument: [P 0: A B C] [Span 1: D] E. The identifiers 0 and 1 are used,
+    // so the piece cut off a sequence gets 2, and its child of the element P stands behind the
+    // child 0: /K 0, 2 - the paragraph is read A, B, C as before (ISO 32000-2, 14.7.2).
+
+    // The untagged square E into the middle of the paragraph, between A and B: the sequence
+    // ends in front of the copy, the copy has no tag, the rest is the sequence 2
+    QTest::newRow("middle") << taggedContent() << path << 4 << marked << 0 << 1
+        << QByteArray(p0 + a + " EMC " + e + ' ' + p2 + b + ' ' + c + " EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    QTest::newRow("middle, behind the second") << taggedContent() << path << 4 << marked << 0 << 2
+        << QByteArray(p0 + a + ' ' + b + " EMC " + e + ' ' + p2 + c + " EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // At the beginning and at the end of the sequence nothing is split: the copy stands in
+    // front of the sequence or behind it
+    QTest::newRow("start") << taggedContent() << path << 4 << marked << 0 << 0
+        << QByteArray(e + ' ' + p0 + a + ' ' + b + ' ' + c + " EMC " + span + ' ' + e) << QList<int>({ 0 });
+
+    QTest::newRow("end") << taggedContent() << path << 4 << marked << 0 << -1
+        << QByteArray(p0 + a + ' ' + b + ' ' + c + " EMC " + e + ' ' + span + ' ' + e) << QList<int>({ 0 });
+
+    QTest::newRow("end by its index") << taggedContent() << path << 4 << marked << 0 << 3
+        << QByteArray(p0 + a + ' ' + b + ' ' + c + " EMC " + e + ' ' + span + ' ' + e) << QList<int>({ 0 });
+
+    // Duplicate of a tagged square behind itself: the copy of A has no tag, the paragraph is
+    // split behind A
+    QTest::newRow("duplicate of tagged content") << taggedContent() << path << 0 << marked << 0 << 1
+        << QByteArray(p0 + a + " EMC " + a + ' ' + p2 + b + ' ' + c + " EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // A copy of another sequence is its content without the wrap (the copy has no tag)
+    QTest::newRow("copy of a sequence") << taggedContent() << marked << 1 << marked << 0 << 1
+        << QByteArray(p0 + a + " EMC " + d + ' ' + p2 + b + ' ' + c + " EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // The sequence stands in another marked content (an artifact around it): the pieces and
+    // the copy stay inside of that one - it is no sequence of the structure
+    QTest::newRow("sequence in a marked content") << QByteArray("/Artifact BMC " + p0 + a + ' ' + b + " EMC EMC " + span + ' ' + e) << path << 3 << marked << 1 << 1
+        << QByteArray("/Artifact BMC " + p0 + a + " EMC " + e + ' ' + p2 + b + " EMC EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // A marked content without an identifier inside of the sequence: both are split around the
+    // place between B and C - the inner one by a copy of its operator, the sequence with the
+    // new identifier
+    QTest::newRow("marked content in the sequence") << QByteArray(p0 + a + " /Em BMC " + b + ' ' + c + " EMC 50 0 10 10 re f EMC " + span + ' ' + e) << path << 5 << marked << 1 << 1
+        << QByteArray(p0 + a + " /Em BMC " + b + " EMC EMC " + e + ' ' + p2 + "/Em BMC " + c + " EMC 50 0 10 10 re f EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // At the end of the inner marked content, with content of the sequence behind it: the inner
+    // one is not split (the place is behind it), the sequence is
+    QTest::newRow("end of a marked content in the sequence") << QByteArray(p0 + a + " /Em BMC " + b + ' ' + c + " EMC 50 0 10 10 re f EMC " + span + ' ' + e) << path << 5 << marked << 1 << -1
+        << QByteArray(p0 + a + " /Em BMC " + b + ' ' + c + " EMC EMC " + e + ' ' + p2 + "50 0 10 10 re f EMC " + span + ' ' + e) << QList<int>({ 0, 2 });
+
+    // A place in a group inside of the sequence: q ... Q is not split - refused
+    QTest::newRow("group in the sequence") << QByteArray(p0 + "q " + a + ' ' + b + " Q EMC " + span + ' ' + e) << path << 3 << int(Kind::Group) << 0 << 1
+        << QByteArray() << QList<int>({ 0 });
+}
+
+void ContentCommandsTest::copyIntoTaggedContent()
+{
+    // zadani_jadro.md 4.12: "a copy is without an MCID". A copy placed into a sequence of the
+    // structure would be content of that sequence - the element would read it. The owner's
+    // decision of 2026-11-26: the sequence is split around the copy.
+    QFETCH(QByteArray, content);
+    QFETCH(int, sourceKind);
+    QFETCH(int, sourceIndex);
+    QFETCH(int, parentKind);
+    QFETCH(int, parentIndex);
+    QFETCH(int, place);
+    QFETCH(QByteArray, expected);
+    QFETCH(QList<int>, paragraph);
+
+    ContentCommandsFixture fixture(taggedDocument(content));
     PDFContentEditSession* session = fixture.session();
     const Key key = fixture.page();
     QVERIFY(session->loadStructure(nullptr));
     const PDFContentContainerPointer before = session->getContainer(key);
     const PDFContentStructureModelPointer original = session->getStructure();
 
-    for (const PDFContentNodeReference& source : { fixture.node(key, Kind::Path, 0), fixture.node(key, Kind::Path, 4) })
+    const PDFContentNodeReference source = fixture.node(key, Kind(sourceKind), size_t(sourceIndex));
+    const PDFContentNodeReference parent = fixture.node(key, Kind(parentKind), size_t(parentIndex));
+    QVERIFY(source.isValid() && parent.isValid());
+
+    const PDFContentCommandPointer command = Factory::createCopy({ source }, parent, place, QTransform());
+    QString errorText;
+    const bool isExecuted = fixture.execute(command, &errorText);
+
+    if (expected.isEmpty())
     {
-        QString errorText;
-        QVERIFY(!fixture.execute(Factory::createCopy({ source }, fixture.node(key, Kind::MarkedContent, 0), -1, QTransform()), &errorText));
+        QVERIFY(!isExecuted);
         QVERIFY(!errorText.isEmpty());
+        QVERIFY(!command->isRefusedAsUnchanged());
         QCOMPARE(session->getContainer(key), before);
         QCOMPARE(session->getStructure(), original);
+        QCOMPARE(session->getNodeIdCounter(), PDFContentEditSession::FIRST_SESSION_NODE_ID);
+        return;
     }
+
+    QVERIFY2(isExecuted, qPrintable(errorText));
+    QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens(expected));
+
+    // The copy (a square in every row) is the first added node, also when a piece of the
+    // sequence was added for its place; no sequence of the structure is above it
+    const PDFContentNodeReference copy = command->getChange().addedNodes.front();
+    const PDFContentContainerPointer container = session->getContainer(key);
+    QCOMPARE(fixture.get(copy)->getKind(), Kind::Path);
+    for (PDFContentNodePointer node = container->getParent(copy.node); node; node = container->getParent(node->getId()))
+    {
+        QVERIFY(!node->getData().mcid.has_value());
+    }
+
+    // The structure: the children of the paragraph in their order, each identifier leads to
+    // its element, the other element is untouched
+    const PDFContentStructureModelPointer model = session->getStructure();
+    const std::vector<PDFInteger> paragraphContent = elementContent(model, "P");
+    QCOMPARE(QList<int>(paragraphContent.cbegin(), paragraphContent.cend()), paragraph);
+    for (const int mcid : paragraph)
+    {
+        QCOMPARE(elementType(model, mcid), QByteArray("P"));
+    }
+    QVERIFY(elementContent(model, "Span") == std::vector<PDFInteger>({ 1 }));
+    QCOMPARE(elementType(model, 1), QByteArray("Span"));
+
+    // The model changes exactly when a sequence was split
+    const bool isSplit = paragraph.size() > 1;
+    QCOMPARE(model != original, isSplit);
+    QCOMPARE(model->isModified(), isSplit);
+    QCOMPARE(command->getChange().isStructureChanged, isSplit);
+
+    // Undo and redo
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(session->getContainer(key), before);
+    QCOMPARE(session->getStructure(), original);
+    QVERIFY(session->redo().has_value());
+    QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens(expected));
+    QCOMPARE(session->getStructure(), model);
+}
+
+void ContentCommandsTest::copyIntoSequenceWhichCannotBeSplit()
+{
+    // A sequence the structure model refuses to split keeps its refusal with the text of the
+    // model: here two elements (P and Span) list the sequence 0 as their child, so no element
+    // could take the rest of it (zadani_overeni.md 6.2). A place, which needs no split - the
+    // end of the sequence - is still a place for a copy.
+    ContentCommandsFixture fixture(taggedDocument(taggedContent(), &Documents::createNoResources, 0));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    QVERIFY(session->loadStructure(nullptr));
+    const PDFContentContainerPointer before = session->getContainer(key);
+    const PDFContentStructureModelPointer original = session->getStructure();
+    const PDFContentNodeReference sequence = fixture.node(key, Kind::MarkedContent, 0);
+    const PDFContentNodeReference square = fixture.node(key, Kind::Path, 4);
+
+    const PDFContentStructureChange refusal = original->getChangeForMoveOut(0, 0, false, true, 1);
+    QCOMPARE(refusal.action, PDFContentStructureChange::Action::Refused);
+    QVERIFY(!refusal.text.isEmpty());
+
+    const PDFContentCommandPointer command = Factory::createCopy({ square }, sequence, 1, QTransform());
+    QString errorText;
+    QVERIFY(!fixture.execute(command, &errorText));
+    QCOMPARE(errorText, refusal.text);
+    QVERIFY(!command->isRefusedAsUnchanged());
+    QCOMPARE(session->getContainer(key), before);
+    QCOMPARE(session->getStructure(), original);
     QCOMPARE(session->getNodeIdCounter(), PDFContentEditSession::FIRST_SESSION_NODE_ID);
+
+    QVERIFY2(fixture.execute(Factory::createCopy({ square }, sequence, -1, QTransform()), &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(key), QByteArray("/P << /MCID 0 >> BDC 0 0 10 10 re f 20 0 10 10 re f 40 0 10 10 re f EMC 80 0 10 10 re f /Span << /MCID 1 >> BDC 60 0 10 10 re f EMC 80 0 10 10 re f"));
+    QCOMPARE(session->getStructure(), original);
+
+    // A sequence, which ends with an inline image without its end: whatever is written behind
+    // the image is image data, so neither the EMC of the first part nor the wrap of the rest
+    // could be written - the place between the square and the image is refused
+    {
+        ContentCommandsFixture imageFixture(taggedDocument("0 0 1 1 re f /P << /MCID 0 >> BDC 0 0 10 10 re f BI /W 2 /H 2 ID abcd"));
+        PDFContentEditSession* imageSession = imageFixture.session();
+        const Key imageKey = imageFixture.page();
+        QVERIFY(imageSession->loadStructure(nullptr));
+        const PDFContentContainerPointer imageBefore = imageSession->getContainer(imageKey);
+        const PDFContentNodeReference imageSequence = imageFixture.node(imageKey, Kind::MarkedContent, 0);
+        QVERIFY(imageBefore->isUnclosed(imageSequence.node));
+        QCOMPARE(imageFixture.get(imageSequence)->getChildren().size(), size_t(2));
+
+        QVERIFY(!imageFixture.execute(Factory::createCopy({ imageFixture.node(imageKey, Kind::Path, 0) }, imageSequence, 1, QTransform()), &errorText));
+        QVERIFY(!errorText.isEmpty());
+        QCOMPARE(imageSession->getContainer(imageKey), imageBefore);
+        QVERIFY(!imageSession->getStructure()->isModified());
+    }
+}
+
+void ContentCommandsTest::copyIntoTaggedLayer()
+{
+    // The place is in a layer inside of a sequence of the structure: /P [MCID 0] { /OC /L1 { A B } }.
+    // The copy leaves the tag, not the layer: the layer wrap and the sequence are split around
+    // the place between A and B, and the copy gets a wrap of the layer of its own.
+    PDFObject layer;
+    auto createResources = [&layer](PDFDocumentBuilder* builder)
+    {
+        layer = Documents::addObject(builder, Documents::createDictionaryObject({ { "Type", PDFObject::createName("OCG") }, { "Name", PDFObject::createString("Layer") } }));
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Properties"), Documents::createDictionaryObject({ { "L1", layer } }));
+        return resources;
+    };
+
+    const QByteArray span("/Span << /MCID 1 >> BDC 60 0 10 10 re f EMC");
+    ContentCommandsFixture fixture(taggedDocument("/P << /MCID 0 >> BDC /OC /L1 BDC 0 0 10 10 re f 20 0 10 10 re f EMC EMC " + span + " 80 0 10 10 re f", createResources));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    QVERIFY(session->loadStructure(nullptr));
+    const PDFContentContainerPointer before = session->getContainer(key);
+
+    const PDFContentNodeReference layerWrap = fixture.node(key, Kind::MarkedContent, 1);
+    QCOMPARE(fixture.get(layerWrap)->getData().tag, QByteArray("OC"));
+
+    const PDFContentCommandPointer command = Factory::createCopy({ fixture.node(key, Kind::Path, 3) }, layerWrap, 1, QTransform());
+    QString errorText;
+    QVERIFY2(fixture.execute(command, &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens("/P << /MCID 0 >> BDC /OC /L1 BDC 0 0 10 10 re f EMC EMC "
+                                                                  "/OC /L1 BDC 80 0 10 10 re f EMC "
+                                                                  "/P << /MCID 2 >> BDC /OC /L1 BDC 20 0 10 10 re f EMC EMC " + span + " 80 0 10 10 re f"));
+
+    // The wrap of the copy is a layer wrap of the same layer, outside of every sequence
+    const PDFContentContainerPointer container = session->getContainer(key);
+    const PDFContentNodePointer copyWrap = container->getParent(command->getChange().addedNodes.front().node);
+    QVERIFY(copyWrap != nullptr);
+    QCOMPARE(copyWrap->getData().tag, QByteArray("OC"));
+    QCOMPARE(copyWrap->getData().optionalContent, layer.getReference());
+    QVERIFY(container->getParent(copyWrap->getId())->getKind() == Kind::Root);
+    QVERIFY(elementContent(session->getStructure(), "P") == std::vector<PDFInteger>({ 0, 2 }));
+
+    QVERIFY(isUndoRedoExact(fixture, key, before));
+
+    // Duplicate of the square A of the layer behind itself: the copy keeps the layer of its
+    // source, which is the layer of its place - one wrap of the layer, not two
+    QVERIFY(session->undo().has_value());
+    QVERIFY2(fixture.execute(Factory::createCopy({ fixture.node(key, Kind::Path, 0) }, layerWrap, 1, QTransform()), &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens("/P << /MCID 0 >> BDC /OC /L1 BDC 0 0 10 10 re f EMC EMC "
+                                                                  "/OC /L1 BDC 0 0 10 10 re f EMC "
+                                                                  "/P << /MCID 2 >> BDC /OC /L1 BDC 20 0 10 10 re f EMC EMC " + span + " 80 0 10 10 re f"));
 }
 
 void ContentCommandsTest::transformTextWithPatternInside()
@@ -6006,24 +6272,21 @@ void ContentCommandsTest::unclosedNodes()
         QCOMPARE(fixture.written(key), QByteArray("0 0 1 1 re f q 1 0 0 1 5 5 cm 0 0 10 10 re f Q q 1 0 0 1 5 5 cm 0 0 10 10 re f Q"));
     }
 
-    // A group without its Q: the squares inside of it stay where they are; one can be deleted
+    // A group without its Q: the group itself is not moved, transformed or removed
     {
         ContentCommandsFixture fixture(plainDocument("q 1 0 0 rg 0 0 5 5 re f 9 9 1 1 re f"));
         PDFContentEditSession* session = fixture.session();
         const Key key = fixture.page();
         const PDFContentContainerPointer before = session->getContainer(key);
         const PDFContentNodeReference group = fixture.node(key, Kind::Group, 0);
-        const PDFContentNodeReference first = fixture.node(key, Kind::Path, 0);
-        const PDFContentNodeReference second = fixture.node(key, Kind::Path, 1);
         QVERIFY(before->isUnclosed(group.node));
 
         const std::vector<PDFContentCommandPointer> refused =
         {
-            Factory::createTransform({ first }, matrix(1, 0, 0, 1, 5, 5)),
             Factory::createTransform({ group }, matrix(1, 0, 0, 1, 5, 5)),
-            Factory::createReorder({ second }, group, 0, Factory::ReorderMode::FollowParent),
-            Factory::createReorder({ second }, fixture.root(key), 0, Factory::ReorderMode::FollowParent),
-            Factory::createGroup({ first }),
+            Factory::createReorder({ group }, fixture.root(key), 0, Factory::ReorderMode::FollowParent),
+            Factory::createGroup({ group }),
+            Factory::createCopy({ group }, fixture.root(key), 0, QTransform()),
             Factory::createUngroup(group)
         };
         for (size_t i = 0; i < refused.size(); ++i)
@@ -6031,30 +6294,238 @@ void ContentCommandsTest::unclosedNodes()
             QString errorText;
             QVERIFY2(!fixture.execute(refused[i], &errorText), qPrintable(QString::number(i)));
             QVERIFY(!errorText.isEmpty());
+            QVERIFY(!refused[i]->isRefusedAsUnchanged());
             QCOMPARE(session->getContainer(key), before);
         }
+    }
+}
 
-        QString errorText;
-        QVERIFY2(fixture.execute(Factory::createDelete({ first }), &errorText), qPrintable(errorText));
-        QCOMPARE(fixture.written(key), QByteArray("q 1 0 0 rg 9 9 1 1 re f"));
+void ContentCommandsTest::nodesInsideUnclosedNode_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<int>("command");
+    QTest::addColumn<QByteArray>("expected");
+    QTest::addColumn<bool>("isGroupClosed");
+
+    // A page, whose content stands in a q without its Q (a producer, which leaves the last Q
+    // out): a state run (red fill), the square A at 0 and the square B at 9. The squares are
+    // closed nodes; what a command makes of them stands inside of the group, which stays as it
+    // is - no Q is written, as long as nothing is written behind the group.
+    const QByteArray content("q 1 0 0 rg 0 0 5 5 re f 9 9 1 1 re f");
+
+    // A move of A: its wrap (R-1) inside of the group
+    QTest::newRow("transform") << content << 0 << QByteArray("q 1 0 0 rg q 1 0 0 1 5 5 cm 0 0 5 5 re f Q 9 9 1 1 re f") << false;
+
+    // A restyle of B
+    QTest::newRow("set appearance") << content << 1 << QByteArray("q 1 0 0 rg 0 0 5 5 re f q 0.5 g 9 9 1 1 re f Q") << false;
+
+    // A delete of A
+    QTest::newRow("delete") << content << 2 << QByteArray("q 1 0 0 rg 9 9 1 1 re f") << false;
+
+    // B in front of A, among the closed children of the group
+    QTest::newRow("reorder among the siblings") << content << 3 << QByteArray("q 1 0 0 rg 9 9 1 1 re f 0 0 5 5 re f") << false;
+
+    // B to the beginning of the group, in front of the state run: it sets the red it saw (R-2)
+    QTest::newRow("reorder in front of the state run") << content << 4 << QByteArray("q q 1 0 0 rg 9 9 1 1 re f Q 1 0 0 rg 0 0 5 5 re f") << false;
+
+    // B out of the group to the beginning of the page: the same wrap, the group is untouched
+    QTest::newRow("reorder in front of the group") << content << 5 << QByteArray("q 1 0 0 rg 9 9 1 1 re f Q q 1 0 0 rg 0 0 5 5 re f") << false;
+
+    // A out of the group to the end of the page, behind the group: the model writes the Q of
+    // the group in front of it, and A sets the red it saw inside
+    QTest::newRow("reorder behind the group") << content << 6 << QByteArray("q 1 0 0 rg 9 9 1 1 re f Q q 1 0 0 rg 0 0 5 5 re f Q") << true;
+
+    // A group of A and B is a closed group inside of the unclosed one; so is a group of A alone
+    QTest::newRow("group") << content << 7 << QByteArray("q 1 0 0 rg q 0 0 5 5 re f 9 9 1 1 re f Q") << false;
+    QTest::newRow("group of one") << content << 8 << QByteArray("q 1 0 0 rg q 0 0 5 5 re f Q 9 9 1 1 re f") << false;
+
+    // A copy of A at the end of the group: inside of it, in the state A saw
+    QTest::newRow("copy at the end") << content << 9 << QByteArray("q 1 0 0 rg 0 0 5 5 re f 9 9 1 1 re f 0 0 5 5 re f") << false;
+
+    // A closed group inside of the unclosed one: it is removed (its square stays at its place),
+    // and it is moved through its square
+    const QByteArray nested("q 1 0 0 rg q 0 0 5 5 re f Q 9 9 1 1 re f");
+    QTest::newRow("ungroup of a closed group") << nested << 10 << QByteArray("q 1 0 0 rg 0 0 5 5 re f 9 9 1 1 re f") << false;
+    QTest::newRow("transform of a closed group") << nested << 11 << QByteArray("q 1 0 0 rg q q 1 0 0 1 5 5 cm 0 0 5 5 re f Q Q 9 9 1 1 re f") << false;
+}
+
+void ContentCommandsTest::nodesInsideUnclosedNode()
+{
+    // The nodes inside of a node the content does not close are nodes as any other
+    // (pb0_core.md, S1 item 5): only the unclosed node itself is not moved (unclosedNodes).
+    QFETCH(QByteArray, content);
+    QFETCH(int, command);
+    QFETCH(QByteArray, expected);
+    QFETCH(bool, isGroupClosed);
+
+    ContentCommandsFixture fixture(plainDocument(content));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    const PDFContentContainerPointer before = session->getContainer(key);
+    const PDFContentNodeReference root = fixture.root(key);
+    const PDFContentNodeReference group = fixture.node(key, Kind::Group, 0);
+    const PDFContentNodeReference inner = fixture.node(key, Kind::Group, 1);
+    const PDFContentNodeReference first = fixture.node(key, Kind::Path, 0);
+    const PDFContentNodeReference second = fixture.node(key, Kind::Path, 1);
+    QVERIFY(before->isUnclosed(group.node));
+    QVERIFY(!before->isUnclosed(first.node));
+
+    const Factory::ReorderMode follow = Factory::ReorderMode::FollowParent;
+    const QTransform move = matrix(1, 0, 0, 1, 5, 5);
+
+    PDFContentCommandPointer commandObject;
+    switch (command)
+    {
+        case 0: commandObject = Factory::createTransform({ first }, move); break;
+        case 1: commandObject = Factory::createSetAppearance({ second }, { { Property::FillColor, deviceColor("DeviceGray", { 0.5 }) } }); break;
+        case 2: commandObject = Factory::createDelete({ first }); break;
+        case 3: commandObject = Factory::createReorder({ second }, group, 1, follow); break;
+        case 4: commandObject = Factory::createReorder({ second }, group, 0, follow); break;
+        case 5: commandObject = Factory::createReorder({ second }, root, 0, follow); break;
+        case 6: commandObject = Factory::createReorder({ first }, root, -1, follow); break;
+        case 7: commandObject = Factory::createGroup({ first, second }); break;
+        case 8: commandObject = Factory::createGroup({ first }); break;
+        case 9: commandObject = Factory::createCopy({ first }, group, -1, QTransform()); break;
+        case 10: commandObject = Factory::createUngroup(inner); break;
+        case 11: commandObject = Factory::createTransform({ inner }, move); break;
+        default: QFAIL("An unknown command of the test"); break;
     }
 
-    // A closed group inside of a group without its Q is inside of an unclosed node: it stays
+    QString errorText;
+    QVERIFY2(fixture.execute(commandObject, &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(key), expected);
+
+    // The group has its Q only when something is written behind it
+    QCOMPARE(session->getContainer(key)->isUnclosed(group.node), !isGroupClosed);
+    QVERIFY(isUndoRedoExact(fixture, key, before));
+}
+
+void ContentCommandsTest::placeBehindUnclosedClippingText()
+{
+    // A text with the text rendering mode 7 adds its glyphs to the clipping path at the end of
+    // its text object (ISO 32000-2, 9.3.6). In "BT ... 7 Tr (A) Tj" without ET the text object
+    // never ends, so nothing is clipped. A node placed behind the text would stand behind the
+    // ET the model writes - and be clipped by glyphs, which clip nothing in the document. Such
+    // a text is an open end (PDFContentNode::isOpenEnd), which stays the last child of its
+    // parent, with a marked content, which ends with it (PDFContentContainer::getAppendIndex):
+    // the end of the root is in front of it. So a copy to the end, or to any index behind the
+    // square, lands in front of the text (the root is [square, text] or [square, marked
+    // content]: the copy is the second child), and an order command, which puts the square to
+    // the end, finds it there already - refused as unchanged.
+    for (const QByteArray& content : { QByteArray("0 0 5 5 re f BT /F1 12 Tf 7 Tr (A) Tj"), QByteArray("0 0 5 5 re f /Artifact BMC BT /F1 12 Tf 7 Tr (A) Tj") })
     {
-        ContentCommandsFixture fixture(plainDocument("q 1 0 0 rg q 0 0 5 5 re f Q 9 9 1 1 re f"));
+        ContentCommandsFixture fixture(fontDocument(content));
         PDFContentEditSession* session = fixture.session();
         const Key key = fixture.page();
         const PDFContentContainerPointer before = session->getContainer(key);
-        const PDFContentNodeReference outer = fixture.node(key, Kind::Group, 0);
-        const PDFContentNodeReference inner = fixture.node(key, Kind::Group, 1);
-        QVERIFY(before->isUnclosed(outer.node));
-        QVERIFY(!before->isUnclosed(inner.node));
+        const PDFContentNodeReference root = fixture.root(key);
+        const PDFContentNodeReference square = fixture.node(key, Kind::Path, 0);
+        QVERIFY(before->isUnclosed(fixture.node(key, Kind::TextObject, 0).node));
+        QCOMPARE(before->getRoot()->getChildren().size(), size_t(2));
+        QCOMPARE(before->getAppendIndex(root.node), PDFInteger(1));
+
+        for (const PDFContentCommandPointer& command : { Factory::createReorder({ square }, root, -1, Factory::ReorderMode::FollowParent),
+                                                         Factory::createReorder({ square }, root, -1, Factory::ReorderMode::KeepLayerAndTag) })
+        {
+            QString errorText;
+            QVERIFY(!fixture.execute(command, &errorText));
+            QVERIFY(!errorText.isEmpty());
+            QVERIFY(command->isRefusedAsUnchanged());
+            QCOMPARE(session->getContainer(key), before);
+        }
+
+        // Nothing is written behind the text: it stays without its ET
+        for (const PDFInteger index : { PDFInteger(-1), PDFInteger(1), PDFInteger(2) })
+        {
+            QString errorText;
+            QVERIFY2(fixture.execute(Factory::createCopy({ square }, root, index, QTransform()), &errorText), qPrintable(errorText));
+            QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens("0 0 5 5 re f " + content));
+            QVERIFY(session->undo().has_value());
+            QCOMPARE(session->getContainer(key)->getVersion(), before->getVersion());
+        }
+    }
+
+    // A group above the text takes the clip away with its Q: the place behind the group is
+    // a place as any other ("q BT ... 7 Tr (A) Tj" - the model writes ET and Q)
+    {
+        ContentCommandsFixture fixture(fontDocument("0 0 5 5 re f q BT /F1 12 Tf 7 Tr (A) Tj"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
 
         QString errorText;
-        QVERIFY(!fixture.execute(Factory::createUngroup(inner), &errorText));
+        QVERIFY2(fixture.execute(Factory::createCopy({ fixture.node(key, Kind::Path, 0) }, fixture.root(key), -1, QTransform()), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f q BT /F1 12 Tf 7 Tr (A) Tj ET Q 0 0 5 5 re f"));
+        QVERIFY(isUndoRedoExact(fixture, key, before));
+
+        // Inside of the group, behind the text, the clip would be real: the text is the open end
+        // of the group, the end of the group is in front of it. The copy lands there; nothing is
+        // written behind the text, the group and the text stay without their Q and ET.
+        fixture.session()->undo();
+        QVERIFY2(fixture.execute(Factory::createCopy({ fixture.node(key, Kind::Path, 0) }, fixture.node(key, Kind::Group, 0), -1, QTransform()), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f q 0 0 5 5 re f BT /F1 12 Tf 7 Tr (A) Tj"));
+    }
+
+    // A container, in which the text is no open end: made by an editor, which leaves the mark
+    // away (PDFContentNode::isOpenEnd is set by the tree builder only; a container comes into
+    // the session from any command, PDFContentEditSession::setContainer). The end of the root
+    // is behind the text then, and the commands refuse that place themselves
+    // (PDFContentPlaceCommand::checkPlace): a copy and an order command to the end, not as
+    // unchanged. In front of the text the copy is placed as above.
+    {
+        ContentCommandsFixture fixture(fontDocument("0 0 5 5 re f BT /F1 12 Tf 7 Tr (A) Tj"));
+        PDFContentEditSession* session = fixture.session();
+        const Key key = fixture.page();
+        const PDFContentNodeReference root = fixture.root(key);
+        const PDFContentNodeReference square = fixture.node(key, Kind::Path, 0);
+        const PDFContentNodeReference text = fixture.node(key, Kind::TextObject, 0);
+
+        PDFContentContainerEditor editor(session->getContainer(key));
+        PDFContentNode::Data data = *editor.getNodeData(text.node);
+        QVERIFY(data.isOpenEnd);
+        data.isOpenEnd = false;
+        QVERIFY(editor.setNodeData(text.node, std::move(data)));
+        const PDFContentContainerPointer unmarked = editor.build();
+        QVERIFY(unmarked->isUnclosed(text.node));
+        QCOMPARE(unmarked->getAppendIndex(root.node), PDFInteger(2));
+
+        std::shared_ptr<ContentCommandsTestCommand> setUnmarked = std::make_shared<ContentCommandsTestCommand>(QStringLiteral("Unmarked"));
+        setUnmarked->onApply = [&unmarked](PDFContentEditSession* current) { current->setContainer(unmarked); };
+        QVERIFY(fixture.execute(setUnmarked));
+        QCOMPARE(session->getContainer(key), unmarked);
+
+        for (const PDFContentCommandPointer& command : { Factory::createCopy({ square }, root, -1, QTransform()),
+                                                         Factory::createCopy({ square }, root, 2, QTransform()),
+                                                         Factory::createReorder({ square }, root, -1, Factory::ReorderMode::FollowParent),
+                                                         Factory::createReorder({ square }, root, -1, Factory::ReorderMode::KeepLayerAndTag) })
+        {
+            QString errorText;
+            QVERIFY(!fixture.execute(command, &errorText));
+            QVERIFY(!errorText.isEmpty());
+            QVERIFY(!command->isRefusedAsUnchanged());
+            QCOMPARE(session->getContainer(key), unmarked);
+        }
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createCopy({ square }, root, 1, QTransform()), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f 0 0 5 5 re f BT /F1 12 Tf 7 Tr (A) Tj"));
+    }
+
+    // An object, which is the only content of an unclosed marked content, does not take that
+    // wrap along (an order command with the layer and the tag): refused; a drag takes it out
+    {
+        ContentCommandsFixture fixture(plainDocument("0 0 1 1 re f /Artifact BMC 0 0 5 5 re f"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        const PDFContentNodeReference square = fixture.node(key, Kind::Path, 1);
+        QVERIFY(before->isUnclosed(fixture.node(key, Kind::MarkedContent, 0).node));
+
+        QString errorText;
+        QVERIFY(!fixture.execute(Factory::createReorder({ square }, fixture.root(key), 0, Factory::ReorderMode::KeepLayerAndTag), &errorText));
         QVERIFY(!errorText.isEmpty());
-        QVERIFY(!fixture.execute(Factory::createTransform({ inner }, matrix(1, 0, 0, 1, 5, 5)), &errorText));
-        QCOMPARE(session->getContainer(key), before);
+        QCOMPARE(fixture.session()->getContainer(key), before);
+
+        QVERIFY2(fixture.execute(Factory::createReorder({ square }, fixture.root(key), 0, Factory::ReorderMode::FollowParent), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f 0 0 1 1 re f /Artifact BMC"));
     }
 }
 
@@ -6414,6 +6885,1181 @@ void ContentCommandsTest::pathOfFormBehindDeepPath()
     QVERIFY2(fixture.execute(command, &errorText), qPrintable(errorText));
     QCOMPARE(command->getPageIndex(), PDFInteger(1));
     QCOMPARE(command->toJson().value("ids").toArray(), QJsonArray({ "p2:2/2/2" }));
+}
+
+// -------------------------------------------------------------------------------------------------
+//  Block B, step B0, package S1: an undo step keeps the difference; many siblings; new objects
+// -------------------------------------------------------------------------------------------------
+
+void ContentCommandsTest::undoRedoMakesVersionsAgain()
+{
+    // A command keeps the difference of a container, not its versions (zadani_jadro.md 4.5).
+    // Here nobody holds a version, which the session has replaced, so every undo and redo
+    // makes its version again from the current one - and the page is written as it was before
+    // and after every command. Nine commands, one of each kind, on three stroked squares A, B, C;
+    // the contents are written by hand from the rules of the commands:
+    //  - a move and a restyle are a wrap q ... Q with the matrix and the line width (R-1), the
+    //    alpha is a graphics state dictionary the stream writer names /GS1 (the only one);
+    //  - a reorder to the end moves the square with its wrap; a group is q ... Q around its
+    //    objects; a copy of the moved A moved by (0, 30) has the matrix of both moves (5, 30).
+    const QByteArray a("0 0 10 10 re S");
+    const QByteArray b("20 0 10 10 re S");
+    const QByteArray c("40 0 10 10 re S");
+    const QByteArray movedA("q 1 0 0 1 5 0 cm 0 0 10 10 re S Q");
+    const QByteArray wideB("q 4 w 20 0 10 10 re S Q");
+    const QByteArray alphaC("q /GS1 gs 40 0 10 10 re S Q");
+    const QByteArray copyOfA("q 1 0 0 1 5 30 cm 0 0 10 10 re S Q");
+
+    const QList<QByteArray> contents = {
+        a + ' ' + b + ' ' + c,                                                      // The page
+        movedA + ' ' + b + ' ' + c,                                                 // 1: transform A
+        movedA + ' ' + wideB + ' ' + c,                                             // 2: set_appearance B
+        movedA + ' ' + wideB + ' ' + alphaC,                                        // 3: set_transparency C
+        wideB + ' ' + alphaC + ' ' + movedA,                                        // 4: reorder A to the end
+        "q " + wideB + ' ' + alphaC + " Q " + movedA,                               // 5: group B and C
+        "q " + wideB + ' ' + alphaC + " Q " + movedA + ' ' + copyOfA,               // 6: copy A
+        wideB + ' ' + alphaC + ' ' + movedA + ' ' + copyOfA,                        // 7: ungroup
+        alphaC + ' ' + movedA + ' ' + copyOfA,                                      // 8: delete B
+        QByteArray()                                                                // 9: clear_page
+    };
+
+    ContentCommandsFixture fixture(plainDocument(contents[0]));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    const PDFContentNodeReference root = fixture.root(key);
+    const PDFContentNodeReference squareA = fixture.node(key, Kind::Path, 0);
+    const PDFContentNodeReference squareB = fixture.node(key, Kind::Path, 1);
+    const PDFContentNodeReference squareC = fixture.node(key, Kind::Path, 2);
+    QCOMPARE(fixture.written(key), contents[0]);
+
+    // The versions are known by their numbers; the objects are watched, never held
+    std::vector<quint64> versions = { session->getContainer(key)->getVersion() };
+    std::vector<std::weak_ptr<const PDFContentContainer>> objects = { session->getContainer(key) };
+    std::vector<size_t> operationCounts = { session->getContainer(key)->getOperations().getCount() };
+
+    auto run = [&](const PDFContentCommandPointer& command, int step)
+    {
+        QString errorText;
+        const bool isExecuted = fixture.execute(command, &errorText);
+        if (!isExecuted || fixture.written(key) != contents[step])
+        {
+            qWarning("step %d: %s / %s", step, qPrintable(errorText), fixture.written(key).constData());
+            return false;
+        }
+
+        versions.push_back(session->getContainer(key)->getVersion());
+        objects.push_back(session->getContainer(key));
+        operationCounts.push_back(session->getContainer(key)->getOperations().getCount());
+        return true;
+    };
+
+    std::map<Property, PDFContentStateValue> lineWidth = { { Property::LineWidth, realValue(4) } };
+    QVERIFY(run(Factory::createTransform({ squareA }, matrix(1, 0, 0, 1, 5, 0)), 1));
+    QVERIFY(run(Factory::createSetAppearance({ squareB }, lineWidth), 2));
+    QVERIFY(run(Factory::createSetTransparency({ squareC }, 0.5, std::nullopt, std::nullopt), 3));
+    QVERIFY(run(Factory::createReorder({ squareA }, root, -1, Factory::ReorderMode::FollowParent), 4));
+    QVERIFY(run(Factory::createGroup({ squareB, squareC }), 5));
+    const PDFContentNodeReference group = fixture.node(key, Kind::Group, 0);
+    QVERIFY(run(Factory::createCopy({ squareA }, root, -1, matrix(1, 0, 0, 1, 0, 30)), 6));
+    QVERIFY(run(Factory::createUngroup(group), 7));
+    QVERIFY(run(Factory::createDelete({ squareB }), 8));
+    QVERIFY(run(Factory::createClearPage(key), 9));
+
+    PDFContentUndoStack* stack = session->getUndoStack();
+    QCOMPARE(stack->getCount(), size_t(9));
+    const quint64 counterAfter = session->getNodeIdCounter();
+
+    // Every replaced version is gone: the nine steps keep none of them alive
+    for (size_t i = 0; i + 1 < objects.size(); ++i)
+    {
+        QVERIFY2(objects[i].expired(), qPrintable(QString::number(i)));
+    }
+    QVERIFY(!objects.back().expired());
+
+    // Undo by undo: the page as it was before the command, and the same number of the version.
+    // The version an undo has replaced is gone too: neither the step nor the session keeps it.
+    for (int step = 9; step > 0; --step)
+    {
+        std::weak_ptr<const PDFContentContainer> replaced = session->getContainer(key);
+        QVERIFY(session->undo().has_value());
+        QCOMPARE(fixture.written(key), contents[step - 1]);
+        QCOMPARE(session->getContainer(key)->getVersion(), versions[size_t(step - 1)]);
+        QVERIFY2(replaced.expired(), qPrintable(QString::number(step)));
+    }
+    QVERIFY(!session->undo().has_value());
+
+    // The page is the unchanged content again: nothing to write, no dirty page, the first
+    // identifier of the session is free again, the three squares are the nodes they were
+    QVERIFY(session->getContainer(key)->isUnchanged());
+    QVERIFY(session->createSnapshot()->containers.empty());
+    QVERIFY(session->getDirtyPages().empty());
+    QCOMPARE(session->getNodeIdCounter(), PDFContentEditSession::FIRST_SESSION_NODE_ID);
+    QCOMPARE(fixture.node(key, Kind::Path, 0), squareA);
+    QCOMPARE(fixture.node(key, Kind::Path, 2), squareC);
+    QCOMPARE(session->getContainer(key)->getNodeCount(), size_t(4));
+    QVERIFY(fixture.get(squareA)->getOverride() == nullptr);
+
+    // Redo by redo: the page as it was after the command
+    for (int step = 1; step <= 9; ++step)
+    {
+        std::weak_ptr<const PDFContentContainer> replaced = session->getContainer(key);
+        QVERIFY(session->redo().has_value());
+        QCOMPARE(fixture.written(key), contents[step]);
+        QCOMPARE(session->getContainer(key)->getVersion(), versions[size_t(step)]);
+        QVERIFY2(replaced.expired(), qPrintable(QString::number(step)));
+    }
+    QVERIFY(!session->redo().has_value());
+    QCOMPARE(session->getNodeIdCounter(), counterAfter);
+
+    // The operations of a redo are the ones of the first run at their indices: the pool of
+    // the last version has as many operations as it had (nothing was appended twice)
+    QCOMPARE(session->getContainer(key)->getOperations().getCount(), operationCounts.back());
+
+    // Back to the group (step 5) and a new command from there, over a version, which was made
+    // again: C keeps its alpha and gets the matrix; one undo gives the group back
+    for (int step = 9; step > 5; --step)
+    {
+        QVERIFY(session->undo().has_value());
+    }
+    QCOMPARE(fixture.written(key), contents[5]);
+    QVERIFY(fixture.execute(Factory::createTransform({ squareC }, matrix(1, 0, 0, 1, 0, 7))));
+    QCOMPARE(stack->getCount(), size_t(6));
+    QCOMPARE(fixture.written(key), QByteArray("q " + wideB + " q 1 0 0 1 0 7 cm /GS1 gs 40 0 10 10 re S Q Q " + movedA));
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(fixture.written(key), contents[5]);
+    QVERIFY(session->redo().has_value());
+    while (session->undo().has_value()) { }
+    QCOMPARE(fixture.written(key), contents[0]);
+    QVERIFY(session->getContainer(key)->isUnchanged());
+}
+
+void ContentCommandsTest::undoStepKeepsDifference()
+{
+    // The memory of an undo step is proportional to what its command changed, not to the page
+    // (A1L1-2, A3L1-4: every step kept a version of the container with an index of all its
+    // nodes and a root with all its children, so the limit of 10 000 steps bounded nothing).
+    //
+    // Forty commands, each over one square of a flat page, on a page of 1 000 squares and on
+    // one of 20 000: (1) no step keeps a version of the container or its root alive; (2) the
+    // items the steps keep (PDFContentUndoStack::getStoredItemCount) are the same number on both
+    // pages. By hand, for a child of the root: a move or a restyle keeps the root (the node and
+    // its data before and after: 3 items), the old square taken away and the new one put in -
+    // 5 items; a reorder to the end the same 5; a delete the root and the square - 4 items.
+    // Ten rounds of the four commands: 10 x (5 + 5 + 4 + 5) = 190 items.
+    auto createPage = [](int count)
+    {
+        QByteArray content;
+        for (int i = 0; i < count; ++i)
+        {
+            content += QByteArray::number(i) + " 0 1 1 re f ";
+        }
+        return plainDocument(content);
+    };
+
+    for (const int count : { 1000, 20000 })
+    {
+        ContentCommandsFixture fixture(createPage(count));
+        PDFContentEditSession* session = fixture.session();
+        PDFContentUndoStack* stack = session->getUndoStack();
+        const Key key = fixture.page();
+        const PDFContentNodeReference root = fixture.root(key);
+        const std::vector<PDFContentNodeId> paths = fixture.nodes(key, Kind::Path);
+        QCOMPARE(paths.size(), size_t(count));
+        QCOMPARE(stack->getStoredItemCount(), size_t(0));
+
+        const QByteArray original = fixture.written(key);
+        std::weak_ptr<const PDFContentContainer> firstVersion = session->getContainer(key);
+
+        for (int i = 0; i < 40; ++i)
+        {
+            std::weak_ptr<const PDFContentContainer> version = session->getContainer(key);
+            std::weak_ptr<const PDFContentNode> versionRoot = session->getContainer(key)->getRoot();
+            const size_t storedBefore = stack->getStoredItemCount();
+
+            // A square from the middle of the page, another one for every command
+            const PDFContentNodeReference square{ key, paths[size_t(count / 2 + i)] };
+            PDFContentCommandPointer command;
+            size_t expectedItems = 5;
+            switch (i % 4)
+            {
+                case 0:
+                    command = Factory::createTransform({ square }, matrix(1, 0, 0, 1, 0, 3));
+                    break;
+
+                case 1:
+                    command = Factory::createSetAppearance({ square }, { { Property::FillColor, deviceColor("DeviceGray", { 0.5 }) } });
+                    break;
+
+                case 2:
+                    command = Factory::createDelete({ square });
+                    expectedItems = 4;
+                    break;
+
+                default:
+                    command = Factory::createReorder({ square }, root, -1, Factory::ReorderMode::FollowParent);
+                    break;
+            }
+
+            QString errorText;
+            QVERIFY2(fixture.execute(command, &errorText), qPrintable(errorText));
+            QCOMPARE(command->getStoredItemCount(), expectedItems);
+            QCOMPARE(stack->getStoredItemCount(), storedBefore + expectedItems);
+
+            // The version the command has replaced, and its root, are gone
+            QVERIFY2(version.expired(), qPrintable(QString::number(i)));
+            QVERIFY2(versionRoot.expired(), qPrintable(QString::number(i)));
+        }
+
+        QCOMPARE(stack->getCount(), size_t(40));
+        QCOMPARE(stack->getStoredItemCount(), size_t(190));
+        QVERIFY(firstVersion.expired());
+
+        // The steps still undo everything
+        while (session->undo().has_value()) { }
+        QVERIFY(session->getContainer(key)->isUnchanged());
+        QCOMPARE(fixture.written(key), original);
+        QVERIFY(fixture.nodes(key, Kind::Path) == paths);
+
+        // The undone steps keep what they kept (redo needs it); a stack without steps keeps nothing
+        QCOMPARE(stack->getStoredItemCount(), size_t(190));
+        stack->clear();
+        QCOMPARE(stack->getStoredItemCount(), size_t(0));
+    }
+}
+
+void ContentCommandsTest::manySiblings_data()
+{
+    QTest::addColumn<QByteArray>("prefix");
+    QTest::addColumn<QByteArray>("suffix");
+    QTest::addColumn<int>("parentKind");
+    QTest::addColumn<bool>("isTagged");
+
+    // The squares are children of the root (a flat page), of a group (a page wrapped in q ... Q
+    // by its producer), of a marked content without a tag (an artifact, a layer), and of
+    // a sequence of the structure (a tagged figure of many paths)
+    QTest::newRow("root") << QByteArray() << QByteArray() << int(Kind::Root) << false;
+    QTest::newRow("group") << QByteArray("q ") << QByteArray("Q") << int(Kind::Group) << false;
+    QTest::newRow("marked content") << QByteArray("/Artifact BMC ") << QByteArray("EMC") << int(Kind::MarkedContent) << false;
+    QTest::newRow("tagged sequence") << QByteArray("/P << /MCID 0 >> BDC ") << QByteArray("EMC /Span << /MCID 1 >> BDC 0 0 1 1 re f EMC") << int(Kind::MarkedContent) << true;
+}
+
+void ContentCommandsTest::manySiblings()
+{
+    // Select All on a page of 100 000 objects, then Bring to Front (here: all of them in the
+    // reverse order to the end of their parent), Group and Delete (G2-3 of the second review
+    // of block A). A command over K children of a parent with N children cost K x N: every
+    // change made the node of the parent again (a copy of N pointers) and looked the index of
+    // the child up by a scan - 10^10 steps for K = N = 100 000, minutes for every command.
+    // The commands read the tree being changed through the queries of the editor now, which
+    // cost the logarithm of N.
+    //
+    // The page takes about 250 MB with the versions the test holds (below 1 GB).
+    QFETCH(QByteArray, prefix);
+    QFETCH(QByteArray, suffix);
+    QFETCH(int, parentKind);
+    QFETCH(bool, isTagged);
+
+    constexpr int COUNT = 100000;
+
+    // The limit of each command in milliseconds (a command takes some tenths of a second)
+    constexpr int LIMIT = 5000;
+
+    QByteArray content = prefix;
+    content.reserve(prefix.size() + suffix.size() + 20 * COUNT);
+    for (int i = 0; i < COUNT; ++i)
+    {
+        content += QByteArray::number(i) + " 0 1 1 re f ";
+    }
+    content += suffix;
+
+    ContentCommandsFixture fixture(isTagged ? taggedDocument(content) : plainDocument(content));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    QVERIFY(key.isValid());
+    if (isTagged)
+    {
+        QVERIFY(session->loadStructure(nullptr));
+    }
+
+    const PDFContentContainerPointer before = session->getContainer(key);
+    const PDFContentNodeReference parent = fixture.node(key, Kind(parentKind), 0);
+    QVERIFY(parent.isValid());
+
+    // The squares of the parent, in their order (the tagged page has one more in its second sequence)
+    std::vector<PDFContentNodeReference> all;
+    for (const PDFContentNodePointer& child : fixture.get(parent)->getChildren())
+    {
+        QCOMPARE(child->getKind(), Kind::Path);
+        all.push_back(PDFContentNodeReference{ key, child->getId() });
+    }
+    QCOMPARE(all.size(), size_t(COUNT));
+
+    QElapsedTimer timer;
+    QString errorText;
+
+    if (!isTagged)
+    {
+        // Every object to the front, the first one last: the order of the parent is reversed.
+        // (In a tagged sequence an order command gives every object a sequence of its own:
+        // that stays proportional to the sequence for each object and is not measured here.)
+        const std::vector<PDFContentNodeReference> reversed(all.crbegin(), all.crend());
+        timer.start();
+        QVERIFY2(fixture.execute(Factory::createReorder(reversed, parent, -1, Factory::ReorderMode::KeepLayerAndTag), &errorText), qPrintable(errorText));
+        const qint64 reorderTime = timer.elapsed();
+        QVERIFY2(reorderTime < timeout(LIMIT), qPrintable(QStringLiteral("reorder: %1 ms").arg(reorderTime)));
+
+        const std::vector<PDFContentNodePointer>& children = fixture.get(parent)->getChildren();
+        QCOMPARE(children.size(), size_t(COUNT));
+        QCOMPARE(children.front()->getId(), all.back().node);
+        QCOMPARE(children[1]->getId(), all[all.size() - 2].node);
+        QCOMPARE(children.back()->getId(), all.front().node);
+
+        // All of them into one group, which stands in their parent alone
+        timer.start();
+        const PDFContentCommandPointer group = Factory::createGroup(all);
+        QVERIFY2(fixture.execute(group, &errorText), qPrintable(errorText));
+        const qint64 groupTime = timer.elapsed();
+        QVERIFY2(groupTime < timeout(LIMIT), qPrintable(QStringLiteral("group: %1 ms").arg(groupTime)));
+
+        QCOMPARE(fixture.get(parent)->getChildren().size(), size_t(1));
+        const PDFContentNodePointer groupNode = fixture.get(group->getChange().addedNodes.front());
+        QCOMPARE(groupNode->getKind(), Kind::Group);
+        QCOMPARE(groupNode->getChildren().size(), size_t(COUNT));
+        QCOMPARE(groupNode->getChildren().front()->getId(), all.back().node);
+
+        // The group is undone: the objects are children of their parent again
+        timer.start();
+        QVERIFY(session->undo().has_value());
+        const qint64 undoTime = timer.elapsed();
+        QVERIFY2(undoTime < timeout(LIMIT), qPrintable(QStringLiteral("undo: %1 ms").arg(undoTime)));
+        QCOMPARE(fixture.get(parent)->getChildren().size(), size_t(COUNT));
+    }
+
+    // All of them deleted
+    timer.start();
+    QVERIFY2(fixture.execute(Factory::createDelete(all), &errorText), qPrintable(errorText));
+    const qint64 deleteTime = timer.elapsed();
+    QVERIFY2(deleteTime < timeout(LIMIT), qPrintable(QStringLiteral("delete: %1 ms").arg(deleteTime)));
+
+    if (isTagged)
+    {
+        // The sequence lost its last content: its wrap is gone, the other sequence is there
+        QCOMPARE(fixture.nodes(key, Kind::Path).size(), size_t(1));
+        QCOMPARE(fixture.nodes(key, Kind::MarkedContent).size(), size_t(1));
+        QCOMPARE(fixture.written(key), QByteArray("/Span << /MCID 1 >> BDC 0 0 1 1 re f EMC"));
+        QVERIFY(elementContent(session->getStructure(), "P").empty());
+    }
+    else
+    {
+        QVERIFY(fixture.nodes(key, Kind::Path).empty());
+        QCOMPARE(fixture.written(key), QByteArray(prefix + suffix).simplified());
+    }
+
+    // Everything undone: the page as it was
+    timer.start();
+    while (session->undo().has_value()) { }
+    const qint64 undoAllTime = timer.elapsed();
+    QVERIFY2(undoAllTime < timeout(LIMIT), qPrintable(QStringLiteral("undo of all: %1 ms").arg(undoAllTime)));
+    QCOMPARE(session->getContainer(key), before);
+}
+
+void ContentCommandsTest::newObjectsFollowUndoStack()
+{
+    // A new object of the session, which no command of the undo stack names any more, is
+    // dropped (it would never be written, and the list would grow with the session). A move of
+    // a square filled by a pattern copies the pattern (R-5: the copy has the matrix of the
+    // pattern moved with the square), one new object for every move.
+    PDFObjectReference patternReference;
+    ContentCommandsFixture fixture(patternDocument("/Pattern cs /P1 scn 25 25 40 40 re f", &patternReference));
+    PDFContentEditSession* session = fixture.session();
+    PDFContentUndoStack* stack = session->getUndoStack();
+    const Key key = fixture.page();
+    const PDFContentNodeReference square = fixture.node(key, Kind::Path, 0);
+
+    auto newObject = [](PDFInteger number) { return PDFObjectReference(number, PDFContentEditSession::NEW_OBJECT_GENERATION); };
+    auto patternOfSquare = [&fixture, &square]() { return fixture.get(square)->getOverride()->properties.at(Property::FillColor).color.patternObject; };
+
+    // Three presses of an arrow key are one step. Each press has copied the pattern of the
+    // press before: the first two copies are objects of versions, which are gone - only the
+    // third one is named, and it is the only new object of the session.
+    QVERIFY(fixture.execute(Factory::createTransform({ square }, matrix(1, 0, 0, 1, 1, 0))));
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(1)));
+    QVERIFY(fixture.execute(Factory::createTransform({ square }, matrix(1, 0, 0, 1, 1, 0))));
+    QVERIFY(fixture.execute(Factory::createTransform({ square }, matrix(1, 0, 0, 1, 1, 0))));
+    QCOMPARE(stack->getCount(), size_t(1));
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(3)));
+
+    QCOMPARE(session->createSnapshot()->newObjects.size(), size_t(1));
+    QVERIFY(session->getNewObject(newObject(1)).isNull());
+    QVERIFY(session->getNewObject(newObject(2)).isNull());
+    QVERIFY(session->getNewObject(newObject(3)).isStream());
+
+    // The copy has the matrix of the pattern [2 0 0 2 3 4] moved by the three presses: (3, 0)
+    QCOMPARE(overridePatternMatrix(fixture, square, Property::FillColor), Documents::createNumberArrayObject({ 2, 0, 0, 2, 6, 4 }));
+
+    // A number is never given again: the next copy is the object 4
+    stack->setClean();
+    QVERIFY(fixture.execute(Factory::createTransform({ square }, matrix(1, 0, 0, 1, 0, 5))));
+    QCOMPARE(stack->getCount(), size_t(2));
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(4)));
+    QCOMPARE(session->createSnapshot()->newObjects.size(), size_t(2));
+
+    // An undone step keeps its object: redo needs it
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(3)));
+    QCOMPARE(session->createSnapshot()->newObjects.size(), size_t(2));
+    QVERIFY(session->redo().has_value());
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(4)));
+    QVERIFY(session->getNewObject(newObject(4)).isStream());
+
+    // The undone step is dropped by a new command: its object goes with it. The object of the
+    // step, which is still applied, stays.
+    QVERIFY(session->undo().has_value());
+    QVERIFY(fixture.execute(Factory::createSetTransparency({ square }, std::nullopt, 0.5, std::nullopt)));
+    QCOMPARE(stack->getCount(), size_t(2));
+    QVERIFY(session->getNewObject(newObject(4)).isNull());
+    QVERIFY(session->getNewObject(newObject(3)).isStream());
+    QCOMPARE(session->createSnapshot()->newObjects.size(), size_t(1));
+    QCOMPARE(patternOfSquare(), PDFObject::createReference(newObject(3)));
+
+    // Both steps undone and dropped by a delete of the square: no new object is left
+    while (session->undo().has_value()) { }
+    QCOMPARE(session->createSnapshot()->newObjects.size(), size_t(1));
+    QVERIFY(fixture.execute(Factory::createDelete({ square })));
+    QCOMPARE(stack->getCount(), size_t(1));
+    QVERIFY(session->createSnapshot()->newObjects.empty());
+}
+
+void ContentCommandsTest::structureUndoKeepsDifference()
+{
+    // A command, which changes the structure, keeps what the change touched in the model
+    // (PDFContentStructureDifference), not the model before and the model after (A3L1-4: every
+    // tagged delete kept a copy of the model of the whole document). Undo and redo make the
+    // model again from the current one.
+    //
+    // The page of taggedDocument: the sequence 0 (/P) of three squares, the sequence 1 (/Span) of
+    // one square, a square without a tag; the element P has /K 0, the element Span /K 1.
+    ContentCommandsFixture fixture(taggedDocument());
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    QVERIFY(session->loadStructure(nullptr));
+
+    // A model read from the same document: what the model of the session must equal after undo
+    const PDFContentStructureModelPointer reference = PDFContentStructureModel::read(fixture.document().get(), nullptr);
+    QVERIFY(reference != nullptr);
+    QVERIFY(session->getStructure()->isEqual(*reference));
+
+    std::weak_ptr<const PDFContentStructureModel> loadedModel = session->getStructure();
+    const std::vector<PDFContentNodeId> squares = fixture.nodes(key, Kind::Path);
+    QCOMPARE(squares.size(), size_t(5));
+
+    // The only square of the sequence 1 is deleted: the sequence loses its wrap and its place
+    // in the element Span (zadani_jadro.md 4.12)
+    const PDFContentCommandPointer deleteSpan = Factory::createDelete({ PDFContentNodeReference{ key, squares[3] } });
+    QVERIFY(fixture.execute(deleteSpan));
+    QVERIFY(elementContent(session->getStructure(), "Span").empty());
+    QVERIFY(elementContent(session->getStructure(), "P") == std::vector<PDFInteger>({ 0 }));
+    QVERIFY(session->getStructure()->isModified());
+    QCOMPARE(fixture.written(key), QByteArray("/P << /MCID 0 >> BDC 0 0 10 10 re f 20 0 10 10 re f 40 0 10 10 re f EMC 80 0 10 10 re f"));
+
+    // The step keeps no model: the model before is gone with the session's pointer to it
+    QVERIFY(loadedModel.expired());
+
+    // What it keeps, by hand: of the page the root (3 items) and the wrap taken away with its
+    // square (1); of the structure the element Span (1) and the item of the parent tree of the
+    // page (1)
+    QCOMPARE(deleteSpan->getStoredItemCount(), size_t(6));
+
+    // The three squares of the sequence 0 are deleted too: the element P has no content either
+    std::weak_ptr<const PDFContentStructureModel> middleModel = session->getStructure();
+    const PDFContentCommandPointer deleteParagraph = Factory::createDelete({ PDFContentNodeReference{ key, squares[0] }, PDFContentNodeReference{ key, squares[1] }, PDFContentNodeReference{ key, squares[2] } });
+    QVERIFY(fixture.execute(deleteParagraph));
+    QVERIFY(elementContent(session->getStructure(), "P").empty());
+    QCOMPARE(fixture.written(key), QByteArray("80 0 10 10 re f"));
+    QVERIFY(middleModel.expired());
+
+    // Undo of both: the model is equal to the one read from the document, and not modified
+    QVERIFY(session->undo().has_value());
+    QVERIFY(elementContent(session->getStructure(), "P") == std::vector<PDFInteger>({ 0 }));
+    QVERIFY(elementContent(session->getStructure(), "Span").empty());
+    QVERIFY(session->undo().has_value());
+    QVERIFY(elementContent(session->getStructure(), "Span") == std::vector<PDFInteger>({ 1 }));
+    QVERIFY(session->getStructure()->isEqual(*reference));
+    QVERIFY(!session->getStructure()->isModified());
+    QVERIFY(session->createSnapshot()->isEmpty());
+    QCOMPARE(fixture.written(key), ContentCommandsFixture::tokens(taggedContent()));
+
+    // Redo of both, over models, which were made again: the second command finds the model
+    // the first one has made
+    QVERIFY(session->redo().has_value());
+    QVERIFY(elementContent(session->getStructure(), "Span").empty());
+    QVERIFY(elementContent(session->getStructure(), "P") == std::vector<PDFInteger>({ 0 }));
+    QVERIFY(session->redo().has_value());
+    QVERIFY(elementContent(session->getStructure(), "P").empty());
+    QVERIFY(session->getStructure()->isModified());
+    QCOMPARE(fixture.written(key), QByteArray("80 0 10 10 re f"));
+    QVERIFY(!session->redo().has_value());
+
+    // A model somebody holds is set as the object it is (a view, a snapshot of the work)
+    const PDFContentStructureModelPointer held = session->getStructure();
+    QVERIFY(session->undo().has_value());
+    QVERIFY(session->getStructure() != held);
+    QVERIFY(session->redo().has_value());
+    QCOMPARE(session->getStructure(), held);
+}
+
+void ContentCommandsTest::commandWithoutEffectIsRefusedAsUnchanged()
+{
+    // A command, which would set what its objects already have, changes nothing: it is refused
+    // as unchanged (PDFContentCommand::isRefusedAsUnchanged), the model stays, and there is no
+    // undo step - a move by the identity matrix, a color, a line width or an alpha the object has.
+    //
+    // A gray square with a line 2 wide, and a text, which begins gray and sets red for its
+    // second letter.
+    ContentCommandsFixture fixture(fontDocument("0.5 g 2 w 0 0 10 10 re B BT /F1 12 Tf (A) Tj 1 0 0 rg (B) Tj ET"));
+    PDFContentEditSession* session = fixture.session();
+    PDFContentUndoStack* stack = session->getUndoStack();
+    const Key key = fixture.page();
+    const PDFContentContainerPointer before = session->getContainer(key);
+    const PDFContentNodeReference square = fixture.node(key, Kind::Path, 0);
+    const PDFContentNodeReference text = fixture.node(key, Kind::TextObject, 0);
+    const PDFContentNodeReference letter = fixture.node(key, Kind::TextShow, 0);
+    const PDFContentStateValue gray = deviceColor("DeviceGray", { 0.5 });
+    const PDFContentStateValue darkGray = deviceColor("DeviceGray", { 0.25 });
+
+    // The command is refused with a text, as unchanged, and the model and the undo stack stay
+    auto isUnchanged = [&fixture, &key](const PDFContentCommandPointer& command)
+    {
+        const PDFContentContainerPointer container = fixture.session()->getContainer(key);
+        const size_t count = fixture.session()->getUndoStack()->getCount();
+        QString errorText;
+        return !fixture.execute(command, &errorText) && !errorText.isEmpty() && command->isRefusedAsUnchanged() &&
+               fixture.session()->getContainer(key) == container && fixture.session()->getUndoStack()->getCount() == count;
+    };
+
+    // The identity matrix: of the square, of the text, of both
+    QVERIFY(isUnchanged(Factory::createTransform({ square }, QTransform())));
+    QVERIFY(isUnchanged(Factory::createTransform({ text }, QTransform())));
+    QVERIFY(isUnchanged(Factory::createTransform({ square, text }, matrix(1, 0, 0, 1, 0, 0))));
+    QCOMPARE(session->getContainer(key), before);
+    QCOMPARE(stack->getCount(), size_t(0));
+
+    // The values of the state the square stands in: its gray, its line width, the solid line,
+    // the alpha 1 and the blend mode Normal of a page (ISO 32000-2, 8.4.1, Table 51)
+    PDFContentStateValue solid;
+    solid.kind = PDFContentStateValue::Kind::Dash;
+    PDFContentStateValue normal;
+    normal.kind = PDFContentStateValue::Kind::Name;
+    normal.name = "Normal";
+
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::FillColor, gray } })));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::FillColor, gray }, { Property::StrokeColor, deviceColor("DeviceGray", { 0.0 }) }, { Property::LineWidth, realValue(2) } })));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::DashPattern, solid } })));
+    QVERIFY(isUnchanged(Factory::createSetTransparency({ square }, 1.0, 1.0, std::nullopt)));
+    QVERIFY(isUnchanged(Factory::createSetTransparency({ square }, std::nullopt, std::nullopt, QByteArray("Normal"))));
+    QCOMPARE(session->getContainer(key), before);
+
+    // One value of several differs: the command is a change (the wrap sets all of them)
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ square }, { { Property::FillColor, darkGray }, { Property::LineWidth, realValue(2) } })));
+    QCOMPARE(stack->getCount(), size_t(1));
+    QCOMPARE(fixture.get(square)->getOverride()->properties.size(), size_t(2));
+
+    // The values of its override now; the gray of the state is another color than the object has
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::FillColor, darkGray } })));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::LineWidth, realValue(2) }, { Property::FillColor, darkGray } })));
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ square }, { { Property::FillColor, gray } })));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square }, { { Property::FillColor, gray } })));
+    QVERIFY(session->undo().has_value());
+
+    QVERIFY(fixture.execute(Factory::createSetTransparency({ square }, std::nullopt, 0.5, std::nullopt)));
+    QVERIFY(isUnchanged(Factory::createSetTransparency({ square }, std::nullopt, 0.5, std::nullopt)));
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(stack->getPosition(), size_t(1));
+
+    // The text begins in the gray of the page, but sets red inside: the gray for the whole text
+    // is a change (the red operator is suppressed, R-1) - once
+    const PDFContentCommandPointer grayText = Factory::createSetAppearance({ text }, { { Property::FillColor, gray } });
+    QString errorText;
+    QVERIFY2(fixture.execute(grayText, &errorText), qPrintable(errorText));
+    QVERIFY(fixture.get(text)->getOverride() != nullptr);
+    QVERIFY(fixture.written(key).contains("q 0.5 g BT /F1 12 Tf (A) Tj (B) Tj ET Q"));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ text }, { { Property::FillColor, gray } })));
+
+    // Two objects, one of which has the value: the command changes the other one only
+    const PDFContentNodePointer squareNode = fixture.get(square);
+    QVERIFY2(fixture.execute(Factory::createSetAppearance({ square, text }, { { Property::FillColor, darkGray } }), &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.get(square), squareNode);
+    QCOMPARE(fixture.get(text)->getOverride()->properties.at(Property::FillColor).color.components, std::vector<PDFReal>({ 0.25 }));
+    QVERIFY(isUnchanged(Factory::createSetAppearance({ square, text }, { { Property::FillColor, darkGray } })));
+
+    // A rule of the content stays an ordinary refusal, also for a command without an effect:
+    // a part of a text, an object, which does not exist
+    for (const PDFContentCommandPointer& command : { Factory::createTransform({ letter }, QTransform()),
+                                                     Factory::createTransform({ PDFContentNodeReference{ key, PDFContentNodeId{ 4242 } } }, QTransform()),
+                                                     Factory::createSetAppearance({ letter }, { { Property::FillColor, gray } }) })
+    {
+        QVERIFY(!fixture.execute(command, &errorText));
+        QVERIFY(!errorText.isEmpty());
+        QVERIFY(!command->isRefusedAsUnchanged());
+    }
+
+    // Everything undone: the page as it was
+    while (session->undo().has_value()) { }
+    QCOMPARE(session->getContainer(key), before);
+}
+
+void ContentCommandsTest::stateValuesAreCompared()
+{
+    // PDFContentStateValue::isEqual: two values set a property to the same thing - the same
+    // kind and the same value of that kind; the fields of the other kinds do not count.
+    using Value = PDFContentStateValue;
+    using ValueKind = PDFContentStateValue::Kind;
+
+    QVERIFY(Value::isEqual(Value(), Value()));
+
+    // A real number; the name of another kind in the same value is not looked at
+    Value half = realValue(0.5);
+    Value halfWithName = realValue(0.5);
+    halfWithName.name = "Multiply";
+    halfWithName.integer = 7;
+    QVERIFY(Value::isEqual(half, halfWithName));
+    QVERIFY(!Value::isEqual(half, realValue(0.25)));
+    QVERIFY(!Value::isEqual(half, Value()));
+
+    // The same number as another kind is another value
+    Value integer;
+    integer.kind = ValueKind::Integer;
+    integer.integer = 1;
+    Value one = realValue(1);
+    one.integer = 1;
+    QVERIFY(!Value::isEqual(integer, one));
+    Value two = integer;
+    two.integer = 2;
+    QVERIFY(!Value::isEqual(integer, two));
+    QVERIFY(Value::isEqual(integer, integer));
+
+    Value yes;
+    yes.kind = ValueKind::Boolean;
+    yes.boolean = true;
+    Value no = yes;
+    no.boolean = false;
+    QVERIFY(Value::isEqual(yes, yes));
+    QVERIFY(!Value::isEqual(yes, no));
+
+    Value multiply;
+    multiply.kind = ValueKind::Name;
+    multiply.name = "Multiply";
+    Value screen = multiply;
+    screen.name = "Screen";
+    QVERIFY(Value::isEqual(multiply, multiply));
+    QVERIFY(!Value::isEqual(multiply, screen));
+
+    // A dash pattern: the array and the phase (ISO 32000-2, 8.4.3.6)
+    auto createDash = [](const std::vector<PDFReal>& array, PDFReal phase)
+    {
+        PDFLineDashPattern pattern;
+        pattern.setDashArray(array);
+        pattern.setDashOffset(phase);
+        return pattern;
+    };
+
+    Value dash;
+    dash.kind = ValueKind::Dash;
+    dash.dash = createDash({ 3.0, 2.0 }, 1.0);
+    Value sameDash = dash;
+    Value otherArray = dash;
+    otherArray.dash = createDash({ 3.0, 2.5 }, 1.0);
+    Value otherPhase = dash;
+    otherPhase.dash = createDash({ 3.0, 2.0 }, 0.0);
+    Value longerArray = dash;
+    longerArray.dash = createDash({ 3.0, 2.0, 3.0 }, 1.0);
+    QVERIFY(Value::isEqual(dash, sameDash));
+    QVERIFY(!Value::isEqual(dash, otherArray));
+    QVERIFY(!Value::isEqual(dash, otherPhase));
+    QVERIFY(!Value::isEqual(dash, longerArray));
+
+    // A color: the device space and the components; a color space object; a pattern
+    QVERIFY(Value::isEqual(deviceColor("DeviceRGB", { 1.0, 0.0, 0.0 }), deviceColor("DeviceRGB", { 1.0, 0.0, 0.0 })));
+    QVERIFY(!Value::isEqual(deviceColor("DeviceRGB", { 1.0, 0.0, 0.0 }), deviceColor("DeviceRGB", { 1.0, 0.0, 0.5 })));
+    QVERIFY(!Value::isEqual(deviceColor("DeviceGray", { 0.0 }), deviceColor("DeviceRGB", { 0.0, 0.0, 0.0 })));
+    QVERIFY(!Value::isEqual(deviceColor("DeviceCMYK", { 0.0, 0.0, 0.0, 1.0 }), deviceColor("DeviceCMYK", { 0.0, 0.0, 0.0 })));
+
+    Value spaceColor;
+    spaceColor.kind = ValueKind::Color;
+    spaceColor.color.colorSpaceObject = PDFObject::createReference(PDFObjectReference(7, 0));
+    spaceColor.color.components = { 0.5 };
+    Value otherSpaceColor = spaceColor;
+    otherSpaceColor.color.colorSpaceObject = PDFObject::createReference(PDFObjectReference(8, 0));
+    Value patternColor = spaceColor;
+    patternColor.color.patternObject = PDFObject::createReference(PDFObjectReference(9, 0));
+    QVERIFY(Value::isEqual(spaceColor, spaceColor));
+    QVERIFY(!Value::isEqual(spaceColor, otherSpaceColor));
+    QVERIFY(!Value::isEqual(spaceColor, patternColor));
+    QVERIFY(Value::isEqual(patternColor, patternColor));
+
+    // Two direct objects with the same small content are equal (a color space array written twice)
+    Value directSpace = spaceColor;
+    directSpace.color.colorSpaceObject = Documents::createArrayObject({ PDFObject::createName("CalGray"), Documents::createDictionaryObject({ { "Gamma", PDFObject::createReal(2.2) } }) });
+    Value sameDirectSpace = spaceColor;
+    sameDirectSpace.color.colorSpaceObject = Documents::createArrayObject({ PDFObject::createName("CalGray"), Documents::createDictionaryObject({ { "Gamma", PDFObject::createReal(2.2) } }) });
+    Value otherDirectSpace = spaceColor;
+    otherDirectSpace.color.colorSpaceObject = Documents::createArrayObject({ PDFObject::createName("CalGray"), Documents::createDictionaryObject({ { "Gamma", PDFObject::createReal(1.8) } }) });
+    QVERIFY(Value::isEqual(directSpace, sameDirectSpace));
+    QVERIFY(!Value::isEqual(directSpace, otherDirectSpace));
+
+    // A font: the object and the size
+    Value font;
+    font.kind = ValueKind::Font;
+    font.object = PDFObject::createReference(PDFObjectReference(11, 0));
+    font.real = 12.0;
+    Value otherSize = font;
+    otherSize.real = 10.0;
+    Value otherFont = font;
+    otherFont.object = PDFObject::createReference(PDFObjectReference(12, 0));
+    QVERIFY(Value::isEqual(font, font));
+    QVERIFY(!Value::isEqual(font, otherSize));
+    QVERIFY(!Value::isEqual(font, otherFont));
+
+    // An object written by reference; a soft mask also by the matrix of its space (R-6)
+    Value mask;
+    mask.kind = ValueKind::Object;
+    mask.object = PDFObject::createReference(PDFObjectReference(13, 0));
+    Value movedMask = mask;
+    movedMask.matrix = matrix(1, 0, 0, 1, 5, 0);
+    Value otherMask = mask;
+    otherMask.object = PDFObject::createReference(PDFObjectReference(14, 0));
+    QVERIFY(Value::isEqual(mask, mask));
+    QVERIFY(!Value::isEqual(mask, movedMask));
+    QVERIFY(!Value::isEqual(mask, otherMask));
+
+    // A document chooses the size of a direct object: two different arrays over the budget of
+    // the comparison (64 values) count as different, the same shared array is equal at once
+    const std::vector<PDFObject> items(100, PDFObject::createInteger(1));
+    Value large = mask;
+    large.object = Documents::createArrayObject(items);
+    Value sameShared = large;
+    Value equalLarge = mask;
+    equalLarge.object = Documents::createArrayObject(items);
+    QVERIFY(Value::isEqual(large, sameShared));
+    QVERIFY(!Value::isEqual(large, equalLarge));
+}
+
+void ContentCommandsTest::copyNamesResourcesOfTarget()
+{
+    // A copy to another content names its resources there (zadani_jadro.md 4.4, R-4): a new
+    // name is its prefix and the smallest free number - Fm for a form XObject, Im for an image,
+    // Sh for a shading, MC for a property list. The data of the copied nodes say the names of
+    // the target, as their operations do.
+    //
+    // Page 1: the form /X1, the image /X2, the shading /S1, the property list /PL1 of a marked
+    // content. Page 2 has no resources.
+    PDFObject form;
+    PDFObject image;
+    PDFObject shading;
+    PDFObject propertyList;
+
+    PDFDocumentBuilder builder;
+    {
+        form = Documents::addFormObject(&builder);
+        image = Documents::addStreamObject(&builder, { { "Type", PDFObject::createName("XObject") },
+                                                      { "Subtype", PDFObject::createName("Image") },
+                                                      { "Width", PDFObject::createInteger(1) },
+                                                      { "Height", PDFObject::createInteger(1) },
+                                                      { "ColorSpace", PDFObject::createName("DeviceGray") },
+                                                      { "BitsPerComponent", PDFObject::createInteger(8) } }, QByteArray(1, 'x'));
+        shading = Documents::addObject(&builder, Documents::createDictionaryObject({ { "ShadingType", PDFObject::createInteger(2) },
+                                                                                     { "ColorSpace", PDFObject::createName("DeviceGray") },
+                                                                                     { "Coords", Documents::createNumberArrayObject({ 0, 0, 1, 0 }) },
+                                                                                     { "Function", Documents::createDictionaryObject({ { "FunctionType", PDFObject::createInteger(2) },
+                                                                                                                                       { "Domain", Documents::createNumberArrayObject({ 0, 1 }) },
+                                                                                                                                       { "N", PDFObject::createInteger(1) } }) } }));
+        propertyList = Documents::addObject(&builder, Documents::createDictionaryObject({ { "Kind", PDFObject::createName("Sample") } }));
+
+        const PDFObject sourceResources = Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "X1", form }, { "X2", image } }) },
+                                                                              { "Shading", Documents::createDictionaryObject({ { "S1", shading } }) },
+                                                                              { "Properties", Documents::createDictionaryObject({ { "PL1", propertyList } }) } });
+
+        const PDFObjectReference sourcePage = builder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+        builder.mergeTo(sourcePage, Documents::createDictionaryObject({ { "Resources", sourceResources },
+                                                                        { "Contents", Documents::addStreamObject(&builder, Documents::DictionaryEntries(), "/X1 Do /X2 Do /S1 sh /Tag /PL1 BDC 0 0 1 1 re f EMC") } }));
+
+        const PDFObjectReference targetPage = builder.appendPage(QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE));
+        builder.mergeTo(targetPage, Documents::createDictionaryObject({ { "Resources", Documents::createDictionaryObject({ }) },
+                                                                        { "Contents", Documents::addStreamObject(&builder, Documents::DictionaryEntries(), "0 0 5 5 re f") } }));
+    }
+
+    ContentCommandsFixture fixture(builder.build());
+    PDFContentEditSession* session = fixture.session();
+    const Key source = fixture.page(0);
+    const Key target = fixture.page(1);
+    QVERIFY(source.isValid() && target.isValid());
+
+    const PDFContentNodeReference formUse = fixture.node(source, Kind::FormUse, 0);
+    const PDFContentNodeReference imageUse = fixture.node(source, Kind::Image, 0);
+    const PDFContentNodeReference shadingUse = fixture.node(source, Kind::Shading, 0);
+    const PDFContentNodeReference markedContent = fixture.node(source, Kind::MarkedContent, 0);
+    QVERIFY(formUse.isValid() && imageUse.isValid() && shadingUse.isValid() && markedContent.isValid());
+    QCOMPARE(fixture.get(formUse)->getData().resourceName, QByteArray("X1"));
+    QCOMPARE(fixture.get(markedContent)->getData().propertiesName, QByteArray("PL1"));
+
+    const PDFContentCommandPointer command = Factory::createCopy({ formUse, imageUse, shadingUse, markedContent }, fixture.root(target), -1, QTransform());
+    QString errorText;
+    QVERIFY2(fixture.execute(command, &errorText), qPrintable(errorText));
+
+    // The page: the form is /Fm1 and the image /Im1 (each the first name of its prefix)
+    QCOMPARE(fixture.written(target), QByteArray("0 0 5 5 re f /Fm1 Do /Im1 Do /Sh1 sh /Tag /MC1 BDC 0 0 1 1 re f EMC"));
+
+    const PDFContentResources resources = fixture.resources(target);
+    QCOMPARE(resources.getObject(PDFContentResourceCategory::XObject, "Fm1"), form);
+    QCOMPARE(resources.getObject(PDFContentResourceCategory::XObject, "Im1"), image);
+    QCOMPARE(resources.getObject(PDFContentResourceCategory::Shading, "Sh1"), shading);
+    QCOMPARE(resources.getObject(PDFContentResourceCategory::Properties, "MC1"), propertyList);
+    QCOMPARE(resources.getEntries(PDFContentResourceCategory::XObject).size(), size_t(2));
+
+    // The nodes of the copies name the resources of their page
+    const PDFContentNodePointer formCopy = fixture.get(fixture.node(target, Kind::FormUse, 0));
+    const PDFContentNodePointer imageCopy = fixture.get(fixture.node(target, Kind::Image, 0));
+    const PDFContentNodePointer shadingCopy = fixture.get(fixture.node(target, Kind::Shading, 0));
+    const PDFContentNodePointer markedCopy = fixture.get(fixture.node(target, Kind::MarkedContent, 0));
+    QVERIFY(formCopy && imageCopy && shadingCopy && markedCopy);
+    QCOMPARE(formCopy->getData().resourceName, QByteArray("Fm1"));
+    QCOMPARE(formCopy->getData().xobject, form.getReference());
+    QCOMPARE(imageCopy->getData().resourceName, QByteArray("Im1"));
+    QCOMPARE(shadingCopy->getData().resourceName, QByteArray("Sh1"));
+    QCOMPARE(markedCopy->getData().propertiesName, QByteArray("MC1"));
+    QCOMPARE(markedCopy->getData().tag, QByteArray("Tag"));
+
+    // The source keeps its names
+    QVERIFY(session->getContainer(source)->isUnchanged());
+    QCOMPARE(fixture.get(formUse)->getData().resourceName, QByteArray("X1"));
+
+    // A second form copy uses the name the form has on the page; a copy inside of the source
+    // page keeps the name of the page
+    session->getUndoStack()->setClean();
+    QVERIFY(fixture.execute(Factory::createCopy({ formUse }, fixture.root(target), 0, QTransform())));
+    QVERIFY(fixture.written(target).startsWith("/Fm1 Do 0 0 5 5 re f"));
+    QVERIFY(fixture.execute(Factory::createCopy({ formUse }, fixture.root(source), -1, QTransform())));
+    QVERIFY(fixture.written(source).endsWith("EMC /X1 Do"));
+    QCOMPARE(fixture.get(fixture.node(source, Kind::FormUse, 1))->getData().resourceName, QByteArray("X1"));
+
+    // Undo takes the resources of the copies away again
+    while (session->undo().has_value()) { }
+    QVERIFY(session->getContainer(target)->isUnchanged());
+    QVERIFY(session->getContainer(target)->getResources().getEntries(PDFContentResourceCategory::XObject).empty());
+}
+
+void ContentCommandsTest::undoDropsOperationsOfCommand()
+{
+    // R1-1 of the review of step B0: an undo, which makes the version before a command again
+    // (nobody holds the old object any more), gives that version its own operations only. It
+    // kept the operations of the undone command in its pool: the next command copied them into
+    // its step, every Duplicate appended behind them, and the limit of the operations of a page
+    // (MAXIMUM_OPERATIONS_OF_CONTAINER) was reached by "Duplicate, Undo" alone - while with
+    // a snapshot holding the old version nothing of this happened.
+    //
+    // A page of 200 squares "i 0 1 1 re f": 400 operations (the operations re and f of each
+    // square). Five rounds of: Duplicate (a copy of all squares to the end, with the identity
+    // matrix: the 400 operations appended, no wrap), Undo, Redo, Undo, a move of one square, Undo.
+    // Expected in every round, by hand:
+    //  - after the Duplicate 800 operations and the content twice; after its Undo 400 again;
+    //  - the Duplicate keeps the root (the node and its data before and after: 3 items), the
+    //    200 places of the copies put in and the 400 operations appended: 603 items;
+    //  - the move keeps 5 items (the root, the square taken away and put in -
+    //    undoStepKeepsDifference) and appends no operation (its matrix is a wrap of the writer);
+    //  - the undo stack keeps the step of the last command only (a command drops the undone one).
+    // The same numbers, when a snapshot holds every version (an undo gives the old object back).
+    constexpr int COUNT = 200;
+
+    QByteArray content;
+    for (int i = 0; i < COUNT; ++i)
+    {
+        content += QByteArray::number(i) + " 0 1 1 re f ";
+    }
+
+    for (const bool isHeld : { false, true })
+    {
+        ContentCommandsFixture fixture(plainDocument(content));
+        PDFContentEditSession* session = fixture.session();
+        PDFContentUndoStack* stack = session->getUndoStack();
+        const Key key = fixture.page();
+        const PDFContentNodeReference root = fixture.root(key);
+
+        std::vector<PDFContentNodeReference> squares;
+        for (const PDFContentNodeId id : fixture.nodes(key, Kind::Path))
+        {
+            squares.push_back(PDFContentNodeReference{ key, id });
+        }
+        QCOMPARE(squares.size(), size_t(COUNT));
+
+        const QByteArray original = fixture.written(key);
+        QCOMPARE(original, ContentCommandsFixture::tokens(content));
+        const QByteArray duplicated = ContentCommandsFixture::tokens(content + content);
+
+        std::vector<PDFContentContainerPointer> snapshot;
+        auto hold = [&]()
+        {
+            if (isHeld)
+            {
+                snapshot.push_back(session->getContainer(key));
+            }
+        };
+        auto operationCount = [&]() { return session->getContainer(key)->getOperations().getCount(); };
+        QCOMPARE(operationCount(), size_t(2 * COUNT));
+
+        for (int round = 0; round < 5; ++round)
+        {
+            const QByteArray text = QStringLiteral("held %1, round %2").arg(isHeld ? 1 : 0).arg(round).toLatin1();
+            hold();
+
+            const PDFContentCommandPointer duplicate = Factory::createCopy(squares, root, -1, QTransform());
+            QString errorText;
+            QVERIFY2(fixture.execute(duplicate, &errorText), qPrintable(errorText));
+            hold();
+            QVERIFY2(operationCount() == size_t(4 * COUNT), text.constData());
+            QVERIFY2(duplicate->getStoredItemCount() == size_t(3 + 3 * COUNT), text.constData());
+            QVERIFY2(stack->getStoredItemCount() == size_t(3 + 3 * COUNT), text.constData());
+            QCOMPARE(fixture.written(key), duplicated);
+
+            QVERIFY(session->undo().has_value());
+            QVERIFY2(operationCount() == size_t(2 * COUNT), text.constData());
+            QCOMPARE(fixture.written(key), original);
+
+            QVERIFY(session->redo().has_value());
+            QVERIFY2(operationCount() == size_t(4 * COUNT), text.constData());
+            QCOMPARE(fixture.written(key), duplicated);
+            QVERIFY(session->undo().has_value());
+            QVERIFY2(operationCount() == size_t(2 * COUNT), text.constData());
+
+            const PDFContentCommandPointer move = Factory::createTransform({ squares[100] }, matrix(1, 0, 0, 1, 0, 3));
+            QVERIFY2(fixture.execute(move, &errorText), qPrintable(errorText));
+            hold();
+            QVERIFY2(move->getStoredItemCount() == size_t(5), text.constData());
+            QVERIFY2(stack->getStoredItemCount() == size_t(5), text.constData());
+            QVERIFY2(operationCount() == size_t(2 * COUNT), text.constData());
+
+            QVERIFY(session->undo().has_value());
+            QVERIFY2(operationCount() == size_t(2 * COUNT), text.constData());
+            QCOMPARE(stack->getCount(), size_t(1));
+        }
+
+        // The page is the content of the document again: unchanged, written byte for byte
+        QVERIFY(session->getContainer(key)->isUnchanged());
+        QCOMPARE(fixture.written(key), original);
+        QVERIFY(session->createSnapshot()->containers.empty());
+    }
+}
+
+void ContentCommandsTest::setAppearanceOfInheritedValueInForm()
+{
+    // R1-2 of the review of step B0: a form inherits the graphics state of the place, where it
+    // is drawn (ISO 32000-2, 8.10.1). The container of a form is built with the state of its
+    // first use, so a property the form does not set itself has the value of that use in the
+    // states of its nodes - a value the object has in that use only, not a value the object has
+    // (the engine's rule: in a form an inherited property is unknown).
+    //
+    // The page draws the form /Fm1 twice, red and then blue moved by (100, 0); in front of it
+    // a square in the black of the page. The form "0 0 10 10 re f 0 1 0 rg 20 0 10 10 re f":
+    // a square A in the color of its use and a square B, which the form makes green.
+    //  - A red: a change (the second use draws A blue) - the wrap q 1 0 0 rg ... Q (R-1);
+    //  - B green: the value B has (the form's own operator sets it) - refused as unchanged;
+    //  - A and B red: both change, A is not left out;
+    //  - the square of the page black: the initial fill color of a page, DeviceGray 0 (8.4.1,
+    //    Table 51), is a value the square has - refused as unchanged.
+    const PDFDocument document = Documents::createDocument("0 0 20 20 re f 1 0 0 rg /Fm1 Do 0 0 1 rg 1 0 0 1 100 0 cm /Fm1 Do", [](PDFDocumentBuilder* builder)
+    {
+        const PDFObject form = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") },
+                                                                     { "Subtype", PDFObject::createName("Form") },
+                                                                     { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) } }, "0 0 10 10 re f 0 1 0 rg 20 0 10 10 re f");
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "Fm1", form } }));
+        return resources;
+    });
+
+    ContentCommandsFixture fixture(document);
+    PDFContentEditSession* session = fixture.session();
+    const Key pageKey = fixture.page();
+    const PDFContentNodeReference use = fixture.node(pageKey, Kind::FormUse, 0);
+    QVERIFY(use.isValid());
+    const Key formKey = Key::createForm(fixture.get(use)->getData().xobject);
+    QString errorText;
+    QVERIFY2(session->loadContainer(formKey, nullptr, &errorText), qPrintable(errorText));
+
+    const PDFContentNodeReference squareA = fixture.node(formKey, Kind::Path, 0);
+    const PDFContentNodeReference squareB = fixture.node(formKey, Kind::Path, 1);
+    QVERIFY(fixture.get(squareA)->getSymbolicState()->isInherited(Property::FillColor));
+    QVERIFY(!fixture.get(squareB)->getSymbolicState()->isInherited(Property::FillColor));
+    QCOMPARE(fixture.written(formKey), QByteArray("0 0 10 10 re f 0 1 0 rg 20 0 10 10 re f"));
+
+    const PDFContentStateValue red = deviceColor("DeviceRGB", { 1.0, 0.0, 0.0 });
+    const PDFContentStateValue green = deviceColor("DeviceRGB", { 0.0, 1.0, 0.0 });
+
+    const PDFContentCommandPointer redA = Factory::createSetAppearance({ squareA }, { { Property::FillColor, red } });
+    QVERIFY2(fixture.execute(redA, &errorText), qPrintable(errorText));
+    QVERIFY(!redA->isRefusedAsUnchanged());
+    QCOMPARE(fixture.written(formKey), QByteArray("q 1 0 0 rg 0 0 10 10 re f Q 0 1 0 rg 20 0 10 10 re f"));
+    QVERIFY(session->undo().has_value());
+
+    const PDFContentContainerPointer formBefore = session->getContainer(formKey);
+    const PDFContentCommandPointer greenB = Factory::createSetAppearance({ squareB }, { { Property::FillColor, green } });
+    QVERIFY(!fixture.execute(greenB, &errorText));
+    QVERIFY(greenB->isRefusedAsUnchanged());
+    QCOMPARE(session->getContainer(formKey), formBefore);
+
+    const PDFContentCommandPointer redBoth = Factory::createSetAppearance({ squareA, squareB }, { { Property::FillColor, red } });
+    QVERIFY2(fixture.execute(redBoth, &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(formKey), QByteArray("q 1 0 0 rg 0 0 10 10 re f Q 0 1 0 rg q 1 0 0 rg 20 0 10 10 re f Q"));
+    QVERIFY(session->undo().has_value());
+
+    // The page: its initial state is known
+    const PDFContentContainerPointer pageBefore = session->getContainer(pageKey);
+    const PDFContentCommandPointer blackOnPage = Factory::createSetAppearance({ fixture.node(pageKey, Kind::Path, 0) }, { { Property::FillColor, deviceColor("DeviceGray", { 0.0 }) } });
+    QVERIFY(!fixture.execute(blackOnPage, &errorText));
+    QVERIFY(blackOnPage->isRefusedAsUnchanged());
+    QCOMPARE(session->getContainer(pageKey), pageBefore);
+    QCOMPARE(session->getContainer(formKey), formBefore);
+}
+
+void ContentCommandsTest::reorderInOrderOfFixedPriorities()
+{
+    // R1-3 of the review of step B0: the children of a node in the editor are a treap, whose
+    // priority was a fixed function of the identifier (the finalizer of SplitMix64). The
+    // identifiers of a page are known (the builder numbers its nodes depth first), so one order
+    // command - a script naming all children - put them in the order of decreasing priority and
+    // made the treap one chain: that command and every later one on the page built the children
+    // in N^2 / 2 steps (minutes for 100 000 children). The priority has a seed chosen once per
+    // process now, so no order of the identifiers is known to be bad.
+    //
+    // A flat page of 100 000 squares: an order command naming all of them in the order of the
+    // fixed priority, then ordinary commands. Each within the limit of manySiblings.
+    constexpr int COUNT = 100000;
+    constexpr int LIMIT = 5000;
+
+    QByteArray content;
+    content.reserve(20 * COUNT);
+    for (int i = 0; i < COUNT; ++i)
+    {
+        content += QByteArray::number(i) + " 0 1 1 re f ";
+    }
+
+    ContentCommandsFixture fixture(plainDocument(content));
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    const PDFContentNodeReference root = fixture.root(key);
+
+    std::vector<PDFContentNodeReference> squares;
+    for (const PDFContentNodeId id : fixture.nodes(key, Kind::Path))
+    {
+        squares.push_back(PDFContentNodeReference{ key, id });
+    }
+    QCOMPARE(squares.size(), size_t(COUNT));
+
+    // The priority without a seed, as the editor had it: the largest first
+    auto fixedPriority = [](quint64 id)
+    {
+        quint64 value = id + 0x9E3779B97F4A7C15ull;
+        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
+        value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
+        return value ^ (value >> 31);
+    };
+    std::vector<PDFContentNodeReference> ordered = squares;
+    std::sort(ordered.begin(), ordered.end(), [&fixedPriority](const PDFContentNodeReference& left, const PDFContentNodeReference& right) { return fixedPriority(left.node.value) > fixedPriority(right.node.value); });
+
+    QElapsedTimer timer;
+    QString errorText;
+    auto run = [&](const char* name, const PDFContentCommandPointer& command)
+    {
+        timer.start();
+        const bool isExecuted = fixture.execute(command, &errorText);
+        const qint64 time = timer.elapsed();
+        if (!isExecuted || time >= timeout(LIMIT))
+        {
+            qWarning("%s: %lld ms, %s", name, time, qPrintable(errorText));
+            return false;
+        }
+        return true;
+    };
+
+    QVERIFY(run("reorder", Factory::createReorder(ordered, root, -1, Factory::ReorderMode::KeepLayerAndTag)));
+    {
+        // The children are in the order of the command
+        const std::vector<PDFContentNodePointer>& children = fixture.get(root)->getChildren();
+        QCOMPARE(children.size(), size_t(COUNT));
+        bool isInOrder = true;
+        for (size_t i = 0; i < children.size(); ++i)
+        {
+            isInOrder = isInOrder && children[i]->getId() == ordered[i].node;
+        }
+        QVERIFY(isInOrder);
+    }
+
+    QVERIFY(run("transform", Factory::createTransform({ squares[10] }, matrix(1, 0, 0, 1, 0, 3))));
+    QVERIFY(run("set_appearance", Factory::createSetAppearance({ squares[20] }, { { Property::FillColor, deviceColor("DeviceGray", { 0.5 }) } })));
+    QVERIFY(run("delete", Factory::createDelete({ squares[30] })));
+    QCOMPARE(fixture.get(root)->getChildren().size(), size_t(COUNT - 1));
+
+    timer.start();
+    QVERIFY(session->undo().has_value());
+    QVERIFY(session->redo().has_value());
+    const qint64 undoRedoTime = timer.elapsed();
+    QVERIFY2(undoRedoTime < timeout(LIMIT), qPrintable(QStringLiteral("undo and redo: %1 ms").arg(undoRedoTime)));
+}
+
+void ContentCommandsTest::commandOnStructureReadAgain()
+{
+    // Request 1 of pb0s7_state.md: a command knows the structure model it was applied to by the
+    // number of its version (PDFContentStructureModel::getVersion; reverted / reapplied give the
+    // number of the version they make again), not by the object, which lives as long as somebody
+    // holds it. The page of taggedDocument; the only square of the sequence 1 is deleted (the
+    // sequence loses its wrap and its place in the element Span).
+    ContentCommandsFixture fixture(taggedDocument());
+    PDFContentEditSession* session = fixture.session();
+    const Key key = fixture.page();
+    QVERIFY(session->loadStructure(nullptr));
+
+    const std::vector<PDFContentNodeId> squares = fixture.nodes(key, Kind::Path);
+    QCOMPARE(squares.size(), size_t(5));
+    const QByteArray original = fixture.written(key);
+    const QByteArray deleted("/P << /MCID 0 >> BDC 0 0 10 10 re f 20 0 10 10 re f 40 0 10 10 re f EMC 80 0 10 10 re f");
+    const quint64 versionLoaded = session->getStructure()->getVersion();
+
+    const PDFContentCommandPointer deleteSpan = Factory::createDelete({ PDFContentNodeReference{ key, squares[3] } });
+    QVERIFY(fixture.execute(deleteSpan));
+    QCOMPARE(fixture.written(key), deleted);
+    const quint64 versionDeleted = session->getStructure()->getVersion();
+    QVERIFY(versionDeleted != versionLoaded);
+
+    // Undo and redo, nobody holds a model: the models made again have the numbers of the
+    // versions they stand for, the redo takes the stored versions
+    std::weak_ptr<const PDFContentStructureModel> deletedModel = session->getStructure();
+    QVERIFY(session->undo().has_value());
+    QVERIFY(deletedModel.expired());
+    QCOMPARE(session->getStructure()->getVersion(), versionLoaded);
+    QVERIFY(session->redo().has_value());
+    QCOMPARE(session->getStructure()->getVersion(), versionDeleted);
+    QCOMPARE(fixture.written(key), deleted);
+    QVERIFY(elementContent(session->getStructure(), "Span").empty());
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(fixture.written(key), original);
+
+    // A model read anew from the document: the same content, another version, and the model,
+    // to which the command was applied, is gone. The command executed a second time does not
+    // take the versions it stored for the other model: it is refused, nothing changes.
+    std::weak_ptr<const PDFContentStructureModel> revertedModel = session->getStructure();
+    std::shared_ptr<ContentCommandsTestCommand> readAgain = std::make_shared<ContentCommandsTestCommand>(QStringLiteral("Read again"));
+    readAgain->onApply = [&fixture](PDFContentEditSession* current) { current->setStructure(PDFContentStructureModel::read(fixture.document().get(), nullptr)); };
+    QVERIFY(fixture.execute(readAgain));
+    const PDFContentStructureModelPointer readModel = session->getStructure();
+    QVERIFY(readModel != nullptr);
+    QVERIFY(readModel->getVersion() != versionLoaded);
+    QVERIFY(elementContent(readModel, "Span") == std::vector<PDFInteger>({ 1 }));
+
+    QString errorText;
+    QVERIFY(!fixture.execute(deleteSpan, &errorText));
+    QVERIFY(revertedModel.expired());
+    QVERIFY(!errorText.isEmpty());
+    QVERIFY(!deleteSpan->isRefusedAsUnchanged());
+    QCOMPARE(session->getStructure(), readModel);
+    QCOMPARE(fixture.written(key), original);
 }
 
 QTEST_MAIN(ContentCommandsTest)

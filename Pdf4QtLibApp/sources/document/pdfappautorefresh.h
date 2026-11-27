@@ -174,8 +174,10 @@ private:
     void applyResult(const PDFAppAutoRefreshReader::Result& result);
 
     /// The check waits: an own save writes the file, a blocking operation (a tool, a
-    /// result waiting for the decision of the user) holds the document as it is
-    static bool isCheckDeferred(const PDFAppDocument* document);
+    /// result waiting for the decision of the user) holds the document as it is, or the
+    /// shown page of the tab holds work made on this version of the document (an open
+    /// tool, PDFAppPage::isDocumentReloadDeferred; Edit Content, zadani_gui.md 4.21)
+    bool isCheckDeferred(const PDFAppDocument* document) const;
     void showUnsavedDialog(const PDFAppAutoRefreshReader::Result& result);
     void closeDialog();
 

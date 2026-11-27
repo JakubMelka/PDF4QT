@@ -171,6 +171,26 @@ struct PDFContentStateValue
     /// the symbolic state; a mask, which must move with the object by D (in the space of the
     /// container), has that matrix x D (R-6).
     QTransform matrix;
+
+    /// The two values set a property to the same thing: they have the same kind and the same
+    /// value of that kind (the fields of the other kinds are not compared; two values of the
+    /// kind None are equal). A command, which would set what an object already has, is told so
+    /// (PDFContentCommand::isRefusedAsUnchanged).
+    ///  - Real, Integer, Boolean, Name: by equality;
+    ///  - Dash: the array and the phase by value (the tree builder bounds the length of a dash
+    ///    array of a state, the commands that of an array they are given);
+    ///  - Color: the device space, the components by value (their number is bounded as the
+    ///    builder bounds the components of a color of a state) and the two objects;
+    ///  - Font: the object and the size;
+    ///  - Object: the object, and the matrix (the matrix of a soft mask; the identity otherwise).
+    /// Two objects (a color space, a pattern, a font, a value written by reference) are equal,
+    /// when they are the same object of the document (the same reference, the same shared
+    /// content); two different objects are compared by value only as far as a small fixed budget
+    /// goes (some tens of values, short strings, never the data of a stream) and count as
+    /// different beyond it, as PDFContentResolvedState::getDifference compares the objects of
+    /// a state: the cost never depends on a size the document chooses, and a difference, which
+    /// is none, only makes a property be set once more.
+    PDF4QTLIBCORESHARED_EXPORT static bool isEqual(const PDFContentStateValue& left, const PDFContentStateValue& right);
 };
 
 /// The state at the beginning of a node as the renderer sees it: the state of the processor

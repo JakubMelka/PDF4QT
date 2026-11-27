@@ -1344,6 +1344,9 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     // Font row
     addPanelsDelegates(builder);
 
+    // Expander card, Path bar, toggle actions of a row, the mixed state (Edit Content)
+    addEditContentPanels(builder);
+
     return builder.finish();
 }
 

@@ -55,7 +55,8 @@ class PDFDocumentToolCatalogEntry;
 /// loop. The panels of the actions behave as a menu bar: with a panel open the pointer
 /// over another panel button or Left / Right opens that panel.
 ///
-/// In a narrow window it narrows itself as PDFAppDocumentToolbar: Tutorial loses its text,
+/// In a narrow window it narrows itself as PDFAppDocumentToolbar: the actions marked by NARROW_FIRST_PROPERTY
+/// lose their texts (a step before the levels, isPriorityCollapsed), Tutorial loses its text,
 /// the name of the tool is hidden, the actions lose their texts and labels, Tutorial
 /// is hidden, Undo / Redo are hidden (their keys stay), the Primary button loses its text
 /// (Compress at 720 x 480: the segments have a fixed width) and at last Cancel is hidden
@@ -80,6 +81,12 @@ public:
 
     /// Property of a label of the actions, which a narrow toolbar hides ("Preset")
     static constexpr const char* NARROW_HIDDEN_PROPERTY = "pdf4qtToolbarNarrowHidden";
+
+    /// Property (bool) of a button of the actions, whose text goes first in a narrow window (Edit Content: Find,
+    /// View, Preview, Clear Page - the owner's decision of zadani.md chapter 10): the button is an icon button
+    /// before the first step of the narrowing is tried (isPriorityCollapsed). Set before the actions are given to
+    /// the toolbar (or followed by a resize); a button without a tooltip does not say its text then.
+    static constexpr const char* NARROW_FIRST_PROPERTY = "pdf4qtToolbarNarrowFirst";
 
     /// What the trailing side shows
     enum class Mode
@@ -141,8 +148,14 @@ public:
     /// Buttons of the panels in their order
     std::vector<QToolButton*> getPanelButtons() const;
 
-    /// Number of the steps, which make the toolbar narrower (0 = everything shown)
+    /// Number of the steps, which make the toolbar narrower (0 = everything shown, or only the texts of the buttons
+    /// with NARROW_FIRST_PROPERTY hidden - isPriorityCollapsed; the numbers of the levels do not know that step)
     int getCollapseLevel() const { return m_collapseLevel; }
+
+    /// The texts of the buttons of the actions with NARROW_FIRST_PROPERTY are hidden: the content with them did
+    /// not fit into the width. A step before the level 1: true at the level 0 only when hiding them was enough,
+    /// and at every level above 0 (monotonic with the width); never true at the level 0 without such a button.
+    bool isPriorityCollapsed() const { return m_isPriorityCollapsed; }
 
     /// Parts of the toolbar
     QToolButton* getSidebarButton() const { return m_sidebarButton; }
@@ -182,7 +195,12 @@ private:
     void retranslate();
     void updateCommands();
     void updateCollapse();
-    void applyCollapse(int level);
+
+    /// \param isPriorityCollapsed The buttons with NARROW_FIRST_PROPERTY are icon buttons (always from the level 1)
+    void applyCollapse(int level, bool isPriorityCollapsed);
+
+    /// The content of the level applied last fits into the width of the toolbar
+    bool isFitting();
     void invalidateGroupSizes();
     void onCommandClicked();
     void onPanelButtonClicked();
@@ -219,6 +237,7 @@ private:
     bool m_isConfirmShown = true;       ///< setConfirmShown: false = the Primary button is hidden in every mode
     Mode m_mode = Mode::Editing;
     int m_collapseLevel = 0;
+    bool m_isPriorityCollapsed = false; ///< isPriorityCollapsed
     bool m_isUpdatingCollapse = false;
 };
 

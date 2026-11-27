@@ -32,6 +32,9 @@
 #include <QPainterPathStroker>
 #include <QtMath>
 
+#include <set>
+#include <utility>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -368,6 +371,90 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_pageBoundingRectDeviceSpace = pagePointToDevicePointMatrix.map(pageRectPath).boundingRect();
 
     initDictionaries(m_page->getResources());
+
+    // The fallback of the content without resources of its own (NOTES.txt 7.8.3)
+    m_pageResourceDictionaries.colorSpaceDictionary = m_colorSpaceDictionary;
+    m_pageResourceDictionaries.fontDictionary = m_fontDictionary;
+    m_pageResourceDictionaries.xobjectDictionary = m_xobjectDictionary;
+    m_pageResourceDictionaries.extendedGraphicStateDictionary = m_extendedGraphicStateDictionary;
+    m_pageResourceDictionaries.propertiesDictionary = m_propertiesDictionary;
+    m_pageResourceDictionaries.shadingDictionary = m_shadingDictionary;
+    m_pageResourceDictionaries.patternDictionary = m_patternDictionary;
+}
+
+void PDFPageContentProcessor::initInheritedDictionaries()
+{
+    // ISO 32000-2, 7.8.3 says: "All resources that are referenced from those forms and fonts shall
+    // be inherited from the resource dictionary of the page on which they are used" (also Table
+    // 93, Table 110 and 9.6.4 d). This library, as PDFium, pdf.js and MuPDF, looks a name up in
+    // the dictionaries in effect first - those of the content, which draws this one - and only a
+    // name they do not define in the page (NOTES.txt 7.8.3, the owner's decision of 2026-11-27).
+    // The two differ only for a content without resources nested in a content with resources of
+    // its own, when both define a name. Drawn by the page, the dictionaries in effect are those
+    // of the page: nothing changes. A pattern and an annotation appearance shall have /Resources;
+    // one without them is read by the same rule. The procedure sets stay those in effect.
+    m_colorSpaceDictionary = getInheritedDictionary(m_pageResourceDictionaries.colorSpaceDictionary, m_colorSpaceDictionary);
+    m_fontDictionary = getInheritedDictionary(m_pageResourceDictionaries.fontDictionary, m_fontDictionary);
+    m_xobjectDictionary = getInheritedDictionary(m_pageResourceDictionaries.xobjectDictionary, m_xobjectDictionary);
+    m_extendedGraphicStateDictionary = getInheritedDictionary(m_pageResourceDictionaries.extendedGraphicStateDictionary, m_extendedGraphicStateDictionary);
+    m_propertiesDictionary = getInheritedDictionary(m_pageResourceDictionaries.propertiesDictionary, m_propertiesDictionary);
+    m_shadingDictionary = getInheritedDictionary(m_pageResourceDictionaries.shadingDictionary, m_shadingDictionary);
+    m_patternDictionary = getInheritedDictionary(m_pageResourceDictionaries.patternDictionary, m_patternDictionary);
+}
+
+const PDFDictionary* PDFPageContentProcessor::getInheritedDictionary(const PDFDictionary* pageDictionary, const PDFDictionary* callerDictionary)
+{
+    if (!callerDictionary)
+    {
+        // The caller has no dictionary of the category: every name from the page
+        return pageDictionary;
+    }
+
+    if (!pageDictionary || callerDictionary == pageDictionary)
+    {
+        return callerDictionary;
+    }
+
+    const auto key = std::make_pair(pageDictionary, callerDictionary);
+    auto it = m_inheritedDictionaries.find(key);
+    if (it != m_inheritedDictionaries.cend())
+    {
+        return it->second.getDictionary();
+    }
+
+    // A document of many forms without resources, each drawn by another dictionary of a large
+    // page, would make a copy of the page for each of them: above the budget the names of the
+    // page are no longer looked up (the caller alone, as before 2026-11-27)
+    const size_t entryCount = pageDictionary->getCount() + callerDictionary->getCount();
+    if (entryCount > MAXIMUM_INHERITED_DICTIONARY_ENTRIES - qMin(m_inheritedDictionaryEntryCount, MAXIMUM_INHERITED_DICTIONARY_ENTRIES))
+    {
+        return callerDictionary;
+    }
+    m_inheritedDictionaryEntryCount += entryCount;
+
+    // The entries of the caller (PDFDictionary::get finds the first of a key written twice), then
+    // those of the page under the names the caller does not define. An entry with the null value
+    // defines nothing (ISO 32000-2, 7.3.7): it is not taken, so the page gives the name.
+    std::set<QByteArray> callerNames;
+    PDFDictionaryBuilder merged;
+    for (size_t i = 0; i < callerDictionary->getCount(); ++i)
+    {
+        if (!callerDictionary->getValue(i).isNull())
+        {
+            callerNames.insert(callerDictionary->getKey(i).getString());
+            merged.addEntry(callerDictionary->getKey(i), callerDictionary->getValue(i));
+        }
+    }
+    for (size_t i = 0; i < pageDictionary->getCount(); ++i)
+    {
+        if (!callerNames.count(pageDictionary->getKey(i).getString()))
+        {
+            merged.addEntry(pageDictionary->getKey(i), pageDictionary->getValue(i));
+        }
+    }
+
+    it = m_inheritedDictionaries.emplace(key, PDFObject::createDictionary(std::move(merged))).first;
+    return it->second.getDictionary();
 }
 
 PDFPageContentProcessor::~PDFPageContentProcessor()
@@ -1166,10 +1253,15 @@ void PDFPageContentProcessor::processForm(const QTransform& matrix,
         performClipping(path, path.fillRule());
     }
 
-    // Initialize the resources, if we have them
+    // Initialize the resources, if we have them; else those in effect with the page as the
+    // fallback (NOTES.txt 7.8.3)
     if (!resources.isNull())
     {
         initDictionaries(resources);
+    }
+    else
+    {
+        initInheritedDictionaries();
     }
 
     processContent(content);
@@ -1420,6 +1512,10 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     if (!resources.isNull())
     {
         initDictionaries(resources);
+    }
+    else
+    {
+        initInheritedDictionaries();
     }
 
     Q_ASSERT(m_pagePointToDevicePointMatrix.isInvertible());
@@ -4018,6 +4114,12 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
             if (!resources.isNull())
             {
                 initDictionaries(resources);
+            }
+            else
+            {
+                // Table 110 names the page; the content showing the text first, the page as
+                // the fallback (NOTES.txt 7.8.3)
+                initInheritedDictionaries();
             }
 
             // The text rendering matrix of 9.4.4 scales the text space by the font size for every

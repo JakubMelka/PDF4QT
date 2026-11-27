@@ -85,9 +85,21 @@ public:
     /// Names, which the operations use, but the dictionary does not define
     const std::set<QByteArray>& getUndefinedNames(PDFContentResourceCategory category) const;
 
+    /// Names of a category, which content drawn by this one uses and could take from these
+    /// resources once a name is added to them: a form, a tiling pattern or a Type 3 font without
+    /// /Resources of its own looks a name up in the page (ISO 32000-2, 7.8.3) and, where the page
+    /// does not define it, in the content, which draws it (NOTES.txt 7.8.3). allocateName avoids
+    /// them, so an added name never becomes a name such content picks up (A1L2-4). The tree
+    /// builder sets them: every name the operations of such content name (as far as its bounded
+    /// walk reaches), which the page does not define in the category. They are not undefined
+    /// names of this content (getUndefinedNames).
+    const std::set<QByteArray>& getReservedNames(PDFContentResourceCategory category) const;
+    void setReservedNames(PDFContentResourceCategory category, std::set<QByteArray> names);
+
     /// A new name of a category: \p prefix and the smallest positive number, which gives a name
-    /// neither defined nor used without a definition. The prefixes of the plan: F (Font), Im and
-    /// Fm (XObject), GS (ExtGState), CS (ColorSpace), P (Pattern), Sh (Shading), MC (Properties).
+    /// neither defined nor used without a definition nor reserved (getReservedNames). The
+    /// prefixes of the plan: F (Font), Im and Fm (XObject), GS (ExtGState), CS (ColorSpace),
+    /// P (Pattern), Sh (Shading), MC (Properties).
     QByteArray allocateName(PDFContentResourceCategory category, const QByteArray& prefix) const;
 
     /// Adds an object to a category and returns its name: the name it already has there (the
@@ -138,8 +150,12 @@ private:
     /// a value, which is no category
     CategoryData* detachCategoryData(PDFContentResourceCategory category);
 
+    /// The reserved names of a category, nullptr when there are none
+    const std::set<QByteArray>* getReservedNamesPointer(PDFContentResourceCategory category) const;
+
     PDFObject m_originalResources;  ///< The dictionary /Resources as it was read (dereferenced); null, when there was none
     std::array<CategoryDataPointer, CATEGORY_COUNT> m_categories;
+    std::array<std::shared_ptr<const std::set<QByteArray>>, CATEGORY_COUNT> m_reservedNames;   ///< getReservedNames by category; nullptr = none (shared by the copies, never changed)
 };
 
 }   // namespace pdf

@@ -145,14 +145,15 @@ struct PDFContentResources::CategoryData
         }
     }
 
-    bool isNameUsed(const QByteArray& name) const
+    bool isNameUsed(const QByteArray& name, const std::set<QByteArray>* reservedNames) const
     {
-        return indices.find(name) != indices.cend() || undefinedNames.find(name) != undefinedNames.cend();
+        return indices.find(name) != indices.cend() || undefinedNames.find(name) != undefinedNames.cend() ||
+               (reservedNames && reservedNames->find(name) != reservedNames->cend());
     }
 
     /// The smallest positive number, which gives a free name of a prefix. The loop ends: there
-    /// are at most indices.size() + undefinedNames.size() names in use.
-    quint64 findFreeNumber(const QByteArray& prefix) const
+    /// are at most indices.size() + undefinedNames.size() + the reserved names in use.
+    quint64 findFreeNumber(const QByteArray& prefix, const std::set<QByteArray>* reservedNames) const
     {
         quint64 number = 1;
 
@@ -162,7 +163,7 @@ struct PDFContentResources::CategoryData
             number = it->second;
         }
 
-        while (isNameUsed(createName(prefix, number)))
+        while (isNameUsed(createName(prefix, number), reservedNames))
         {
             ++number;
         }
@@ -351,10 +352,38 @@ const std::set<QByteArray>& PDFContentResources::getUndefinedNames(PDFContentRes
     return data ? data->undefinedNames : PDFContentResourcesHelper::getNoNames();
 }
 
+const std::set<QByteArray>* PDFContentResources::getReservedNamesPointer(PDFContentResourceCategory category) const
+{
+    const size_t index = static_cast<size_t>(category);
+    return index < CATEGORY_COUNT ? m_reservedNames[index].get() : nullptr;
+}
+
+const std::set<QByteArray>& PDFContentResources::getReservedNames(PDFContentResourceCategory category) const
+{
+    const std::set<QByteArray>* names = getReservedNamesPointer(category);
+    return names ? *names : PDFContentResourcesHelper::getNoNames();
+}
+
+void PDFContentResources::setReservedNames(PDFContentResourceCategory category, std::set<QByteArray> names)
+{
+    const size_t index = static_cast<size_t>(category);
+    if (index < CATEGORY_COUNT)
+    {
+        m_reservedNames[index] = names.empty() ? nullptr : std::make_shared<const std::set<QByteArray>>(std::move(names));
+    }
+}
+
 QByteArray PDFContentResources::allocateName(PDFContentResourceCategory category, const QByteArray& prefix) const
 {
+    const std::set<QByteArray>* reservedNames = getReservedNamesPointer(category);
     const CategoryData* data = getCategoryData(category);
-    return CategoryData::createName(prefix, data ? data->findFreeNumber(prefix) : 1);
+    if (data)
+    {
+        return CategoryData::createName(prefix, data->findFreeNumber(prefix, reservedNames));
+    }
+
+    // A category without data: the first number, which is not reserved
+    return CategoryData::createName(prefix, CategoryData().findFreeNumber(prefix, reservedNames));
 }
 
 QByteArray PDFContentResources::addObject(PDFContentResourceCategory category, const QByteArray& prefix, const PDFObject& object)
@@ -394,7 +423,7 @@ QByteArray PDFContentResources::addObject(PDFContentResourceCategory category, c
         }
     }
 
-    const quint64 number = data->findFreeNumber(prefix);
+    const quint64 number = data->findFreeNumber(prefix, getReservedNamesPointer(category));
     const QByteArray name = CategoryData::createName(prefix, number);
 
     Entry entry;

@@ -2639,6 +2639,11 @@ private:
     /// Returns the targets passing the filter, one for each key
     static std::vector<int> selectVariants(const std::vector<WidgetInfo>& catalog, const std::function<bool(const WidgetInfo&)>& filter, Key key);
 
+    /// Shows again a dialog embedded in the page (a sample with Qt::Widget, the color picker),
+    /// which a step of the discovery on an earlier widget has closed (Return, Escape): the
+    /// widgets of the dialog after that widget get the input too, as on a fresh page
+    static void showClosedEmbeddedDialogs(QWidget* widget, const QWidget* page);
+
     /// Returns the index of the nearest ancestor, which can be destroyed (-1 for the page)
     static int getTargetAncestor(const std::vector<WidgetInfo>& catalog, int index);
 
@@ -4108,6 +4113,18 @@ bool LifetimeTest::reachesButtonMoveFocus(const QWidget* widget)
     return button->autoExclusive() || button->group() || (parent && qobject_cast<const QAbstractItemView*>(parent->parentWidget()));
 }
 
+void LifetimeTest::showClosedEmbeddedDialogs(QWidget* widget, const QWidget* page)
+{
+    for (QWidget* ancestor = widget ? widget->parentWidget() : nullptr; ancestor && ancestor != page; ancestor = ancestor->parentWidget())
+    {
+        QDialog* dialog = qobject_cast<QDialog*>(ancestor);
+        if (dialog && !dialog->isWindow() && dialog->isHidden())
+        {
+            dialog->show();
+        }
+    }
+}
+
 std::vector<LifetimeTest::SignalTrial> LifetimeTest::discoverSignals(int page, const std::vector<WidgetInfo>& catalog)
 {
     // The input goes to each widget, which can get it; the signals of all
@@ -4309,6 +4326,10 @@ std::vector<LifetimeTest::SignalTrial> LifetimeTest::discoverSignals(int page, c
         for (int candidate : candidates)
         {
             QPointer<QWidget> widget = widgets[size_t(candidate)];
+            if (widget && !widget->isVisible())
+            {
+                showClosedEmbeddedDialogs(widget, host.getPage());
+            }
             if (!widget || !widget->isVisible())
             {
                 continue;

@@ -121,8 +121,10 @@ public:
     struct UseInfo
     {
         PDFInteger pageIndex = -1;                  ///< The page of the content, which names it first
+        PDFObject callerResources;                  ///< PDFContentBuildResult::nestedCallerResources of that content (PDFContentBuildContext::callerResources)
         PDFContentResolvedStatePointer state;       ///< The state of the place of the first use of a form (nullptr: the default state)
         int depth = 0;                              ///< Nesting: 1 for a form of a page
+        std::vector<size_t> order;                  ///< The place of the use in the document: the page index, then the index of each use in its content from the page down (registerUses)
     };
 
     /// A request of a container, whose answer comes from the event loop
@@ -157,6 +159,7 @@ public:
                                        const PDFContentContainerKey& key,
                                        const PDFContentResolvedStatePointer& initialState,
                                        PDFInteger pageIndex,
+                                       const PDFObject& callerResources,
                                        const PDFOperationControl* control)
     {
         // The profile cache lives for one build: the container co-owns what it takes from it
@@ -168,6 +171,7 @@ public:
         context.iccProfileCache = &iccProfileCache;
         context.cms = buildCms;
         context.pageIndex = pageIndex;
+        context.callerResources = callerResources;
 
         return PDFContentTreeBuilder::build(buildDocument, key, initialState, context, PDFContentBuildOptions(), control, nullptr);
     }
@@ -250,8 +254,22 @@ public:
         return true;
     }
 
-    /// Remembers the forms and the cells of patterns a loaded container names (each key once
-    /// for the whole session: the first content, which names it, gives its page and state)
+    /// The use of \p key with the place \p order may be registered: the key has none yet, or the
+    /// one it has comes later in the document and the key is not built nor being built (a built
+    /// container is never replaced, review R2-2)
+    bool isUseRegistered(const PDFContentContainerKey& key, const std::vector<size_t>& order) const
+    {
+        auto it = uses.find(key);
+        return it == uses.cend() || (order < it->second.order && !containers.count(key) && !buildingKeys.count(key));
+    }
+
+    /// Remembers the forms and the cells of patterns a loaded container names: each key gets the
+    /// page, the state and the caller of its first use in the order of the document - the page
+    /// index, then the order of the uses in each content from the page down (usedForms, then
+    /// usedPatternCells) - not the order in which asynchronous builds finish. A use, which comes
+    /// earlier, replaces a registered one as long as the key is not built nor being built; then
+    /// the container stays as it was built (the document writer checks every other place, which
+    /// draws it, before it writes a change of it).
     void registerUses(const PDFContentContainer& container, const PDFContentBuildResult& result)
     {
         PDFInteger pageIndex = -1;
@@ -259,6 +277,16 @@ public:
         if (!getPlace(container.getKey(), &pageIndex, &depth))
         {
             return;
+        }
+
+        std::vector<size_t> order;
+        if (container.getKey().kind == PDFContentContainerKey::Kind::Page)
+        {
+            order.push_back(size_t(pageIndex));
+        }
+        else
+        {
+            order = uses.at(container.getKey()).order;
         }
 
         // The node of the first use of each form, looked up by its key: a content may draw
@@ -269,16 +297,21 @@ public:
             formUses.emplace(use.first, std::move(use.second));
         }
 
-        for (const PDFContentContainerKey& formKey : result.usedForms)
+        for (size_t i = 0; i < result.usedForms.size(); ++i)
         {
-            if (!formKey.isValid() || uses.count(formKey))
+            const PDFContentContainerKey& formKey = result.usedForms[i];
+            std::vector<size_t> useOrder = order;
+            useOrder.push_back(i);
+            if (!formKey.isValid() || !isUseRegistered(formKey, useOrder))
             {
                 continue;
             }
 
             UseInfo info;
             info.pageIndex = pageIndex;
+            info.callerResources = result.nestedCallerResources;
             info.depth = depth + 1;
+            info.order = std::move(useOrder);
 
             // A form used only inside of an opaque span has no node: it starts in the default state
             auto it = formUses.find(formKey);
@@ -290,25 +323,31 @@ public:
             uses[formKey] = std::move(info);
         }
 
-        for (const PDFContentContainerKey& patternKey : result.usedPatternCells)
+        for (size_t i = 0; i < result.usedPatternCells.size(); ++i)
         {
-            if (!patternKey.isValid() || uses.count(patternKey))
+            const PDFContentContainerKey& patternKey = result.usedPatternCells[i];
+            std::vector<size_t> useOrder = order;
+            useOrder.push_back(result.usedForms.size() + i);
+            if (!patternKey.isValid() || !isUseRegistered(patternKey, useOrder))
             {
                 continue;
             }
 
             UseInfo info;
             info.pageIndex = pageIndex;
+            info.callerResources = result.nestedCallerResources;
             info.depth = depth + 1;
+            info.order = std::move(useOrder);
             uses[patternKey] = std::move(info);
         }
     }
 
     /// What a build of a container needs; false with the reason for a key, which cannot be built
-    bool getBuildInput(const PDFContentContainerKey& key, PDFContentResolvedStatePointer* initialState, PDFInteger* pageIndex, QString* errorText) const
+    bool getBuildInput(const PDFContentContainerKey& key, PDFContentResolvedStatePointer* initialState, PDFInteger* pageIndex, PDFObject* callerResources, QString* errorText) const
     {
         *initialState = nullptr;
         *pageIndex = -1;
+        *callerResources = PDFObject();
 
         if (!document)
         {
@@ -342,6 +381,7 @@ public:
 
         *initialState = it->second.state;
         *pageIndex = it->second.pageIndex;
+        *callerResources = it->second.callerResources;
         return true;
     }
 
@@ -653,8 +693,9 @@ void PDFContentEditSession::requestContainer(const PDFContentContainerKey& key)
 
     PDFContentResolvedStatePointer initialState;
     PDFInteger pageIndex = -1;
+    PDFObject callerResources;
 
-    if (!impl->containers.count(key) && impl->getBuildInput(key, &initialState, &pageIndex, &request.errorText))
+    if (!impl->containers.count(key) && impl->getBuildInput(key, &initialState, &pageIndex, &callerResources, &request.errorText))
     {
         request.isBuilding = true;
         impl->requests[requestId] = std::move(request);
@@ -663,9 +704,9 @@ void PDFContentEditSession::requestContainer(const PDFContentContainerKey& key)
         // The task co-owns everything it reads; it never touches the session. A lambda: the
         // body of a task of a thread pool; its "context object" is the shared data, whose
         // pointer to the session is cleared by the destructor of the session.
-        auto task = [shared = impl->shared, caches = impl->caches, document = impl->document, cms = impl->cms, key, initialState, pageIndex, requestId]() mutable
+        auto task = [shared = impl->shared, caches = impl->caches, document = impl->document, cms = impl->cms, key, initialState, pageIndex, callerResources, requestId]() mutable
         {
-            PDFContentBuildResult result = Impl::build(document.data(), cms.data(), &caches->fontCache, key, initialState, pageIndex, &shared->control);
+            PDFContentBuildResult result = Impl::build(document.data(), cms.data(), &caches->fontCache, key, initialState, pageIndex, callerResources, &shared->control);
 
             {
                 QMutexLocker locker(&shared->mutex);
@@ -684,6 +725,7 @@ void PDFContentEditSession::requestContainer(const PDFContentContainerKey& key)
             // The result (when nobody took it) and the co-owned data die before the task ends
             result = PDFContentBuildResult();
             initialState.reset();
+            callerResources = PDFObject();
             document.clear();
             cms.clear();
             caches.reset();
@@ -711,11 +753,12 @@ bool PDFContentEditSession::loadContainer(const PDFContentContainerKey& key, con
 
     PDFContentResolvedStatePointer initialState;
     PDFInteger pageIndex = -1;
+    PDFObject callerResources;
     QString text;
 
-    if (impl->getBuildInput(key, &initialState, &pageIndex, &text))
+    if (impl->getBuildInput(key, &initialState, &pageIndex, &callerResources, &text))
     {
-        const PDFContentBuildResult result = Impl::build(impl->document.data(), impl->cms.data(), &impl->caches->fontCache, key, initialState, pageIndex, control);
+        const PDFContentBuildResult result = Impl::build(impl->document.data(), impl->cms.data(), &impl->caches->fontCache, key, initialState, pageIndex, callerResources, control);
         if (result.container)
         {
             impl->storeContainer(result);
@@ -793,12 +836,11 @@ bool PDFContentEditSession::execute(const PDFContentCommandPointer& command, QSt
         impl->nodeIdCounter = impl->nodeIdCounterBefore;
     }
 
-    impl->containerJournal.clear();
-    impl->isStructureJournaled = false;
-    impl->structureBefore = nullptr;
-
     if (!isApplied)
     {
+        impl->containerJournal.clear();
+        impl->isStructureJournaled = false;
+        impl->structureBefore = nullptr;
         impl->isChanging = false;
 
         if (errorText)
@@ -808,7 +850,20 @@ bool PDFContentEditSession::execute(const PDFContentCommandPointer& command, QSt
         return false;
     }
 
+    // The versions the command has replaced are still held by the journal here: a command, which
+    // is merged into the previous one by the push, finds the version between the two alive
+    // (the commands keep differences and weak pointers, never the versions themselves)
     impl->undoStack.push(command);
+
+    impl->containerJournal.clear();
+    impl->isStructureJournaled = false;
+    impl->structureBefore = nullptr;
+
+    // The new objects of the undone commands the push has dropped: nothing refers to them
+    for (const PDFObjectReference& reference : impl->undoStack.takeDroppedNewObjects())
+    {
+        impl->newObjects.erase(reference);
+    }
 
     // The model is in its new state: the signals are the last thing done
     const PDFContentChange change = command->getChange();
@@ -843,6 +898,12 @@ std::optional<PDFInteger> PDFContentEditSession::undo()
         (*it)->revert(this);
         Impl::addChange(&change, (*it)->getChange());
     }
+
+    // The journal is for a refused command only: the versions the step has replaced are let go
+    // (a command keeps the difference of a version, the session must not keep the version)
+    impl->containerJournal.clear();
+    impl->isStructureJournaled = false;
+    impl->structureBefore = nullptr;
 
     impl->undoStack.moveToPreviousStep();
 
@@ -880,6 +941,11 @@ std::optional<PDFInteger> PDFContentEditSession::redo()
             Impl::addChange(&change, command->getChange());
         }
     }
+
+    // As in undo: the versions the step has replaced are let go
+    impl->containerJournal.clear();
+    impl->isStructureJournaled = false;
+    impl->structureBefore = nullptr;
 
     impl->undoStack.moveToNextStep();
 
@@ -1065,6 +1131,17 @@ PDFObject PDFContentEditSession::getNewObject(PDFObjectReference reference) cons
 {
     auto it = m_impl->newObjects.find(reference);
     return it != m_impl->newObjects.end() ? it->second : PDFObject();
+}
+
+PDFInteger PDFContentEditSession::getNextNewObjectNumber() const
+{
+    return m_impl->nextObjectNumber;
+}
+
+void PDFContentEditSession::removeNewObject(PDFObjectReference reference)
+{
+    // The number is never given again: a snapshot made earlier may still name the object
+    m_impl->newObjects.erase(reference);
 }
 
 void PDFContentEditSession::setScriptName(const QString& name, const PDFContentNodeReference& node)

@@ -17,14 +17,17 @@
         <file>icons/alt-text.svg</file>
         <file>icons/anchor-point.svg</file>
         <file>icons/angle.svg</file>
+        <file>icons/annotations-underlay.svg</file>
         <file>icons/area.svg</file>
         <file>icons/array.svg</file>
         <file>icons/arrow-down.svg</file>
         <file>icons/arrow-up-down.svg</file>
         <file>icons/arrow-up.svg</file>
+        <file>icons/artifact.svg</file>
         <file>icons/award.svg</file>
         <file>icons/ban.svg</file>
         <file>icons/bar-chart-2.svg</file>
+        <file>icons/bezier-pen.svg</file>
         <file>icons/book-open.svg</file>
         <file>icons/bookmark-next.svg</file>
         <file>icons/bookmark-plus.svg</file>
@@ -35,6 +38,8 @@
         <file>icons/boxes-write.svg</file>
         <file>icons/braces.svg</file>
         <file>icons/briefcase.svg</file>
+        <file>icons/bring-forward.svg</file>
+        <file>icons/bring-front.svg</file>
         <file>icons/calendar.svg</file>
         <file>icons/calibrate.svg</file>
         <file>icons/camera.svg</file>
@@ -57,6 +62,7 @@
         <file>icons/chevron-right.svg</file>
         <file>icons/chevron-up.svg</file>
         <file>icons/circle.svg</file>
+        <file>icons/clip-path.svg</file>
         <file>icons/clipboard-cut.svg</file>
         <file>icons/clipboard.svg</file>
         <file>icons/clock.svg</file>
@@ -115,6 +121,7 @@
         <file>icons/extract.svg</file>
         <file>icons/eye-off.svg</file>
         <file>icons/eye.svg</file>
+        <file>icons/eyedropper.svg</file>
         <file>icons/file-plus.svg</file>
         <file>icons/file-tall.svg</file>
         <file>icons/file-text.svg</file>
@@ -123,10 +130,13 @@
         <file>icons/files.svg</file>
         <file>icons/fill.svg</file>
         <file>icons/filter.svg</file>
+        <file>icons/find-replace.svg</file>
         <file>icons/fit-height.svg</file>
         <file>icons/fit-image.svg</file>
         <file>icons/fit-width.svg</file>
         <file>icons/flag.svg</file>
+        <file>icons/flip-h.svg</file>
+        <file>icons/flip-v.svg</file>
         <file>icons/folder-open.svg</file>
         <file>icons/folder-plus.svg</file>
         <file>icons/folder.svg</file>
@@ -138,10 +148,13 @@
         <file>icons/github.svg</file>
         <file>icons/globe.svg</file>
         <file>icons/gradient.svg</file>
+        <file>icons/grid-lines.svg</file>
         <file>icons/grid-mm.svg</file>
         <file>icons/grid.svg</file>
+        <file>icons/group-enter.svg</file>
         <file>icons/group.svg</file>
         <file>icons/gstate.svg</file>
+        <file>icons/guides.svg</file>
         <file>icons/hand.svg</file>
         <file>icons/hash.svg</file>
         <file>icons/headphones.svg</file>
@@ -156,9 +169,11 @@
         <file>icons/html.svg</file>
         <file>icons/icc-profile.svg</file>
         <file>icons/image-color-mode.svg</file>
+        <file>icons/image-crop.svg</file>
         <file>icons/image-exclude.svg</file>
         <file>icons/image-mode.svg</file>
         <file>icons/image-replace.svg</file>
+        <file>icons/image-save.svg</file>
         <file>icons/image.svg</file>
         <file>icons/images.svg</file>
         <file>icons/import.svg</file>
@@ -177,6 +192,7 @@
         <file>icons/keyboard.svg</file>
         <file>icons/label.svg</file>
         <file>icons/languages.svg</file>
+        <file>icons/layer-add.svg</file>
         <file>icons/layers.svg</file>
         <file>icons/layout-columns.svg</file>
         <file>icons/layout-form.svg</file>
@@ -199,9 +215,11 @@
         <file>icons/macos.svg</file>
         <file>icons/magnifier.svg</file>
         <file>icons/mail.svg</file>
+        <file>icons/make-unique.svg</file>
         <file>icons/margins.svg</file>
         <file>icons/mark-accept.svg</file>
         <file>icons/mark-reject.svg</file>
+        <file>icons/marked-content.svg</file>
         <file>icons/match-case.svg</file>
         <file>icons/match-next.svg</file>
         <file>icons/match-prev.svg</file>
@@ -222,6 +240,11 @@
         <file>icons/move-to.svg</file>
         <file>icons/multi-create.svg</file>
         <file>icons/network.svg</file>
+        <file>icons/node-add.svg</file>
+        <file>icons/node-corner.svg</file>
+        <file>icons/node-edit.svg</file>
+        <file>icons/node-remove.svg</file>
+        <file>icons/node-smooth.svg</file>
         <file>icons/not-text.svg</file>
         <file>icons/note-help.svg</file>
         <file>icons/note-insert.svg</file>
@@ -235,6 +258,7 @@
         <file>icons/obj-align-right.svg</file>
         <file>icons/obj-align-top.svg</file>
         <file>icons/obj-align-vcenter.svg</file>
+        <file>icons/object-tree.svg</file>
         <file>icons/object-type.svg</file>
         <file>icons/object.svg</file>
         <file>icons/ocr-project.svg</file>
@@ -258,6 +282,11 @@
         <file>icons/paper-white.svg</file>
         <file>icons/paperclip.svg</file>
         <file>icons/password.svg</file>
+        <file>icons/paste-in-place.svg</file>
+        <file>icons/path-exclude.svg</file>
+        <file>icons/path-intersect.svg</file>
+        <file>icons/path-subtract.svg</file>
+        <file>icons/path-union.svg</file>
         <file>icons/pattern.svg</file>
         <file>icons/pause.svg</file>
         <file>icons/pen-tool.svg</file>
@@ -279,10 +308,12 @@
         <file>icons/portable.svg</file>
         <file>icons/power.svg</file>
         <file>icons/presentation.svg</file>
+        <file>icons/preview-exact.svg</file>
         <file>icons/print-draft.svg</file>
         <file>icons/printer.svg</file>
         <file>icons/projection.svg</file>
         <file>icons/range.svg</file>
+        <file>icons/reading-order.svg</file>
         <file>icons/rect-area.svg</file>
         <file>icons/rect-perimeter.svg</file>
         <file>icons/redact-area.svg</file>
@@ -307,6 +338,7 @@
         <file>icons/rotate-cw.svg</file>
         <file>icons/rotation-reset.svg</file>
         <file>icons/ruler.svg</file>
+        <file>icons/rulers.svg</file>
         <file>icons/same-height.svg</file>
         <file>icons/same-size.svg</file>
         <file>icons/same-width.svg</file>
@@ -323,11 +355,15 @@
         <file>icons/select-invert.svg</file>
         <file>icons/select-none.svg</file>
         <file>icons/select-rect.svg</file>
+        <file>icons/send-back.svg</file>
+        <file>icons/send-backward.svg</file>
         <file>icons/separations.svg</file>
         <file>icons/server.svg</file>
         <file>icons/settings.svg</file>
         <file>icons/shape-channel.svg</file>
+        <file>icons/shape-ellipse.svg</file>
         <file>icons/shape-rect.svg</file>
+        <file>icons/shapes.svg</file>
         <file>icons/shield-check.svg</file>
         <file>icons/shield-lock.svg</file>
         <file>icons/shield-plus.svg</file>
@@ -359,6 +395,7 @@
         <file>icons/strength.svg</file>
         <file>icons/strikethrough.svg</file>
         <file>icons/stroke.svg</file>
+        <file>icons/structure-tag.svg</file>
         <file>icons/sun.svg</file>
         <file>icons/swap.svg</file>
         <file>icons/sync-view.svg</file>
@@ -374,12 +411,15 @@
         <file>icons/text-label.svg</file>
         <file>icons/text-line-add.svg</file>
         <file>icons/text-lines.svg</file>
+        <file>icons/text-to-path.svg</file>
+        <file>icons/text-wrap.svg</file>
         <file>icons/timer-off.svg</file>
         <file>icons/timestamp.svg</file>
         <file>icons/to-annotation.svg</file>
         <file>icons/tools.svg</file>
         <file>icons/tooltip.svg</file>
         <file>icons/transform.svg</file>
+        <file>icons/transparency-group.svg</file>
         <file>icons/trash-restore.svg</file>
         <file>icons/trash.svg</file>
         <file>icons/tree.svg</file>

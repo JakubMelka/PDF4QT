@@ -22,8 +22,10 @@
 
 #include "pdfapptooldocumentpage.h"
 
+#include "pdfappcommand.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
@@ -262,6 +264,38 @@ bool PDFAppToolDocumentPage::isQuestionOpen() const
     return m_shell && m_shell->isQuestionOpen();
 }
 
+bool PDFAppToolDocumentPage::isDocumentCommandHandled(const QString& commandId, bool* isEnabled) const
+{
+    const PDFAppToolCommandState state = m_shell ? m_shell->getDocumentCommandState(commandId) : PDFAppToolCommandState::NotHandled;
+    if (state == PDFAppToolCommandState::NotHandled)
+    {
+        return false;
+    }
+    *isEnabled = state == PDFAppToolCommandState::Enabled;
+    return true;
+}
+
+bool PDFAppToolDocumentPage::handleDocumentCommand(const QString& commandId)
+{
+    // The last call: the tool may close itself, the tab or the window
+    return m_shell && m_shell->handleDocumentCommand(commandId);
+}
+
+bool PDFAppToolDocumentPage::hasSaveQuestion() const
+{
+    return m_shell && m_shell->hasSaveQuestion();
+}
+
+bool PDFAppToolDocumentPage::isDocumentReloadDeferred() const
+{
+    return m_shell && m_shell->isDocumentReloadDeferred();
+}
+
+bool PDFAppToolDocumentPage::requestSaveQuestion(const QString& commandId)
+{
+    return m_shell && m_shell->requestSaveQuestion(commandId);
+}
+
 bool PDFAppToolDocumentPage::isLeftBy(const PDFAppRoute& target) const
 {
     const bool isOpen = m_shell && m_shell->getState() != PDFDocumentToolShell::State::Closed;
@@ -474,6 +508,45 @@ void PDFAppToolDocumentPage::onCloseRequested(const PDFAppToolCloseRequest& requ
     if (m_host && !requestCopy.statusMessage.isEmpty())
     {
         m_host->showTransientMessage(requestCopy.statusMessage);
+    }
+
+    // "Apply and Save" of the save question of the tool (zadani.md KE.3, zadani_gui.md 4.21): the result was kept in
+    // this tab, the document is saved by the command the user gave. The save starts here, before the navigation:
+    //  - this page is still the page of the tab and its tool is closed, so the handler of the save asks nobody (after
+    //    the navigation it would ask the tool of "Then continue with" instead);
+    //  - a save does not hold the document (PDFAppDocumentOperationKind::Save does not block the changes; the worker
+    //    writes the snapshot of the version of now, i.e. the kept result), so the next tool enters, previews and
+    //    runs while the file is written, and a document changed meanwhile stays modified
+    //    (PDFAppDocument::setSavedAs with the written version);
+    //  - a question of the save (the file dialog of a document without a file or of Save As, the question of a signed
+    //    document) is shown without an event loop: the navigation goes on and the next tool opens under it.
+    // The slots of the save may close the tab or this page: nothing more then.
+    if (requestCopy.reason == PDFAppToolCloseRequest::Reason::Accepted && !requestCopy.saveCommandId.isEmpty())
+    {
+        const bool isSaveStarted = tab->executeCommand(requestCopy.saveCommandId);
+        if (!tab || PDFDeferredDeletion::isRetired(this))
+        {
+            return;
+        }
+
+        // R3-4: the command Save refused the kept result (the file has become read-only, or is gone, since the
+        // question): the flow of the application for a file, which cannot be written, as the close of a tab saves -
+        // the saver says why and offers Save As (PDFAppDocumentSaver::save, its error dialog). Nothing for a document
+        // without changes, a locked one or a save already running (the refusal is no question of the file then).
+        if (!isSaveStarted && requestCopy.saveCommandId == PDFAppCommands::save())
+        {
+            PDFAppDocumentFileCommandHandler* handler = PDFAppDocumentFileCommandHandler::find(tab);
+            const PDFAppDocumentSaver* saver = handler ? handler->getSaver() : nullptr;
+            const PDFAppDocument* document = tab->getDocument();
+            if (saver && document && document->isReady() && document->isModified() && !document->isLocked() && !saver->isRunning())
+            {
+                handler->save();
+                if (!tab || PDFDeferredDeletion::isRetired(this))
+                {
+                    return;
+                }
+            }
+        }
     }
 
     // An address of a folder, which the navigator checks (the page is still connected)

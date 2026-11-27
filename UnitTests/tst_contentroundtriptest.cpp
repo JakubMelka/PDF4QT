@@ -31,8 +31,8 @@
 //       to the streams of its /Contents joined by one line feed (ISO 32000-2, 7.8.2), for every
 //       form and pattern cell its own decoded stream, and every page renders pixel for pixel as
 //       before; a read-only container is never written;
-//   (c) a touch of every node keeps the rendering: (1) a transform by the identity matrix wraps
-//       every leaf, which can have a wrap (R-1); (2) every node, which can be moved, is moved to
+//   (c) a touch of every node keeps the rendering: (1) a move by one point and back (together
+//       the identity matrix) wraps every leaf, which can have a wrap (R-1); (2) every node, which can be moved, is moved to
 //       another place of its parent and back (R-2, R-3); (3) undo of touch 1 gives the loaded
 //       containers again and redo the same written bytes. After touches 1 and 2 every page
 //       renders pixel for pixel as the original, the written content builds again with the same
@@ -306,9 +306,9 @@ private:
     static void runTouchMove(const QString& row, const PDFDocument& document, const PDFOperationControl* control);
     static void runTouchUndo(const QString& row, const PDFDocument& document, const PDFOperationControl* control);
 
-    /// Touch 1: an identity transform of every node except the root, groups and marked contents
-    /// (a transform of those goes to their leaves, which are touched on their own); one command
-    /// per node, one macro per container
+    /// Touch 1: a move by one point and back (together the identity) of every node except the
+    /// root, groups and marked contents (a transform of those goes to their leaves, which are
+    /// touched on their own); two commands per node, one macro per container
     static void applyWraps(ContentRoundTripLoaded* loaded, std::map<Key, std::vector<PDFContentNodeId>>* wrapped, std::map<QString, int>* refusals);
 
     /// The part (a) over the current containers of a session: nothing is written
@@ -1473,8 +1473,13 @@ void ContentRoundTripTest::applyWraps(ContentRoundTripLoaded* loaded, std::map<K
                 continue;
             }
 
+            // A transform by the identity is refused as unchanged, so the touch is a move by
+            // [1 0 0 1 1 0] and a move back by [1 0 0 1 -1 0]: the wrap stays and its matrix is
+            // the identity again (1 + (-1) is exactly 0)
             QString errorText;
-            if (session->execute(Factory::createTransform({ PDFContentNodeReference{ key, node->getId() } }, QTransform()), &errorText))
+            const PDFContentNodeReference reference{ key, node->getId() };
+            if (session->execute(Factory::createTransform({ reference }, QTransform::fromTranslate(1.0, 0.0)), &errorText) &&
+                session->execute(Factory::createTransform({ reference }, QTransform::fromTranslate(-1.0, 0.0)), &errorText))
             {
                 (*wrapped)[key].push_back(node->getId());
             }

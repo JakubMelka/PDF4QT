@@ -11,7 +11,7 @@ Stav: přečteno z Figmy 13. 10. 2026 po opravách komponent z téhož dne (soub
 3. [Katalog toolů, What's New, About](#3-katalog-toolů-whats-new-about) – 17 komponent
 4. [Formulářové prvky a Settings](#4-formulářové-prvky-a-settings) – 16 komponent
 5. [Okno dokumentu](#5-okno-dokumentu) – 20 komponent
-6. [Panely dokumentu, barvy a náhledy](#6-panely-dokumentu-barvy-a-náhledy) – 19 komponent
+6. [Panely dokumentu, barvy a náhledy](#6-panely-dokumentu-barvy-a-náhledy) – 19 komponent a 4 nové z 27. 11. 2026 (Expander card, Path segment, Path bar, Row toggle action; Edit Content, etapa E1, spolu s variantami `State=Mixed` Spin boxu a Combo boxu)
 7. [Ukázkové rámce sekce](#7-ukázkové-rámce-sekce)
 8. [Ikony](#8-ikony)
 
@@ -1996,16 +1996,16 @@ C 'Checked=False, State=Default' 67x18 lay=H gap8 pad0,0,0,0 MIN/CENTER; z=hug/h
 
 ### Combo box · `144:2899`
 
-Sada 5 variant · výchozí varianta `State=Default` · rozměr 260×34
+Sada 6 variant · výchozí varianta `State=Default` · rozměr 260×34
 
-Popis ve Figmě: „Drop-down for a setting value. Fixed width in forms, value truncates.“
+Popis ve Figmě: „Drop-down for a setting value. Fixed width in forms, value truncates. State=Mixed: the selected objects have different values; no item is current and "Mixed" is drawn as a value in text/primary. Under the pointer, pressed, with the focus or disabled a mixed field has the border and fill of the matching state.“
 
 **Vlastnosti**
 
 | Vlastnost | Typ | Hodnoty (výchozí tučně) |
 | --- | --- | --- |
 | Value | text | **Automatic detection** |
-| State | varianta | **Default**, Hover, Pressed, Focus, Disabled |
+| State | varianta | **Default**, Hover, Pressed, Focus, Disabled, Mixed |
 
 **Stavba výchozí varianty**
 
@@ -2023,10 +2023,12 @@ C 'State=Default' 260x34 lay=H gap8 pad0,10,0,12 MIN/CENTER; fill=bg/surface; st
 | `State=Pressed` | kořen: `fill=bg/subtle; st=border/strong w1 INSIDE` |
 | `State=Focus` | kořen: `lay=H gap8 pad0,9,0,11 MIN/CENTER; st=border/focus w2 INSIDE` |
 | `State=Disabled` | kořen: `fill=bg/muted`; `value: fill=text/disabled`; `chevron: ic=icon/chevron-down stroke=icon/disabled w2` |
+| `State=Mixed` | `~ value: tx='Mixed'; ref=-` |
 
 **Poznámky**
 
 - Kořen: velikost `fix/fix` (vodorovně/svisle), ořez obsahu ne, obrys se počítá do rozložení ano. Platí pro všechny varianty.
+- **Nová varianta `State=Mixed` `1660:1630` (27. 11. 2026, Edit Content, etapa E1):** kopie `State=Default`, text `value` je pevné „Mixed“ v `text/primary` a není vázaný na vlastnost Value (vlastnost textu má jednu výchozí hodnotu pro celou sadu); prototypové interakce varianta nemá. Odpovídá `PDFComboBox::setMixed` (`currentIndex() == -1`, zástupný text „Mixed“ kreslený jako hodnota, vlastnost stylu `mixed`) a rámci `edit-content-v2-multi-selected` (`1647:49442`: instance Default s přepsaným textem). Popis varianty: „Mixed value (PDFComboBox setMixed): the selected objects have different values. No item is current and the field shows "Mixed" as a value in text/primary (not a muted placeholder); choosing an item leaves the state.“ Popis sady byl doplněn o jednu větu; ostatní varianty se nezměnily.
 - **Změna 14. 10. 2026 (N-02):** šipka `chevron` je v povolených stavech `icon/default` (dříve `icon/muted`), jak ji kreslí stránka *Widgets* (sekce 06) i styl; tlumená barva patří jen zakázanému stavu.
 - Má stav Disabled. V něm se nemění tah (`border/default w1 INSIDE`); výplň kořene je `bg/muted`, text `text/disabled` a ikona `chevron` `icon/disabled` (**změna 14. 10. 2026**, rozhodnutí Q-8; dříve text `text/muted` a ikona beze změny `icon/muted`).
 - Focus ring: `border/focus w2 INSIDE` na místě okraje, výplň `bg/surface` zůstává. **Změna (13. 10. 2026):** okraje kořene jsou ve Focus `pad0,9,0,11` místo `pad0,10,0,12` a vyrovnávají tah 2 px – `value` i `chevron` mají stejnou šířku a polohu jako v Default (`value` 214×16). Dříve byl `value` ve Focus o 2 px užší (212) a obsah o 1 px posunutý.
@@ -2083,9 +2085,9 @@ C 'State=Default' 154x32 lay=H gap8 pad0,10,0,12 MIN/CENTER; z=hug/fix; fill=bg/
 
 ### Spin box · `144:2932`
 
-Sada 4 variant · výchozí varianta `State=Default` · rozměr 140×34
+Sada 5 variant · výchozí varianta `State=Default` · rozměr 140×34
 
-Popis ve Figmě: „Numeric field with stepper and optional unit suffix.“
+Popis ve Figmě: „Numeric field with stepper and optional unit suffix. State=Mixed: the selected objects have different values; the field is empty and shows "Mixed" in text/primary, the suffix is hidden. Under the pointer, with the focus or disabled a mixed field has the border and fill of Hover, Focus or Disabled.“
 
 **Vlastnosti**
 
@@ -2094,7 +2096,7 @@ Popis ve Figmě: „Numeric field with stepper and optional unit suffix.“
 | Value | text | **50** |
 | Suffix | text | **px** |
 | Show suffix | přepínač | **true** |
-| State | varianta | **Default**, Hover, Focus, Disabled |
+| State | varianta | **Default**, Hover, Focus, Disabled, Mixed |
 
 **Stavba výchozí varianty**
 
@@ -2114,10 +2116,12 @@ C 'State=Default' 140x34 lay=H gap8 pad0,6,0,12 MIN/CENTER; fill=bg/surface; st=
 | `State=Hover` | kořen: `st=border/strong w1 INSIDE` |
 | `State=Focus` | kořen: `lay=H gap8 pad0,5,0,11 MIN/CENTER; st=border/focus w2 INSIDE` |
 | `State=Disabled` | kořen: `fill=bg/muted`; `value: fill=text/disabled`; `suffix: fill=text/disabled`; `up`, `down`: `stroke=icon/disabled w2` |
+| `State=Mixed` | `~ value: s=100x16; tx='Mixed'; ref=-`<br>`~ suffix: z=fix/fix; ref=characters:Suffix; hid=1` |
 
 **Poznámky**
 
 - Kořen: velikost `fix/fix` (vodorovně/svisle), ořez obsahu ne, obrys se počítá do rozložení ano. Platí pro všechny varianty.
+- **Nová varianta `State=Mixed` `1660:1624` (27. 11. 2026, Edit Content, etapa E1):** kopie `State=Default`; text `value` je pevné „Mixed“ v `text/primary` a není vázaný na vlastnost Value, `suffix` je skrytý a jeho viditelnost není vázaná na `Show suffix` (v kódu je pole prázdné, přípona je součástí textu editoru); `value` proto vyplní i místo přípony (100 px). Prototypové interakce varianta nemá. Odpovídá `PDFSpinBox` / `PDFDoubleSpinBox::setMixed` (zástupný text „Mixed“ v barvě hodnoty, ne `text/muted`) a rámci `edit-content-v2-multi-selected` (`1647:49458`: instance Default s textem „Mixed“ a skrytou příponou). Popis varianty: „Mixed value (PDFSpinBox / PDFDoubleSpinBox setMixed): the selected objects have different values. The field is empty and shows "Mixed" in the value color text/primary (not a muted placeholder); the suffix is hidden. Typing a value (Enter or focus out) or the arrows / wheel (stepping from the held value) leave the state; an empty or unacceptable entry returns to it.“ Popis sady byl doplněn o jednu větu; ostatní varianty se nezměnily. Sada se rozšířila na 828×82, Text field `144:2941` se posunul o 160 doprava.
 - Má stav Disabled; nemá stav Pressed (Combo box `144:2899` jej má).
 - **Změna 14. 10. 2026 (N-02):** šipky `up` a `down` jsou v povolených stavech `icon/default` (dříve `icon/muted`), stejně jako u Combo boxu.
 - V Disabled se nemění tah; přípona `suffix` je `text/disabled` a ikony stepperu `icon/disabled` (**změna 14. 10. 2026**, rozhodnutí Q-8; dříve zůstávaly `text/muted` a `icon/muted`).
@@ -4141,6 +4145,7 @@ C 'Kind=Color, Selected=False, State=Default' 28x28 lay=H gap0 pad0,0,0,0 CENTER
 - Velikost je pevná: kořen 28×28, `color` 20×20 (`z=fix/fix`) uprostřed (`CENTER/CENTER`). Stavy Hover/Pressed vyplňují celý kruh 28×28 (`bg/hover`, `bg/pressed`), obrysy nemění rozměr.
 - Žádná vnořená komponenta, žádný text.
 - Sada: rozměr 544×128 (dříve 440×128); varianty Disabled jsou ve sloupcích x = 440 (nevybrané) a x = 492 (vybrané).
+- **Doplněno 27. 11. 2026 (Edit Content, etapa E1):** popis sady má navíc větu „Mixed (a row of swatches for objects of different colors): no swatch is selected (every swatch Selected=False); the row draws no text, "Mixed" is only its accessible description.“ Řada vzorků (`PDFColorSwatchRow::setMixed`) nemá vlastní komponentu a stav Mixed nekreslí žádný text, proto nová varianta nevznikla; varianty se nezměnily.
 
 ### Reading theme card · `156:4218`
 
@@ -4728,6 +4733,190 @@ Bez variant.
 - Stavba pod nadpisem `4.1 Regional revenue`: `paragraph-with-highlight` (řádek `line` se zvýrazněním a zbytek odstavce jako samostatný text), `figure` (graf `chart` a popisek `caption`), nadpis `4.2 Customer segments`, odstavec, `table` a závěrečný odstavec. Graf `chart` má pevnou výšku 150 a jen dolní linku (`w0,0,1,0`); šest skupin `bars` s mezerou 26, v každé dva sloupce šířky 20 (`previous`, `current`) s mezerou 4, zarovnané ke spodní hraně (`CENTER/MAX`); výšky `previous`/`current` jsou 62/78, 84/96, 70/74, 98/122, 56/50 a 76/88. Tabulka má záhlaví `header-row` a čtyři řádky `row` po 536x25, každý jen s dolní linkou; první buňka vyplňuje šířku (344), druhá a třetí mají pevnou šířku 80 a text zarovnaný vpravo (`RT`).
 - Opakovaná jména vrstev: dva různé uzly `title` (text v `running-head` a rámec s `chapter` + `heading`), dva uzly `text` v řádku `line`, čtyři `paragraph` (jeden z nich uvnitř `paragraph-with-highlight`), dva `heading-2`, šest `bars` (v každém `previous` a `current`), čtyři `row` a patnáct `cell`.
 - Žádné vlastnosti; žádný text není vázán na vlastnost; žádná vnořená komponenta. Text `'−3 %'` začíná znakem minus U+2212; mezery před `%` jsou obyčejné mezery.
+
+### Expander card · `1661:1678`
+
+Sada 2 variant · výchozí varianta `Expanded=False` · rozměr 662×263 · nová 27. 11. 2026 (Edit Content, etapa E1)
+
+Popis ve Figmě: „Section of a panel with a heading and a card (PDFExpanderCard), used in the right panel of Edit Content (Transparency, Selection, Layer, ...). Header: the Title (Semi Bold 13, text/primary), an optional badge (Tag, Show badge) and the Text link Expand / Collapse at the trailing side, 8 px apart. The card lies 8 px below the header: bg/surface, border/default 1 px inside, radius 10, padding 12, items 8 apart. Expanded=False shows the content (Show content, shown in both states) and the Summary (Regular 11, text/tertiary); Expanded=True shows the content and the expanded part (here the Transparency fields) and no summary. The link is shown only when the card has something to expand (an expanded part or a summary); with Show link off the card is a plain section. The link is an exposed Text link with its own states (keyboard focus only, focus ring outside); Expand / Collapse toggles the variant. A disabled section keeps the card and disables its content.“
+
+**Vlastnosti**
+
+| Vlastnost | Typ | Hodnoty (výchozí tučně) |
+| --- | --- | --- |
+| Title | text | **Transparency** |
+| Summary | text | **Opacity 100 % · blend mode Normal** |
+| Show badge | přepínač | **false** |
+| Show link | přepínač | **true** |
+| Show content | přepínač | **false** |
+| Expanded | varianta | **False**, True |
+
+**Stavba výchozí varianty**
+
+```text
+C 'Expanded=False' 287x63 lay=V gap8 pad0,0,0,0 MIN/MIN; z=fix/hug
+ F 'header' 287x16 lay=H gap8 pad0,0,0,0 MIN/CENTER; z=fill/hug
+  T 'title' 87x16 z=hug/hug; fill=text/primary; f=Inter Semi Bold 13/auto LT WIDTH_AND_HEIGHT; tx='Transparency'; ref=characters:Title
+  I 'badge' 43x21 hid=1; lay=H gap0 pad3,9,3,9 MIN/CENTER; z=hug/hug; fill=bg/subtle; st=border/default w1 INSIDE; rad=100; ref=visible:Show badge; inst=Tag{State=Default} [Label='Text'] ov:height,name,width; exp=1
+  F 'spacer' 133x1 z=fill/fix
+  I 'link' 51x16 lay=H gap0 pad0,2,0,2 MIN/MIN; z=hug/hug; rad=4; ref=visible:Show link; inst=Text link{State=Default} [Label='Expand'] ov:height,name,width; exp=1
+ F 'card' 287x39 lay=V gap8 pad12,12,12,12 MIN/MIN; z=fill/hug; fill=bg/surface; st=border/default w1 INSIDE; rad=10
+  F 'content' 261x15 hid=1; lay=V gap8 pad0,0,0,0 MIN/MIN; z=fix/hug; ref=visible:Show content
+   T 'placeholder' 261x15 z=fill/hug; fill=text/secondary; f=Inter Regular 12/auto LT HEIGHT; tx='Content shown in both states'
+  T 'summary' 261x13 z=fill/hug; fill=text/tertiary; f=Inter Regular 11/auto LT HEIGHT; tx='Opacity 100 % · blend mode Normal'; ref=characters:Summary
+```
+
+**Varianty a stavy**
+
+| Varianta | Změna |
+| --- | --- |
+| `Expanded=True` | `~ .: s=287x215`<br>`~ header>spacer: s=125x1`<br>`~ header>link: s=59x16; inst=Text link{State=Default} [Label='Collapse'] ov:height,name,width`<br>`~ card: s=287x191`<br>`+ card>expanded: F 261x165 lay=V gap8 pad0,0,0,0 MIN/MIN; z=fill/hug`<br>`+ card>expanded>field-Fill opacity: F 261x34 lay=H gap10 pad0,0,0,0 MIN/CENTER; z=fill/hug` (`label` T 151x15 `fill=text/secondary; f=Inter Regular 12`, `Spin box` I 100x34 `inst=Spin box{State=Default} [Suffix='%', Value='100']`)<br>`+ card>expanded>field-Stroke opacity` (totéž)<br>`+ card>expanded>field-Blend mode` (`label` 101x15, `Combo box` I 150x34 `inst=Combo box{State=Default} [Value='Normal']`)<br>`+ card>expanded>note: T 261x39 z=fill/hug; fill=text/muted; f=Inter Regular 11/auto LT HEIGHT; tx='Opacity and the common blend modes are dra…'`<br>`- card>summary` |
+
+**Poznámky**
+
+- Kořen: velikost `fix/hug` (šířka 287 = šířka pravého panelu bez okrajů), ořez obsahu ne, bez výplně a obrysu. Vnitřní rámce neořezávají (kroužek fokusu vystaveného odkazu leží vně).
+- Odpovídá `PDFExpanderCard` (`pdfcomponentsections.h`, geometrie `pdfcomponentpaintersections.cpp`): mezery hlavičky a karty 8 (`EXPANDER_SPACING`), karta `bg/surface` + `border/default` 1 px `INSIDE` počítaný do rozložení + odsazení 12 (`EXPANDER_CARD_MARGIN` = 1 + 12), položky karty 8 (`EXPANDER_CARD_SPACING`), poloměr 10. Výšky 63 a 215 jsou shodné s rámci `section-Transparency` (`1647:21843` sbalená, `1647:48204` rozbalená).
+- `badge` (Tag) a `link` (Text link) jsou vystavené vnořené instance: jejich stavy a text se nastavují na instanci karty. Text odkazu je v každé variantě přepsaný („Expand“ / „Collapse“), vlastnost Label Text linku zůstává.
+- `content` je místo pro widget zobrazený v obou stavech (skrytý, `Show content`), `expanded` jen ve variantě `Expanded=True` (ukázka polí Transparency), `summary` jen v `Expanded=False`. Odkaz se v kódu zobrazuje, jen když má karta co rozbalit (rozbalenou část nebo shrnutí); bez toho je to obyčejná sekce (`Show link` vypnuto).
+- Rozdíl proti rámci: sbalená karta `1647:21843` má mezeru položek 6, kód i komponenta 8 (s jedinou položkou bez viditelného rozdílu).
+- Žádná varianta Disabled (zakázaná sekce si nechává kartu, zakázaný je její obsah). Žádná barva mimo proměnné. Instance na obrazovkách nejsou (rámce `section-…` zůstávají obyčejné rámce, přepnutí rozhodne vlastník).
+
+### Path segment · `1662:1674`
+
+Sada 14 variant · výchozí varianta `Size=Default, Current=False, State=Default` · rozměr 510×181 · nová 27. 11. 2026 (Edit Content, etapa E1)
+
+Popis ve Figmě: „Segment of the Path bar (PDFPathSegment): a link to an enclosing level, or the current level (Current=True, the last segment). Size=Default: Regular 12, the current segment Semi Bold 12, line 16; Size=Small: Regular 11, the current Medium 11, line 13. A link is text/accent; Hover underlines it, Pressed underlines it in text/accent-pressed, Focus draws a 2 px border/focus ring outside (radius 4) without the underline; Disabled is text/disabled without opacity. The current segment is text/primary and is not interactive (no Hover, Pressed or Focus; it is not a Tab stop). The segment is as wide as its text (no padding); a long text is elided at its end. The Label is data (names of objects) taken literally.“
+
+**Vlastnosti**
+
+| Vlastnost | Typ | Hodnoty (výchozí tučně) |
+| --- | --- | --- |
+| Label | text | **Chart area** |
+| Size | varianta | **Default**, Small |
+| Current | varianta | **False**, True |
+| State | varianta | **Default**, Hover, Pressed, Focus, Disabled (`Current=True` jen Default a Disabled) |
+
+**Stavba výchozí varianty**
+
+```text
+C 'Size=Default, Current=False, State=Default' 60x16 lay=H gap0 pad0,0,0,0 MIN/MIN; z=hug/hug; rad=4
+ T 'label' 60x16 z=hug/hug; fill=text/accent; f=Inter Regular 12/16 LT WIDTH_AND_HEIGHT; tx='Chart area'; ref=characters:Label
+```
+
+**Varianty a stavy**
+
+| Varianta | Změna |
+| --- | --- |
+| `Size=Default, Current=False, State=Hover` | `~ label: f=Inter Regular 12/16 LT WIDTH_AND_HEIGHT UNDERLINE` |
+| `Size=Default, Current=False, State=Pressed` | `~ label: fill=text/accent-pressed; f=Inter Regular 12/16 LT WIDTH_AND_HEIGHT UNDERLINE` |
+| `Size=Default, Current=False, State=Focus` | `~ .: st=border/focus w2 OUTSIDE` |
+| `Size=Default, Current=False, State=Disabled` | `~ label: fill=text/disabled` |
+| `Size=Default, Current=True, State=Default` | `~ .: s=62x16`<br>`~ label: s=62x16; fill=text/primary; f=Inter Semi Bold 12/16 LT WIDTH_AND_HEIGHT` |
+| `Size=Default, Current=True, State=Disabled` (proti `Size=Default, Current=True, State=Default`) | `~ label: fill=text/disabled` |
+| `Size=Small, Current=False, State=Default` | `~ .: s=55x13`<br>`~ label: s=55x13; f=Inter Regular 11/13 LT WIDTH_AND_HEIGHT` |
+| `Size=Small, Current=False, State=Hover` (proti `Size=Small, Current=False, State=Default`) | `~ label: f=Inter Regular 11/13 LT WIDTH_AND_HEIGHT UNDERLINE` |
+| `Size=Small, Current=False, State=Pressed` (proti `Size=Small, Current=False, State=Default`) | `~ label: fill=text/accent-pressed; f=Inter Regular 11/13 LT WIDTH_AND_HEIGHT UNDERLINE` |
+| `Size=Small, Current=False, State=Focus` (proti `Size=Small, Current=False, State=Default`) | `~ .: st=border/focus w2 OUTSIDE` |
+| `Size=Small, Current=False, State=Disabled` (proti `Size=Small, Current=False, State=Default`) | `~ label: fill=text/disabled` |
+| `Size=Small, Current=True, State=Default` | `~ .: s=56x13`<br>`~ label: s=56x13; fill=text/primary; f=Inter Medium 11/13 LT WIDTH_AND_HEIGHT` |
+| `Size=Small, Current=True, State=Disabled` (proti `Size=Small, Current=True, State=Default`) | `~ label: fill=text/disabled` |
+
+**Poznámky**
+
+- Kořen: velikost `hug/hug`, ořez obsahu ne, obrys (jen Focus, `OUTSIDE`) rozložení neovlivní. Bez výplně ve všech stavech.
+- Odpovídá `PDFComponentPainter::paintPathSegment` (`pdfcomponentpaintersections.cpp`): odkaz `text/accent`, stisk `text/accent-pressed`, podtržení pod ukazatelem a při stisku, fokus `paintFocusRingOutside` s poloměrem 4 (`PATH_RADIUS`) bez podtržení, zakázaný `text/disabled`; aktuální segment `text/primary`, bez fokusu.
+- Výška řádku je pevná: 16 (`PATH_LINE_DEFAULT`) a 13 (`PATH_LINE_SMALL`). **Rozdíl proti rámci:** texty `isolation-bar` (`1647:42965`) mají automatickou výšku řádku (15 px); nakresleno podle kódu (16). Malá velikost (13) odpovídá `breadcrumb` (`1647:21730`).
+- Prototyp: `Current=False, State=Default` obou velikostí má `ON_HOVER` → Hover a `ON_PRESS` → Pressed (`CHANGE_TO`), jako Text link.
+- Žádná barva mimo proměnné. Žádná vnořená komponenta.
+
+### Path bar · `1662:1751`
+
+Sada 6 variant · výchozí varianta `Size=Default, Form=Full, State=Default` · rozměr 924×105 · nová 27. 11. 2026 (Edit Content, etapa E1)
+
+Popis ve Figmě: „Breadcrumbs without routes (PDFPathBar): the path from the root to the current level, e.g. the isolation bar of a group of Edit Content ("Page 3 > Chart area > Revenue chart") and, in Size=Small, the path of types of the Selection card. The segments are exposed Path segment instances (data, taken literally): every segment but the last is a link, the last one is the current segment. Between them chevron-right 10 px in icon/muted, 8 px (Default) / 4 px (Small) from the segments. Form=Shortened: when the width does not fit, segments after the first are hidden behind an ellipsis (text/tertiary, the font of a link); the first and the last segment always stay and the segments near the current one stay longest; if not even "first > ... > last" fits, the first and then the last segment are elided as texts. State=Disabled: segments Disabled (text/disabled), chevrons icon/disabled, ellipsis text/disabled. Keyboard: each shown link is a Tab stop (keyboard focus only), Left / Right move between the links, Home / End to the first / last, Space / Enter activate.“
+
+**Vlastnosti**
+
+| Vlastnost | Typ | Hodnoty (výchozí tučně) |
+| --- | --- | --- |
+| Size | varianta | **Default**, Small |
+| Form | varianta | **Full**, Shortened |
+| State | varianta | **Default**, Disabled (jen `Form=Full`) |
+
+**Stavba výchozí varianty**
+
+```text
+C 'Size=Default, Form=Full, State=Default' 236x16 lay=H gap8 pad0,0,0,0 MIN/CENTER; z=hug/hug
+ I 'segment-1' 40x16 lay=H gap0 pad0,0,0,0 MIN/MIN; z=hug/hug; rad=4; inst=Path segment{Size=Default, Current=False, State=Default} [Label='Page 3'] ov:height,name,width; exp=1
+ I 'separator' 10x10 z=fix/fix; ic=icon/chevron-right stroke=icon/muted w2
+ I 'segment-2' 60x16 lay=H gap0 pad0,0,0,0 MIN/MIN; z=hug/hug; rad=4; inst=Path segment{Size=Default, Current=False, State=Default} [Label='Chart area'] ov:name; exp=1
+ I 'separator' 10x10 z=fix/fix; ic=icon/chevron-right stroke=icon/muted w2
+ I 'segment-current' 84x16 lay=H gap0 pad0,0,0,0 MIN/MIN; z=hug/hug; rad=4; inst=Path segment{Size=Default, Current=True, State=Default} [Label='Revenue chart'] ov:height,name,width; exp=1
+```
+
+**Varianty a stavy**
+
+| Varianta | Změna |
+| --- | --- |
+| `Size=Default, Form=Shortened, State=Default` | `~ .: s=258x16`<br>`+ ellipsis: T 10x16 z=hug/hug; fill=text/tertiary; f=Inter Regular 12/16 LT WIDTH_AND_HEIGHT; tx='…'`<br>`+ segment-3: I 46x16 … inst=Path segment{Size=Default, Current=False, State=Default} [Label='Group 2']; exp=1`<br>`+ separator#3: I 10x10 z=fix/fix; ic=icon/chevron-right stroke=icon/muted w2`<br>`- segment-2` |
+| `Size=Default, Form=Full, State=Disabled` | `~ segment-1`, `segment-2`, `segment-current`: `inst=Path segment{…, State=Disabled}`<br>`~ separator#1`, `separator#2`: `ic=icon/chevron-right stroke=icon/disabled w2` |
+| `Size=Small, Form=Full, State=Default` | `~ .: s=205x13; lay=H gap4 pad0,0,0,0 MIN/CENTER`<br>`~ segment-1: s=37x13`, `segment-2: s=55x13`, `segment-current: s=77x13`; všechny `inst=Path segment{Size=Small, …}` |
+| `Size=Small, Form=Shortened, State=Default` | `~ .: s=220x13; lay=H gap4 pad0,0,0,0 MIN/CENTER`<br>`+ ellipsis: T 10x13 z=hug/hug; fill=text/tertiary; f=Inter Regular 11/13 LT WIDTH_AND_HEIGHT; tx='…'`<br>`+ segment-3: I 42x13 … [Label='Group 2']; exp=1`<br>`+ separator#3`<br>`- segment-2` |
+| `Size=Small, Form=Full, State=Disabled` (proti `Size=Small, Form=Full, State=Default`) | segmenty `State=Disabled`, oddělovače `stroke=icon/disabled w2` |
+
+**Poznámky**
+
+- Kořen: velikost `hug/hug`, ořez obsahu ne (kroužek fokusu segmentu leží vně), bez výplně.
+- Odpovídá `PDFPathBar` (`pdfcomponentsections.cpp`, `computeLayout`): mezi každými dvěma položkami (i u výpustky) je šipka 10×10 (`PATH_SEPARATOR`) s mezerou 8 / 4 na obou stranách (`PATH_SPACING_DEFAULT` / `_SMALL`), šipka `icon/muted` (zakázaná `icon/disabled`), výpustka „…“ písmem odkazu v `text/tertiary`. Zkrácená podoba skrývá segmenty od druhého; první a poslední zůstávají vždy. Ukázka: „Page 3 › Chart area › Legend › Group 2 › Revenue chart“ zkrácená na „Page 3 › … › Group 2 › Revenue chart“.
+- Segmenty jsou vystavené instance Path segment: text i stav (např. Hover nebo Focus jednoho odkazu) se nastavují na instanci lišty.
+- **Rozdíl proti rámci:** `isolation-bar` (`1647:42965`) obsahuje kromě cesty ikonu `icon/group-enter`, Tag, rozpěrku a tlačítko „Leave group“ – ty nejsou součástí `PDFPathBar`, komponenta je jen cesta. Zkrácenou podobu ani zakázaný stav rámce nekreslí; nakresleno podle kódu.
+- Žádná barva mimo proměnné.
+
+### Row toggle action · `1662:1782`
+
+Sada 10 variant · výchozí varianta `Checked=False, State=Default` · rozměr 244×112 · nová 27. 11. 2026 (Edit Content, etapa E1)
+
+Popis ve Figmě: „On / off action of a row of a list or tree (PDFRowDelegate toggle action), e.g. Hide (Icon eye, Checked icon eye-off) and Lock (Icon unlock, Checked icon lock) of a row of the Objects tab of Edit Content. 20 x 20 hit area, 12 px icon centered, no background in any state. Checked=True (on) is shown permanently; Checked=False (off) is shown only while the row is under the pointer or has the focus ring (State=Default of the off action draws nothing; Row hover shows it). Icon colors: icon/muted at rest and in a hovered row, icon/default under the pointer (Hover), icon/strong pressed, icon/disabled disabled (no opacity). Icon is the icon of the off state, Checked icon the icon of the on state. The action has no focus ring of its own: the focus ring belongs to the row; in the context menu of the row the action is a checkable entry with its state.“
+
+**Vlastnosti**
+
+| Vlastnost | Typ | Hodnoty (výchozí tučně) |
+| --- | --- | --- |
+| Icon | záměna instance | **icon/eye** |
+| Checked icon | záměna instance | **icon/eye-off** |
+| Checked | varianta | **False**, True |
+| State | varianta | **Default**, Row hover, Hover, Pressed, Disabled |
+
+**Stavba výchozí varianty**
+
+```text
+C 'Checked=False, State=Default' 20x20 lay=H gap0 pad0,0,0,0 CENTER/CENTER; z=fix/fix
+ I 'icon' 12x12 hid=1; z=fix/fix; clip=1; ref=mainComponent:Icon; ic=icon/eye stroke=icon/muted w2
+```
+
+**Varianty a stavy**
+
+| Varianta | Změna |
+| --- | --- |
+| `Checked=False, State=Row hover` | `~ icon: hid=-` |
+| `Checked=False, State=Hover` | `~ icon: hid=-; ic=icon/eye stroke=icon/default w2` |
+| `Checked=False, State=Pressed` | `~ icon: hid=-; ic=icon/eye stroke=icon/strong w2` |
+| `Checked=False, State=Disabled` | `~ icon: hid=-; ic=icon/eye stroke=icon/disabled w2` |
+| `Checked=True, State=Default` | `~ icon: hid=-; ref=mainComponent:Checked icon; ic=icon/eye-off stroke=icon/muted w2` |
+| `Checked=True, State=Row hover` (proti `Checked=True, State=Default`) | beze změny |
+| `Checked=True, State=Hover` (proti `Checked=True, State=Default`) | `~ icon: ic=icon/eye-off stroke=icon/default w2` |
+| `Checked=True, State=Pressed` (proti `Checked=True, State=Default`) | `~ icon: ic=icon/eye-off stroke=icon/strong w2` |
+| `Checked=True, State=Disabled` (proti `Checked=True, State=Default`) | `~ icon: ic=icon/eye-off stroke=icon/disabled w2` |
+
+**Poznámky**
+
+- Kořen: velikost `fix/fix` 20×20, ořez obsahu ne, bez výplně a obrysu ve všech stavech.
+- Odpovídá `PDFComponentPainter::paintRowToggleAction` (ikona 12, `TOGGLE_ICON`; `icon/muted`, pod ukazatelem `icon/default`, stisk `icon/strong`, zakázaná `icon/disabled`) a `PDFRowDelegate::isActionShown` (zapnutá akce vždy, vypnutá jen v řádku pod ukazatelem nebo s kroužkem fokusu, nebo když je pod ukazatelem či stisknutá sama). `State=Row hover` je řádek pod ukazatelem nebo s fokusem, akce sama v klidu.
+- Ikona stavu: `Checked=False` je vázaná na `Icon`, `Checked=True` na `Checked icon` (v kódu `Action::iconName` a `checkedIconName`); dvě vlastnosti proto, že vlastnost záměny instance má jednu výchozí hodnotu pro celou sadu. Galerie a testy: Hide = `eye` / `eye-off`, Lock = `unlock` / `lock`.
+- Vlastní komponenta, ne varianta Icon button `706:147674`: zapnutí / vypnutí by potřebovalo novou osu variant (přejmenování všech variant Icon buttonu) a Icon button má v Hover a Pressed pozadí, akce řádku žádné.
+- **Rozdíl proti rámci:** v řádcích `edit-content-v2-objects-nested` (`1647:22603`, `1647:22644`, `1647:22666`) jsou holé ikony 12×12 bez plochy pro klik; obdélník akce určuje v kódu volající (galerie a testy 20×20), komponenta proto kreslí 20×20 s ikonou 12 uprostřed.
+- Prototyp: `State=Row hover` obou hodnot `Checked` má `ON_HOVER` → Hover a `ON_PRESS` → Pressed.
+- Žádná barva mimo proměnné.
 
 ## 7. Ukázkové rámce sekce
 

@@ -49,7 +49,10 @@ namespace pdf
 ///     stage E3);
 ///   - pages, depth, offset, maximumObjects (mode list: the pages, the depth of the listing and
 ///     its paging);
-///   - skipPages (PageSelection, panels only: pages left out after an error of writing).
+///   - skipPages (PageSelection, panels only: pages left out after an error of writing);
+///   - the options of the display of the editor (PARAMETER_SHOW_RULERS ... PARAMETER_LEFT_TAB;
+///     zadani_gui.md 4.26): stored as the last values of the tool, given only by the panels,
+///     never in MCP; apply and list do not read them.
 ///
 /// Run (apply): the snapshot of session, or a session of its own over the input document, which
 /// loads the touched containers in this thread and replays the script. Every container of the
@@ -97,6 +100,38 @@ public:
     static constexpr const char* PARAMETER_MAXIMUM_OBJECTS = "maximumObjects";
     static constexpr const char* PARAMETER_SKIP_PAGES = "skipPages";
 
+    /// Names of the stored options of the display of the editor (zadani_gui.md 4.26; the names
+    /// of PDFAppEditContentOptions). Bool unless said otherwise.
+    static constexpr const char* PARAMETER_SHOW_RULERS = "showRulers";                  ///< Default false
+    static constexpr const char* PARAMETER_SHOW_GRID = "showGrid";                      ///< Default false
+    static constexpr const char* PARAMETER_SHOW_GUIDES = "showGuides";                  ///< Default true
+    static constexpr const char* PARAMETER_SHOW_CLIPPING_PATHS = "showClippingPaths";   ///< Default false
+    static constexpr const char* PARAMETER_SHOW_INVISIBLE_TEXT = "showInvisibleText";   ///< Default false
+    static constexpr const char* PARAMETER_SHOW_ANNOTATIONS = "showAnnotations";        ///< Default true
+    static constexpr const char* PARAMETER_SHOW_READING_ORDER = "showReadingOrder";     ///< Default false
+    static constexpr const char* PARAMETER_SNAP_TO_OBJECTS = "snapToObjects";           ///< Default true
+    static constexpr const char* PARAMETER_SNAP_TO_GRID = "snapToGrid";                 ///< Default true (the grid and the guides)
+    static constexpr const char* PARAMETER_UNITS = "units";                             ///< Enum UNITS_*; default UNITS_POINTS
+    static constexpr const char* PARAMETER_GRID_SPACING = "gridSpacing";                ///< Real, points, MINIMUM_GRID_SPACING ... MAXIMUM_GRID_SPACING; default 36
+    static constexpr const char* PARAMETER_GRID_ORIGIN = "gridOrigin";                  ///< Enum GRID_ORIGIN_*; default GRID_ORIGIN_BOTTOM_LEFT
+    static constexpr const char* PARAMETER_PREVIEW_OVERPRINT = "previewOverprint";      ///< Default true
+    static constexpr const char* PARAMETER_PREVIEW_ANNOTATIONS = "previewAnnotations";  ///< Default true
+    static constexpr const char* PARAMETER_PREVIEW_PAPER_COLOR = "previewPaperColor";   ///< String "#rrggbb" (the panels read it); default "#ffffff"
+    static constexpr const char* PARAMETER_LEFT_TAB = "leftTab";                        ///< String, the id of the tab of the left panel; default "objects"
+
+    /// Values of the parameter units
+    static constexpr const char* UNITS_POINTS = "pt";
+    static constexpr const char* UNITS_MILLIMETERS = "mm";
+    static constexpr const char* UNITS_INCHES = "in";
+
+    /// Values of the parameter gridOrigin
+    static constexpr const char* GRID_ORIGIN_BOTTOM_LEFT = "bottom-left";
+    static constexpr const char* GRID_ORIGIN_TOP_LEFT = "top-left";
+
+    /// Range of the parameter gridSpacing (points)
+    static constexpr double MINIMUM_GRID_SPACING = 1.0;
+    static constexpr double MAXIMUM_GRID_SPACING = 1000.0;
+
     /// Values of the parameter mode
     static constexpr const char* MODE_APPLY = "apply";
     static constexpr const char* MODE_LIST = "list";
@@ -106,6 +141,7 @@ public:
 
     /// Names of the data of the result (MCP)
     static constexpr const char* DATA_PAGES_CHANGED = "pagesChanged";       ///< apply: numbers of the written pages from 1
+    static constexpr const char* DATA_PAGES_CHANGED_INCOMPLETE = "pagesChangedIncomplete";  ///< apply: true, when a changed form or pattern was written and the document nests its resources too deep to find every page using it (pagesChanged may miss some); only present then
     static constexpr const char* DATA_OBJECTS_ADDED = "objectsAdded";
     static constexpr const char* DATA_OBJECTS_EDITED = "objectsEdited";
     static constexpr const char* DATA_OBJECTS_REMOVED = "objectsRemoved";

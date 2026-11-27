@@ -174,7 +174,14 @@ private:
     using BaseClass = QStyledItemDelegate;
 
 public:
-    /// Action inside of an item
+    /// Action inside of an item. A toggle action (\p checkable: the eye and the
+    /// lock of a row of the objects of Edit Content, edit-content-v2-objects-nested
+    /// 1647:22520) has an on / off state: while it is on, its icon is shown
+    /// permanently (a locked or hidden object), while it is off only under the
+    /// pointer, with the keyboard focus of the item or while the action itself is
+    /// hovered or pressed (\p isActionShown). In the context menu it is a checkable
+    /// entry with its state. A toggle with a \p role writes the new state (bool,
+    /// !checked) into the model and emits actionTriggered (\p triggerAction).
     struct Action
     {
         int id = -1;                ///< Identifier of the action (of the delegate)
@@ -183,7 +190,18 @@ public:
         QString toolTip;            ///< Tooltip of the action
         QKeySequence shortcut;      ///< Shortcut on the current item (optional)
         bool enabled = true;
+        bool checkable = false;     ///< Toggle action with the state \p checked
+        bool checked = false;       ///< State of a toggle action (on: shown permanently)
+        QString iconName;           ///< Icon of a toggle action drawn by \p paintToggleActions (off state)
+        QString checkedIconName;    ///< Icon of the on state (empty: \p iconName)
+        int role = -1;              ///< Role of the model, into which a toggle writes its new state (bool); -1: only the signal
     };
+
+    /// Returns true, if the action is drawn in the item of the state: an action,
+    /// which is not a toggle, and a toggle, which is on, always; a toggle, which is
+    /// off, only while the item is hovered or has the visible focus ring, or while
+    /// the action is hovered or pressed (\p actionFlags of \p getActionFlags)
+    static bool isActionShown(const Action& action, const PDFComponentPainter::State& itemState, QStyle::State actionFlags);
 
     explicit PDFRowDelegate(QObject* parent = nullptr);
     virtual ~PDFRowDelegate() override;
@@ -296,7 +314,13 @@ protected:
     virtual QSize getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const = 0;
 
     /// Performs the action, which \p triggerAction has checked. The default emits \p actionTriggered.
+    /// A toggle action with a role is not passed here (\p triggerAction writes its state).
     virtual void performAction(QAbstractItemView* view, const QModelIndex& index, int action);
+
+    /// Draws the toggle actions of the item, which are shown (\p isActionShown), by
+    /// PDFComponentPainter::paintRowToggleAction into their rectangles: a subclass
+    /// with toggles calls it from \p paintItem after the content of the item
+    void paintToggleActions(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& itemState) const;
 
     /// Writes the value of an action into the model and performs the action by the
     /// base class: a model, which does not accept the value, keeps the item, the

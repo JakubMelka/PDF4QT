@@ -29,6 +29,27 @@ Section 7: Issues
    from an old file keeps the changed bytes, when the file is written again.
  - 7.4.7 JBIG2 decoder ammendments 1 and 2 not implemented
  - 7.6.7 Unencrypted wrapper document not implemented
+ - 7.8.3 A form XObject, a glyph procedure of a Type 3 font, a cell of a
+   tiling pattern or an annotation appearance without /Resources: the
+   standard says, that its names "shall be inherited from the resource
+   dictionary of the page on which they are used" (7.8.3; Table 93, Table
+   110 and 9.6.4 d say the same). PDF4QT looks a name up in the content,
+   which draws it, first (its own resources, or what that content inherits
+   itself), and only a name that content does not define in the resources of
+   the page - a deliberate deviation (owner's decision of 2026-11-27), as
+   PDFium (CPDF_Form: its own, the parent's, the page's), pdf.js (the
+   caller's resources) and MuPDF (the current resources) do, and as PDF4QT
+   did before, except for the fallback to the page, which is new. The two
+   rules differ only for such content drawn by a content with resources of
+   its own (a form, a pattern, a Type 3 font, an annotation appearance),
+   when both define one name with different objects. Content with resources
+   of its own uses them alone. Above 1 048 576 entries of such merged
+   dictionaries in one page the names of the drawing content alone are used
+   (a limit of the implementation). The content tree of Edit Content reads
+   such content by the same rule, and its writer writes a changed one only
+   when every place drawing it gives each name it uses the same object. A
+   pattern and an annotation appearance shall have /Resources (Table 74,
+   7.8.3); one without them is read by the same rule
  - 7.10.2 Only linear interpolation for sampled function is performed
 
 Section 8: Issues

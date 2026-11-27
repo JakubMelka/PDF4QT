@@ -303,6 +303,22 @@ public:
         return connectRequest(begin(receiver, parent, getOpenInputFileNamesSettings(folder), Handler::OpenFiles), receiver, slot);
     }
 
+    /// One image of the folder (the tool Image and Replace… of Edit Content): the files of getImageFilter; the file
+    /// to the slot, empty = canceled. The handler of the open files answers it in the tests (its first file).
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenImageFileName(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenImageFileNamesSettings(folder, false), Handler::OpenFiles), receiver, slot);
+    }
+
+    /// Images of the folder (multi-select; the files to the slot, empty = canceled); the handler of the open files
+    /// answers it in the tests
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenImageFileNames(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QStringList&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenImageFileNamesSettings(folder, true), Handler::OpenFiles), receiver, slot);
+    }
+
     /// Add… of Pinned Locations: a folder (the folder to the slot, empty = canceled)
     template<typename Receiver>
     static PDFAppFileDialogRequest* requestExistingDirectory(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QString&))
@@ -352,6 +368,9 @@ public:
     static PDFAppFileDialogRequest::Settings getOpenFileNamesSettings(const QString& folder);
     static PDFAppFileDialogRequest::Settings getOpenDocumentFileNamesSettings(const QString& folder);
     static PDFAppFileDialogRequest::Settings getOpenInputFileNamesSettings(const QString& folder);
+
+    /// \p isMultiple - more files (the mode OpenFiles, requestOpenImageFileNames), else one file (OpenFile)
+    static PDFAppFileDialogRequest::Settings getOpenImageFileNamesSettings(const QString& folder, bool isMultiple);
     static PDFAppFileDialogRequest::Settings getExistingDirectorySettings(const QString& folder, const QString& title);
     static PDFAppFileDialogRequest::Settings getSaveFileNameSettings(const QString& filePath);
     static PDFAppFileDialogRequest::Settings getSaveBackupFileNameSettings(const QString& filePath);
@@ -361,6 +380,10 @@ public:
     /// The filter of requestOpenDocumentFileNames: PDF files and assemblies together first, then each
     /// of them alone, then all files
     static QString getOpenDocumentFilter();
+
+    /// The filter of the dialogs of images: one entry with a pattern "*.<format>" for every format QImageReader
+    /// reads (QImageReader::supportedImageFormats, in its order), then all files
+    static QString getImageFilter();
 
     /// Handlers replacing the dialogs (tests); an empty handler restores the dialog. The handler set at the request
     /// answers it, from the event loop (never inside the request call).

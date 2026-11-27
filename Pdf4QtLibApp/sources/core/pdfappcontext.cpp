@@ -28,6 +28,7 @@
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
+#include "pdfapptoolgui_content.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfapptranslator.h"
 #include "pdfqtspeechsynthesizer.h"
@@ -251,10 +252,17 @@ void PDFAppContext::open(PDFDatabaseOptions options)
     // The MCP server (step 7): started here when mcp.startWithApp is on
     m_mcpController = new PDFAppMcpController(this, this);
     m_mcpController->initialize();
+
+    // The tools behind the developer switch (MCP follows the registry by its listener)
+    applyDeveloperTools();
 }
 
 void PDFAppContext::close()
 {
+    // The tools behind the developer switch go with the storage, whose setting registered them (an open tool keeps
+    // its shell until it closes)
+    PDFAppToolGUIContent::registerContentTools(false);
+
     // The MCP server first (plan of step 7, 2.6): the server stops, the pending
     // confirmations are denied, the jobs end, the host is destroyed and the row
     // of the server is released - while the database is still open
@@ -482,6 +490,18 @@ void PDFAppContext::onSettingChanged(const QString& topic, const QString& key)
     {
         applyRecentLimit();
     }
+    else if (topic == PDFSettingsRepository::getTopic() && key == PDFSettingKeys::advancedDeveloperMode())
+    {
+        applyDeveloperTools();
+    }
+}
+
+void PDFAppContext::applyDeveloperTools()
+{
+    // zadani.md 11.2 (Uvolnění), QE.13: Edit Content is registered only with the developer mode on until its release.
+    // A tool open in a tab stays open, when the setting is switched off: its shell holds its GUI; a new entry of
+    // its route finds Page Not Found.
+    PDFAppToolGUIContent::registerContentTools(m_database && getSettings().getBool(PDFSettingKeys::advancedDeveloperMode()));
 }
 
 void PDFAppContext::onEverythingChanged()
@@ -489,6 +509,7 @@ void PDFAppContext::onEverythingChanged()
     applyAuthorSettings();
     applyColorScheme();
     applyLanguage();
+    applyDeveloperTools();
 
     // No applyRecentLimit: a write here would make the notifier poll at once (the
     // limit is applied, when the setting changes, and at every recording)

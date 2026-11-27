@@ -130,7 +130,9 @@ public:
     /// The last apply refused the command for the one reason that it changes nothing: the model
     /// is what the command asks for already (a reorder of nodes to the place where they are
     /// painted, a Clear Page of a page without content, a transform or a change of the
-    /// appearance of objects, which hold nothing the command changes).
+    /// appearance of objects, which hold nothing the command changes, a transform by the
+    /// identity matrix, an appearance or a transparency every object already has -
+    /// PDFContentStateValue::isEqual).
     /// False before the first apply, after an apply, which succeeded, and after every other
     /// refusal (an object, which does not exist, a rule of the content, a limit). In the GUI such
     /// a command is refused with its text like any other; the replay of a script takes it for a
@@ -160,6 +162,20 @@ public:
     /// The command as an operation of a script of MCP (the object has "type" and the fields
     /// of the command; PDFContentJson writes identifiers and values)
     virtual QJsonObject toJson() const = 0;
+
+    /// The number of the items the command keeps for undo and redo: the nodes and the places of
+    /// children it changed, copies of node data, operations, resource entries, the touched
+    /// parts of the structure (PDFContentContainerDifference::getStoredItemCount). It is
+    /// proportional to what the command changed, never to the size of a container: a measure of
+    /// the memory of an undo step, which does not depend on the allocator. A command, which
+    /// keeps nothing, has 0 (the default).
+    virtual size_t getStoredItemCount() const;
+
+    /// The new objects of the session (PDFContentEditSession::addNewObject), which the command
+    /// has created and still names. When the command leaves the undo stack while it is undone
+    /// (a new command drops the steps behind the position), nothing refers to them any more and
+    /// the session drops them. None by default.
+    virtual std::vector<PDFObjectReference> getNewObjects() const;
 
     /// What the last apply or revert changed
     const PDFContentChange& getChange() const { return m_change; }
@@ -266,8 +282,15 @@ public:
     /// Copies subtrees, also to another container (Duplicate, Paste; R-2, R-4, R-5; the copy has
     /// no structure tags and keeps its layer inside of the same document: the optional content
     /// wraps around the source, which are not around the target place, are copied around the
-    /// copy). Refused: a place inside of tagged content (the copy would become content of that
-    /// structure element); the use of a form placed into that form or into a form it draws.
+    /// copy). A place inside of tagged content is taken out of it, because the copy has no tag:
+    /// the sequence of the structure is split around the copy (the part in front keeps its
+    /// identifier, the rest gets a new one of the same element, right behind it in the reading
+    /// order), at the beginning or at the end of the sequence the copy goes in front of or
+    /// behind it - so the copies are children of the parent of the sequence then, not of
+    /// \p parent. Refused: a place in a group inside of tagged content; a sequence the
+    /// structure model cannot split; the place behind a text, which is not closed in the
+    /// content and adds to the clipping path; the use of a form placed into that form or into
+    /// a form it draws.
     /// \param nodes Nodes of one container
     /// \param parent The parent of the copies
     /// \param index Index among the children of the parent as they are before the command, -1 =

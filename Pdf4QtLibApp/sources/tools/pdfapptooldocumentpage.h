@@ -102,6 +102,18 @@ public:
     /// The end of the leave without a flow (PDFDocumentToolShell::finishLeave; false never asks)
     virtual bool finishLeave(bool isProceeding) override;
 
+    /// The commands of the tab, which the open tool takes (PDFDocumentToolShell::getDocumentCommandState /
+    /// handleDocumentCommand; zadani_gui.md 4.20, way 2)
+    virtual bool isDocumentCommandHandled(const QString& commandId, bool* isEnabled) const override;
+    virtual bool handleDocumentCommand(const QString& commandId) override;
+
+    /// The save question of the open tool (PDFDocumentToolShell::hasSaveQuestion / requestSaveQuestion; zadani.md KE.3)
+    virtual bool hasSaveQuestion() const override;
+    virtual bool requestSaveQuestion(const QString& commandId) override;
+
+    /// The open tool defers the automatic refresh of the document (PDFDocumentToolShell::isDocumentReloadDeferred)
+    virtual bool isDocumentReloadDeferred() const override;
+
     /// The route of the tool: the view is not a part of it
     virtual PDFAppRoute getCurrentRoute() const override;
 

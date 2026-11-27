@@ -676,6 +676,20 @@ void PDFAppDocumentTab::stopOperations(bool askedOnly)
 
 bool PDFAppDocumentTab::executeCommand(const QString& commandId)
 {
+    // The shown page is asked first (a tool with its own canvas takes the zoom, the pages, the clipboard and Find
+    // while it is open; zadani_gui.md 4.20, way 2): a command the page handles is the page's alone - disabled, it
+    // is not executed by the handler of the document either. A page, which handles nothing (every page but such a
+    // tool), changes nothing here.
+    if (PDFAppPage* page = getPage())
+    {
+        bool isEnabled = false;
+        if (page->isDocumentCommandHandled(commandId, &isEnabled))
+        {
+            // The last call: the page may delete itself, the tab or the window
+            return isEnabled && page->handleDocumentCommand(commandId);
+        }
+    }
+
     PDFAppDocumentCommandHandler* handler = findHandler(commandId);
     if (!handler || !handler->isEnabled(commandId))
     {
@@ -689,6 +703,16 @@ bool PDFAppDocumentTab::executeCommand(const QString& commandId)
 
 bool PDFAppDocumentTab::isCommandEnabled(const QString& commandId) const
 {
+    // The shown page first, as executeCommand
+    if (const PDFAppPage* page = getPage())
+    {
+        bool isEnabled = false;
+        if (page->isDocumentCommandHandled(commandId, &isEnabled))
+        {
+            return isEnabled;
+        }
+    }
+
     PDFAppDocumentCommandHandler* handler = findHandler(commandId);
     return handler && handler->isEnabled(commandId);
 }
