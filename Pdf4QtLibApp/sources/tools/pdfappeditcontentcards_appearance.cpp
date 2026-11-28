@@ -43,7 +43,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <map>
+#include <memory>
 
 namespace pdf
 {
@@ -224,9 +226,49 @@ public:
     /// CMYK by the default black generation min(C, M, Y) and the full undercolor removal)
     static std::vector<PDFReal> convert(const QColor& color, const QByteArray& space)
     {
-        const PDFReal r = color.redF();
-        const PDFReal g = color.greenF();
-        const PDFReal b = color.blueF();
+        return convert(color.redF(), color.greenF(), color.blueF(), space);
+    }
+
+    /// The color in another device space (R7-2). A color of a device space is converted from its components by ISO
+    /// 32000-2, 10.4.2: gray -> RGB r = g = b = gray (10.4.2.2), gray -> CMYK (0, 0, 0, 1 - gray) (10.4.2.3), RGB ->
+    /// gray 0.3 R + 0.59 G + 0.11 B (10.4.2.2), RGB -> CMYK by the black generation k = min(C, M, Y) and the full
+    /// undercolor removal (10.4.2.4), CMYK -> RGB r = 1 - min(1, C + K) ... (10.4.2.5), CMYK -> gray 1 - min(1, 0.3 C +
+    /// 0.59 M + 0.11 Y + K) (10.4.2.3); a color of another space (ICC, Lab, a separation) from its display color.
+    static std::vector<PDFReal> convert(const PDFAppEditContentPaintColor& color, const QByteArray& space)
+    {
+        const std::vector<PDFReal>& c = color.components;
+        if (color.space == "DeviceGray" && c.size() == 1)
+        {
+            if (space == "DeviceRGB")
+            {
+                return { round(c[0]), round(c[0]), round(c[0]) };
+            }
+            if (space == "DeviceCMYK")
+            {
+                return { 0.0, 0.0, 0.0, round(1.0 - c[0]) };
+            }
+        }
+        if (color.space == "DeviceRGB" && c.size() == 3)
+        {
+            return convert(c[0], c[1], c[2], space);
+        }
+        if (color.space == "DeviceCMYK" && c.size() == 4)
+        {
+            if (space == "DeviceGray")
+            {
+                return { round(1.0 - std::min(1.0, 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2] + c[3])) };
+            }
+            if (space == "DeviceRGB")
+            {
+                return { round(1.0 - std::min(1.0, c[0] + c[3])), round(1.0 - std::min(1.0, c[1] + c[3])), round(1.0 - std::min(1.0, c[2] + c[3])) };
+            }
+        }
+        return convert(color.color, space);
+    }
+
+    /// An RGB color in a device space (see convert above)
+    static std::vector<PDFReal> convert(PDFReal r, PDFReal g, PDFReal b, const QByteArray& space)
+    {
         if (space == "DeviceGray")
         {
             return { round(0.3 * r + 0.59 * g + 0.11 * b) };
@@ -246,6 +288,27 @@ public:
     static PDFReal round(PDFReal value)
     {
         return std::round(value * 10000.0) / 10000.0;
+    }
+
+    /// The scale of a line width under the matrix (R7-6: a width in the space of the node -> the width on the page): the
+    /// square root of |det| - exact for a uniform scale (a rotation, a mirror, the same scale in x and y); \p isUniform
+    /// false, when the matrix scales differently by the direction (its two singular values differ; ISO 32000-2, 8.4.3.2:
+    /// the line width is a length of the user space)
+    static double getLineScale(const QTransform& matrix, bool* isUniform)
+    {
+        const double a = matrix.m11();
+        const double b = matrix.m12();
+        const double c = matrix.m21();
+        const double d = matrix.m22();
+        const double determinant = a * d - b * c;
+        const double sum = a * a + b * b + c * c + d * d;
+
+        // The singular values s1, s2: s1^2 + s2^2 = sum, s1 x s2 = |det|; they are equal iff sum^2 = 4 det^2
+        if (isUniform)
+        {
+            *isUniform = std::abs(sum * sum - 4.0 * determinant * determinant) <= 1e-9 * sum * sum;
+        }
+        return std::sqrt(std::abs(determinant));
     }
 
     /// The labels of the components of a device space
@@ -285,18 +348,6 @@ public:
         value.kind = PDFContentStateValue::Kind::Integer;
         value.integer = integer;
         return value;
-    }
-
-    /// The references of the selected nodes
-    static std::vector<PDFContentNodeReference> getReferences(const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes)
-    {
-        std::vector<PDFContentNodeReference> references;
-        references.reserve(nodes.size());
-        for (const PDFAppEditContentCardTools::SelectedNode& node : nodes)
-        {
-            references.push_back(node.reference);
-        }
-        return references;
     }
 
     /// The selection has a painted leaf (the card Fill and stroke is shown)
@@ -403,9 +454,12 @@ public:
     std::vector<PDFLabel*> labels;
     std::vector<PDFDoubleSpinBox*> fields;
 
-    PDFAppEditContentMixedValue<PDFAppEditContentPaintColor> color;     ///< Of the leaves with the paint (updateCard)
+    QString title;                      ///< "Fill", "Stroke" (translated; the accessible names of the values, R7-13)
+
+    PDFAppEditContentMixedValue<PDFAppEditContentPaintColor> color;     ///< Of the leaves with the paint, else of all (the color a switch on uses, R-1)
     PDFAppEditContentMixedValue<QByteArray> colorSpace;                 ///< Their color spaces
-    bool isPainted = false;     ///< Some leaf has the paint
+    bool isPainted = false;                 ///< Some leaf has the paint
+    Qt::CheckState shownState = Qt::Unchecked;  ///< The state of the check box the objects have (updateCard)
 };
 
 /// The card Fill and stroke in the device color spaces (stage E1; stage E4, P41, replaces the entry)
@@ -430,7 +484,7 @@ public:
         widthLayout->setContentsMargins(0, 0, 0, 0);
         widthLayout->setSpacing(8);
         widthLayout->addWidget(new PDFLabel(tr("Width"), PDFThemeFonts::Role::Small, PDFThemeColors::TextSecondary, m_widthRow), 1);
-        m_width = PDFAppEditContentAppearanceHelper::createRealField(m_widthRow, 0.0, 1000.0, 2, 0.25, PDFAppEditContentCardTools::getUnitSuffix(nullptr));
+        m_width = PDFAppEditContentAppearanceHelper::createRealField(m_widthRow, 0.0, 1000.0, 2, 0.25, PDFAppEditContentCardTools::getUnitSuffix(context));
         m_width->setObjectName(QStringLiteral("editContentStrokeWidth"));
         m_width->setAccessibleName(tr("Width"));
         m_width->setTrailingZerosHidden(true);
@@ -449,6 +503,10 @@ public:
         m_note->setObjectName(QStringLiteral("editContentFillAndStrokeNote"));
         layout->addWidget(m_note);
         m_section->setContentWidget(content);
+        m_content = content;
+
+        // The expanded part of the stroke (Cap, Join, Miter limit): disabled while no object strokes, not hidden
+        createExpanded();
 
         connect(m_width, &PDFDoubleSpinBox::valueEntered, this, &PDFAppEditContentFillAndStrokeCard::onWidthEntered);
         connect(m_dash, &PDFComboBox::activated, this, &PDFAppEditContentFillAndStrokeCard::onDashActivated);
@@ -463,27 +521,33 @@ public:
             return;
         }
 
+        // The values are read from the inspected nodes (the changeable selection, at most MAXIMUM_INSPECTED_NODES; only
+        // locked objects selected: read only), never the list a command acts on (R7-1, R7-4)
         bool isTruncated = false;
-        m_nodes = PDFAppEditContentCardTools::getSelectedNodes(context, &isTruncated);
+        bool isChangeable = false;
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getInspectedNodes(context, &isTruncated, &isChangeable);
         bool isLeavesTruncated = false;
-        const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(*container, m_nodes, &PDFAppEditContentCardTools::isPaintedLeaf, &isLeavesTruncated);
+        const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(*container, nodes, &PDFAppEditContentCardTools::isPaintedLeaf, &isLeavesTruncated);
         const PDFContentDisplayContext displayContext = PDFAppEditContentCardTools::getDisplayContext(context);
+        const QTransform containerToPage = PDFAppEditContentCardTools::getContainerToDisplayed(context).value_or(QTransform());
+        const double factor = PDFAppEditContentCardTools::getUnitFactor(context);
 
-        // The values of the leaves (bounded by MAXIMUM_INSPECTED_NODES); what is beyond the bound makes them mixed
-        m_fill.color = PDFAppEditContentMixedValue<PDFAppEditContentPaintColor>();
-        m_stroke.color = PDFAppEditContentMixedValue<PDFAppEditContentPaintColor>();
-        m_fill.colorSpace = PDFAppEditContentMixedValue<QByteArray>();
-        m_stroke.colorSpace = PDFAppEditContentMixedValue<QByteArray>();
-        m_fill.isPainted = false;
-        m_stroke.isPainted = false;
-        int fillCount = 0;
-        int strokeCount = 0;
-        PDFAppEditContentMixedValue<double> width;
-        PDFAppEditContentMixedValue<int> dash;
-        PDFAppEditContentMixedValue<int> cap;
-        PDFAppEditContentMixedValue<int> join;
-        PDFAppEditContentMixedValue<double> miterLimit;
+        // The values of the leaves (bounded by MAXIMUM_INSPECTED_NODES); what is beyond the bound makes them mixed. A
+        // paint, which no leaf paints, shows the values of all leaves (the color a switch on uses, R-1), disabled.
+        PDFAppEditContentPaintControls* paints[] = { &m_fill, &m_stroke };
+        PDFAppEditContentMixedValue<PDFAppEditContentPaintColor> allColors[2];
+        PDFAppEditContentMixedValue<QByteArray> allSpaces[2];
+        int paintedCounts[2] = { 0, 0 };
+        for (PDFAppEditContentPaintControls* paint : paints)
+        {
+            paint->color = PDFAppEditContentMixedValue<PDFAppEditContentPaintColor>();
+            paint->colorSpace = PDFAppEditContentMixedValue<QByteArray>();
+            paint->isPainted = false;
+        }
 
+        // The line: of the stroked leaves, else of all; the width in the space of the page (R7-6, QE.6)
+        LineValues stroked;
+        LineValues all;
         for (const PDFContentNodePointer& leaf : leaves)
         {
             const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(*container, leaf->getId(), displayContext);
@@ -492,71 +556,89 @@ public:
                 continue;
             }
 
-            if (PDFAppEditContentAppearanceHelper::hasFill(*leaf, *state))
+            const bool painted[] = { PDFAppEditContentAppearanceHelper::hasFill(*leaf, *state), PDFAppEditContentAppearanceHelper::hasStroke(*leaf, *state) };
+            for (int i = 0; i < 2; ++i)
             {
-                ++fillCount;
-                m_fill.isPainted = true;
-                const PDFAppEditContentPaintColor color = PDFAppEditContentAppearanceHelper::getPaintColor(*leaf, *state, true);
-                m_fill.color.add(color);
-                m_fill.colorSpace.add(color.space);
+                const PDFAppEditContentPaintColor color = PDFAppEditContentAppearanceHelper::getPaintColor(*leaf, *state, i == 0);
+                allColors[i].add(color);
+                allSpaces[i].add(color.space);
+                if (painted[i])
+                {
+                    ++paintedCounts[i];
+                    paints[i]->isPainted = true;
+                    paints[i]->color.add(color);
+                    paints[i]->colorSpace.add(color.space);
+                }
             }
-            if (PDFAppEditContentAppearanceHelper::hasStroke(*leaf, *state))
+
+            all.add(*state, containerToPage);
+            if (painted[1])
             {
-                ++strokeCount;
-                m_stroke.isPainted = true;
-                const PDFAppEditContentPaintColor color = PDFAppEditContentAppearanceHelper::getPaintColor(*leaf, *state, false);
-                m_stroke.color.add(color);
-                m_stroke.colorSpace.add(color.space);
-                width.add(state->lineWidth);
-                dash.add(PDFAppEditContentAppearanceHelper::getDashIndex(state->dashPattern));
-                cap.add(PDFAppEditContentAppearanceHelper::getCapIndex(state->lineCap));
-                join.add(PDFAppEditContentAppearanceHelper::getJoinIndex(state->lineJoin));
-                miterLimit.add(state->miterLimit);
+                stroked.add(*state, containerToPage);
             }
         }
 
         if (isTruncated || isLeavesTruncated)
         {
             // Not every object was read: no value is claimed to be the value of all of them
-            m_fill.color.add(PDFAppEditContentPaintColor{ QByteArray("Other"), { }, QColor() });
-            m_stroke.color.add(PDFAppEditContentPaintColor{ QByteArray("Other"), { }, QColor() });
-            m_fill.colorSpace.add(QByteArray("Other"));
-            m_stroke.colorSpace.add(QByteArray("Other"));
-            width.add(-1.0);
-            dash.add(-1);
-            cap.add(-1);
-            join.add(-1);
-            miterLimit.add(-1.0);
+            for (int i = 0; i < 2; ++i)
+            {
+                paints[i]->color.add(PDFAppEditContentPaintColor{ QByteArray("Other"), { }, QColor() });
+                paints[i]->colorSpace.add(QByteArray("Other"));
+                allColors[i].add(PDFAppEditContentPaintColor{ QByteArray("Other"), { }, QColor() });
+                allSpaces[i].add(QByteArray("Other"));
+            }
+            stroked.addUnknown();
+            all.addUnknown();
         }
 
         const int leafCount = int(leaves.size());
-        updatePaint(&m_fill, fillCount, leafCount);
-        updatePaint(&m_stroke, strokeCount, leafCount);
+        for (int i = 0; i < 2; ++i)
+        {
+            if (!paints[i]->isPainted)
+            {
+                paints[i]->color = allColors[i];
+                paints[i]->colorSpace = allSpaces[i];
+            }
+            updatePaint(paints[i], paintedCounts[i], leafCount);
+        }
 
-        // The stroke rows exist only for a stroked object (-color-cmyk has no Width and no Expand link): the expanded
-        // part is created when a stroke appears and retired when it goes (updateCard runs from the event loop)
-        m_widthRow->setVisible(m_stroke.isPainted);
-        PDFAppEditContentAppearanceHelper::setFieldValue(m_width, width);
-        setComboValue(m_dash, dash);
-        if (m_stroke.isPainted && !m_expanded)
+        // The rows of the stroke: shown, disabled while no object strokes (a switched-off paint, item 1 of FX3)
+        const LineValues& line = m_stroke.isPainted ? stroked : all;
+        m_widthRow->setEnabled(m_stroke.isPainted);
+        m_width->setDisplaySuffix(PDFAppEditContentCardTools::getUnitSuffix(context));
+        if (!m_width->hasFocus())
         {
-            createExpanded();
+            m_width->setValue(line.width.getValue().value_or(0.0) / factor);
+            m_width->setMixed(line.width.isMixed() || line.isUneven);
         }
-        else if (!m_stroke.isPainted && m_expanded)
-        {
-            m_section->setExpandedWidget(nullptr);
-            m_expanded = nullptr;
-        }
+        setComboValue(m_dash, line.dash);
         if (m_expanded)
         {
-            setComboValue(m_cap, cap);
-            setComboValue(m_join, join);
-            PDFAppEditContentAppearanceHelper::setFieldValue(m_miterLimit, miterLimit);
+            m_expanded->setEnabled(m_stroke.isPainted);
+            setComboValue(m_cap, line.cap);
+            setComboValue(m_join, line.join);
+            PDFAppEditContentAppearanceHelper::setFieldValue(m_miterLimit, line.miterLimit);
+        }
+
+        // A selection of locked objects only is shown read only (R7-4)
+        m_content->setEnabled(isChangeable);
+        if (m_expanded)
+        {
+            m_expanded->setEnabled(isChangeable && m_stroke.isPainted);
         }
 
         // The note of the frame of the state
-        const bool isMixed = m_fill.color.isMixed() || m_stroke.color.isMixed() || width.isMixed();
-        if (m_nodes.size() > 1 && isMixed)
+        const bool isMixed = m_fill.color.isMixed() || m_stroke.color.isMixed() || line.width.isMixed();
+        if (!isChangeable)
+        {
+            m_note->setText(tr("The selected objects are locked. Unlock them to change their fill and stroke."));
+        }
+        else if (line.isUneven)
+        {
+            m_note->setText(tr("The matrix of an object scales its line differently in each direction, so its width on the page depends on the direction; a width typed here is set as the average of the two."));
+        }
+        else if (nodes.size() > 1 && isMixed)
         {
             m_note->setText(tr("Mixed marks a value that differs between the selected objects."));
         }
@@ -566,7 +648,8 @@ public:
         }
         else
         {
-            m_note->setText(tr("The swatches are the colors used in the document. The values are in the color space of the object; nothing is converted until you choose another space."));
+            // R7-11: the swatches are the colors of the edited content (KE.5, QE.9), not of the whole document
+            m_note->setText(tr("The swatches are the colors used on this page. The values are in the color space of the object; nothing is converted until you choose another space."));
         }
     }
 
@@ -596,6 +679,44 @@ public:
     }
 
 private:
+    /// The values of the line of the leaves (the width in points of the page, R7-6)
+    struct LineValues
+    {
+        PDFAppEditContentMixedValue<double> width;
+        PDFAppEditContentMixedValue<int> dash;
+        PDFAppEditContentMixedValue<int> cap;
+        PDFAppEditContentMixedValue<int> join;
+        PDFAppEditContentMixedValue<double> miterLimit;
+        bool isUneven = false;      ///< The matrix of a leaf scales the line differently by the direction (QE.6: Mixed and a note)
+
+        void add(const PDFContentDisplayState& state, const QTransform& containerToPage)
+        {
+            bool isUniform = true;
+            const double scale = PDFAppEditContentAppearanceHelper::getLineScale(state.matrix * containerToPage, &isUniform);
+            isUneven = isUneven || !isUniform;
+            width.add(state.lineWidth * scale, &LineValues::isSameWidth);
+            dash.add(PDFAppEditContentAppearanceHelper::getDashIndex(state.dashPattern));
+            cap.add(PDFAppEditContentAppearanceHelper::getCapIndex(state.lineCap));
+            join.add(PDFAppEditContentAppearanceHelper::getJoinIndex(state.lineJoin));
+            miterLimit.add(state.miterLimit);
+        }
+
+        void addUnknown()
+        {
+            width.add(-1.0);
+            dash.add(-1);
+            cap.add(-1);
+            join.add(-1);
+            miterLimit.add(-1.0);
+        }
+
+        /// Two widths of the page are the same up to the rounding of the matrices
+        static bool isSameWidth(const double& left, const double& right)
+        {
+            return std::abs(left - right) <= 1e-9 * std::max({ 1.0, std::abs(left), std::abs(right) });
+        }
+    };
+
     /// The expanded part of a stroke: Cap, Join, Miter limit (-path-selected)
     void createExpanded()
     {
@@ -648,11 +769,11 @@ private:
         paint->check = new QCheckBox(title, row);
         paint->check->setObjectName(QStringLiteral("editContent%1Check").arg(name));
         paint->check->setTristate(true);
+        paint->title = title;
 
-        // The core has no command, which switches the painting of an object on or off (set_appearance changes the
-        // colors and the line only): the check box shows the state and cannot be changed yet
-        paint->check->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-        paint->check->setFocusPolicy(Qt::NoFocus);
+        // The check box switches the painting of the objects on or off (set_appearance with fill / stroke): a click
+        // sets the paint of all of them, the partly checked state is only shown (a mixed selection)
+        connect(paint->check, &QCheckBox::clicked, this, &PDFAppEditContentFillAndStrokeCard::onCheckClicked);
 
         paint->space = new PDFComboBox(row);
         paint->space->setObjectName(QStringLiteral("editContent%1Space").arg(name));
@@ -713,8 +834,13 @@ private:
 
     void updatePaint(PDFAppEditContentPaintControls* paint, int paintedCount, int leafCount)
     {
-        paint->check->setCheckState(paintedCount == 0 ? Qt::Unchecked : (paintedCount == leafCount ? Qt::Checked : Qt::PartiallyChecked));
+        // Tristate: some of the objects paint it (item 1 of FX3); the fields of a paint, which no object paints, are
+        // disabled, not hidden
+        paint->shownState = paintedCount == 0 ? Qt::Unchecked : (paintedCount == leafCount ? Qt::Checked : Qt::PartiallyChecked);
+        paint->check->setCheckState(paint->shownState);
         paint->space->setEnabled(paint->isPainted);
+        paint->swatchRow->setEnabled(paint->isPainted);
+        paint->values->setEnabled(paint->isPainted);
 
         // The space: a device space is an item; another space is shown as an item of its own (it can only be
         // replaced by a device space in stage E1)
@@ -734,12 +860,11 @@ private:
         paint->space->setCurrentIndex(space.isEmpty() ? 0 : paint->space->findData(space));
         paint->space->setMixed(isSpaceMixed);
 
-        // The swatches (shown for a painted object; none selected when the colors differ)
+        // The swatches (none selected when the colors differ)
         updateSwatches(paint);
-        paint->swatchRow->setVisible(paint->isPainted);
 
         // The values: one color of a device space
-        const bool hasValues = paint->isPainted && !color.isMixed() && color.getValue() && color.getValue()->isDevice();
+        const bool hasValues = !color.isMixed() && color.getValue() && color.getValue()->isDevice();
         paint->values->setVisible(hasValues);
         if (hasValues)
         {
@@ -752,8 +877,9 @@ private:
                 paint->fields[size_t(i)]->setVisible(isShown);
                 if (isShown)
                 {
+                    // R7-13: the accessible name says which paint ("Fill R", "Stroke C")
                     paint->labels[size_t(i)]->setText(labels[i]);
-                    paint->fields[size_t(i)]->setAccessibleName(labels[i]);
+                    paint->fields[size_t(i)]->setAccessibleName(tr("%1 %2", "the paint and the component").arg(paint->title, labels[i]));
                     if (!paint->fields[size_t(i)]->hasFocus())
                     {
                         paint->fields[size_t(i)]->setValue(size_t(i) < components.size() ? components[size_t(i)] : 0.0);
@@ -794,14 +920,15 @@ private:
     {
         const PDFAppEditContentContext* context = getContext();
         const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
-        if (!container || (m_colorsVersion == container->getVersion() && m_colorsKey == container->getKey()))
+        // Keyed by the container object, not by its key and version: a session loaded again (reloadDocument) has the
+        // same keys and versions for other content
+        if (!container || m_colorsContainer.lock() == container)
         {
             return m_colors;
         }
 
         m_colors.clear();
-        m_colorsVersion = container->getVersion();
-        m_colorsKey = container->getKey();
+        m_colorsContainer = container;
 
         // A walk over the whole container: one visit per node, MAXIMUM_INSPECTED_NODES visits at most
         PDFAppEditContentCardTools::SelectedNode root{ PDFContentNodeReference{ container->getKey(), container->getRoot()->getId() }, container->getRoot() };
@@ -875,12 +1002,105 @@ private:
     /// merge in the core, PDFContentCommand::mergeWith)
     void setProperties(std::map<PDFContentStateProperty, PDFContentStateValue> properties)
     {
+        // The whole changeable selection (R7-1, R7-4), read when the user acts
         PDFAppEditContentContext* context = getContext();
-        if (!context || m_nodes.empty())
+        const std::vector<PDFContentNodeReference> nodes = PDFAppEditContentCardTools::getReferences(PDFAppEditContentCardTools::getCommandNodes(context));
+        if (!context || nodes.empty())
         {
             return;
         }
-        context->execute(PDFContentCommandFactory::createSetAppearance(PDFAppEditContentAppearanceHelper::getReferences(m_nodes), std::move(properties)));
+        context->execute(PDFContentCommandFactory::createSetAppearance(nodes, std::move(properties)));
+    }
+
+    /// One property, a value per group of the objects
+    using Groups = std::vector<std::pair<PDFContentStateValue, std::vector<PDFContentNodeReference>>>;
+
+    /// The commands of the groups of the objects (one value of \p property per group) as one undo step
+    void executeGroups(PDFContentStateProperty property, const Groups& groups)
+    {
+        PDFAppEditContentContext* context = getContext();
+        if (!context || groups.empty())
+        {
+            return;
+        }
+
+        QPointer<PDFAppEditContentContext> guard(context);
+        const bool isMacro = groups.size() > 1;
+        if (isMacro)
+        {
+            context->beginMacro(tr("Change Appearance"));
+        }
+        for (const auto& group : groups)
+        {
+            if (!guard || PDFDeferredDeletion::isRetired(guard))
+            {
+                break;
+            }
+            std::map<PDFContentStateProperty, PDFContentStateValue> properties;
+            properties[property] = group.first;
+            guard->execute(PDFContentCommandFactory::createSetAppearance(group.second, std::move(properties)));
+        }
+        if (isMacro && guard)
+        {
+            guard->endMacro();
+        }
+    }
+
+    /// The color of the paint of an object of the core (a path, or a text object as a whole: no value when its shows
+    /// differ in it, \p isDifferent), which paints it; no value for an object, which does not paint it
+    std::optional<PDFAppEditContentPaintColor> getObjectColor(const PDFContentContainer& container, const PDFAppEditContentCardTools::SelectedNode& object, bool isFill,
+                                                              const PDFContentDisplayContext& displayContext, bool* isDifferent) const
+    {
+        *isDifferent = false;
+        bool isTruncated = false;
+        const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(container, { object }, &PDFAppEditContentCardTools::isPaintedLeaf, &isTruncated,
+                                                                                                std::numeric_limits<size_t>::max());
+        PDFAppEditContentMixedValue<PDFAppEditContentPaintColor> color;
+        for (const PDFContentNodePointer& leaf : leaves)
+        {
+            const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(container, leaf->getId(), displayContext);
+            if (state && (isFill ? PDFAppEditContentAppearanceHelper::hasFill(*leaf, *state) : PDFAppEditContentAppearanceHelper::hasStroke(*leaf, *state)))
+            {
+                color.add(PDFAppEditContentAppearanceHelper::getPaintColor(*leaf, *state, isFill));
+            }
+        }
+        if (color.isMixed())
+        {
+            *isDifferent = true;
+            return std::nullopt;
+        }
+        return color.getValue();
+    }
+
+    void onCheckClicked()
+    {
+        // A click switches the paint on for all objects, unless all of them paint it already (then off); the check box
+        // shows the state of the objects again when the command is refused (the notice of the context tells why: a
+        // text of two modes, a clipping text)
+        PDFAppEditContentPaintControls* paint = nullptr;
+        for (PDFAppEditContentPaintControls* candidate : { &m_fill, &m_stroke })
+        {
+            paint = candidate->check == sender() ? candidate : paint;
+        }
+        PDFAppEditContentContext* context = getContext();
+        const std::vector<PDFContentNodeReference> nodes = PDFAppEditContentCardTools::getReferences(PDFAppEditContentCardTools::getCommandNodes(context));
+        if (!paint || !context)
+        {
+            return;
+        }
+
+        QPointer<QCheckBox> check = paint->check;
+        const Qt::CheckState shownState = paint->shownState;
+        const bool isOn = shownState != Qt::Checked;
+        check->setCheckState(isOn ? Qt::Checked : Qt::Unchecked);
+
+        PDFContentPaintSwitches switches;
+        (paint == &m_fill ? switches.fill : switches.stroke) = isOn;
+        const bool isApplied = !nodes.empty() && context->execute(PDFContentCommandFactory::createSetAppearance(nodes, { }, switches));
+        if (!isApplied && check && !PDFDeferredDeletion::isRetired(this))
+        {
+            check->setCheckState(shownState);
+        }
     }
 
     void onSwatchClicked()
@@ -919,9 +1139,11 @@ private:
 
     void onSpaceActivated(int index)
     {
-        // Another device space: the display color of the objects in the new space (the frames: "nothing is converted
-        // until you choose another space"); objects of different colors are changed in one undo step, each group
-        // of the same color by one command
+        // Another device space (R7-2): each object of the core (a path, a text object as a whole) keeps its own color,
+        // converted into the space (ISO 32000-2, 10.4.2, from its components); an object already in the space is left
+        // as it is (choosing the space shown changes nothing); objects of the same converted color are one command, all
+        // of them one undo step. A text of shows of different colors cannot be restyled part by part: it keeps its
+        // colors (a notice says so); a pattern is not a color to convert (stage E4, SetPatternFill).
         PDFAppEditContentPaintControls* paint = getPaintOf(sender());
         PDFAppEditContentContext* context = getContext();
         const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
@@ -938,54 +1160,87 @@ private:
 
         const bool isFill = paint == &m_fill;
         const PDFContentDisplayContext displayContext = PDFAppEditContentCardTools::getDisplayContext(context);
-        std::map<QRgb, std::vector<PDFContentNodeReference>> groups;
-        for (const PDFAppEditContentCardTools::SelectedNode& node : m_nodes)
+        std::map<std::vector<PDFReal>, size_t> groupIndices;
+        Groups groups;
+        int keptTexts = 0;
+        for (const PDFAppEditContentCardTools::SelectedNode& object : PDFAppEditContentCardTools::getAppearanceObjects(*container, PDFAppEditContentCardTools::getCommandNodes(context)))
         {
-            bool isTruncated = false;
-            const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(*container, { node }, &PDFAppEditContentCardTools::isPaintedLeaf, &isTruncated);
-            for (const PDFContentNodePointer& leaf : leaves)
+            bool isDifferent = false;
+            const std::optional<PDFAppEditContentPaintColor> color = getObjectColor(*container, object, isFill, displayContext, &isDifferent);
+            keptTexts += isDifferent ? 1 : 0;
+            if (!color || color->space == space || color->space == "Pattern")
             {
-                const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(*container, leaf->getId(), displayContext);
-                if (state && (isFill ? PDFAppEditContentAppearanceHelper::hasFill(*leaf, *state) : PDFAppEditContentAppearanceHelper::hasStroke(*leaf, *state)))
-                {
-                    const QColor color = isFill ? state->fillColor.color : state->strokeColor.color;
-                    groups[color.isValid() ? color.rgb() : qRgb(0, 0, 0)].push_back(node.reference);
-                    break;
-                }
+                continue;
             }
+
+            const std::vector<PDFReal> components = PDFAppEditContentAppearanceHelper::convert(*color, space);
+            auto it = groupIndices.find(components);
+            if (it == groupIndices.end())
+            {
+                it = groupIndices.emplace(components, groups.size()).first;
+                groups.emplace_back(PDFAppEditContentAppearanceHelper::createColorValue(space, components), std::vector<PDFContentNodeReference>());
+            }
+            groups[it->second].second.push_back(object.reference);
         }
 
-        if (groups.empty())
-        {
-            return;
-        }
-
-        const PDFContentStateProperty property = getProperty(paint);
         QPointer<PDFAppEditContentContext> guard(context);
-        const bool isMacro = groups.size() > 1;
-        if (isMacro)
+        executeGroups(getProperty(paint), groups);
+
+        if (keptTexts > 0 && guard && !PDFDeferredDeletion::isRetired(guard))
         {
-            context->beginMacro(tr("Change Appearance"));
-        }
-        for (const auto& group : groups)
-        {
-            if (!guard || PDFDeferredDeletion::isRetired(guard))
-            {
-                break;
-            }
-            std::map<PDFContentStateProperty, PDFContentStateValue> properties;
-            properties[property] = PDFAppEditContentAppearanceHelper::createColorValue(space, PDFAppEditContentAppearanceHelper::convert(QColor::fromRgb(group.first), space));
-            guard->execute(PDFContentCommandFactory::createSetAppearance(group.second, std::move(properties)));
-        }
-        if (isMacro && guard)
-        {
-            guard->endMacro();
+            PDFAppEditContentNoticeRequest notice;
+            notice.id = QStringLiteral("convert-color");
+            notice.kind = PDFAppEditContentNoticeRequest::Kind::Event;
+            notice.severity = PDFAppEditContentNoticeRequest::Severity::Warning;
+            notice.text = tr("%Ln text(s) of several colors kept their colors: a part of a text cannot be restyled yet.", nullptr, keptTexts);
+            guard->showNotice(notice);
         }
     }
 
     void onWidthEntered(double value)
     {
-        setProperties({ { PDFContentStateProperty::LineWidth, PDFAppEditContentAppearanceHelper::createRealValue(value) } });
+        // The width is typed in the units of the page (R7-6, QE.6): each object gets the width in its own space, the
+        // typed width divided by the scale of its matrix to the page. Objects of one scale are one command - the whole
+        // changeable selection, when all of them have it; all of them one undo step.
+        PDFAppEditContentContext* context = getContext();
+        const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
+        const std::optional<QTransform> containerToPage = PDFAppEditContentCardTools::getContainerToDisplayed(context);
+        if (!container || !containerToPage)
+        {
+            return;
+        }
+
+        const double width = value * PDFAppEditContentCardTools::getUnitFactor(context);
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getCommandNodes(context);
+        const PDFContentDisplayContext displayContext = PDFAppEditContentCardTools::getDisplayContext(context);
+        std::map<double, size_t> groupIndices;
+        Groups groups;
+        for (const PDFAppEditContentCardTools::SelectedNode& object : PDFAppEditContentCardTools::getAppearanceObjects(*container, nodes))
+        {
+            const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(*container, object.node->getId(), displayContext);
+            const double scale = state ? PDFAppEditContentAppearanceHelper::getLineScale(state->matrix * *containerToPage, nullptr) : 0.0;
+            if (!(scale > 1e-12) || !std::isfinite(scale))
+            {
+                continue;
+            }
+
+            const double nodeWidth = width / scale;
+            auto it = groupIndices.find(nodeWidth);
+            if (it == groupIndices.end())
+            {
+                it = groupIndices.emplace(nodeWidth, groups.size()).first;
+                groups.emplace_back(PDFAppEditContentAppearanceHelper::createRealValue(nodeWidth), std::vector<PDFContentNodeReference>());
+            }
+            groups[it->second].second.push_back(object.reference);
+        }
+
+        if (groups.size() == 1)
+        {
+            // One scale: the command over the selected nodes (as every other field; the steps of the arrows merge)
+            setProperties({ { PDFContentStateProperty::LineWidth, groups.front().first } });
+            return;
+        }
+        executeGroups(PDFContentStateProperty::LineWidth, groups);
     }
 
     void onMiterLimitEntered(double value)
@@ -1035,14 +1290,13 @@ private:
     PDFDoubleSpinBox* m_width = nullptr;
     PDFComboBox* m_dash = nullptr;
     PDFLabel* m_note = nullptr;
-    QPointer<QWidget> m_expanded;               ///< Retired by the section, when the stroke goes
+    QWidget* m_content = nullptr;
+    QPointer<QWidget> m_expanded;               ///< The expanded part of the section (created once)
     QPointer<PDFComboBox> m_cap;
     QPointer<PDFComboBox> m_join;
     QPointer<PDFDoubleSpinBox> m_miterLimit;
-    std::vector<PDFAppEditContentCardTools::SelectedNode> m_nodes;
     std::vector<PDFAppEditContentPaintColor> m_colors;
-    quint64 m_colorsVersion = 0;
-    PDFContentContainerKey m_colorsKey;
+    std::weak_ptr<const PDFContentContainer> m_colorsContainer;     ///< The container version of m_colors (a reloaded session has other objects)
 };
 
 /// The card Transparency (-transparency): the opacity of the fill and of the stroke, the blend mode
@@ -1076,6 +1330,7 @@ public:
         m_softMask->setObjectName(QStringLiteral("editContentSoftMask"));
         layout->addWidget(m_softMask);
         m_section->setExpandedWidget(expanded);
+        m_content = expanded;
 
         connect(m_fillOpacity, &PDFDoubleSpinBox::valueEntered, this, &PDFAppEditContentTransparencyCard::onFillOpacityEntered);
         connect(m_strokeOpacity, &PDFDoubleSpinBox::valueEntered, this, &PDFAppEditContentTransparencyCard::onStrokeOpacityEntered);
@@ -1091,10 +1346,13 @@ public:
             return;
         }
 
+        // The values of the inspected nodes (bounded); the command takes the whole changeable selection (R7-1, R7-4)
         bool isTruncated = false;
-        m_nodes = PDFAppEditContentCardTools::getSelectedNodes(context, &isTruncated);
+        bool isChangeable = false;
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getInspectedNodes(context, &isTruncated, &isChangeable);
+        m_content->setEnabled(isChangeable);
         bool isLeavesTruncated = false;
-        const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(*container, m_nodes, &PDFAppEditContentCardTools::isDrawingLeaf, &isLeavesTruncated);
+        const std::vector<PDFContentNodePointer> leaves = PDFAppEditContentCardTools::getLeaves(*container, nodes, &PDFAppEditContentCardTools::isDrawingLeaf, &isLeavesTruncated);
         const PDFContentDisplayContext displayContext = PDFAppEditContentCardTools::getDisplayContext(context);
 
         PDFAppEditContentMixedValue<double> fillOpacity;
@@ -1153,9 +1411,10 @@ private:
     void setTransparency(std::optional<PDFReal> alphaStroking, std::optional<PDFReal> alphaFilling, std::optional<QByteArray> blendMode)
     {
         PDFAppEditContentContext* context = getContext();
-        if (context && !m_nodes.empty())
+        const std::vector<PDFContentNodeReference> nodes = PDFAppEditContentCardTools::getReferences(PDFAppEditContentCardTools::getCommandNodes(context));
+        if (context && !nodes.empty())
         {
-            context->execute(PDFContentCommandFactory::createSetTransparency(PDFAppEditContentAppearanceHelper::getReferences(m_nodes), alphaStroking, alphaFilling, blendMode));
+            context->execute(PDFContentCommandFactory::createSetTransparency(nodes, alphaStroking, alphaFilling, blendMode));
         }
     }
 
@@ -1182,7 +1441,7 @@ private:
     PDFDoubleSpinBox* m_strokeOpacity = nullptr;
     PDFComboBox* m_blendMode = nullptr;
     PDFLabel* m_softMask = nullptr;
-    std::vector<PDFAppEditContentCardTools::SelectedNode> m_nodes;
+    QWidget* m_content = nullptr;
 };
 
 /// The entry of the card Fill and stroke: a selected object paints a fill or a stroke

@@ -263,13 +263,12 @@ PDFAppEditContentNotice::PDFAppEditContentNotice(PDFAppEditContentNotices* notic
     closeLayout->setSpacing(0);
     PDFIconButton* closeButton = new PDFIconButton(QStringLiteral("x"), PDFIconButton::Size::TabClose, closeHolder);
     closeButton->setObjectName(QStringLiteral("editContentNoticeClose"));
-    closeButton->setToolTip(tr("Close"));
-    closeButton->setAccessibleName(tr("Close"));
     closeLayout->addWidget(closeButton);
     layout->addWidget(closeHolder, 0, 0, Qt::AlignTop | Qt::AlignTrailing);
     connect(closeButton, &QAbstractButton::clicked, this, &PDFAppEditContentNotice::onCloseClicked);
     m_closeHolder = closeHolder;
     m_closeButton = closeButton;
+    updateTexts();
 
     // The notices live as long as the tool, this widget is a part of the canvas: a foreign sender
     if (notices)
@@ -281,6 +280,24 @@ PDFAppEditContentNotice::PDFAppEditContentNotice(PDFAppEditContentNotices* notic
 }
 
 PDFAppEditContentNotice::~PDFAppEditContentNotice() = default;
+
+void PDFAppEditContentNotice::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+    {
+        updateTexts();
+    }
+}
+
+void PDFAppEditContentNotice::updateTexts()
+{
+    if (QAbstractButton* button = m_closeButton.data())
+    {
+        button->setToolTip(tr("Close"));
+        button->setAccessibleName(tr("Close"));
+    }
+}
 
 QString PDFAppEditContentNotice::getTitle() const
 {

@@ -23,8 +23,9 @@
 // The lifetime scenario of Edit Content, stage E1, package P13 (the cards and their stack; zadani_overeni.md 8,
 // zadani_gui.md 4.14): contentcards - two objects selected (the cards of the selection), a width typed and not
 // confirmed over a change of the language (order (3): the stack and its cards are built again, the GUI commits the
-// value first), an opacity entered in an expanded section, a button of Arrange, a flip, the card Locked object and its
-// Unlock, then Cancel (order (1)) and the tool again. The victims of the sweep are deleted inside of any event of a
+// value first), an opacity entered in an expanded section, a button of Arrange, a flip, the check box Fill off and on, a
+// new version of the document without work (reloadDocument: the stack follows the new session), the card Locked object
+// and its Unlock, then Cancel (order (1)) and the tool again. The victims of the sweep are deleted inside of any event of a
 // step; a step, whose part is gone, ends without a failure.
 
 #include "apptoolpageslifetime.h"
@@ -44,6 +45,7 @@
 #include "pdfcontenteditsession.h"
 #include "pdfdocumenttool_content.h"
 
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QPointer>
 #include <QPushButton>
@@ -195,6 +197,31 @@ public:
         return true;
     }
 
+    /// The check box Fill of the selected objects (FX3 item 1: a command of a check box), off and on again
+    static bool switchPaint(ToolPagesLifetimeRun& run)
+    {
+        Steps::click(find<QCheckBox>(run, "editContentFillCheck"));
+        Steps::settle();
+        Steps::click(find<QCheckBox>(run, "editContentFillCheck"));
+        Steps::settle();
+        return true;
+    }
+
+    /// A new version of the document without work (PDFAppEditContentContext::reloadDocument): the stack follows the
+    /// new session (sessionReplaced), the cards are built for the page of the new session
+    static bool reloadSession(ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFAppEditContentContext* current = context(run);
+        const pdf::PDFDocument* document = current && current->getSession() ? current->getSession()->getDocument() : nullptr;
+        if (!document)
+        {
+            return true;
+        }
+        current->reloadDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(*document)));
+        Steps::settle();
+        return waitForContainer(run);
+    }
+
     /// The card Locked object of a locked node and its Unlock (the card goes with the next rebuild)
     static bool unlockObject(ToolPagesLifetimeRun& run)
     {
@@ -275,6 +302,9 @@ public:
             steps->push_back(&H::selectObjects);
             steps->push_back(&H::enterOpacity);
             steps->push_back(&H::clickArrangeAndFlip);
+            steps->push_back(&H::switchPaint);
+            steps->push_back(&H::reloadSession);
+            steps->push_back(&H::selectObjects);
             steps->push_back(&H::unlockObject);
             steps->push_back(&H::cancelAndReopen);
             steps->push_back(&H::waitForContainer);

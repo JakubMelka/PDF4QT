@@ -21,7 +21,8 @@
 // SOFTWARE.
 
 // The lifetime scenario of Edit Content, stage E1, package P12 (the tabs Objects and Pages, the menus;
-// zadani_overeni.md 8, zadani_gui.md 4.14): contentpanels - a row selected in the tree, the context menu open over a
+// zadani_overeni.md 8, zadani_gui.md 4.14): contentpanels - a row selected in the tree, the session loaded again over a
+// new version of the document (sessionReplaced), Select All with Lock and Unlock, the context menu open over a
 // change of the language (order (3): the panels are built again, the menu is closed), a row of the menu, a drop of a
 // row (the command from the event loop), the filter typed, a tile of the Pages tab clicked, Delete in the tree, then
 // Cancel (order (1)) and the tool again. The victims of the sweep are deleted inside of any event of a step; a step,
@@ -43,6 +44,7 @@
 
 #include "pdffluentwidgets.h"
 
+#include "pdfcontenteditsession.h"
 #include "pdfdocumenttool_content.h"
 
 #include <QAction>
@@ -259,6 +261,38 @@ public:
         return true;
     }
 
+    /// Select All, then Lock and Unlock of the selection (the tree answers the lock of every node, editorStateChanged)
+    static bool lockSelection(ToolPagesLifetimeRun& run)
+    {
+        for (const char* actionId : { pdf::PDFAppEditContentActionIds::SELECT_ALL, pdf::PDFAppEditContentActionIds::LOCK, pdf::PDFAppEditContentActionIds::LOCK })
+        {
+            pdf::PDFAppEditContentContext* current = context(run);
+            if (!current)
+            {
+                return true;
+            }
+            current->triggerAction(QString::fromLatin1(actionId));
+            Steps::settle();
+        }
+        return true;
+    }
+
+    /// The session loaded again over a new version of the document without work (PDFAppEditContentContext::
+    /// reloadDocument): the tree and the tab Pages connect to the new session (sessionReplaced), the rows follow it
+    static bool reloadSession(ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFAppEditContentContext* current = context(run);
+        const pdf::PDFDocument* document = current && current->getSession() ? current->getSession()->getDocument() : nullptr;
+        if (!document)
+        {
+            return true;
+        }
+        current->reloadDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(*document)));
+        Steps::settle();
+        waitForRows(run);
+        return true;
+    }
+
     /// Order (1): Cancel - the shell ends the parts, then the GUI with its context; then the tool opens again
     static bool cancelAndReopen(ToolPagesLifetimeRun& run)
     {
@@ -303,6 +337,9 @@ public:
             steps->push_back(&Steps::openTool);
             steps->push_back(&H::waitForRows);
             steps->push_back(&H::selectRow);
+            steps->push_back(&H::reloadSession);
+            steps->push_back(&H::selectRow);
+            steps->push_back(&H::lockSelection);
             steps->push_back(&H::contextMenuOverLanguage);
             steps->push_back(&H::menuRow);
             steps->push_back(&H::dropRow);

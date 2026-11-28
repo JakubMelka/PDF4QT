@@ -162,6 +162,10 @@ private Q_SLOTS:
     void commandContainerToPage();
     void commandRefusals();
 
+    // Stage E1, fix package FX1: the space the user sees (review R5-6)
+    void displayedPageMatrix();
+    void commandOnRotatedPage();
+
 private:
     /// The boxes of the operation after their matrices (normalized boxes mapped), no value when
     /// computeMatrices refuses
@@ -380,15 +384,23 @@ void ContentArrangeTest::distributeInRow()
 
 void ContentArrangeTest::distributeInColumn()
 {
-    // Sorted by the upper edges, the highest first: b1 (60), b2 (30), b0 (20); U.upper = 60.
-    // b1 upper 60 (stays); b2 upper 60 - 20 = 40 -> lower 10; b0 upper 40 - 30 = 10 -> lower 0
-    ARRANGE_COMPARE(arrange(Operation::DistributeInColumn, threeBoxes(), 0), QList<QRectF>({ QRectF(10, 0, 20, 10), QRectF(50, 40, 40, 20), QRectF(100, 10, 10, 30) }));
+    // The old rules (LayoutVertically of PDFPageContentElementManipulator, review R5-4): sorted by
+    // the lower edges (QRectF::y), the highest first: b1 (40), b0 (10), b2 (0); U.upper = 60.
+    // b1 upper 60 (stays); b0 upper 60 - 20 = 40 -> lower 30; b2 upper 40 - 10 = 30 -> lower 0
+    // (stays). (Sorted by the upper edges b2 would come before b0.)
+    ARRANGE_COMPARE(arrange(Operation::DistributeInColumn, threeBoxes(), 0), QList<QRectF>({ QRectF(10, 30, 20, 10), QRectF(50, 40, 40, 20), QRectF(100, 0, 10, 30) }));
 
-    // A tie: d0 and d1 have the same upper edge 10 and keep the order of the input.
-    // Sorted: d2 (25), d0 (10), d1 (10); U.upper = 25. d2 stays; d0 upper 25 - 5 = 20 -> lower 10;
-    // d1 upper 20 - 10 = 10 -> lower 5 (stays). The other order would give d1 lower 15, d0 lower 5.
-    const QList<QRectF> tie = { QRectF(0, 0, 10, 10), QRectF(50, 5, 10, 5), QRectF(20, 20, 10, 5) };
+    // A tie: d0 and d1 have the same lower edge 0 and keep the order of the input.
+    // Sorted: d2 (20), d0 (0), d1 (0); U.upper = 25. d2 stays; d0 upper 25 - 5 = 20 -> lower 10;
+    // d1 upper 20 - 10 = 10 -> lower 5. The other order would give d1 lower 15, d0 lower 5.
+    const QList<QRectF> tie = { QRectF(0, 0, 10, 10), QRectF(50, 0, 10, 5), QRectF(20, 20, 10, 5) };
     ARRANGE_COMPARE(arrange(Operation::DistributeInColumn, tie, 0), QList<QRectF>({ QRectF(0, 10, 10, 10), QRectF(50, 5, 10, 5), QRectF(20, 20, 10, 5) }));
+
+    // Boxes, which overlap in y (the example of R5-4): A (0, 0, 10, 100), B (20, 50, 10, 10). By the
+    // lower edges B (50) is first: B upper 100 -> lower 90; A upper 90 -> lower -10. (By the upper
+    // edges A would stay and B would go to -10.)
+    ARRANGE_COMPARE(arrange(Operation::DistributeInColumn, { QRectF(0, 0, 10, 100), QRectF(20, 50, 10, 10) }, 0),
+                    QList<QRectF>({ QRectF(0, -10, 10, 100), QRectF(20, 90, 10, 10) }));
 }
 
 void ContentArrangeTest::distributeAsForm()
@@ -490,9 +502,11 @@ void ContentArrangeTest::distributeAsGrid()
     // g4 (2, 0, 20, 15)    x 2..22,  y 0..15
     // g5 (70, 10, 15, 10)  x 70..85, y 10..20
     // U: left 0, right 85, lower 0, upper 135.
-    // Rows (ascending by the upper edges: g4 15, g5 20, g3 70, g2 75, g0 120, g1 135):
+    // Rows (the old rules of LayoutGrid, review R5-4: ascending by the lower edges g4 0, g5 10,
+    // g2 50, g3 60, g0 100, g1 105; the last starts a row and takes the boxes, whose upper edge is
+    // above its lower edge):
     //  g1 starts row 0 (lower 105): g0 (upper 120 > 105) joins; height max(30, 20) = 30
-    //  g2 starts row 1 (lower 50): g3 (70 > 50) joins; height max(25, 10) = 25
+    //  g3 starts row 1 (lower 60): g2 (75 > 60) joins; height max(10, 25) = 25
     //  g5 starts row 2 (lower 10): g4 (15 > 10) joins; height max(10, 15) = 15
     // Columns (descending by the left edges: g5 70, g1 60, g3 55, g2 5, g4 2, g0 0):
     //  g0 starts column 0 (right 30): g4 (2 < 30), g2 (5 < 30) join; g3 (55) does not; width 40
@@ -512,11 +526,51 @@ void ContentArrangeTest::distributeAsGrid()
                     QList<QRectF>({ QRectF(0, 0, 10, 10), QRectF(10, 10, 10, 10) }));
 
     // A horizontal line overlaps nothing in y (its interval has no length): a (0, 0, 10, 20)
-    // y 0..20, the line z (20, 10, 10, 0) at y 10, x 20..30. Rows: a (row 0, height 20), z (row 1,
-    // height 0). Columns: a (column 0, width 10), z (column 1, width 10). U: left 0, upper 20.
-    // a stays; z: left 10, upper 20 - 20 = 0 -> (10, 0, 10, 0). (In the row of a it would be at 20.)
+    // y 0..20, the line z (20, 10, 10, 0) at y 10, x 20..30. By the lower edges z (10) is the last:
+    // it starts row 0 (height 0) and takes nothing; a is row 1 (height 20). Columns: a (column 0,
+    // width 10), z (column 1, width 10). U: left 0, upper 20. Row 0 is 0 high, so both rows have
+    // their upper edges at 20: a stays; z: left 10, upper 20 -> (10, 20, 10, 0). (The rule of
+    // P13, which started the rows at the highest upper edge, put z into row 1, at 0.)
     ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(0, 0, 10, 20), QRectF(20, 10, 10, 0) }, 0),
-                    QList<QRectF>({ QRectF(0, 0, 10, 20), QRectF(10, 0, 10, 0) }));
+                    QList<QRectF>({ QRectF(0, 0, 10, 20), QRectF(10, 20, 10, 0) }));
+
+    // The rows of the example of R5-4: X (0, 80, 10, 10) y 80..90, Y (20, 0, 10, 100) y 0..100,
+    // Z (40, 95, 10, 4) y 95..99, each in a column of its own. By the lower edges (Y 0, X 80, Z 95)
+    // Z starts row 0 and takes Y (upper 100 > 95), not X (90); row 0 is 100 high, X is row 1, 10
+    // high. Columns X, Y, Z (widths 10). U: left 0, upper 100.
+    //  X: row 1, column 0 -> left 0, upper 100 - 100 = 0: (0, -10)
+    //  Y: row 0, column 1 -> left 10, upper 100: (10, 0)
+    //  Z: row 0, column 2 -> left 20, upper 100: (20, 96)
+    // (Started at the highest upper edge, Y would take X and Z into one row.)
+    ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(0, 80, 10, 10), QRectF(20, 0, 10, 100), QRectF(40, 95, 10, 4) }, 0),
+                    QList<QRectF>({ QRectF(0, -10, 10, 10), QRectF(10, 0, 10, 100), QRectF(20, 96, 10, 4) }));
+
+    // A tie of the lower edges: the last of the input starts the row (the stable sort). The line p
+    // (0, 0, 10, 0) and q (20, 0, 10, 30) have the lower edge 0. Columns: p (column 0), q (column 1),
+    // widths 10; U: left 0, upper 30.
+    //  [p, q]: q starts row 0 (30 high) and does not take p (its upper edge 0 is not above 0); p is
+    //  row 1 (0 high): p upper 30 - 30 = 0 (stays), q (10, 0)
+    //  [q, p]: p starts row 0 (0 high, it takes nothing), q is row 1: both upper edges at 30 - q
+    //  (10, 0), p (0, 30)
+    ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(0, 0, 10, 0), QRectF(20, 0, 10, 30) }, 0),
+                    QList<QRectF>({ QRectF(0, 0, 10, 0), QRectF(10, 0, 10, 30) }));
+    ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(20, 0, 10, 30), QRectF(0, 0, 10, 0) }, 0),
+                    QList<QRectF>({ QRectF(10, 0, 10, 30), QRectF(0, 30, 10, 0) }));
+
+    // A vertical line overlaps nothing in x: a (0, 0, 10, 10) and the line v (5, 0, 0, 10). Rows: one
+    // (v, the last of the tie of the lower edges 0, takes a: the upper edge 10 is above 0), 10 high.
+    // Columns: a starts column 0 (smallest left edge) and does not take v (no width); v is column 1,
+    // 0 wide. U: left 0, upper 10. a stays; v: left 0 + 10 = 10 -> (10, 0, 0, 10).
+    ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(0, 0, 10, 10), QRectF(5, 0, 0, 10) }, 0),
+                    QList<QRectF>({ QRectF(0, 0, 10, 10), QRectF(10, 0, 0, 10) }));
+
+    // A line, which starts a row, takes nothing: a (0, 0, 10, 20), the line z (20, 10, 10, 0) and d
+    // (40, -5, 10, 7) y -5..2. By the lower edges (d -5, a 0, z 10) z starts row 0 (0 high) alone;
+    // a starts row 1 and takes d (upper 2 > 0), 20 high. Columns a, z, d (widths 10). U: left 0,
+    // upper 20; both rows begin at 20. a stays; z (10, 20, 10, 0); d upper 20 -> (20, 13, 10, 7).
+    // (If z took a, d would be a row of its own below a: (20, -7).)
+    ARRANGE_COMPARE(arrange(Operation::DistributeAsGrid, { QRectF(0, 0, 10, 20), QRectF(20, 10, 10, 0), QRectF(40, -5, 10, 7) }, 0),
+                    QList<QRectF>({ QRectF(0, 0, 10, 20), QRectF(10, 20, 10, 0), QRectF(20, 13, 10, 7) }));
 }
 
 void ContentArrangeTest::distributeAsGridTiming()
@@ -973,6 +1027,57 @@ void ContentArrangeTest::commandRefusals()
                                                                   { QTransform(), QTransform::fromTranslate(-70, 0) });
     QVERIFY(!unclosed.execute(group, &errorText));
     QVERIFY(!group->isRefusedAsUnchanged());
+}
+
+// -------------------------------------------------------------------------------------------------
+//  Stage E1, fix package FX1: the space the user sees (review R5-6)
+// -------------------------------------------------------------------------------------------------
+
+void ContentArrangeTest::displayedPageMatrix()
+{
+    // ISO 32000-2, 7.7.3.3: /Rotate turns the page clockwise when it is displayed. 90: the x axis
+    // of the page points down on the screen, its y axis right - (x, y) -> (y, -x) in a space with
+    // the y axis up; 180: (-x, -y); 270: the x axis up, the y axis left - (-y, x)
+    QCOMPARE(Arrange::getDisplayedPageMatrix(PageRotation::None), QTransform());
+    QCOMPARE(Arrange::getDisplayedPageMatrix(PageRotation::Rotate90).map(QPointF(3, 5)), QPointF(5, -3));
+    QCOMPARE(Arrange::getDisplayedPageMatrix(PageRotation::Rotate180).map(QPointF(3, 5)), QPointF(-3, -5));
+    QCOMPARE(Arrange::getDisplayedPageMatrix(PageRotation::Rotate270).map(QPointF(3, 5)), QPointF(-5, 3));
+
+    // Clockwise: 90 four times is the identity, 90 then 180 is 270
+    const QTransform quarter = Arrange::getDisplayedPageMatrix(PageRotation::Rotate90);
+    QCOMPARE(quarter * quarter * quarter * quarter, QTransform());
+    QCOMPARE(quarter * Arrange::getDisplayedPageMatrix(PageRotation::Rotate180), Arrange::getDisplayedPageMatrix(PageRotation::Rotate270));
+}
+
+void ContentArrangeTest::commandOnRotatedPage()
+{
+    // A page shown under /Rotate 90 with b0 (10, 10, 20, 10) and the key b1 (50, 40, 40, 20) in
+    // its default space. Mapped by D = getDisplayedPageMatrix(90), (x, y) -> (y, -x): b0 is
+    // x' 10..20, y' -30..-10 = (10, -30, 10, 20); b1 is (40, -90, 20, 40). Align left on the
+    // screen: b0 by 40 - 10 = 30 along x'. The command with C = D: C x T x C^-1 moves (x, y) to
+    // (y, -x) + (30, 0) = (y + 30, -x), back by D^-1, (x', y') -> (-y', x'): (x, y + 30) - b0 moves
+    // up by 30 in the page, which is to the left on the screen.
+    const QTransform displayed = Arrange::getDisplayedPageMatrix(PageRotation::Rotate90);
+    const std::vector<QRectF> boxes = { displayed.mapRect(QRectF(10, 10, 20, 10)), displayed.mapRect(QRectF(50, 40, 40, 20)) };
+    QCOMPARE(boxes[0], QRectF(10, -30, 10, 20));
+    QCOMPARE(boxes[1], QRectF(40, -90, 20, 40));
+
+    ContentArrangeFixture fixture("10 10 20 10 re f 50 40 40 20 re f");
+    QString errorText;
+    const PDFContentCommandPointer command = Arrange::createCommand(Operation::AlignLeft, { fixture.node(Kind::Path, 0), fixture.node(Kind::Path, 1) },
+                                                                    boxes, 1, displayed.mapRect(QRectF(0, 0, 200, 200)), displayed, &errorText);
+    QVERIFY2(command, qPrintable(errorText));
+    QVERIFY2(fixture.execute(command, &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(), QByteArray("q 1 0 0 1 0 30 cm 10 10 20 10 re f Q 50 40 40 20 re f"));
+
+    // Distribute in a row on the screen of the same page: sorted by x' b0 (10), b1 (40); b0 stays,
+    // b1 goes to x' 10 + 10 = 20, by -20 along x': in the page by -20 along y
+    ContentArrangeFixture rowFixture("10 10 20 10 re f 50 40 40 20 re f");
+    const PDFContentCommandPointer row = Arrange::createCommand(Operation::DistributeInRow, { rowFixture.node(Kind::Path, 0), rowFixture.node(Kind::Path, 1) },
+                                                                boxes, 0, displayed.mapRect(QRectF(0, 0, 200, 200)), displayed, &errorText);
+    QVERIFY2(row, qPrintable(errorText));
+    QVERIFY2(rowFixture.execute(row, &errorText), qPrintable(errorText));
+    QCOMPARE(rowFixture.written(), QByteArray("10 10 20 10 re f q 1 0 0 1 0 -20 cm 50 40 40 20 re f Q"));
 }
 
 QTEST_MAIN(ContentArrangeTest)

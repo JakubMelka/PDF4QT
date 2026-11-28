@@ -97,10 +97,21 @@ int PDFAppEditContentCardEntry::getOrder() const
     return PDFAppEditContentCardIds::getOrder(getId());
 }
 
+bool PDFAppEditContentCardEntry::isChangingModel() const
+{
+    return true;
+}
+
 PDFAppEditContentActionEntry::~PDFAppEditContentActionEntry() = default;
 
 QString PDFAppEditContentActionEntry::getIconName() const
 {
+    return QString();
+}
+
+QString PDFAppEditContentActionEntry::getDescription(const PDFAppEditContentContext* context) const
+{
+    Q_UNUSED(context);
     return QString();
 }
 
@@ -159,12 +170,13 @@ int PDFAppEditContentCardIds::getOrder(const QString& cardId)
 {
     // zadani_gui.md 4.19: the table from the top. Selection is always the first, Arrange the last card of the
     // selection; the cards of a layer, of a tag and of the artifacts take the place of the cards of an object;
-    // the cards shown without a selection or on request follow (Locked object, requested by a click on a locked
-    // object, is the last row of the table).
+    // the cards shown without a selection or on request follow. The frames decide the place of two cards (stage
+    // E1): Locked object, requested by a click on a locked object, is right below Selection (-locked-click),
+    // Annotations and fields is between Selection and Arrange (-annotations-underlay, -annotations-hidden).
     static constexpr std::array<const char*, 24> ORDER = {
-        SELECTION, GLYPH, NODE, CLIPPING, IMAGE, CROP, SHARED_CONTENT, SHADING, TILING_PATTERN, TEXT,
+        SELECTION, LOCKED_OBJECT, ANNOTATIONS, GLYPH, NODE, CLIPPING, IMAGE, CROP, SHARED_CONTENT, SHADING, TILING_PATTERN, TEXT,
         FILL_AND_STROKE, TRANSPARENCY, PRINT_PRODUCTION, POSITION_AND_SIZE, LAYER_AND_TAG, ARRANGE, LAYER, TAG, ARTIFACT,
-        GRID_AND_UNITS, ANNOTATIONS, PREVIEW, KEYBOARD, LOCKED_OBJECT
+        GRID_AND_UNITS, PREVIEW, KEYBOARD
     };
 
     for (size_t i = 0; i < ORDER.size(); ++i)
@@ -510,8 +522,7 @@ std::vector<const PDFAppEditContentActionEntry*> PDFAppEditContentRegistry::getM
     std::vector<Row> rows;
     for (const std::unique_ptr<const PDFAppEditContentActionEntry>& entry : m_impl->actions)
     {
-        const std::vector<PDFAppEditContentActionEntry::Placement> placements = entry->getPlacements();
-        if (const PDFAppEditContentActionEntry::Placement* placement = findPlacement(placements, menuId))
+        if (const std::optional<PDFAppEditContentActionEntry::Placement> placement = findPlacement(entry->getPlacements(), menuId))
         {
             rows.push_back(Row{ placement->group, placement->order, entry.get() });
         }
@@ -567,16 +578,16 @@ const PDFAppEditContentActionEntry* PDFAppEditContentRegistry::findActionByAppli
     return it != m_impl->applicationCommands.cend() ? it->second : nullptr;
 }
 
-const PDFAppEditContentActionEntry::Placement* PDFAppEditContentRegistry::findPlacement(const std::vector<PDFAppEditContentActionEntry::Placement>& placements, const QString& menuId)
+std::optional<PDFAppEditContentActionEntry::Placement> PDFAppEditContentRegistry::findPlacement(const std::vector<PDFAppEditContentActionEntry::Placement>& placements, const QString& menuId)
 {
     for (const PDFAppEditContentActionEntry::Placement& placement : placements)
     {
         if (placement.menuId == menuId)
         {
-            return &placement;
+            return placement;
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 // ---------------------------------------------------------------- key table
@@ -748,6 +759,32 @@ QStringList PDFAppEditContentKeyTable::checkApplicationCommands(const PDFAppEdit
         }
     }
 
+    return problems;
+}
+
+QStringList PDFAppEditContentKeyTable::checkCanvasKeys(const PDFAppEditContentRegistry& registry, const std::map<QString, std::vector<QKeySequence>>& canvasCommandShortcuts)
+{
+    using H = PDFAppEditContentRegistryHelper;
+
+    QStringList problems;
+    for (const PDFAppEditContentKeyRow& row : getRows(registry))
+    {
+        if (row.scope != PDFAppEditContentKeyScope::Canvas || row.sequence.isEmpty())
+        {
+            continue;
+        }
+
+        const QString name = row.toolId.isEmpty() ? QStringLiteral("action '%1'").arg(row.actionId) : QStringLiteral("tool '%1'").arg(row.toolId);
+        for (const auto& [commandId, shortcuts] : canvasCommandShortcuts)
+        {
+            const PDFAppEditContentActionEntry* owner = registry.findActionByApplicationCommand(commandId);
+            if (owner && H::containsKey(shortcuts, row.sequence))
+            {
+                problems << QStringLiteral("%1: the canvas key '%2' is the Canvas shortcut of the command '%3', which the action '%4' answers")
+                                .arg(name, H::getKeyText(row.sequence), commandId, owner->getId());
+            }
+        }
+    }
     return problems;
 }
 

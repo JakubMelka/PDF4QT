@@ -761,6 +761,13 @@ QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
 
     if (softMask.getBitsPerComponent() == 8)
     {
+        // A row of the mask is read by its width (one byte per sample) from getRow, which gives
+        // stride bytes of it
+        if (softMask.getStride() < softMask.getWidth())
+        {
+            throw PDFException(PDFTranslationContext::tr("Invalid stride of soft mask (%1 bytes, the width is %2).").arg(softMask.getStride()).arg(softMask.getWidth()));
+        }
+
         if (decode.empty())
         {
             for (unsigned int i = 0, rowCount = softMask.getHeight(); i < rowCount; ++i)
@@ -2786,8 +2793,15 @@ const unsigned char* PDFImageData::getRow(unsigned int rowIndex) const
 {
     const unsigned char* data = reinterpret_cast<const unsigned char*>(m_data.constData());
 
-    Q_ASSERT(rowIndex < m_height);
-    return data + (rowIndex * m_stride);
+    // The producers give stride x height bytes (PDFImage::createImage checks it); a row, whose
+    // stride bytes are not all in the data, is refused in every build (one comparison)
+    const qsizetype rowOffset = qsizetype(rowIndex) * qsizetype(m_stride);
+    if (rowOffset + qsizetype(m_stride) > m_data.size())
+    {
+        throw PDFException(PDFTranslationContext::tr("Row %1 of the image is out of its data.").arg(rowIndex));
+    }
+
+    return data + rowOffset;
 }
 
 bool PDFPatternColorSpace::equals(const PDFAbstractColorSpace* other) const

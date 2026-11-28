@@ -39,6 +39,7 @@ class PDFAppEditContentContext;
 class PDFAppEditContentRegistry;
 class PDFAppHeaderText;
 class PDFAppToolPageGrid;
+class PDFContentEditSession;
 struct PDFContentChange;
 
 // Edit Content, stage E1, package P12 (tabs Objects and Pages). Plan: zadani_gui.md 4.18 (Pages).
@@ -51,7 +52,9 @@ struct PDFContentChange;
 /// the text below them says so.
 ///
 /// The tab has no state object: the pages with changes are read from the session, the current
-/// page from the context.
+/// page from the context. After PDFAppEditContentContext::sessionReplaced (a new version of the
+/// document, loaded again without work) the panel follows the new session and shows the
+/// thumbnails of the new version.
 ///
 /// Threads and ownership: a part (see PDFAppEditContentObjectsPanel). GUI thread; the thumbnails
 /// are rendered by the scheduler of the application (its own workers). The hook retire() ends
@@ -93,11 +96,18 @@ private:
     void onPageClicked(int pageIndex, Qt::KeyboardModifiers modifiers);
     void onPageChanged();
     void onModelChanged(const pdf::PDFContentChange& change);
+    void onSessionReplaced();
+
+    /// The connection to the session of the context (the constructor, sessionReplaced)
+    void connectSession();
 
     QPointer<PDFAppEditContentContext> m_context;
+    QPointer<PDFContentEditSession> m_session;      ///< The session the panel is connected to
     QPointer<PDFAppToolPageGrid> m_grid;
     QPointer<PDFAppHeaderText> m_title;
     QPointer<PDFAppHeaderText> m_subtitle;
+    QPointer<PDFAppDocumentView> m_view;            ///< The view of the thumbnails (setDocument)
+    QString m_documentId;                           ///< The document of the thumbnails (setDocument); empty = none
     PDFInteger m_activatedPage = -1;
 };
 

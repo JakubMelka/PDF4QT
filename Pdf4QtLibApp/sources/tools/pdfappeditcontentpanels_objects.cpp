@@ -39,7 +39,9 @@
 #include "pdfthemeiconengine.h"
 
 #include "pdfcatalog.h"
+#include "pdfcontenteditsession.h"
 #include "pdfdocument.h"
+#include "pdffont.h"
 #include "pdfpainterutils.h"
 
 #include <QCoreApplication>
@@ -53,6 +55,7 @@
 #include <QPainterPath>
 #include <QTimer>
 #include <QToolButton>
+#include <QTransform>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -108,9 +111,9 @@ public:
             case PDFContentNodeKind::FormUse:
                 return isTransparencyGroup(node, document) ? QStringLiteral("transparency-group") : QStringLiteral("xobject-form");
             case PDFContentNodeKind::Group:
-                return isClippingGroup(node) ? QStringLiteral("clip-path") : QStringLiteral("group");
+                return PDFAppEditContentObjectsModel::isClippingGroup(node) ? QStringLiteral("clip-path") : QStringLiteral("group");
             case PDFContentNodeKind::MarkedContent:
-                return node.getData().optionalContent.isValid() ? QStringLiteral("layers") : QStringLiteral("marked-content");
+                return PDFAppEditContentObjectsModel::isLayerContent(node) ? QStringLiteral("layers") : QStringLiteral("marked-content");
             case PDFContentNodeKind::MarkedPoint:
                 return QStringLiteral("marked-content");
             case PDFContentNodeKind::Opaque:
@@ -118,23 +121,6 @@ public:
             default:
                 return QStringLiteral("object");
         }
-    }
-
-    /// A Group, which sets a clipping path for its content (a child with a clipping effect)
-    static bool isClippingGroup(const PDFContentNode& node)
-    {
-        if (node.getKind() != PDFContentNodeKind::Group)
-        {
-            return false;
-        }
-        for (const PDFContentNodePointer& child : node.getChildren())
-        {
-            if (child->hasClipEffect())
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// The dictionary of an object of the document (a stream gives its dictionary)
@@ -169,51 +155,91 @@ public:
         return subtype.isName() && subtype.getString() == "Transparency";
     }
 
-    /// The text of a text object (up to PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH
-    /// characters) and the number of its lines (the baselines of its strings)
-    static QString getText(const PDFContentNode& textObject, int* lineCount)
+    /// The previous glyph of a walk over a text (the line rule of PDFContentDisplay::getText)
+    struct GlyphLine
     {
-        QString text;
+        bool hasPrevious = false;
+        QTransform matrix;              ///< Tm before the previous glyph
+        PDFReal fontSize = 0.0;         ///< |Tfs| of the previous glyph
+        bool isVertical = false;        ///< The writing mode of its font
+    };
+
+    /// The glyph of the text matrix \p matrix starts a new line (PDFContentDisplayHelper::splitLines, the relative
+    /// tolerance of a baseline 0.1 % of the font size, zadani_jadro.md 4.7): the first glyph, a glyph of another
+    /// writing mode, a glyph after a glyph of a singular matrix, a glyph whose text space is not the text space of the
+    /// previous one moved along the writing direction (another baseline, a rotation, a move backwards of the axis)
+    static bool isNewLine(const GlyphLine& previous, const QTransform& matrix, bool isVertical)
+    {
+        constexpr PDFReal TOLERANCE = 0.001;
+        if (!previous.hasPrevious || previous.isVertical != isVertical || !previous.matrix.isInvertible())
+        {
+            return true;
+        }
+
+        // The text space of the glyph in the text space of the previous one; the CTM is the same for the whole text
+        // object (cm is not allowed in a text object, ISO 32000-2, 8.2, Figure 9), so it drops out
+        const QTransform relative = matrix * previous.matrix.inverted();
+        const PDFReal limit = TOLERANCE * previous.fontSize;
+        if (!isVertical)
+        {
+            return !(qAbs(relative.dy()) <= limit && relative.m11() > 0.0 && qAbs(relative.m12()) <= TOLERANCE * relative.m11());
+        }
+        return !(qAbs(relative.dx()) <= limit && relative.m22() > 0.0 && qAbs(relative.m21()) <= TOLERANCE * relative.m22());
+    }
+
+    /// Walks the glyphs of a text object in the order of the content: its text up to
+    /// PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH characters (\p text, a space between two lines and at a
+    /// large move of TJ) and the number of its lines (\p lineCount; then every glyph is visited). Bounds: every node of
+    /// the subtree once, PDFContentContainer::MAXIMUM_DEPTH + 2 levels.
+    static void walkText(const PDFContentNode& textObject, QString* text, int* lineCount)
+    {
+        constexpr int MAXIMUM_LENGTH = PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH;
+
+        GlyphLine line;
         int lines = 0;
-        bool hasBaseline = false;
-        qreal baseline = 0.0;
         std::vector<std::pair<const PDFContentNode*, int>> stack;
         stack.emplace_back(&textObject, 0);
-        while (!stack.empty() && text.size() < PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH)
+        while (!stack.empty() && (lineCount || (text && text->size() < MAXIMUM_LENGTH)))
         {
             const auto [node, depth] = stack.back();
             stack.pop_back();
             if (node->getKind() == PDFContentNodeKind::TextShow)
             {
-                const std::vector<PDFContentTextItem>& items = node->getData().textItems;
-                if (!items.empty())
+                const PDFContentTextState& state = node->getData().textState;
+                const bool isVertical = state.font && state.font->getCMap() && state.font->getCMap()->isVertical();
+                const PDFReal fontSize = qAbs(state.fontSize);
+                for (const PDFContentTextItem& item : node->getData().textItems)
                 {
-                    const qreal y = items.front().textMatrix.dy();
-                    if (!hasBaseline || qAbs(y - baseline) > 0.5)
-                    {
-                        if (hasBaseline && !text.isEmpty() && !text.endsWith(QLatin1Char(' ')))
-                        {
-                            text += QLatin1Char(' ');
-                        }
-                        ++lines;
-                        hasBaseline = true;
-                        baseline = y;
-                    }
-                }
-                for (const PDFContentTextItem& item : items)
-                {
-                    if (text.size() >= PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH)
+                    const bool isTextFull = !text || text->size() >= MAXIMUM_LENGTH;
+                    if (isTextFull && !lineCount)
                     {
                         break;
                     }
-                    if (item.kind == PDFContentTextItem::Kind::Glyph)
+                    if (item.kind != PDFContentTextItem::Kind::Glyph)
                     {
-                        text += item.unicode;
+                        if (!isTextFull && item.adjustment < -250.0 && !text->isEmpty() && !text->endsWith(QLatin1Char(' ')))
+                        {
+                            // A large move of TJ is a gap between words
+                            *text += QLatin1Char(' ');
+                        }
+                        continue;
                     }
-                    else if (item.adjustment < -250.0 && !text.isEmpty() && !text.endsWith(QLatin1Char(' ')))
+
+                    if (isNewLine(line, item.textMatrix, isVertical))
                     {
-                        // A large move of TJ is a gap between words
-                        text += QLatin1Char(' ');
+                        ++lines;
+                        if (!isTextFull && line.hasPrevious && !text->isEmpty() && !text->endsWith(QLatin1Char(' ')))
+                        {
+                            *text += QLatin1Char(' ');
+                        }
+                    }
+                    line.hasPrevious = true;
+                    line.matrix = item.textMatrix;
+                    line.fontSize = fontSize;
+                    line.isVertical = isVertical;
+                    if (text && text->size() < MAXIMUM_LENGTH)
+                    {
+                        *text += item.unicode;
                     }
                 }
                 continue;
@@ -232,21 +258,14 @@ public:
         {
             *lineCount = lines;
         }
-        return text.simplified();
     }
 
-    /// The row nodes among the children of the node
-    static int getChildRowCount(const PDFContentNode& node)
+    /// The text of a text object (up to PDFAppEditContentObjectsModel::MAXIMUM_TEXT_LENGTH characters)
+    static QString getText(const PDFContentNode& textObject)
     {
-        int count = 0;
-        for (const PDFContentNodePointer& child : node.getChildren())
-        {
-            if (PDFAppEditContentObjectsModel::getRowNodeOfChild(*child))
-            {
-                ++count;
-            }
-        }
-        return count;
+        QString text;
+        walkText(textObject, &text, nullptr);
+        return text.simplified();
     }
 
     /// The indices of the node and of its ancestors from the root (the order of the content of
@@ -313,6 +332,20 @@ public:
                 return K::Other;
         }
     }
+
+    /// The order of the node references, which counts its comparisons (the work of the tree selection, R7-3)
+    struct CountingLess
+    {
+        quint64* counter = nullptr;
+
+        bool operator()(const PDFContentNodeReference& left, const PDFContentNodeReference& right) const
+        {
+            ++*counter;
+            return left < right;
+        }
+    };
+
+    using CountedNodeSet = std::set<PDFContentNodeReference, CountingLess>;
 };
 
 /// The rows of the tree Objects (edit-content-v2-objects-nested 1647:22520): the icon of the kind, the kind, the
@@ -336,6 +369,7 @@ public:
     static constexpr int ACTION_MARGIN = 4;
     static constexpr int LOCK_ACTION = 1;
     static constexpr int HIDE_ACTION = 2;
+    static constexpr const char* CLIP_BADGE_ICON = "clip-path";
 
     using BaseClass::BaseClass;
 
@@ -440,6 +474,19 @@ protected:
             }
         }
 
+        // The clipping badge (zadani_gui.md 4.18): a text or a path, which sets a clipping path for the content behind
+        // it; the kind alone tells only a path, which clips and paints nothing
+        if (index.data(Model::IsClippingRole).toBool())
+        {
+            const QRectF clipRect(right - ICON, rect.top() + (rect.height() - ICON) / 2.0, ICON, ICON);
+            if (clipRect.left() > rect.left() + PADDING + ICON + 3 * GAP + 40)
+            {
+                const Color clipColor = !isEnabled ? Color::IconDisabled : (isSelected ? Color::IconAccent : Color::IconMuted);
+                PDFThemeIcons::paint(painter, state.visualRect(rect, clipRect), QString::fromLatin1(CLIP_BADGE_ICON), PDFStylePainter::color(clipColor));
+                right = clipRect.left() - GAP;
+            }
+        }
+
         // The icon of the kind
         const QRectF iconRect(rect.left() + PADDING, rect.top() + (rect.height() - ICON) / 2.0, ICON, ICON);
         const Color iconColor = !isEnabled ? Color::IconDisabled : (isSelected ? Color::IconAccent : Color::IconDefault);
@@ -486,15 +533,158 @@ PDFAppEditContentObjectsModel::PDFAppEditContentObjectsModel(PDFAppEditContentCo
     // The context is the parent and the session a sibling: both are foreign senders
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::pageChanged, this, &PDFAppEditContentObjectsModel::onPageChanged);
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::containerChanged, this, &PDFAppEditContentObjectsModel::onContainerChanged);
-    if (PDFContentEditSession* session = context->getSession())
-    {
-        PDFDeferredDeletion::connect(session, &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentObjectsModel::onContainerLoaded);
-        PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentObjectsModel::onModelChanged);
-        PDFDeferredDeletion::connect(session, &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentObjectsModel::onEditorStateChanged);
-    }
+    PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentObjectsModel::onSessionReplaced);
+    connectSession();
 }
 
 PDFAppEditContentObjectsModel::~PDFAppEditContentObjectsModel() = default;
+
+void PDFAppEditContentObjectsModel::connectSession()
+{
+    if (m_session)
+    {
+        m_session->disconnect(this);
+    }
+    m_session = m_context ? m_context->getSession() : nullptr;
+    if (m_session)
+    {
+        PDFDeferredDeletion::connect(m_session.data(), &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentObjectsModel::onContainerLoaded);
+        PDFDeferredDeletion::connect(m_session.data(), &PDFContentEditSession::modelChanged, this, &PDFAppEditContentObjectsModel::onModelChanged);
+        PDFDeferredDeletion::connect(m_session.data(), &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentObjectsModel::onEditorStateChanged);
+    }
+}
+
+void PDFAppEditContentObjectsModel::onSessionReplaced()
+{
+    // A new version of the document (PDFAppEditContentContext::reloadDocument): its nodes are other objects, the
+    // expanded rows and the texts belong to the old one; the rows follow from the event loop (pageChanged follows)
+    connectSession();
+    m_expanded.clear();
+    m_textCache.clear();
+    m_isResetQueued = true;
+    queueRefresh();
+}
+
+bool PDFAppEditContentObjectsModel::isClippingGroup(const PDFContentNode& node)
+{
+    if (node.getKind() != PDFContentNodeKind::Group)
+    {
+        return false;
+    }
+    for (const PDFContentNodePointer& child : node.getChildren())
+    {
+        if (child->getKind() != PDFContentNodeKind::StateRun && child->hasClipEffect())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PDFAppEditContentObjectsModel::isLayerContent(const PDFContentNode& node)
+{
+    return node.getKind() == PDFContentNodeKind::MarkedContent && (node.getData().optionalContent.isValid() || node.getData().tag == "OC");
+}
+
+int PDFAppEditContentObjectsModel::getSegmentCount(const PDFContentNode& node)
+{
+    if (node.getKind() != PDFContentNodeKind::Path)
+    {
+        return 0;
+    }
+
+    // ISO 32000-2, 8.5.2.1: h appends a straight line from the current point to the start of the subpath; when the
+    // subpath is closed already (the current point is its start), it does nothing
+    int count = 0;
+    QPointF start;
+    QPointF current;
+    for (const PDFContentPath::Segment& segment : node.getData().path.getSegments())
+    {
+        switch (segment.type)
+        {
+            case PDFContentPath::SegmentType::MoveTo:
+                start = segment.points[0];
+                current = start;
+                break;
+            case PDFContentPath::SegmentType::LineTo:
+                ++count;
+                current = segment.points[0];
+                break;
+            case PDFContentPath::SegmentType::CurveTo:
+                ++count;
+                current = segment.points[2];
+                break;
+            case PDFContentPath::SegmentType::Close:
+                if (current != start)
+                {
+                    ++count;
+                }
+                current = start;
+                break;
+        }
+    }
+    return count;
+}
+
+int PDFAppEditContentObjectsModel::getLineCount(const PDFContentNode& textObject)
+{
+    if (textObject.getKind() != PDFContentNodeKind::TextObject)
+    {
+        return 0;
+    }
+    int lines = 0;
+    PDFAppEditContentObjectsHelper::walkText(textObject, nullptr, &lines);
+    return lines;
+}
+
+int PDFAppEditContentObjectsModel::getChildRowCount(const PDFContentNode& node)
+{
+    int count = 0;
+    for (const PDFContentNodePointer& child : node.getChildren())
+    {
+        if (getRowNodeOfChild(*child))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void PDFAppEditContentObjectsModel::clearTextCache()
+{
+    m_textCache.clear();
+}
+
+const PDFAppEditContentObjectsModel::TextEntry& PDFAppEditContentObjectsModel::getTexts(const PDFContentContainer& container, quint64 id) const
+{
+    // Valid, while the container has the same node object (a node, which no command changed, is shared by the
+    // versions); the entry holds the node, so its address is never reused meanwhile
+    const PDFContentNodePointer node = container.getNode(PDFContentNodeId{ id });
+    TextEntry& entry = m_textCache[id];
+    if (entry.node != node)
+    {
+        ++m_textComputationCount;
+        entry.node = node;
+        entry.kind = node ? getKindText(*node, getDocument()) : QString();
+        entry.description = node ? getDescription(*node, getDocument()) : QString();
+    }
+    return entry;
+}
+
+void PDFAppEditContentObjectsModel::pruneTextCache()
+{
+    for (auto it = m_textCache.begin(); it != m_textCache.end();)
+    {
+        if (!m_container || m_container->getNode(PDFContentNodeId{ it->first }) != it->second.node)
+        {
+            it = m_textCache.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
 
 const PDFContentNode* PDFAppEditContentObjectsModel::getRowNodeOfChild(const PDFContentNode& child)
 {
@@ -507,7 +697,7 @@ const PDFContentNode* PDFAppEditContentObjectsModel::getRowNodeOfChild(const PDF
 
         case PDFContentNodeKind::MarkedContent:
         {
-            if (!child.getData().mcid.has_value() || child.getData().optionalContent.isValid())
+            if (!child.getData().mcid.has_value() || isLayerContent(child))
             {
                 return &child;
             }
@@ -575,9 +765,9 @@ QString PDFAppEditContentObjectsModel::getKindText(const PDFContentNode& node, c
         case PDFContentNodeKind::FormUse:
             return Helper::isTransparencyGroup(node, document) ? tr("Transparency group") : tr("Form XObject");
         case PDFContentNodeKind::Group:
-            return Helper::isClippingGroup(node) ? tr("Clipping group") : tr("Group");
+            return isClippingGroup(node) ? tr("Clipping group") : tr("Group");
         case PDFContentNodeKind::MarkedContent:
-            if (node.getData().optionalContent.isValid())
+            if (isLayerContent(node))
             {
                 return tr("Layer content");
             }
@@ -598,12 +788,12 @@ QString PDFAppEditContentObjectsModel::getDescription(const PDFContentNode& node
     {
         case PDFContentNodeKind::TextObject:
         {
-            int lines = 0;
-            const QString text = Helper::getText(node, &lines);
+            const int lines = getLineCount(node);
             if (lines > 1)
             {
                 return tr("Paragraph · %Ln lines", nullptr, lines);
             }
+            const QString text = Helper::getText(node);
             if (text.isEmpty())
             {
                 return QString();
@@ -617,15 +807,7 @@ QString PDFAppEditContentObjectsModel::getDescription(const PDFContentNode& node
             {
                 return tr("Rectangle");
             }
-            int segments = 0;
-            for (const PDFContentPath::Segment& segment : data.path.getSegments())
-            {
-                if (segment.type != PDFContentPath::SegmentType::MoveTo && segment.type != PDFContentPath::SegmentType::Close)
-                {
-                    ++segments;
-                }
-            }
-            return tr("%Ln segments", nullptr, segments);
+            return tr("%Ln segments", nullptr, getSegmentCount(node));
         }
 
         case PDFContentNodeKind::Image:
@@ -653,7 +835,7 @@ QString PDFAppEditContentObjectsModel::getDescription(const PDFContentNode& node
             return QString::fromLatin1(data.resourceName);
 
         case PDFContentNodeKind::Group:
-            return tr("%Ln objects", nullptr, Helper::getChildRowCount(node));
+            return tr("%Ln objects", nullptr, getChildRowCount(node));
 
         case PDFContentNodeKind::MarkedContent:
         case PDFContentNodeKind::MarkedPoint:
@@ -670,6 +852,11 @@ QString PDFAppEditContentObjectsModel::getDescription(const PDFContentNode& node
                         return name;
                     }
                 }
+            }
+            if (isLayerContent(node) && !data.optionalContent.isValid() && !data.propertiesName.isEmpty())
+            {
+                // An OCG, which the resources do not have: its name of /Properties
+                return QString::fromLatin1(data.propertiesName);
             }
             if (data.isArtifact)
             {
@@ -827,9 +1014,8 @@ QVariant PDFAppEditContentObjectsModel::data(const QModelIndex& index, int role)
         case Qt::DisplayRole:
         case Qt::AccessibleTextRole:
         {
-            const QString kind = getKindText(*node, getDocument());
-            const QString description = getDescription(*node, getDocument());
-            return description.isEmpty() ? kind : kind + QLatin1Char(' ') + description;
+            const TextEntry& texts = getTexts(*m_container, id);
+            return texts.description.isEmpty() ? texts.kind : texts.kind + QLatin1Char(' ') + texts.description;
         }
 
         case Qt::AccessibleDescriptionRole:
@@ -839,6 +1025,11 @@ QVariant PDFAppEditContentObjectsModel::data(const QModelIndex& index, int role)
             if (!badge.isEmpty())
             {
                 parts << badge;
+            }
+            if (node->hasClipEffect())
+            {
+                // The clipping badge of the row (R7-7)
+                parts << tr("Clipping");
             }
             if (session && session->isNodeLocked(reference))
             {
@@ -861,10 +1052,10 @@ QVariant PDFAppEditContentObjectsModel::data(const QModelIndex& index, int role)
             return id;
 
         case KindTextRole:
-            return getKindText(*node, getDocument());
+            return getTexts(*m_container, id).kind;
 
         case DescriptionRole:
-            return getDescription(*node, getDocument());
+            return getTexts(*m_container, id).description;
 
         case BadgeRole:
         {
@@ -944,10 +1135,17 @@ Qt::ItemFlags PDFAppEditContentObjectsModel::flags(const QModelIndex& index) con
         return Qt::ItemIsEnabled;
     }
 
-    Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled;
-    if (hasChildRows(*node))
+    // R7-4, the one rule of the lock (PDFAppEditContentContext::isNodeChangeable): a locked row, a row inside of a
+    // locked group, is not dragged, and nothing is dropped into it
+    const bool isChangeable = m_context && m_context->isNodeChangeable(PDFContentNodeReference{ m_root.container, node->getId() });
+    Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+    if (isChangeable)
     {
-        flags |= Qt::ItemIsDropEnabled;
+        flags |= Qt::ItemIsDragEnabled;
+        if (hasChildRows(*node))
+        {
+            flags |= Qt::ItemIsDropEnabled;
+        }
     }
     return flags;
 }
@@ -977,7 +1175,8 @@ QMimeData* PDFAppEditContentObjectsModel::mimeData(const QModelIndexList& indexe
     for (const QModelIndex& index : indexes)
     {
         const PDFContentNode* node = getRowNode(index);
-        if (node && node->getKind() != PDFContentNodeKind::Opaque && added.insert(node->getId().value).second)
+        const bool isChangeable = node && m_context && m_context->isNodeChangeable(PDFContentNodeReference{ m_root.container, node->getId() });
+        if (isChangeable && added.insert(node->getId().value).second)
         {
             nodes.emplace_back(Helper::getPosition(*m_container, node->getId()), node->getId().value);
         }
@@ -1058,7 +1257,14 @@ bool PDFAppEditContentObjectsModel::canDropMimeData(const QMimeData* data, Qt::D
         return false;
     }
 
-    // Never into a moved node or its subtree
+    // R7-4: never into a locked group (or a group inside of one); the edited root itself takes the rows
+    if (target->getId() != m_root.node && !m_context->isNodeChangeable(PDFContentNodeReference{ m_root.container, target->getId() }))
+    {
+        return false;
+    }
+
+    // Never into a moved node or its subtree; a locked node (or one under a locked group) is never moved, also when it
+    // was locked after the drag started
     const std::vector<PDFContentNodeId> nodes = decodeNodes(data);
     if (nodes.empty())
     {
@@ -1066,7 +1272,7 @@ bool PDFAppEditContentObjectsModel::canDropMimeData(const QMimeData* data, Qt::D
     }
     for (const PDFContentNodeId& node : nodes)
     {
-        if (Helper::isInside(*m_container, target->getId(), node))
+        if (Helper::isInside(*m_container, target->getId(), node) || !m_context->isNodeChangeable(PDFContentNodeReference{ m_root.container, node }))
         {
             return false;
         }
@@ -1178,7 +1384,7 @@ void PDFAppEditContentObjectsModel::setNodeExpanded(const PDFContentNodeReferenc
     }
 }
 
-bool PDFAppEditContentObjectsModel::isMatched(const PDFContentNode& node) const
+bool PDFAppEditContentObjectsModel::isMatched(const PDFContentContainer& container, const PDFContentNode& node) const
 {
     using Helper = PDFAppEditContentObjectsHelper;
 
@@ -1190,7 +1396,10 @@ bool PDFAppEditContentObjectsModel::isMatched(const PDFContentNode& node) const
     {
         return true;
     }
-    return Helper::contains(getKindText(node, getDocument()), m_filterText) || Helper::contains(getDescription(node, getDocument()), m_filterText);
+
+    // The texts of the rows (cached: a filtered tree is built again after every command)
+    const TextEntry& texts = getTexts(container, node.getId().value);
+    return Helper::contains(texts.kind, m_filterText) || Helper::contains(texts.description, m_filterText);
 }
 
 bool PDFAppEditContentObjectsModel::buildRows(Tree& tree, const PDFContentContainer& container, const PDFContentNode& node, quint64 rowId, int depth,
@@ -1215,7 +1424,7 @@ bool PDFAppEditContentObjectsModel::buildRows(Tree& tree, const PDFContentContai
             ++tree.newObjectCount;
         }
 
-        const bool isRowMatched = !isFilterActive || isMatched(*rowNode);
+        const bool isRowMatched = !isFilterActive || isMatched(container, *rowNode);
         if (isFilterActive && isRowMatched)
         {
             ++tree.matchCount;
@@ -1331,13 +1540,15 @@ bool PDFAppEditContentObjectsModel::isSameNode(quint64 id, const PDFContentConta
     return oldContainer->getNode(nodeId).get() == newContainer.getNode(nodeId).get();
 }
 
-int PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer) const
+void PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer,
+                                                 ChangeCount* count) const
 {
     const auto currentIt = m_entries.find(parentId);
     const auto targetIt = tree.entries.find(parentId);
     if (currentIt == m_entries.cend() || targetIt == tree.entries.cend())
     {
-        return LARGE_CHANGE + 1;
+        count->structure += LARGE_CHANGE + 1;
+        return;
     }
 
     const std::vector<quint64>& current = currentIt->second.children;
@@ -1346,7 +1557,6 @@ int PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parent
     const std::unordered_set<quint64> targetSet(target.cbegin(), target.cend());
 
     // Removed and inserted rows, and the kept rows out of their place (at most as many moves)
-    int count = 0;
     std::vector<quint64> currentKept;
     std::vector<quint64> targetKept;
     for (quint64 id : current)
@@ -1357,7 +1567,7 @@ int PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parent
         }
         else
         {
-            ++count;
+            ++count->structure;
         }
     }
     for (quint64 id : target)
@@ -1368,20 +1578,22 @@ int PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parent
         }
         else
         {
-            ++count;
+            ++count->structure;
         }
     }
-    for (size_t i = 0; i < currentKept.size() && count <= LARGE_CHANGE; ++i)
+    for (size_t i = 0; i < currentKept.size() && count->structure <= LARGE_CHANGE; ++i)
     {
         if (currentKept[i] != targetKept[i])
         {
-            ++count;
+            ++count->structure;
         }
     }
 
+    // The kept rows, whose node changed: a dataChanged each (R7-9: counted, a Transform of many objects changes no
+    // row's place); the rows inside of them
     for (quint64 id : targetKept)
     {
-        if (count > LARGE_CHANGE)
+        if (count->structure > LARGE_CHANGE)
         {
             break;
         }
@@ -1391,14 +1603,17 @@ int PDFAppEditContentObjectsModel::countChanges(const Tree& tree, quint64 parent
         {
             continue;
         }
-        const bool isSame = isSameNode(id, oldContainer, newContainer) && oldIt->second.placeId == childIt->second.placeId &&
-                            isSameNode(childIt->second.placeId, oldContainer, newContainer);
-        if (!isSame && (!childIt->second.children.empty() || !oldIt->second.children.empty()))
+        const bool isNodeSame = isSameNode(id, oldContainer, newContainer);
+        const bool isSame = isNodeSame && oldIt->second.placeId == childIt->second.placeId && isSameNode(childIt->second.placeId, oldContainer, newContainer);
+        if (!isSame)
         {
-            count += countChanges(tree, id, oldContainer, newContainer);
+            ++count->data;
+        }
+        if (!isNodeSame && (!childIt->second.children.empty() || !oldIt->second.children.empty()))
+        {
+            countChanges(tree, id, oldContainer, newContainer, count);
         }
     }
-    return count;
 }
 
 void PDFAppEditContentObjectsModel::removeMissing(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer)
@@ -1495,10 +1710,14 @@ void PDFAppEditContentObjectsModel::insertAndMove(const Tree& tree, quint64 pare
         }
     }
 
-    // The rows kept here: their nodes and places may have changed (dataChanged), their rows inside too
+    // The rows kept here: their nodes and places may have changed (dataChanged), their rows inside too. Many changed
+    // rows (m_isBulkDataChange) are one dataChanged of the range from the first to the last changed row of the parent.
     const std::vector<quint64> children = current.children;
-    for (quint64 id : children)
+    int firstChanged = -1;
+    int lastChanged = -1;
+    for (size_t i = 0; i < children.size(); ++i)
     {
+        const quint64 id = children[i];
         if (inserted.count(id))
         {
             continue;
@@ -1515,13 +1734,25 @@ void PDFAppEditContentObjectsModel::insertAndMove(const Tree& tree, quint64 pare
         entryIt->second.placeId = childIt->second.placeId;
         if (!isNodeSame || !isPlaceSame)
         {
-            const QModelIndex index = createParentIndex(id);
-            Q_EMIT dataChanged(index, index);
+            if (m_isBulkDataChange)
+            {
+                firstChanged = firstChanged < 0 ? int(i) : firstChanged;
+                lastChanged = int(i);
+            }
+            else
+            {
+                const QModelIndex index = createParentIndex(id);
+                Q_EMIT dataChanged(index, index);
+            }
         }
         if (!isNodeSame)
         {
             insertAndMove(tree, id, oldContainer, newContainer);
         }
+    }
+    if (firstChanged >= 0)
+    {
+        Q_EMIT dataChanged(index(firstChanged, 0, parentIndex), index(lastChanged, 0, parentIndex));
     }
 }
 
@@ -1548,7 +1779,9 @@ void PDFAppEditContentObjectsModel::refresh(bool isReset)
     else if (m_container != container)
     {
         Tree tree = buildTree(container, root.node);
-        if (countChanges(tree, root.node.value, m_container.get(), *container) > LARGE_CHANGE)
+        ChangeCount count;
+        countChanges(tree, root.node.value, m_container.get(), *container, &count);
+        if (count.structure > LARGE_CHANGE)
         {
             resetTo(std::move(tree), container, root);
         }
@@ -1560,9 +1793,18 @@ void PDFAppEditContentObjectsModel::refresh(bool isReset)
             m_objectCount = tree.objectCount;
             m_newObjectCount = tree.newObjectCount;
             m_matchCount = tree.matchCount;
+            m_isBulkDataChange = count.data > LARGE_CHANGE;
             removeMissing(tree, root.node.value, oldContainer.get(), *container);
             insertAndMove(tree, root.node.value, oldContainer.get(), *container);
+            if (self)
+            {
+                m_isBulkDataChange = false;
+            }
         }
+    }
+    if (self)
+    {
+        pruneTextCache();
     }
 
     // Emit last (a slot may close the tool)
@@ -1628,10 +1870,37 @@ void PDFAppEditContentObjectsModel::onModelChanged(const PDFContentChange& chang
 
 void PDFAppEditContentObjectsModel::onEditorStateChanged(const PDFContentNodeReference& node)
 {
-    const QModelIndex index = getIndex(node);
+    // R6-2: the session tells every node of a lock of many objects (it has no batch call); one lookup of the row and
+    // one dataChanged each, up to LARGE_CHANGE rows in a turn of the event loop - then one dataChanged of all rows from
+    // the event loop (no rebuild, no search)
+    if (!m_isStateRefreshQueued)
+    {
+        m_isStateRefreshQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppEditContentObjectsModel::onQueuedStateRefresh, Qt::QueuedConnection);
+    }
+    if (m_stateChangeCount > LARGE_CHANGE)
+    {
+        return;
+    }
+
+    ++m_stateChangeCount;
+    const QModelIndex index = m_stateChangeCount <= LARGE_CHANGE ? getIndex(node) : QModelIndex();
     if (index.isValid())
     {
         Q_EMIT dataChanged(index, index);
+    }
+}
+
+void PDFAppEditContentObjectsModel::onQueuedStateRefresh()
+{
+    const bool isMany = m_stateChangeCount > LARGE_CHANGE;
+    m_isStateRefreshQueued = false;
+    m_stateChangeCount = 0;
+    const int count = rowCount();
+    if (isMany && count > 0 && !PDFDeferredDeletion::isRetired(this))
+    {
+        // The rows inside of the groups are repainted with them (a range of more rows repaints the view)
+        Q_EMIT dataChanged(index(0, 0), index(count - 1, 0), { IsLockedRole, IsHiddenRole, Qt::AccessibleDescriptionRole });
     }
 }
 
@@ -1732,6 +2001,9 @@ PDFAppEditContentObjectsPanel::PDFAppEditContentObjectsPanel(PDFAppEditContentCo
         PDFDeferredDeletion::connect(model, &QAbstractItemModel::modelReset, this, &PDFAppEditContentObjectsPanel::onModelReset);
         PDFDeferredDeletion::connect(model, &QAbstractItemModel::rowsInserted, this, &PDFAppEditContentObjectsPanel::onRowsInserted);
         m_filterField->setText(model->getFilterText());
+
+        // A panel is built again after a change of the language: the texts of the rows follow it
+        model->clearTextCache();
     }
     if (context)
     {
@@ -1847,6 +2119,15 @@ void PDFAppEditContentObjectsPanel::changeEvent(QEvent* event)
     BaseClass::changeEvent(event);
     if (event->type() == QEvent::LanguageChange)
     {
+        // The kinds and the descriptions of the rows are translated texts
+        if (m_model)
+        {
+            m_model->clearTextCache();
+        }
+        if (m_tree)
+        {
+            m_tree->viewport()->update();
+        }
         updateTexts();
     }
 }
@@ -2041,20 +2322,39 @@ void PDFAppEditContentObjectsPanel::onTreeSelectionChanged()
         return;
     }
 
-    // The rows selected in the tree; the selection of the tool keeps the nodes, which the tree does not show (the
-    // filter, a collapsed group shows its rows), so only a change of the shown rows is a change of the user
-    std::set<PDFContentNodeReference> treeNodes;
-    for (const QModelIndex& index : selectionModel->selectedRows())
+    // R7-3: O(n log n) in the rows and the selected nodes - the rows of the ranges of the selection of the view (not
+    // QItemSelectionModel::selectedRows, which asks every range for every row) and sets of the nodes; the work is counted
+    // (the rows and the nodes read, the comparisons of the sets)
+    using Helper = PDFAppEditContentObjectsHelper;
+    m_treeSelectionWork = 0;
+    const Helper::CountingLess less{ &m_treeSelectionWork };
+
+    // The rows selected in the tree, in the order of the ranges (the order, in which the view selected them)
+    Helper::CountedNodeSet treeNodes(less);
+    std::vector<PDFContentNodeReference> treeOrder;
+    for (const QItemSelectionRange& range : selectionModel->selection())
     {
-        const PDFContentNodeReference node = m_model->getNode(index);
-        if (node.isValid())
+        for (int row = range.top(); row <= range.bottom(); ++row)
         {
-            treeNodes.insert(node);
+            ++m_treeSelectionWork;
+            const QModelIndex index = m_model->index(row, 0, range.parent());
+            const PDFContentNodeReference node = m_model->getNode(index);
+            if (node.isValid() && (m_model->flags(index) & Qt::ItemIsSelectable) && treeNodes.insert(node).second)
+            {
+                treeOrder.push_back(node);
+            }
         }
     }
-    std::set<PDFContentNodeReference> shownSelected;
+
+    // The selection of the tool keeps the nodes, which the tree does not show (R7-12: rows of the filter; nodes without a
+    // row), so only a change of the shown rows is a change of the user
+    Helper::CountedNodeSet selected(less);
+    Helper::CountedNodeSet shownSelected(less);
+    const PDFContentContainerPointer container = m_model->getContainer();
     for (const PDFContentNodeReference& node : selection->getNodes())
     {
+        ++m_treeSelectionWork;
+        selected.insert(node);
         if (m_model->getIndex(node).isValid())
         {
             shownSelected.insert(node);
@@ -2062,36 +2362,42 @@ void PDFAppEditContentObjectsPanel::onTreeSelectionChanged()
     }
     const PDFContentNodeReference current = m_model->getNode(m_tree->currentIndex());
     const bool isKeyChange = current.isValid() && treeNodes.count(current) && current != selection->getKeyNode();
-    if (treeNodes == shownSelected && !isKeyChange)
+    if (treeNodes.size() == shownSelected.size() && std::equal(treeNodes.cbegin(), treeNodes.cend(), shownSelected.cbegin()) && !isKeyChange)
     {
         return;
     }
 
-    // The order of the selection: the nodes selected before keep their order, the new ones follow in the order of the
-    // rows; the current row is the key object
+    // The order of the selection: the nodes selected before keep their order (the selected rows and the nodes without a
+    // shown row of the container of the rows), the new ones follow in the order of the ranges of the view; the current
+    // row is the key object
     std::vector<PDFContentNodeReference> nodes;
+    nodes.reserve(treeNodes.size() + selected.size());
     for (const PDFContentNodeReference& node : selection->getNodes())
     {
-        if (treeNodes.count(node))
+        ++m_treeSelectionWork;
+        const bool isHidden = container && node.container == container->getKey() && !shownSelected.count(node);
+        if (treeNodes.count(node) || isHidden)
         {
             nodes.push_back(node);
         }
     }
-    for (const QModelIndex& index : selectionModel->selectedRows())
+    for (const PDFContentNodeReference& node : treeOrder)
     {
-        const PDFContentNodeReference node = m_model->getNode(index);
-        if (node.isValid() && !selection->contains(node))
+        ++m_treeSelectionWork;
+        if (!selected.count(node))
         {
             nodes.push_back(node);
         }
     }
 
     const QPointer<PDFAppEditContentObjectsPanel> self(this);
+    const QPointer<PDFAppEditContentSelection> guard(selection);
+    const bool isKeyRow = current.isValid() && treeNodes.count(current);
     m_isSyncing = true;
     selection->setNodes(nodes);
-    if (self && current.isValid() && treeNodes.count(current))
+    if (self && guard && isKeyRow)
     {
-        selection->setKeyNode(current);
+        guard->setKeyNode(current);
     }
     if (self)
     {

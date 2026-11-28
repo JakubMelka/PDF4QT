@@ -779,7 +779,205 @@ struct PDFJPEGDCTSource
     jpeg_source_mgr sourceManager;
     const QByteArray* buffer = nullptr;
     int startByte = 0;
+    bool isEndOfDataReached = false;    ///< libjpeg asked for data behind the end of the buffer (no EOI marker before it)
 };
+
+/// Helper of PDFImage::createImage: the limits of the decoded samples, shared by all its branches
+/// (DCT, JPEG 2000, raw data), and the checks of the sizes against them
+class PDFImageHelper
+{
+public:
+    /// The most pixels of a decoded image: 2^31, the limit of the decoded images the project
+    /// uses elsewhere (PDFContentDisplay::MAXIMUM_DECODED_PIXELS)
+    static constexpr quint64 MAXIMUM_DECODED_PIXELS = quint64(1) << 31;
+
+    /// The most bytes of the decoded samples: PDFImageData keeps the stride in unsigned int and its
+    /// consumers compute the offset of a row (row x stride) in unsigned int, so the data must be
+    /// addressable by 32 bits; QByteArray must be able to hold them as well
+    static constexpr quint64 MAXIMUM_DECODED_BYTES = std::min<quint64>(std::numeric_limits<quint32>::max(), quint64(QByteArray::maxSize()));
+
+    /// The end of image marker, which the source gives libjpeg behind the end of the data (as the
+    /// standard source manager of libjpeg does): libjpeg then ends the image by its own recovery of
+    /// a premature end of data (the missing coefficients are zero), it never suspends
+    static constexpr JOCTET END_OF_IMAGE[2] = { 0xFF, JPEG_EOI };
+
+    /// Checks the size of the decoded image by output_width, output_height and output_components
+    /// of \p codec (computed in 64 bits). A size of zero or above the limits destroys \p codec and
+    /// throws PDFException.
+    static void checkDecodedSize(jpeg_decompress_struct* codec);
+
+    /// Computes the bytes of a row (\p bitsPerPixel bits per pixel, the row padded to whole bytes)
+    /// and of all rows of an image of \p width x \p height pixels in 64 bits.
+    /// \returns false for a size of zero and for a size above MAXIMUM_DECODED_PIXELS or
+    ///          MAXIMUM_DECODED_BYTES (the outputs are not set then); every product is computed
+    ///          only after a division shows that it fits
+    static bool computeDataSize(quint64 width, quint64 height, quint64 bitsPerPixel, quint64& rowBytes, quint64& dataBytes);
+
+    /// Checks the size of the components of a JPEG 2000 image read by opj_read_header (their
+    /// w and h, the decoding allocates w x h samples of each of them): every component within
+    /// MAXIMUM_DECODED_PIXELS, the samples of all components together within MAXIMUM_DECODED_BYTES
+    /// (they become at most one byte each in PDFImageData). \returns the error, an empty string
+    /// when the size is within the limits
+    static QString checkJPEG2000Size(const opj_image_t* image);
+
+    /// Prepares the samples of a raw (not image-coded) image of \p width x \p height pixels: the
+    /// stride and the size of the data are computed in 64 bits and checked against the limits
+    /// (PDFRendererException above them), then the size is compared with the length of \p data.
+    /// Shorter data are padded with zero bytes (a warning is reported) when \p isPaddedWhenShort,
+    /// refused (PDFRendererException) otherwise.
+    /// \returns the stride (bytes of a row), zero for zero components (the data are not valid then,
+    ///          see PDFImageData::isValid, and left as they are)
+    static unsigned int prepareRawData(QByteArray& data,
+                                       unsigned int components,
+                                       unsigned int bitsPerComponent,
+                                       unsigned int width,
+                                       unsigned int height,
+                                       bool isPaddedWhenShort,
+                                       PDFRenderErrorReporter* errorReporter);
+
+    /// Checks, that the samples of valid \p imageData (see PDFImageData::isValid) hold its rows:
+    /// its size within the limits, the stride at least the bytes of a row, the data at least
+    /// stride x height bytes; every consumer of PDFImageData relies on it. Throws
+    /// PDFRendererException otherwise.
+    static void checkImageData(const PDFImageData& imageData);
+};
+
+bool PDFImageHelper::computeDataSize(quint64 width, quint64 height, quint64 bitsPerPixel, quint64& rowBytes, quint64& dataBytes)
+{
+    if (width == 0 || height == 0 || bitsPerPixel == 0)
+    {
+        return false;
+    }
+
+    // width x height <= 2^31 and width x bitsPerPixel <= 8 x MAXIMUM_DECODED_BYTES (< 2^36): both fit
+    if (width > MAXIMUM_DECODED_PIXELS / height || bitsPerPixel > (MAXIMUM_DECODED_BYTES * 8) / width)
+    {
+        return false;
+    }
+
+    const quint64 bytesOfRow = (width * bitsPerPixel + 7) / 8;
+    if (bytesOfRow > MAXIMUM_DECODED_BYTES / height)
+    {
+        return false;
+    }
+
+    rowBytes = bytesOfRow;
+    dataBytes = bytesOfRow * height;
+    return true;
+}
+
+QString PDFImageHelper::checkJPEG2000Size(const opj_image_t* image)
+{
+    if (!image->comps || image->numcomps == 0)
+    {
+        return PDFTranslationContext::tr("Invalid size of JPEG 2000 image (%1 components).").arg(image->numcomps);
+    }
+
+    const quint64 componentCount = image->numcomps;
+    quint64 sampleCount = 0;
+    for (quint64 i = 0; i < componentCount; ++i)
+    {
+        const quint64 width = image->comps[i].w;
+        const quint64 height = image->comps[i].h;
+
+        if (width == 0 || height == 0)
+        {
+            return PDFTranslationContext::tr("Invalid size of JPEG 2000 image (%1 x %2 pixels, %3 components).").arg(width).arg(height).arg(componentCount);
+        }
+
+        // A component has at most 2^31 samples, at most 16384 components (Csiz): the sum fits
+        if (width > MAXIMUM_DECODED_PIXELS / height || (sampleCount += width * height) > MAXIMUM_DECODED_BYTES)
+        {
+            return PDFTranslationContext::tr("JPEG 2000 image is too large (%1 x %2 pixels, %3 components).").arg(image->comps[0].w).arg(image->comps[0].h).arg(componentCount);
+        }
+    }
+
+    return QString();
+}
+
+unsigned int PDFImageHelper::prepareRawData(QByteArray& data,
+                                            unsigned int components,
+                                            unsigned int bitsPerComponent,
+                                            unsigned int width,
+                                            unsigned int height,
+                                            bool isPaddedWhenShort,
+                                            PDFRenderErrorReporter* errorReporter)
+{
+    if (components == 0)
+    {
+        return 0;
+    }
+
+    quint64 rowBytes = 0;
+    quint64 dataBytes = 0;
+    if (!computeDataSize(width, height, quint64(components) * quint64(bitsPerComponent), rowBytes, dataBytes))
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Image is too large (%1 x %2 pixels, %3 components of %4 bits).").arg(width).arg(height).arg(components).arg(bitsPerComponent));
+    }
+
+    // Below the limits the size fits into qsizetype
+    const qsizetype size = qsizetype(dataBytes);
+    if (data.size() < size)
+    {
+        if (!isPaddedWhenShort)
+        {
+            throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Image data are too short: %1 of %2 bytes.").arg(data.size()).arg(size));
+        }
+
+        if (errorReporter)
+        {
+            errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Soft mask data are too short: %1 of %2 bytes, the missing samples are zero.").arg(data.size()).arg(size));
+        }
+        data.resize(size, '\0');
+    }
+
+    return static_cast<unsigned int>(rowBytes);
+}
+
+void PDFImageHelper::checkImageData(const PDFImageData& imageData)
+{
+    if (!imageData.isValid())
+    {
+        return;
+    }
+
+    const quint64 height = imageData.getHeight();
+    quint64 rowBytes = 0;
+    quint64 dataBytes = 0;
+
+    // The stride and the height are 32-bit numbers: their product fits into 64 bits
+    if (!computeDataSize(imageData.getWidth(), height, quint64(imageData.getComponents()) * quint64(imageData.getBitsPerComponent()), rowBytes, dataBytes) ||
+        imageData.getStride() < rowBytes ||
+        quint64(imageData.getStride()) * height > quint64(imageData.getData().size()))
+    {
+        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid image data (%1 x %2 pixels, %3 components of %4 bits, %5 bytes).")
+                                   .arg(imageData.getWidth()).arg(imageData.getHeight()).arg(imageData.getComponents()).arg(imageData.getBitsPerComponent()).arg(imageData.getData().size()));
+    }
+}
+
+void PDFImageHelper::checkDecodedSize(jpeg_decompress_struct* codec)
+{
+    const quint64 width = codec->output_width;
+    const quint64 height = codec->output_height;
+    const quint64 components = codec->output_components > 0 ? quint64(codec->output_components) : 0;
+
+    QString error;
+    if (width == 0 || height == 0 || components == 0)
+    {
+        error = PDFTranslationContext::tr("Invalid size of JPEG (DCT) image (%1 x %2 pixels, %3 components).").arg(width).arg(height).arg(components);
+    }
+    else if (width > MAXIMUM_DECODED_PIXELS / height || width * height > MAXIMUM_DECODED_BYTES / components)
+    {
+        // Both divisions keep every product within 64 bits
+        error = PDFTranslationContext::tr("JPEG (DCT) image is too large (%1 x %2 pixels, %3 components).").arg(width).arg(height).arg(components);
+    }
+
+    if (!error.isEmpty())
+    {
+        jpeg_destroy_decompress(codec);
+        throw PDFException(error);
+    }
+}
 
 PDFImage PDFImage::createImage(const PDFDocument* document,
                                const PDFStream* stream,
@@ -1017,7 +1215,12 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                 return TRUE;
             }
 
-            return FALSE;
+            // The data end before an EOI marker: a source returning FALSE would suspend libjpeg
+            // (jpeg_read_scanlines returns no row), so it gets EOI and recovers by itself
+            source->isEndOfDataReached = true;
+            source->sourceManager.next_input_byte = PDFImageHelper::END_OF_IMAGE;
+            source->sourceManager.bytes_in_buffer = sizeof(PDFImageHelper::END_OF_IMAGE);
+            return TRUE;
         };
 
         auto skipInputDataMethod = [](j_decompress_ptr decompress, long num_bytes)
@@ -1074,29 +1277,41 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                 }
             }
 
+            // The size comes from the header of the data, not from /Width and /Height: it is checked
+            // before jpeg_start_decompress allocates its working memory, and again as it started
+            jpeg_calc_output_dimensions(&codec);
+            PDFImageHelper::checkDecodedSize(&codec);
             jpeg_start_decompress(&codec);
+            PDFImageHelper::checkDecodedSize(&codec);
 
-            const JDIMENSION rowStride = codec.output_width * codec.output_components;
-            JSAMPARRAY samples = codec.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&codec), JPOOL_IMAGE, rowStride, 1);
-            JDIMENSION scanLineCount = codec.output_height;
+            // Below the limits a row fits into JDIMENSION and the buffer into qsizetype
+            const qsizetype rowStride = qsizetype(codec.output_width) * qsizetype(codec.output_components);
+            JSAMPARRAY samples = codec.mem->alloc_sarray(reinterpret_cast<j_common_ptr>(&codec), JPOOL_IMAGE, JDIMENSION(rowStride), 1);
 
             const unsigned int width = codec.output_width;
             const unsigned int height = codec.output_height;
             const unsigned int components = codec.output_components;
             const unsigned int bitsPerComponent =  8;
-            QByteArray buffer(rowStride * height, 0);
-            JSAMPROW rowData = reinterpret_cast<JSAMPROW>(buffer.data());
+            QByteArray buffer(rowStride * qsizetype(height), 0);
 
-            while (scanLineCount)
+            for (qsizetype row = 0; row < qsizetype(height); ++row)
             {
-                JDIMENSION readCount = jpeg_read_scanlines(&codec, samples, 1);
-                std::memcpy(rowData, samples[0], rowStride);
-                scanLineCount -= readCount;
-                rowData += rowStride;
+                // No row only if libjpeg suspended, which the source never lets it do; the loop
+                // ends then too, and jpeg_finish_decompress refuses the image (too few scanlines)
+                if (jpeg_read_scanlines(&codec, samples, 1) != 1)
+                {
+                    break;
+                }
+                std::memcpy(buffer.data() + row * rowStride, samples[0], size_t(rowStride));
             }
 
             jpeg_finish_decompress(&codec);
-            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, rowStride, maskingType, qMove(buffer), qMove(mask), qMove(decode), qMove(matte));
+            image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, static_cast<unsigned int>(rowStride), maskingType, qMove(buffer), qMove(mask), qMove(decode), qMove(matte));
+
+            if (source.isEndOfDataReached && errorReporter)
+            {
+                errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Malformed data while reading JPEG stream. The data end before the end of image marker."));
+            }
         }
 
         jpeg_destroy_decompress(&codec);
@@ -1157,6 +1372,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             imageData.errors.clear();
 
             opj_image_t* jpegImage = nullptr;
+            bool isSizeRefused = false;
 
             // Setup the decoder
             if (opj_setup_decoder(codec, &decompressParameters))
@@ -1165,7 +1381,15 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
 
                 if (opj_read_header(opjStream, codec, &jpegImage))
                 {
-                    if (opj_set_decode_area(codec, jpegImage, decompressParameters.DA_x0, decompressParameters.DA_y0, decompressParameters.DA_x1, decompressParameters.DA_y1))
+                    // The size comes from the header of the codestream, not from /Width and /Height: it is
+                    // checked before opj_decode allocates the samples of the components
+                    const QString sizeError = PDFImageHelper::checkJPEG2000Size(jpegImage);
+                    if (!sizeError.isEmpty())
+                    {
+                        isSizeRefused = true;
+                        imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, sizeError));
+                    }
+                    else if (opj_set_decode_area(codec, jpegImage, decompressParameters.DA_x0, decompressParameters.DA_y0, decompressParameters.DA_x1, decompressParameters.DA_y1))
                     {
                         if (opj_decode(codec, opjStream, jpegImage))
                         {
@@ -1183,6 +1407,15 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
 
             opjStream = nullptr;
             codec = nullptr;
+
+            if (jpegImage && isSizeRefused)
+            {
+                // Nothing was decoded, the error is in the list. The header was read, so the format is
+                // recognized: no other format reads it (a codestream begins with SOC, a JP2 file with
+                // its signature box)
+                opj_image_destroy(jpegImage);
+                break;
+            }
 
             // If we have a valid image, then adjust it
             if (jpegImage)
@@ -1219,13 +1452,16 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                     }
                 }
 
-                // First we must check, if all components are valid (i.e has same width/height/precision)
+                // First we must check, if all components are valid (i.e has same width/height/precision).
+                // The components are read after opj_decode: a palette of a JP2 file (pclr) may have
+                // replaced them, so their number, sizes and precision are not those of the header.
 
                 std::vector<OPJ_UINT32> ordinaryComponents;
                 std::vector<OPJ_UINT32> alphaComponents;
 
-                bool valid = true;
-                const OPJ_UINT32 componentCount = jpegImage->numcomps;
+                bool valid = jpegImage->numcomps > 0 && jpegImage->comps;
+                bool isRefused = false;     // The image is refused, the error is in the list
+                const OPJ_UINT32 componentCount = valid ? jpegImage->numcomps : 0;
                 ordinaryComponents.reserve(componentCount);
                 for (OPJ_UINT32 i = 0; i < componentCount; ++i)
                 {
@@ -1235,6 +1471,14 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                         jpegImage->comps[0].sgnd != jpegImage->comps[i].sgnd)
                     {
                         valid = false;
+                        break;
+                    }
+                    else if (!jpegImage->comps[i].data)
+                    {
+                        // A decoded component has its w x h samples (openjpeg allocates them so); a component
+                        // without them was not decoded (opj_decode failed)
+                        imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("JPEG 2000 image has no decoded data.")));
+                        isRefused = true;
                         break;
                     }
                     else
@@ -1251,7 +1495,25 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                     }
                 }
 
-                if (valid)
+                if (valid && !isRefused && (jpegImage->comps[0].prec < 1 || jpegImage->comps[0].prec > 31))
+                {
+                    // A palette (pclr) may declare up to 128 bits of a channel; openjpeg decodes at most 31,
+                    // the shifts below are defined up to them
+                    imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Invalid precision of JPEG 2000 image (%1 bits).").arg(jpegImage->comps[0].prec)));
+                    isRefused = true;
+                }
+
+                if (valid && !image.m_colorSpace)
+                {
+                    // An unknown color space of the data: the error is in the list already
+                    isRefused = true;
+                }
+
+                if (isRefused)
+                {
+                    valid = false;
+                }
+                else if (valid)
                 {
                     const size_t colorSpaceComponentCount = image.m_colorSpace->getColorComponentCount();
                     const bool hasAlphaChannel = !alphaComponents.empty();
@@ -1273,13 +1535,15 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                     const OPJ_UINT32 prec = jpegImage->comps[0].prec;
                     const OPJ_UINT32 sgnd = jpegImage->comps[0].sgnd;
 
-                    int signumCorrection = (sgnd) ? (1 << (prec - 1)) : 0;
-                    int shiftLeft = (jpegImage->comps[0].prec < 8) ? 8 - jpegImage->comps[0].prec : 0;
-                    int shiftRight = (jpegImage->comps[0].prec > 8) ? jpegImage->comps[0].prec - 8 : 0;
+                    // 1 <= prec <= 31 (checked above): the shifts are defined, a sample plus the correction
+                    // fits into 64 bits
+                    const qint64 signumCorrection = (sgnd) ? (qint64(1) << (prec - 1)) : 0;
+                    const int shiftLeft = (prec < 8) ? int(8 - prec) : 0;
+                    const int shiftRight = (prec > 8) ? int(prec - 8) : 0;
 
-                    auto transformValue = [signumCorrection, isIndexed, shiftLeft, shiftRight](int value) -> unsigned char
+                    auto transformValue = [signumCorrection, isIndexed, shiftLeft, shiftRight](OPJ_INT32 sample) -> unsigned char
                     {
-                        value += signumCorrection;
+                        qint64 value = qint64(sample) + signumCorrection;
 
                         if (!isIndexed)
                         {
@@ -1297,61 +1561,78 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
                             }
                         }
 
-                        value = qBound(0, value, 255);
+                        value = std::clamp(value, qint64(0), qint64(255));
                         return static_cast<unsigned char>(value);
                     };
 
                     // Variables for image data. We convert all components to the 8-bit format
                     const size_t ordinaryComponentCount = ordinaryComponents.size();
-                    unsigned int components = static_cast<unsigned int>(qMin(ordinaryComponentCount, colorSpaceComponentCount));
-                    unsigned int bitsPerComponent = 8;
-                    unsigned int width = w;
-                    unsigned int height = h;
-                    unsigned int stride = w * components;
+                    const unsigned int components = static_cast<unsigned int>(qMin(ordinaryComponentCount, colorSpaceComponentCount));
+                    const unsigned int bitsPerComponent = 8;
+                    const bool isAlphaUsed = hasAlphaChannel && (sMaskInData == 1 || sMaskInData == 2);
 
-                    QByteArray imageDataBuffer(components * width * height, 0);
-                    for (unsigned int row = 0; row < h; ++row)
+                    // The size of the decoded components (64 bits, the shared limits); below the limits every
+                    // size and index of the buffers fits into qsizetype
+                    quint64 rowBytes = 0;
+                    quint64 dataBytes = 0;
+                    quint64 alphaRowBytes = 0;
+                    quint64 alphaDataBytes = 0;
+                    if ((components > 0 && !PDFImageHelper::computeDataSize(w, h, quint64(components) * bitsPerComponent, rowBytes, dataBytes)) ||
+                        (isAlphaUsed && !PDFImageHelper::computeDataSize(w, h, bitsPerComponent, alphaRowBytes, alphaDataBytes)))
                     {
-                        for (unsigned int col = 0; col < w; ++col)
-                        {
-                            for (unsigned int componentIndex = 0; componentIndex < components; ++ componentIndex)
-                            {
-                                int index = stride * row + col * components + componentIndex;
-                                Q_ASSERT(index < imageDataBuffer.size());
-
-                                imageDataBuffer[index] = transformValue(jpegImage->comps[ordinaryComponents[componentIndex]].data[w * row + col]);
-                            }
-                        }
+                        imageData.errors.push_back(PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("JPEG 2000 image is too large (%1 x %2 pixels, %3 components).").arg(w).arg(h).arg(componentCount)));
+                        valid = false;
                     }
-
-                    image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
-                    valid = image.m_imageData.isValid();
-
-                    // Handle the alpha channel buffer - create soft mask. If SMaskInData equals to 1, then alpha channel is used.
-                    // If SMaskInData equals to 2, then premultiplied alpha channel is used.
-                    if (hasAlphaChannel && (sMaskInData == 1 || sMaskInData == 2))
+                    else
                     {
-                        const int alphaStride = w;
-                        QByteArray alphaDataBuffer(width * height, 0);
-                        const OPJ_UINT32 alphaComponentIndex = alphaComponents.front();
-                        for (unsigned int row = 0; row < h; ++row)
-                        {
-                            for (unsigned int col = 0; col < w; ++col)
-                            {
-                                int index = alphaStride * row + col;
-                                Q_ASSERT(index < alphaDataBuffer.size());
+                        // Every component read has w x h samples (all components have the size of the first,
+                        // checked above), the rows of the buffer have w x components bytes
+                        const qsizetype width = qsizetype(w);
+                        const qsizetype height = qsizetype(h);
+                        const qsizetype componentStride = qsizetype(components);
+                        const qsizetype stride = qsizetype(rowBytes);
 
-                                alphaDataBuffer[index] = transformValue(jpegImage->comps[alphaComponentIndex].data[w * row + col]);
+                        QByteArray imageDataBuffer(qsizetype(dataBytes), 0);
+                        unsigned char* imageDataTarget = reinterpret_cast<unsigned char*>(imageDataBuffer.data());
+                        for (qsizetype row = 0; row < height; ++row)
+                        {
+                            for (qsizetype col = 0; col < width; ++col)
+                            {
+                                for (qsizetype componentIndex = 0; componentIndex < componentStride; ++componentIndex)
+                                {
+                                    const OPJ_INT32* samples = jpegImage->comps[ordinaryComponents[componentIndex]].data;
+                                    imageDataTarget[stride * row + col * componentStride + componentIndex] = transformValue(samples[width * row + col]);
+                                }
                             }
                         }
 
-                        if (sMaskInData == 2)
-                        {
-                            matte.resize(ordinaryComponentCount, 0.0);
-                        }
+                        image.m_imageData = PDFImageData(components, bitsPerComponent, w, h, static_cast<unsigned int>(rowBytes), maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
+                        valid = image.m_imageData.isValid();
 
-                        image.m_softMask = PDFImageData(1, bitsPerComponent, width, height, alphaStride, PDFImageData::MaskingType::None, qMove(alphaDataBuffer), { }, { }, qMove(matte));
-                        image.m_imageData.setMaskingType(PDFImageData::MaskingType::SoftMask);
+                        // Handle the alpha channel buffer - create soft mask. If SMaskInData equals to 1, then alpha channel is used.
+                        // If SMaskInData equals to 2, then premultiplied alpha channel is used.
+                        if (valid && isAlphaUsed)
+                        {
+                            const qsizetype alphaStride = qsizetype(alphaRowBytes);
+                            QByteArray alphaDataBuffer(qsizetype(alphaDataBytes), 0);
+                            unsigned char* alphaDataTarget = reinterpret_cast<unsigned char*>(alphaDataBuffer.data());
+                            const OPJ_INT32* alphaSamples = jpegImage->comps[alphaComponents.front()].data;
+                            for (qsizetype row = 0; row < height; ++row)
+                            {
+                                for (qsizetype col = 0; col < width; ++col)
+                                {
+                                    alphaDataTarget[alphaStride * row + col] = transformValue(alphaSamples[width * row + col]);
+                                }
+                            }
+
+                            if (sMaskInData == 2)
+                            {
+                                matte.resize(ordinaryComponentCount, 0.0);
+                            }
+
+                            image.m_softMask = PDFImageData(1, bitsPerComponent, w, h, static_cast<unsigned int>(alphaRowBytes), PDFImageData::MaskingType::None, qMove(alphaDataBuffer), { }, { }, qMove(matte));
+                            image.m_imageData.setMaskingType(PDFImageData::MaskingType::SoftMask);
+                        }
                     }
                 }
                 else
@@ -1362,11 +1643,9 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
 
                 opj_image_destroy(jpegImage);
 
-                if (valid)
-                {
-                    // Image was successfully decoded
-                    break;
-                }
+                // The image is decoded or refused. The header was read, so the format is recognized: no
+                // other format reads it (a codestream begins with SOC, a JP2 file with its signature box)
+                break;
             }
         }
 
@@ -1448,10 +1727,11 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of image (%1x%2)").arg(width).arg(height));
         }
 
-        // Calculate stride
-        const unsigned int stride = (components * bitsPerComponent * width + 7) / 8;
-
+        // The stride and the size in 64 bits, compared with the decoded data. The data of an image are
+        // refused when they are shorter (its rows were read out of the data, an error, before too);
+        // a soft mask is padded by zeros, its rows were copied from behind the buffer before.
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
+        const unsigned int stride = PDFImageHelper::prepareRawData(imageDataBuffer, components, bitsPerComponent, width, height, isSoftMask, errorReporter);
         image.m_imageData = PDFImageData(components, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
     }
     else if (imageMask)
@@ -1473,12 +1753,16 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid size of image (%1x%2)").arg(width).arg(height));
         }
 
-        // Calculate stride
-        const unsigned int stride = (width + 7) / 8;
-
+        // The stride and the size in 64 bits; shorter data are refused (an error, as their rows were before)
         QByteArray imageDataBuffer = document->getDecodedStream(stream);
+        const unsigned int stride = PDFImageHelper::prepareRawData(imageDataBuffer, 1, bitsPerComponent, width, height, false, errorReporter);
         image.m_imageData = PDFImageData(1, bitsPerComponent, width, height, stride, maskingType, qMove(imageDataBuffer), qMove(mask), qMove(decode), qMove(matte));
     }
+
+    // Every consumer of the samples relies on it (the decoders of CCITT and JBIG2 and the branches
+    // above build them so, this is the check of all of them)
+    PDFImageHelper::checkImageData(image.m_imageData);
+    PDFImageHelper::checkImageData(image.m_softMask);
 
     return image;
 }
@@ -1835,7 +2119,8 @@ OPJ_BOOL PDFJPEG2000ImageData::seek(OPJ_OFF_T p_nb_bytes, void* p_user_data)
 {
     PDFJPEG2000ImageData* data = reinterpret_cast<PDFJPEG2000ImageData*>(p_user_data);
 
-    if (p_nb_bytes >= data->byteArray->size())
+    // The position is unsigned: a negative one would make read() copy from before the data
+    if (p_nb_bytes < 0 || p_nb_bytes >= data->byteArray->size())
     {
         return OPJ_FALSE;
     }

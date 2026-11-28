@@ -158,7 +158,12 @@ private:
 ///   of a card executes a command, the selection changes and a rebuild inside of the click would
 ///   delete the sender). The rebuild keeps the cards, whose entries are still shown (they get
 ///   updateCard), creates the new ones and retires the others by retireLater.
-/// - The stack is disabled while PDFAppEditContentContext::isRunning.
+/// - A card, which changes the model (PDFAppEditContentCardEntry::isChangingModel), is disabled
+///   while PDFAppEditContentContext::isEditingAllowed is false (Preview, a run, a read-only page);
+///   a card of the display, of the selection or of the state of the session (Selection, Preview,
+///   Annotations and fields, Locked object, Keyboard) stays usable then (R7-8).
+/// - The stack follows a new session of the context (PDFAppEditContentContext::sessionReplaced:
+///   it connects to the signals of the new session and rebuilds).
 ///
 /// Threads and ownership: a part - created by the GUI of the tool for the right panel, built
 /// again after a change of the language, deleted by the shell or with the view of the document.
@@ -196,6 +201,12 @@ private:
 
     /// The signal of a change of the session, of the selection, of an option: scheduleRebuild
     void onStateChanged();
+
+    /// PDFAppEditContentContext::sessionReplaced: the connections to the new session, a rebuild
+    void onSessionReplaced();
+
+    /// The connections to the signals of the session of the context
+    void connectSession();
 
     QPointer<PDFAppEditContentContext> m_context;
     QVBoxLayout* m_layout = nullptr;
@@ -254,10 +265,19 @@ private:
 /// Helpers of the cards of package P13 (pdfappeditcontentcards*.cpp and the test of the cards; no
 /// other package calls them). Threads: GUI thread (the functions read the context).
 ///
-/// Bounds (hostile input): a card reads at most MAXIMUM_INSPECTED_NODES selected nodes and visits at
-/// most MAXIMUM_INSPECTED_NODES nodes below them (a walk over a tree, one visit per node, not deeper
+/// What a card reads and what its command changes are two lists (R7-1, R7-4):
+///  - a command takes the nodes of getCommandNodes - the whole changeable selection of the context
+///    (PDFAppEditContentContext::getChangeableSelection: a locked object is left alone, every
+///    other selected object is changed, never a part of the selection);
+///  - the values a card shows are read from getInspectedNodes - the same nodes, at most
+///    MAXIMUM_INSPECTED_NODES of them (or the selected nodes read only, when none may be changed).
+///
+/// Bounds (hostile input): a card reads at most MAXIMUM_INSPECTED_NODES nodes and visits at most
+/// MAXIMUM_INSPECTED_NODES nodes below them (a walk over a tree, one visit per node, not deeper
 /// than PDFContentContainer::MAXIMUM_DEPTH + 2 levels); what is beyond counts as "mixed" for the
-/// values (isTruncated), so a selection of 100 000 objects costs a bounded time per update.
+/// values (isTruncated), so the values of a selection of 100 000 objects cost a bounded time per
+/// update. A command walks the whole changeable selection once (one visited set, the same depth
+/// limit; bounded by the nodes of the container).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppEditContentCardTools
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFAppEditContentCardTools)
@@ -279,18 +299,41 @@ public:
     };
 
     /// The selected nodes, which exist in the edited container, in the order of the selection; at
-    /// most MAXIMUM_INSPECTED_NODES (\p isTruncated: there were more)
+    /// most MAXIMUM_INSPECTED_NODES (\p isTruncated: there were more). The card Selection names
+    /// them (locked ones too); no command takes its nodes from here.
     static std::vector<SelectedNode> getSelectedNodes(const PDFAppEditContentContext* context, bool* isTruncated = nullptr);
+
+    /// The nodes, whose values a card shows: the nodes of getCommandNodes (in the order of the
+    /// selection), or - when no selected node may be changed (only locked objects are selected) -
+    /// the selected nodes of getSelectedNodes, which the card shows read only (\p isChangeable
+    /// false). At most MAXIMUM_INSPECTED_NODES (\p isTruncated: there were more).
+    static std::vector<SelectedNode> getInspectedNodes(const PDFAppEditContentContext* context, bool* isTruncated = nullptr, bool* isChangeable = nullptr);
+
+    /// The nodes a command of a card acts on: the whole changeable selection of the context
+    /// (PDFAppEditContentContext::getChangeableSelection), with the node pointers of the edited
+    /// container; the order of the selection (the key object, when it may be changed, is in it)
+    static std::vector<SelectedNode> getCommandNodes(const PDFAppEditContentContext* context);
+
+    /// The references of the nodes
+    static std::vector<PDFContentNodeReference> getReferences(const std::vector<SelectedNode>& nodes);
 
     /// The leaves of the selected nodes: a selected leaf itself, the leaves below a selected Group,
     /// MarkedContent or TextObject (each once, in the order of the content), only of the kinds
-    /// \p isKind accepts; at most MAXIMUM_INSPECTED_NODES visits (\p isTruncated)
+    /// \p isKind accepts; at most \p maximumVisits visits (\p isTruncated)
     static std::vector<PDFContentNodePointer> getLeaves(const PDFContentContainer& container,
                                                         const std::vector<SelectedNode>& nodes,
                                                         bool (*isKind)(const PDFContentNode& node),
-                                                        bool* isTruncated);
+                                                        bool* isTruncated,
+                                                        size_t maximumVisits = MAXIMUM_INSPECTED_NODES);
 
-    /// A leaf with a fill or a stroke of its own (a Path, which is no clipping path only; a TextShow)
+    /// The objects, whose appearance a command of the core sets one by one (R-1: a Path, which is
+    /// no clipping path only, and a TextObject as a whole - a part of a text cannot be restyled):
+    /// the nodes themselves or the ones below a selected Group / MarkedContent, each once, in the
+    /// order of the content; the whole list (a command acts on it), bounded by the container
+    static std::vector<SelectedNode> getAppearanceObjects(const PDFContentContainer& container, const std::vector<SelectedNode>& nodes);
+
+    /// A leaf, which can paint a fill or a stroke (a Path, which is no clipping path only - also a
+    /// path, whose painting is switched off, "n" without a clip; a TextShow)
     static bool isPaintedLeaf(const PDFContentNode& node);
 
     /// A leaf, which draws something (Path, TextShow, Image, FormUse, Shading)
@@ -299,8 +342,12 @@ public:
     /// The context of the display queries of the core (the document of the session)
     static PDFContentDisplayContext getDisplayContext(const PDFAppEditContentContext* context);
 
-    /// The translated name of the kind of the node ("Path", "Clipping path", "Text", "Layer content")
-    static QString getKindTitle(const PDFContentNode& node);
+    /// The translated name of the kind of the node: the kind of its row of the tab Objects
+    /// (PDFAppEditContentObjectsModel::getKindText, R7-10: one source of truth), "Page content" for
+    /// the root, "Text" for a show, "Graphics state" for a state run; \p document may be nullptr
+    /// (a form use is "Form XObject" then, never "Transparency group"). The view of the canvas
+    /// announces the selection with it too.
+    static QString getKindTitle(const PDFContentNode& node, const PDFDocument* document);
 
     /// The cards of the selection are shown: Preview is off and the card Keyboard is not requested
     /// (the frames -preview, -keyboard)
@@ -309,6 +356,23 @@ public:
     /// The box of the shown page (its crop box, the paper of the canvas) in the default space of the
     /// page; empty without a page
     static QRectF getPageBox(const PDFAppEditContentContext* context);
+
+    /// The matrix of the default space of the shown page to the space the user sees (R5-6:
+    /// PDFContentArrange::getDisplayedPageMatrix of the /Rotate of the page; the identity without a
+    /// page). Left, right, up and down of the cards (X, Y, W, H, Rotation, the flips, Arrange) are
+    /// the directions on the screen.
+    static QTransform getDisplayedPageMatrix(const PDFAppEditContentContext* context);
+
+    /// The matrix of the default space of the edited container to the space the user sees:
+    /// PDFAppEditContentGeometryHelper::getContainerToPageMatrix x getDisplayedPageMatrix; no value
+    /// without a loaded container
+    static std::optional<QTransform> getContainerToDisplayed(const PDFAppEditContentContext* context);
+
+    /// The matrix of the leaf to the space of its container, as it draws its content: the matrix of
+    /// its display state (the override and the CTM), for a TextShow also its text matrix Tm before
+    /// the first glyph (ISO 32000-2, 9.4.2: a rotated text is mostly rotated by Tm, R7-5); no value
+    /// for a node without a display state
+    static std::optional<QTransform> getLeafMatrix(const PDFContentContainer& container, const PDFContentNode& leaf, const PDFContentDisplayContext& displayContext);
 
     /// The number of points of one unit of the option PDFAppEditContentOptions::UNITS (pt 1, mm
     /// 72 / 25.4, in 72) and its translated suffix ("pt", "mm", "in")

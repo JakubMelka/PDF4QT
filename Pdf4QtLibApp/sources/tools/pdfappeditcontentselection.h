@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfcontentcommands.h"
+#include "pdfcontenteditsession.h"
 
 #include <QGraphicsItem>
 #include <QList>
@@ -32,6 +33,7 @@
 #include <QPointer>
 #include <QRectF>
 
+#include <set>
 #include <vector>
 
 namespace pdf
@@ -127,8 +129,16 @@ private:
     /// The node of the card Locked object is forgotten with every change of the selection
     void onChanged();
 
+    /// The nodes and the key object are set (one emission; R6-4, R7-3: no search over the vector)
+    void assign(std::vector<PDFContentNodeReference> nodes, const PDFContentNodeReference& keyNode);
+
+    /// The connections to the session of the context (the constructor, PDFAppEditContentContext::sessionReplaced)
+    void connectSession();
+
     QPointer<PDFAppEditContentContext> m_context;
+    QPointer<PDFContentEditSession> m_session;      ///< The session the selection is connected to
     std::vector<PDFContentNodeReference> m_nodes;
+    std::set<PDFContentNodeReference> m_nodeSet;    ///< The same nodes as m_nodes (contains, the pruning in O(log n))
     PDFContentNodeReference m_keyNode;
 };
 
@@ -199,6 +209,14 @@ public:
     /// The direction "up" of the screen in the scene (a unit vector)
     const QPointF& getScreenUp() const { return m_screenUp; }
 
+    /// R6-13: how many times the boxes of the selected nodes were computed (PDFAppEditContentGeometryHelper) - once per
+    /// change of the selection or of the model, never per move of a gesture, a zoom step or a change of the focus
+    int getBoxComputationCount() const { return m_boxComputationCount; }
+
+    /// R6-13: the frames painted now - one per node and the common frame of more nodes; above
+    /// PDFAppEditContentScene::GESTURE_ITEM_LIMIT nodes only the common frame (zadani_gui.md 4.24)
+    int getFrameCount() const;
+
 private:
     /// The frame of a node (its box, the key object, a locked node)
     struct Frame
@@ -207,8 +225,20 @@ private:
         bool isKey = false;
     };
 
+    /// The boxes of the selected nodes are those of the cache (the same selection, the same versions of the containers
+    /// and the same isolation path); otherwise they are computed again
+    void updateBoxes(const PDFAppEditContentContext* context);
+
     QPointer<PDFAppEditContentContext> m_context;
-    std::vector<Frame> m_frames;
+    std::vector<Frame> m_boxes;                         ///< The cache: the boxes of the selected nodes without a gesture
+    QRectF m_boxesUnion;                                ///< The cache: their union
+    std::vector<PDFContentNodeReference> m_boxNodes;    ///< The key of the cache: the selected nodes
+    PDFContentNodeReference m_boxKeyNode;               ///< The key of the cache: the key object
+    std::vector<std::weak_ptr<const PDFContentContainer>> m_boxContainers;     ///< The key of the cache: the versions of the containers the boxes were read from (owners, no ABA)
+    std::vector<PDFContentNodeReference> m_boxIsolationPath;                   ///< The key of the cache: the roots and the entries of the levels of the isolation path
+    bool m_isBoxesValid = false;
+    int m_boxComputationCount = 0;
+    std::vector<Frame> m_frames;                        ///< The frames of the nodes painted now (the boxes moved by the gesture); empty above the limit
     QRectF m_handleBox;
     QRectF m_lockedBox;
     QString m_lockedLabel;      ///< "Locked · Path" (-locked-click)

@@ -249,6 +249,13 @@ public:
     /// state than Editing or while the button is disabled.
     void confirm();
 
+    /// Confirms the tool again as the continuation of a run, which has just failed (R8-1; Skip Page of the errors of
+    /// writing of Edit Content, zadani_gui.md 4.21): as confirm(), and when the failed run was the run of the choice
+    /// "Apply and Save" of the save question, that choice holds for this run too - Keep in This Tab of its result
+    /// saves. The choice is kept only from the Failed run to this call: any confirm(), a close or the retire forget
+    /// it. A tool, which never calls it, behaves as before.
+    void retryRun();
+
     /// Stops the run (Stop, Esc): nothing is kept, the user edits again
     void stop();
 
@@ -758,6 +765,7 @@ private:
     QPointer<PDFMessageBox> m_saveQuestion;                 ///< The open question of requestSaveQuestion (new, WA_DeleteOnClose, owned logically by the shell)
     QString m_saveQuestionCommandId;                        ///< The command the open question was asked for
     QString m_saveAfterResultCommandId;                     ///< The apply choice of the save question: the save after a result kept in the tab
+    QString m_retrySaveCommandId;                           ///< R8-1: the apply choice of a Failed run, for one retryRun
 
     /// The buttons of the save question (the answer is the last call: the save and the run execute foreign code)
     void onSaveQuestionSaveClicked();

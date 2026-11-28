@@ -245,6 +245,84 @@ public:
     {
         return context->getSession()->getUndoStack()->getCount();
     }
+
+    /// A page [0 0 200 200] of the content, without resources or with the fonts of ContentTestDocuments (/F1 ...), and
+    /// the /Rotate of the page (0 = none)
+    static pdf::PDFDocumentPointer createContentDocument(const QByteArray& content, bool hasFonts = false, int rotate = 0)
+    {
+        using D = pdftest::ContentTestDocuments;
+        D::PageFinisher finisher;
+        if (rotate != 0)
+        {
+            finisher = [rotate](pdf::PDFDocumentBuilder* builder, pdf::PDFObjectReference page)
+            {
+                builder->mergeTo(page, D::createDictionaryObject({ { "Rotate", pdf::PDFObject::createInteger(rotate) } }));
+            };
+        }
+        D::ResourcesFactory resources = &D::createNoResources;
+        if (hasFonts)
+        {
+            resources = &D::createFontResources;
+        }
+        return pdf::PDFDocumentPointer(new pdf::PDFDocument(D::createDocumentFromObjects([&content](pdf::PDFDocumentBuilder* builder)
+        {
+            return D::addStreamObject(builder, D::DictionaryEntries(), content);
+        }, resources, finisher)));
+    }
+
+    /// The nodes of the kind in the order of the content, also inside of groups and texts
+    static std::vector<pdf::PDFContentNodeReference> getNodes(const Context* context, pdf::PDFContentNodeKind kind)
+    {
+        std::vector<pdf::PDFContentNodeReference> nodes;
+        const pdf::PDFContentContainerPointer container = context->getContainer();
+        std::vector<const pdf::PDFContentNode*> stack = { container->getRoot().get() };
+        while (!stack.empty())
+        {
+            const pdf::PDFContentNode* node = stack.back();
+            stack.pop_back();
+            if (node->getKind() == kind)
+            {
+                nodes.push_back(pdf::PDFContentNodeReference{ container->getKey(), node->getId() });
+            }
+            for (auto it = node->getChildren().crbegin(); it != node->getChildren().crend(); ++it)
+            {
+                stack.push_back(it->get());
+            }
+        }
+        return nodes;
+    }
+
+    /// The paint of a path of the current container
+    static pdf::PDFContentPathPaint getPaint(const Context* context, const pdf::PDFContentNodeReference& node)
+    {
+        const pdf::PDFContentNodePointer path = context->getContainer()->getNode(node.node);
+        return path ? path->getData().paint : pdf::PDFContentPathPaint();
+    }
+
+    /// The color of the fill of the node (the override of a command, else the color of the content)
+    static std::pair<QByteArray, std::vector<pdf::PDFReal>> getFill(const Context* context, const pdf::PDFContentNodeReference& node)
+    {
+        const pdf::PDFContentDisplayState state = getState(context, node);
+        if (state.fillColor.isOverridden)
+        {
+            return { state.fillColor.value.deviceSpace, state.fillColor.value.components };
+        }
+        return { QByteArray("content"), { } };
+    }
+
+    static bool isNear(const std::vector<pdf::PDFReal>& actual, const std::vector<pdf::PDFReal>& expected)
+    {
+        bool isSame = actual.size() == expected.size();
+        for (size_t i = 0; isSame && i < actual.size(); ++i)
+        {
+            isSame = qAbs(actual[i] - expected[i]) < 1e-9;
+        }
+        if (!isSame)
+        {
+            qWarning() << "components" << actual << "expected" << expected;
+        }
+        return isSame;
+    }
 };
 
 class AppToolContentCardsTest : public QObject
@@ -273,6 +351,20 @@ private Q_SLOTS:
     void annotationsAndPreview();
     void sectionStateSurvivesRebuild();
     void retireInsideOfAClick();
+
+    // Fix package FX3B (pe1_fixes.md FX3 items 1, 8, 9; review R7, R5-6)
+    void paintSwitchesOfPaths();
+    void paintSwitchOfTextRefused();
+    void commandsTakeTheWholeSelection();
+    void spaceKeepsTheColorOfEachObject();
+    void lockedObjectsLeftAlone();
+    void rotationOfTextIncludesTextMatrix();
+    void lineWidthInTheSpaceOfThePage();
+    void displayCardsStayUsable();
+    void rotatedPageDirections();
+    void selectionCountsAsTheTree();
+    void reloadedSessionFollowed();
+    void keyObjectAnywhere();
 };
 
 void AppToolContentCardsTest::initTestCase()
@@ -294,9 +386,8 @@ void AppToolContentCardsTest::cardsOfTheState()
     const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
     QCOMPARE(paths.size(), size_t(3));
 
-    // The order of the registry (PDFAppEditContentCardIds::getOrder) puts Annotations and fields after Arrange; the frame
-    // -annotations-underlay has it above (a request to the coordinator, pe1p13_state.md)
-    QCOMPARE(setup.stack->getCardIds(), QStringList({ CardIds::SELECTION, CardIds::ARRANGE, CardIds::ANNOTATIONS }));
+    // The frame -annotations-underlay: Annotations and fields is between Selection and Arrange
+    QCOMPARE(setup.stack->getCardIds(), QStringList({ CardIds::SELECTION, CardIds::ANNOTATIONS, CardIds::ARRANGE }));
     QVERIFY(H::isInFixedOrder(setup.stack->getCardIds()));
 
     setup.context->getSelection()->setNode(paths[0]);
@@ -418,9 +509,12 @@ void AppToolContentCardsTest::fillAndStrokeValues()
     QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentFillValue3")->value(), 1.0);
     QCOMPARE(setup.find<QCheckBox>("editContentStrokeCheck")->checkState(), Qt::Unchecked);
     QVERIFY(!strokeSpace->isEnabled());
-    QVERIFY(width->parentWidget()->isHidden());
-    const pdf::PDFAppEditContentCard* card = setup.stack->getCard(QLatin1String(CardIds::FILL_AND_STROKE));
-    QVERIFY(!card->getSections().front()->isExpandable());
+
+    // Changed by FX3B (FX3 item 1: the fields of a switched-off paint are disabled, not hidden; was: no Width and no
+    // expanded part as -color-cmyk shows them): Width and the expanded part are shown and disabled
+    QVERIFY(!width->parentWidget()->isHidden());
+    QVERIFY(!width->parentWidget()->isEnabled());
+    QVERIFY(!setup.find<pdf::PDFComboBox>("editContentCap")->isEnabled());
 }
 
 void AppToolContentCardsTest::mixedValues()
@@ -832,6 +926,452 @@ void AppToolContentCardsTest::retireInsideOfAClick()
     QCoreApplication::processEvents();
     pdf::PDFDeferredDeletion::flush();
     QVERIFY(!stack);
+}
+
+void AppToolContentCardsTest::paintSwitchesOfPaths()
+{
+    // FX3 item 1 (zadani_gui.md 4.19 "for each color: a check box"; set_appearance with fill / stroke): A "re B" fills
+    // and strokes - a click on Fill switches its fill off (S, ISO 32000-2 Table 59), one undo step; the fields of the
+    // switched-off fill stay shown and are disabled. A and C (C strokes only): Fill is partly checked, a click fills both.
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createDocument());
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+
+    QCheckBox* fill = setup.find<QCheckBox>("editContentFillCheck");
+    QVERIFY(fill && fill->isEnabled());
+    QCOMPARE(fill->checkState(), Qt::Checked);
+    const size_t count = H::getUndoCount(setup.context);
+    fill->click();
+    QCOMPARE(H::getUndoCount(setup.context), count + 1);
+    QVERIFY(!H::getPaint(setup.context, paths[0]).fill);
+    QVERIFY(H::getPaint(setup.context, paths[0]).stroke);
+    QVERIFY(setup.settle());
+    QCOMPARE(fill->checkState(), Qt::Unchecked);
+    QVERIFY(!setup.find<pdf::PDFComboBox>("editContentFillSpace")->isEnabled());
+    QVERIFY(!setup.find<QWidget>("editContentFillSwatches")->isHidden());
+    QVERIFY(!setup.find<QWidget>("editContentFillSwatches")->isEnabled());
+    QVERIFY(setup.find<pdf::PDFDoubleSpinBox>("editContentFillValue2")->isVisibleTo(setup.stack));
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentFillValue2")->value(), 1.0);     // the color a switch on uses: 0 0 1 rg
+    QVERIFY(!setup.find<pdf::PDFDoubleSpinBox>("editContentFillValue2")->isEnabled());
+
+    // On again: B. The second switch of the same objects merges with the first (PDFContentCommand::mergeWith: the same
+    // nodes and fields, the last value wins - pe1fx1_state.md), so it is still one undo step; Undo returns the B of the
+    // content
+    fill->click();
+    QVERIFY(H::getPaint(setup.context, paths[0]).fill && H::getPaint(setup.context, paths[0]).stroke);
+    QCOMPARE(H::getUndoCount(setup.context), count + 1);
+    setup.context->getSession()->undo();
+    QVERIFY(H::getPaint(setup.context, paths[0]).fill && H::getPaint(setup.context, paths[0]).stroke);
+
+    // A and C: partly checked; a click switches the fill on for both (C keeps its stroke)
+    setup.context->getSelection()->setNodes({ paths[0], paths[2] });
+    QVERIFY(setup.settle());
+    QCOMPARE(fill->checkState(), Qt::PartiallyChecked);
+    fill->click();
+    QVERIFY(H::getPaint(setup.context, paths[0]).fill);
+    QVERIFY(H::getPaint(setup.context, paths[2]).fill && H::getPaint(setup.context, paths[2]).stroke);
+    QVERIFY(setup.settle());
+    QCOMPARE(fill->checkState(), Qt::Checked);
+
+    // The stroke of B (fill only) is off: Width and the expanded part are shown and disabled, not hidden
+    setup.context->getSelection()->setNode(paths[1]);
+    QVERIFY(setup.settle());
+    pdf::PDFDoubleSpinBox* width = setup.find<pdf::PDFDoubleSpinBox>("editContentStrokeWidth");
+    QVERIFY(!width->parentWidget()->isHidden());
+    QVERIFY(!width->isEnabled());
+    QVERIFY(!setup.find<pdf::PDFComboBox>("editContentCap")->isEnabled());
+    setup.find<QCheckBox>("editContentStrokeCheck")->click();
+    QVERIFY(H::getPaint(setup.context, paths[1]).stroke && H::getPaint(setup.context, paths[1]).fill);
+    QVERIFY(setup.settle());
+    QVERIFY(width->isEnabled());
+}
+
+void AppToolContentCardsTest::paintSwitchOfTextRefused()
+{
+    // A text object of two shows of the modes 0 (fill) and 1 (stroke, ISO 32000-2 Table 104): Fill is partly checked; a
+    // click would give the shows the modes 0 and 2 - one text cannot have two modes by one switch, the core refuses
+    // (pe1fx1_state.md); the refusal is told by the context (commandRefused) and the check box shows the state again
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("BT /F1 12 Tf 20 100 Td (A) Tj 1 Tr (B) Tj ET\n"), true));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> texts = H::getNodes(setup.context, pdf::PDFContentNodeKind::TextObject);
+    QCOMPARE(texts.size(), size_t(1));
+    setup.context->getSelection()->setNode(texts[0]);
+    QVERIFY(setup.settle());
+
+    QCheckBox* fill = setup.find<QCheckBox>("editContentFillCheck");
+    QVERIFY(fill);
+    QCOMPARE(fill->checkState(), Qt::PartiallyChecked);
+    QSignalSpy refused(setup.context.data(), &Context::commandRefused);
+    const size_t count = H::getUndoCount(setup.context);
+    fill->click();
+    QCOMPARE(refused.count(), 1);
+    QCOMPARE(H::getUndoCount(setup.context), count);
+    QCOMPARE(fill->checkState(), Qt::PartiallyChecked);
+}
+
+void AppToolContentCardsTest::commandsTakeTheWholeSelection()
+{
+    // R7-1: MAXIMUM_INSPECTED_NODES + 1 paths selected (the last one, the key object, at x = 5, the others at x >= 20):
+    // a cap of what the cards read never cuts what a command changes - the opacity, Align left (to the key object) and X
+    // reach the last path too
+    using H = ContentCardsHelper;
+    using T = pdf::PDFAppEditContentCardTools;
+    constexpr int COUNT = int(T::MAXIMUM_INSPECTED_NODES) + 1;
+    QByteArray content("0 0 1 rg\n");
+    for (int i = 0; i < COUNT - 1; ++i)
+    {
+        content += QByteArray::number(20 + i % 100) + ' ' + QByteArray::number(20 + i / 100) + " 1 1 re f\n";
+    }
+    content += "5 150 1 1 re f\n";
+    ContentCardsSetup setup(H::createContentDocument(content));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    QCOMPARE(paths.size(), size_t(COUNT));
+    setup.context->getSelection()->setNodes(paths);
+    QCOMPARE(setup.context->getSelection()->getKeyNode(), paths.back());
+    QVERIFY(setup.settle());
+
+    H::enter(setup.find<pdf::PDFDoubleSpinBox>("editContentFillOpacity"), QStringLiteral("40"));
+    QCOMPARE(H::getState(setup.context, paths.front()).alphaFilling, 0.4);
+    QCOMPARE(H::getState(setup.context, paths.back()).alphaFilling, 0.4);
+    setup.find<pdf::PDFDoubleSpinBox>("editContentFillOpacity")->clearFocus();
+    QVERIFY(setup.settle());
+
+    // Align left to the key object, the last one: every path has its left edge at 5, the key does not move
+    QToolButton* alignLeft = setup.find<QToolButton>("editContentArrange_obj-align-left");
+    QVERIFY(alignLeft && alignLeft->isEnabled());
+    alignLeft->click();
+    QVERIFY(H::isSame(H::box(setup.context, paths.front()), QRectF(5, 20, 1, 1)));
+    QVERIFY(H::isSame(H::box(setup.context, paths[paths.size() - 2]), QRectF(5, 119, 1, 1)));
+    QVERIFY(H::isSame(H::box(setup.context, paths.back()), QRectF(5, 150, 1, 1)));
+    QVERIFY(setup.settle());
+
+    // X = 50: the box of the whole selection (left 5) moves by 45 - the last path too
+    pdf::PDFDoubleSpinBox* x = setup.find<pdf::PDFDoubleSpinBox>("editContentX");
+    QCOMPARE(x->value(), 5.0);
+    H::enter(x, QStringLiteral("50"));
+    QVERIFY(H::isSame(H::box(setup.context, paths.front()), QRectF(50, 20, 1, 1)));
+    QVERIFY(H::isSame(H::box(setup.context, paths.back()), QRectF(50, 150, 1, 1)));
+}
+
+void AppToolContentCardsTest::spaceKeepsTheColorOfEachObject()
+{
+    // R7-2: a group of a red and a blue path, a CMYK path (0.1 0.2 0.3 0.4) and a gray path 0.5. DeviceCMYK for the fill
+    // converts each object by ISO 32000-2, 10.4.2 from its own components: red (1 0 0) -> (0 1 1 0), blue (0 0 1) -> (1
+    // 1 0 0), gray 0.5 -> (0 0 0 0.5); the CMYK path stays as it is. Then DeviceRGB: (0 1 1 0) -> r = 1 - min(1, C + K)
+    // ... = (1 0 0), (0.1 0.2 0.3 0.4) -> (0.5 0.4 0.3), (0 0 0 0.5) -> (0.5 0.5 0.5). Choosing the space every object has
+    // already changes nothing.
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("q 1 0 0 rg 10 10 20 20 re f 0 0 1 rg 50 10 20 20 re f Q\n"
+                                                                       "0.1 0.2 0.3 0.4 k 100 100 20 20 re f\n"
+                                                                       "0.5 g 120 20 10 10 re f\n")));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getNodes(setup.context, pdf::PDFContentNodeKind::Path);
+    const std::vector<pdf::PDFContentNodeReference> groups = H::getNodes(setup.context, pdf::PDFContentNodeKind::Group);
+    QCOMPARE(paths.size(), size_t(4));
+    QCOMPARE(groups.size(), size_t(1));
+    setup.context->getSelection()->setNodes({ groups[0], paths[2], paths[3] });
+    QVERIFY(setup.settle());
+
+    pdf::PDFComboBox* space = setup.find<pdf::PDFComboBox>("editContentFillSpace");
+    const size_t count = H::getUndoCount(setup.context);
+    Q_EMIT space->activated(space->findData(QByteArray("DeviceCMYK")));
+    QCOMPARE(H::getUndoCount(setup.context), count + 1);
+    QCOMPARE(H::getFill(setup.context, paths[0]).first, QByteArray("DeviceCMYK"));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[0]).second, { 0.0, 1.0, 1.0, 0.0 }));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[1]).second, { 1.0, 1.0, 0.0, 0.0 }));
+    QCOMPARE(H::getFill(setup.context, paths[2]).first, QByteArray("content"));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[3]).second, { 0.0, 0.0, 0.0, 0.5 }));
+    QVERIFY(setup.settle());
+
+    Q_EMIT space->activated(space->findData(QByteArray("DeviceRGB")));
+    QCOMPARE(H::getUndoCount(setup.context), count + 2);
+    QCOMPARE(H::getFill(setup.context, paths[0]).first, QByteArray("DeviceRGB"));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[0]).second, { 1.0, 0.0, 0.0 }));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[1]).second, { 0.0, 0.0, 1.0 }));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[2]).second, { 0.5, 0.4, 0.3 }));
+    QVERIFY(H::isNear(H::getFill(setup.context, paths[3]).second, { 0.5, 0.5, 0.5 }));
+    QVERIFY(setup.settle());
+
+    // Every object is DeviceRGB now: DeviceRGB again is no command (no rounding through the display color)
+    Q_EMIT space->activated(space->findData(QByteArray("DeviceRGB")));
+    QCOMPARE(H::getUndoCount(setup.context), count + 2);
+}
+
+void AppToolContentCardsTest::lockedObjectsLeftAlone()
+{
+    // R7-4: the one rule of the lock (PDFAppEditContentContext::getChangeableSelection). A and B selected, B locked: the
+    // opacity changes A only; Align needs two objects, which may be changed (disabled). B alone: the cards show it read
+    // only.
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createDocument());
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    setup.context->getSession()->setNodeLocked(paths[1], true);
+    setup.context->getSelection()->setNodes({ paths[0], paths[1] });
+    QVERIFY(setup.settle());
+
+    H::enter(setup.find<pdf::PDFDoubleSpinBox>("editContentFillOpacity"), QStringLiteral("40"));
+    QCOMPARE(H::getState(setup.context, paths[0]).alphaFilling, 0.4);
+    QCOMPARE(H::getState(setup.context, paths[1]).alphaFilling, 1.0);
+    setup.find<pdf::PDFDoubleSpinBox>("editContentFillOpacity")->clearFocus();
+    QVERIFY(setup.settle());
+    QVERIFY(!setup.find<QToolButton>("editContentArrange_obj-align-left")->isEnabled());
+
+    setup.find<QToolButton>("editContentFlipHorizontally")->click();
+    QCOMPARE(H::getState(setup.context, paths[0]).matrix.m11(), -1.0);
+    QCOMPARE(H::getState(setup.context, paths[1]).matrix.m11(), 1.0);
+
+    setup.context->getSelection()->setNode(paths[1]);
+    QVERIFY(setup.settle());
+    QVERIFY(!setup.find<pdf::PDFDoubleSpinBox>("editContentFillOpacity")->isEnabled());
+    QVERIFY(!setup.find<pdf::PDFDoubleSpinBox>("editContentX")->isEnabled());
+    QVERIFY(!setup.find<QCheckBox>("editContentFillCheck")->isEnabled());
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentX")->value(), 100.0);
+}
+
+void AppToolContentCardsTest::rotationOfTextIncludesTextMatrix()
+{
+    // R7-5: a text rotated by its text matrix "0 1 -1 0 100 50 Tm" under the identity CTM is at 90 degrees (ISO 32000-2,
+    // 9.4.2: the text space -> user space by Tm); typing 0 straightens it - the text space of its first glyph becomes
+    // the identity rotation (Tm x the new CTM = [1 0 0 1]). Stroke on: the rendering mode 2 (fill and stroke, Table 104).
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("BT /F1 12 Tf 0 1 -1 0 100 50 Tm (AB) Tj ET\n"), true));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> texts = H::getNodes(setup.context, pdf::PDFContentNodeKind::TextObject);
+    QCOMPARE(texts.size(), size_t(1));
+    setup.context->getSelection()->setNode(texts[0]);
+    QVERIFY(setup.settle());
+
+    pdf::PDFDoubleSpinBox* rotation = setup.find<pdf::PDFDoubleSpinBox>("editContentRotation");
+    QVERIFY(qAbs(rotation->value() - 90.0) < 1e-6);
+    H::enter(rotation, QStringLiteral("0"));
+    const pdf::PDFContentDisplayTextPointer text = pdf::PDFContentDisplay::getText(*setup.context->getContainer(), texts[0].node, pdf::PDFContentDisplayContext());
+    QVERIFY(text && !text->glyphs.empty());
+    const QTransform& glyph = text->glyphs.front().textMatrix;
+    QVERIFY2(qAbs(glyph.m11() - 1.0) < 1e-9 && qAbs(glyph.m12()) < 1e-9 && qAbs(glyph.m21()) < 1e-9 && qAbs(glyph.m22() - 1.0) < 1e-9,
+             qPrintable(QStringLiteral("%1 %2 %3 %4").arg(glyph.m11()).arg(glyph.m12()).arg(glyph.m21()).arg(glyph.m22())));
+    rotation->clearFocus();
+    QVERIFY(setup.settle());
+    QVERIFY(qAbs(rotation->value()) < 1e-6);
+
+    setup.find<QCheckBox>("editContentStrokeCheck")->click();
+    const std::vector<pdf::PDFContentNodeReference> shows = H::getNodes(setup.context, pdf::PDFContentNodeKind::TextShow);
+    QVERIFY(!shows.empty());
+    QCOMPARE(H::getState(setup.context, shows.front()).textRenderingMode, pdf::TextRenderingMode::FillStroke);
+}
+
+void AppToolContentCardsTest::lineWidthInTheSpaceOfThePage()
+{
+    // R7-6 (QE.6: the card shows the resulting width): P "q 2 0 0 2 0 0 cm 1 w ... S Q" strokes 1 x 2 = 2 pt on the page;
+    // U "q 2 0 0 1 0 0 cm ..." scales the line unevenly (Mixed and the note); Q "3 w ... S" is 3 pt. In mm: 2 pt = 2 x 25.4
+    // / 72 = 0.7056 mm, shown 0.71. W = 4 pt for P sets its line width 2 in its own space; 6 pt for P and Q (2 and 3 pt,
+    // Mixed) sets 3 and 6 - one undo step.
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("q 2 0 0 2 0 0 cm 1 w 10 10 20 20 re S Q\n"
+                                                                       "q 2 0 0 1 0 0 cm 1 w 30 60 10 10 re S Q\n"
+                                                                       "3 w 100 100 10 10 re S\n")));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getNodes(setup.context, pdf::PDFContentNodeKind::Path);
+    QCOMPARE(paths.size(), size_t(3));
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+
+    pdf::PDFDoubleSpinBox* width = setup.find<pdf::PDFDoubleSpinBox>("editContentStrokeWidth");
+    QVERIFY(!width->isMixed());
+    QCOMPARE(width->value(), 2.0);
+    setup.context->getOptions()->setValue(QLatin1String(pdf::PDFAppEditContentOptions::UNITS), QStringLiteral("mm"));
+    QVERIFY(setup.settle());
+    QCOMPARE(width->value(), 0.71);
+    setup.context->getOptions()->setValue(QLatin1String(pdf::PDFAppEditContentOptions::UNITS), QStringLiteral("pt"));
+    QVERIFY(setup.settle());
+
+    H::enter(width, QStringLiteral("4"));
+    QCOMPARE(H::getState(setup.context, paths[0]).lineWidth, 2.0);
+    width->clearFocus();
+    QVERIFY(setup.settle());
+
+    setup.context->getSelection()->setNodes({ paths[0], paths[2] });
+    QVERIFY(setup.settle());
+    QVERIFY(width->isMixed());
+    const size_t count = H::getUndoCount(setup.context);
+    H::enter(width, QStringLiteral("6"));
+    QCOMPARE(H::getUndoCount(setup.context), count + 1);
+    QCOMPARE(H::getState(setup.context, paths[0]).lineWidth, 3.0);
+    QCOMPARE(H::getState(setup.context, paths[2]).lineWidth, 6.0);
+    width->clearFocus();
+
+    setup.context->getSelection()->setNode(paths[1]);
+    QVERIFY(setup.settle());
+    QVERIFY(width->isMixed());
+    QVERIFY(setup.find<pdf::PDFLabel>("editContentFillAndStrokeNote")->text().startsWith(QStringLiteral("The matrix of an object scales its line differently")));
+}
+
+/// A card of the display of a test registry (as P14's Keyboard, whose Close link must work in Preview and during a run)
+class ContentCardsDisplayCard : public pdf::PDFAppEditContentCard
+{
+public:
+    explicit ContentCardsDisplayCard(pdf::PDFAppEditContentContext* context, QWidget* parent) :
+        pdf::PDFAppEditContentCard(context, QLatin1String(pdf::PDFAppEditContentCardIds::KEYBOARD), parent)
+    {
+    }
+
+    virtual void updateCard() override { }
+};
+
+/// Its entry: it changes no model
+class ContentCardsDisplayEntry : public pdf::PDFAppEditContentCardEntry
+{
+public:
+    virtual QString getId() const override { return QLatin1String(pdf::PDFAppEditContentCardIds::KEYBOARD); }
+    virtual bool isShown(const pdf::PDFAppEditContentContext* context) const override { return context && context->isCardRequested(getId()); }
+    virtual bool isChangingModel() const override { return false; }
+    virtual pdf::PDFAppEditContentCard* createCard(pdf::PDFAppEditContentContext* context, QWidget* parent) const override { return new ContentCardsDisplayCard(context, parent); }
+};
+
+void AppToolContentCardsTest::displayCardsStayUsable()
+{
+    // R7-8: during a run (Apply Changes) the cards, which change the model, are disabled; the cards of the display and
+    // of the state of the session stay usable - Selection, Locked object with Unlock (QE.8, no command), a card of the
+    // display like Keyboard (the entry says isChangingModel false); in Preview the Preview card and Keyboard too
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createDocument());
+    setup.registry.addCard(std::make_unique<ContentCardsDisplayEntry>());
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    setup.context->getSession()->setNodeLocked(paths[2], true);
+    setup.context->setLockedClickNode(paths[2]);
+    setup.context->setCardRequested(QLatin1String(CardIds::LOCKED_OBJECT), true);
+    QVERIFY(setup.settle());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::LOCKED_OBJECT)));
+
+    setup.context->setRunning(true);
+    QVERIFY(setup.settle());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::LOCKED_OBJECT))->isEnabled());
+    QVERIFY(setup.find<QPushButton>("editContentUnlock")->isEnabled());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::SELECTION))->isEnabled());
+    QVERIFY(!setup.stack->getCard(QLatin1String(CardIds::ARRANGE))->isEnabled());
+    setup.context->setRunning(false);
+    QVERIFY(setup.settle());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::ARRANGE))->isEnabled());
+
+    setup.context->setCardRequested(QLatin1String(CardIds::KEYBOARD), true);
+    setup.context->setPreviewActive(true);
+    QVERIFY(setup.settle());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::KEYBOARD)) && setup.stack->getCard(QLatin1String(CardIds::KEYBOARD))->isEnabled());
+    QVERIFY(setup.stack->getCard(QLatin1String(CardIds::PREVIEW))->isEnabled());
+}
+
+void AppToolContentCardsTest::rotatedPageDirections()
+{
+    // R5-6: /Rotate 90 shows the page turned clockwise (ISO 32000-2, Table 31): a point (x, y) of the page is (y, -x) on
+    // the screen (PDFContentArrange::getDisplayedPageMatrix). A "10 10 50 30 re" is X = 10 (its lower edge), Y = 200 - 60
+    // = 140 (from the screen's lower edge, the page's right edge 200), W = 30, H = 50. X = 50 moves it up the page by 40:
+    // (10 50) - (60 80). Align left of A to B (100 100 20 20, the key): the screen left edges = the lower edges of the page
+    // - A goes to (10 100). Flip horizontally on the screen mirrors the page y.
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("10 10 50 30 re f\n100 100 20 20 re f\n"), false, 90));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    QCOMPARE(paths.size(), size_t(2));
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+
+    pdf::PDFDoubleSpinBox* x = setup.find<pdf::PDFDoubleSpinBox>("editContentX");
+    QCOMPARE(x->value(), 10.0);
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentY")->value(), 140.0);
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentW")->value(), 30.0);
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentH")->value(), 50.0);
+    QCOMPARE(setup.find<pdf::PDFLabel>("editContentSelectionSubtitle")->text(), QStringLiteral("30 × 50 pt · fill only"));
+    H::enter(x, QStringLiteral("50"));
+    QVERIFY(H::isSame(H::box(setup.context, paths[0]), QRectF(10, 50, 50, 30)));
+    x->clearFocus();
+
+    setup.context->getSelection()->setNodes({ paths[0], paths[1] });
+    QVERIFY(setup.settle());
+    setup.find<QToolButton>("editContentArrange_obj-align-left")->click();
+    QVERIFY(H::isSame(H::box(setup.context, paths[0]), QRectF(10, 100, 50, 30)));
+    QVERIFY(H::isSame(H::box(setup.context, paths[1]), QRectF(100, 100, 20, 20)));
+
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+    setup.find<QToolButton>("editContentFlipHorizontally")->click();
+    const pdf::PDFContentDisplayState state = H::getState(setup.context, paths[0]);
+    QCOMPARE(state.matrix.m11(), 1.0);
+    QCOMPARE(state.matrix.m22(), -1.0);
+    QVERIFY(H::isSame(H::box(setup.context, paths[0]), QRectF(10, 100, 50, 30)));
+}
+
+void AppToolContentCardsTest::selectionCountsAsTheTree()
+{
+    // R7-10: the card Selection and the row of the tree tell one fact one way (PDFAppEditContentObjectsModel): a closed
+    // triangle "m l l h" draws 3 segments (not 4 operators); a group, whose second object clips, is a clipping group; the
+    // values of the accessible names say the paint (R7-13: "Fill R"); the swatch note says "this page" (R7-11)
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createContentDocument(QByteArrayLiteral("0 0 1 rg 10 10 m 50 10 l 30 40 l h f\n"
+                                                                       "q 0 0 1 rg 60 60 20 20 re f 0 0 100 100 re W n Q\n")));
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getNodes(setup.context, pdf::PDFContentNodeKind::Path);
+    const std::vector<pdf::PDFContentNodeReference> groups = H::getNodes(setup.context, pdf::PDFContentNodeKind::Group);
+    QCOMPARE(groups.size(), size_t(1));
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+    QCOMPARE(setup.find<pdf::PDFLabel>("editContentSelectionTitle")->text(), QStringLiteral("Path · 3 segment(s)"));
+    QCOMPARE(setup.find<pdf::PDFDoubleSpinBox>("editContentFillValue0")->accessibleName(), QStringLiteral("Fill R"));
+    QCOMPARE(setup.find<pdf::PDFLabel>("editContentFillAndStrokeNote")->text().left(46), QStringLiteral("The swatches are the colors used on this page."));
+
+    setup.context->getSelection()->setNode(groups[0]);
+    QVERIFY(setup.settle());
+    QVERIFY(setup.find<pdf::PDFLabel>("editContentSelectionTitle")->text().startsWith(QStringLiteral("Clipping group · ")));
+}
+
+void AppToolContentCardsTest::reloadedSessionFollowed()
+{
+    // PDFAppEditContentContext::reloadDocument (FX3 item 2): the stack connects to the new session - a command of the new
+    // session rebuilds the cards; the swatches are of the new document (A filled green), although the container has the
+    // same key and version as the old one
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createDocument());
+    QVERIFY(setup.open());
+    setup.context->getSelection()->setNode(H::getPaths(setup.context)[0]);
+    QVERIFY(setup.settle());
+    QCOMPARE(setup.find<pdf::PDFColorSwatch>("editContentFillSwatch0")->getColor(), QColor(0, 0, 255));
+
+    const pdf::PDFDocumentPointer document = H::createContentDocument(QByteArrayLiteral("0 1 0 rg 10 10 50 30 re f\n"));
+    setup.context->reloadDocument(document);
+    QVERIFY(QTest::qWaitFor([&setup, &document]() { return setup.context->getSession()->getDocument() == document.data() && setup.context->getContainer(); },
+                            15000 * pdftest::AppDocumentFixture::getTimeoutFactor()));
+    QVERIFY(setup.settle());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    setup.context->getSelection()->setNode(paths[0]);
+    QVERIFY(setup.settle());
+    QCOMPARE(setup.find<pdf::PDFColorSwatch>("editContentFillSwatch0")->getColor(), QColor(0, 255, 0));
+
+    QVERIFY(setup.context->execute(pdf::PDFContentCommandFactory::createSetTransparency({ paths[0] }, std::nullopt, 0.5, std::nullopt)));
+    QVERIFY(setup.stack->isRebuildScheduled());
+    QVERIFY(setup.settle());
+    QCOMPARE(setup.stack->getCard(QLatin1String(CardIds::TRANSPARENCY))->getSections().front()->getSummaryText(), QStringLiteral("Opacity 50 % · blend mode Normal"));
+}
+
+void AppToolContentCardsTest::keyObjectAnywhere()
+{
+    // R7-1 (coordinator: the key object is the key node of the selection, wherever it lies in it): A and B selected, A
+    // made the key object (a click on it, PDFAppEditContentSelection::setKeyNode) - Align left moves B to the left edge of
+    // A, 10; A does not move
+    using H = ContentCardsHelper;
+    ContentCardsSetup setup(H::createDocument());
+    QVERIFY(setup.open());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(setup.context);
+    setup.context->getSelection()->setNodes({ paths[0], paths[1] });
+    setup.context->getSelection()->setKeyNode(paths[0]);
+    QVERIFY(setup.settle());
+    setup.find<QToolButton>("editContentArrange_obj-align-left")->click();
+    QVERIFY(H::isSame(H::box(setup.context, paths[0]), QRectF(10, 10, 50, 30)));
+    QVERIFY(H::isSame(H::box(setup.context, paths[1]), QRectF(10, 100, 20, 20)));
 }
 
 QTEST_MAIN(AppToolContentCardsTest)

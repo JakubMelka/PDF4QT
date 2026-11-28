@@ -21,7 +21,9 @@
 // SOFTWARE.
 
 #include "pdfconstants.h"
+#include "pdfcms.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfexception.h"
 #include "pdfimage.h"
 #include "pdfimageconversion.h"
 #include "pdfimageoptimizer.h"
@@ -33,6 +35,9 @@
 #include <QColor>
 #include <QImage>
 
+#include <array>
+#include <cstdlib>
+#include <map>
 #include <memory>
 #include <optional>
 #include <random>
@@ -77,6 +82,21 @@ private slots:
     void test_optimizer_bitonal_algorithms();
     void test_bitonal_creator_uses_jbig2();
     void test_image_stream_jbig2_falls_back_for_large_images();
+    void test_dct_decodes_flat_blocks();
+    void test_dct_wrapping_size_is_refused();
+    void test_dct_size_above_pixel_limit_is_refused();
+    void test_dct_truncated_entropy_segment();
+    void test_dct_header_size_differs_from_dictionary();
+    void test_dct_error_after_decoding();
+    void test_raw_soft_mask_valid();
+    void test_raw_soft_mask_of_one_byte();
+    void test_raw_soft_mask_one_row_short();
+    void test_raw_soft_mask_with_decode_short();
+    void test_raw_soft_mask_of_one_bit_short();
+    void test_raw_image_short();
+    void test_raw_image_mask_short();
+    void test_raw_explicit_mask_short();
+    void test_raw_alpha_mask_of_short_data_is_refused();
 
 private:
     static QImage createLineArtImage(int size);
@@ -1651,6 +1671,722 @@ void ImageOptimizerTest::test_image_stream_jbig2_falls_back_for_large_images()
         QCOMPARE(optimizedInfos.size(), 1u);
         QCOMPARE(optimizedInfos[0].image.size(), bitonal.size());
     }
+}
+
+/// Hand-written baseline JPEG data (ISO/IEC 10918-1, Annex B) for the tests of the DCT
+/// decoding of PDFImage::createImage. Every 8 x 8 block is flat: only its DC coefficient
+/// is coded and the first AC symbol is the end of block. The quantization value of every
+/// coefficient is 8, so the inverse DCT of a block with the DC coefficient d gives
+/// d * 8 / 8 = d in all its 64 samples, and the level shift adds 128 (A.3.1, A.3.3): the
+/// sample s is coded as the DC coefficient s - 128 and the expected samples are set by hand.
+/// For such a block the integer inverse DCT of libjpeg is exact (the DC term alone, no
+/// rounding of a fraction); ISO/IEC 10918-2 would allow 1 level, the tests need none.
+class DCTImageTestHelper
+{
+public:
+    /// Data of a JPEG of \p width x \p height samples and the components \p componentIds
+    /// (their identifiers, one or three; no subsampling, so an MCU is one block of each
+    /// component). \p blockSamples are the samples of the coded blocks in the order of the
+    /// MCUs, the components of an MCU one after another; the blocks behind them are not
+    /// coded. The entropy-coded segment is cut after \p entropyBytes bytes, when it is not
+    /// negative; \p trailer follows it, then EOI, when \p withEndMarker.
+    static QByteArray createJpeg(int width,
+                                 int height,
+                                 const QByteArray& componentIds,
+                                 const std::vector<int>& blockSamples,
+                                 int entropyBytes,
+                                 bool withEndMarker,
+                                 const QByteArray& trailer);
+
+    /// Decodes \p jpeg as the data of an image XObject (/Filter /DCTDecode) with the given
+    /// /Width and /Height of its dictionary and the color space DeviceGray or DeviceRGB
+    static pdf::PDFImage decode(const QByteArray& jpeg, int dictionaryWidth, int dictionaryHeight, bool isRGB, ErrorCollector* reporter);
+
+    /// Message of the exception, by which decode() refuses \p jpeg, or an empty string, when it decodes it
+    static QString getDecodeError(const QByteArray& jpeg, int dictionaryWidth, int dictionaryHeight, bool isRGB);
+
+    /// Sample \p component of the pixel \p x, \p y of the decoded data of \p image
+    static int getSample(const pdf::PDFImage& image, int x, int y, int component);
+
+private:
+    struct BitWriter
+    {
+        QByteArray bytes;
+        int buffer = 0;
+        int bitCount = 0;
+    };
+
+    struct Code
+    {
+        quint32 word = 0;
+        int length = 0;
+    };
+
+    /// Code words of a table by Annex C (C.1 - C.3): \p bits[i] codes of the length i + 1 for the symbols \p values in their order
+    static std::map<int, Code> createCodes(const std::array<int, 16>& bits, const std::vector<int>& values);
+
+    /// Appends \p length bits of \p value, the most significant first; a byte 0xFF is followed by a stuffed 0x00 (F.1.2.3)
+    static void writeBits(BitWriter& writer, quint32 value, int length);
+
+    /// Pads the last byte with 1 bits (F.1.2.3)
+    static void flushBits(BitWriter& writer);
+
+    static void appendWord(QByteArray& data, int value);
+
+    /// The luminance DC table of Annex K (Table K.3): the categories 0 - 11
+    static std::array<int, 16> getDCBits() { return { 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 }; }
+    static std::vector<int> getDCValues() { return { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }; }
+
+    /// An AC table of one symbol, the end of block (0x00), coded by the single bit 0
+    static std::array<int, 16> getACBits() { return { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; }
+    static std::vector<int> getACValues() { return { 0x00 }; }
+};
+
+std::map<int, DCTImageTestHelper::Code> DCTImageTestHelper::createCodes(const std::array<int, 16>& bits, const std::vector<int>& values)
+{
+    std::map<int, Code> codes;
+    quint32 word = 0;
+    size_t valueIndex = 0;
+    for (int length = 1; length <= 16; ++length)
+    {
+        for (int i = 0; i < bits[length - 1]; ++i)
+        {
+            codes[values[valueIndex++]] = Code{ word++, length };
+        }
+        word <<= 1;
+    }
+    return codes;
+}
+
+void DCTImageTestHelper::writeBits(BitWriter& writer, quint32 value, int length)
+{
+    for (int i = length - 1; i >= 0; --i)
+    {
+        writer.buffer = (writer.buffer << 1) | int((value >> i) & 1);
+        if (++writer.bitCount == 8)
+        {
+            writer.bytes.append(char(writer.buffer));
+            if (writer.buffer == 0xFF)
+            {
+                writer.bytes.append(char(0x00));
+            }
+            writer.buffer = 0;
+            writer.bitCount = 0;
+        }
+    }
+}
+
+void DCTImageTestHelper::flushBits(BitWriter& writer)
+{
+    while (writer.bitCount != 0)
+    {
+        writeBits(writer, 1, 1);
+    }
+}
+
+void DCTImageTestHelper::appendWord(QByteArray& data, int value)
+{
+    data.append(char((value >> 8) & 0xFF));
+    data.append(char(value & 0xFF));
+}
+
+QByteArray DCTImageTestHelper::createJpeg(int width,
+                                          int height,
+                                          const QByteArray& componentIds,
+                                          const std::vector<int>& blockSamples,
+                                          int entropyBytes,
+                                          bool withEndMarker,
+                                          const QByteArray& trailer)
+{
+    const int componentCount = int(componentIds.size());
+    QByteArray data("\xFF\xD8", 2);
+
+    // DQT (B.2.4.1): table 0 of 8-bit values, all 8
+    data.append("\xFF\xDB", 2);
+    appendWord(data, 67);
+    data.append(char(0x00));
+    data.append(QByteArray(64, char(8)));
+
+    // DHT (B.2.4.2): DC table 0 and AC table 0
+    const std::array<int, 16> dcBits = getDCBits();
+    const std::vector<int> dcValues = getDCValues();
+    const std::array<int, 16> acBits = getACBits();
+    const std::vector<int> acValues = getACValues();
+    data.append("\xFF\xC4", 2);
+    appendWord(data, int(2 + 17 + dcValues.size() + 17 + acValues.size()));
+    data.append(char(0x00));
+    for (int count : dcBits)
+    {
+        data.append(char(count));
+    }
+    for (int value : dcValues)
+    {
+        data.append(char(value));
+    }
+    data.append(char(0x10));
+    for (int count : acBits)
+    {
+        data.append(char(count));
+    }
+    for (int value : acValues)
+    {
+        data.append(char(value));
+    }
+
+    // SOF0 (B.2.2): 8-bit samples, the height, the width, the components (H = V = 1, table 0)
+    data.append("\xFF\xC0", 2);
+    appendWord(data, 8 + 3 * componentCount);
+    data.append(char(8));
+    appendWord(data, height);
+    appendWord(data, width);
+    data.append(char(componentCount));
+    for (char componentId : componentIds)
+    {
+        data.append(componentId);
+        data.append(char(0x11));
+        data.append(char(0x00));
+    }
+
+    // SOS (B.2.3): all components, tables 0 / 0, Ss = 0, Se = 63, Ah = Al = 0
+    data.append("\xFF\xDA", 2);
+    appendWord(data, 6 + 2 * componentCount);
+    data.append(char(componentCount));
+    for (char componentId : componentIds)
+    {
+        data.append(componentId);
+        data.append(char(0x00));
+    }
+    data.append(char(0x00));
+    data.append(char(0x3F));
+    data.append(char(0x00));
+
+    // The entropy-coded segment (F.1.2.1): the difference of the DC coefficient to the
+    // previous block of the component as its category and its additional bits, then EOB
+    const std::map<int, Code> dcCodes = createCodes(dcBits, dcValues);
+    const std::map<int, Code> acCodes = createCodes(acBits, acValues);
+    std::vector<int> predictions(componentCount, 0);
+    BitWriter writer;
+    for (size_t i = 0; i < blockSamples.size(); ++i)
+    {
+        const int component = int(i % componentCount);
+        const int coefficient = blockSamples[i] - 128;
+        const int difference = coefficient - predictions[component];
+        predictions[component] = coefficient;
+
+        int category = 0;
+        while ((std::abs(difference) >> category) != 0)
+        {
+            ++category;
+        }
+
+        const Code& dcCode = dcCodes.at(category);
+        writeBits(writer, dcCode.word, dcCode.length);
+        if (category > 0)
+        {
+            const int additionalBits = difference >= 0 ? difference : difference + (1 << category) - 1;
+            writeBits(writer, quint32(additionalBits), category);
+        }
+
+        const Code& endOfBlock = acCodes.at(0x00);
+        writeBits(writer, endOfBlock.word, endOfBlock.length);
+    }
+    flushBits(writer);
+
+    data.append(entropyBytes >= 0 ? writer.bytes.left(entropyBytes) : writer.bytes);
+    data.append(trailer);
+    if (withEndMarker)
+    {
+        data.append("\xFF\xD9", 2);
+    }
+    return data;
+}
+
+pdf::PDFImage DCTImageTestHelper::decode(const QByteArray& jpeg, int dictionaryWidth, int dictionaryHeight, bool isRGB, ErrorCollector* reporter)
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+
+    pdf::PDFDictionaryBuilder dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XObject"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Image"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Width"), pdf::PDFObject::createInteger(dictionaryWidth));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Height"), pdf::PDFObject::createInteger(dictionaryHeight));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), pdf::PDFObject::createName(isRGB ? "DeviceRGB" : "DeviceGray"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("BitsPerComponent"), pdf::PDFObject::createInteger(8));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createName("DCTDecode"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(jpeg.size()));
+    const pdf::PDFObjectReference reference = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(jpeg))));
+    const pdf::PDFDocument document = builder.build();
+
+    const pdf::PDFObject& object = document.getObjectByReference(reference);
+    const pdf::PDFColorSpacePointer colorSpace = pdf::PDFAbstractColorSpace::createDeviceColorSpaceByName(nullptr, &document, nullptr, isRGB ? QByteArrayLiteral("DeviceRGB") : QByteArrayLiteral("DeviceGray"));
+    return pdf::PDFImage::createImage(&document, object.getStream(), colorSpace, false, pdf::RenderingIntent::Perceptual, reporter);
+}
+
+QString DCTImageTestHelper::getDecodeError(const QByteArray& jpeg, int dictionaryWidth, int dictionaryHeight, bool isRGB)
+{
+    ErrorCollector reporter;
+    try
+    {
+        decode(jpeg, dictionaryWidth, dictionaryHeight, isRGB, &reporter);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        return exception.getMessage();
+    }
+    return QString();
+}
+
+int DCTImageTestHelper::getSample(const pdf::PDFImage& image, int x, int y, int component)
+{
+    const pdf::PDFImageData& data = image.getImageData();
+    const qsizetype offset = qsizetype(y) * qsizetype(data.getStride()) + qsizetype(x) * qsizetype(data.getComponents()) + component;
+    return int(static_cast<unsigned char>(data.getData().at(offset)));
+}
+
+void ImageOptimizerTest::test_dct_decodes_flat_blocks()
+{
+    // Gray, 16 x 16: four blocks (the MCUs go row by row) of the samples 200, 56 / 128, 200;
+    // the differences 72, -144, 72, 72 use the categories 7 and 8 of Table K.3
+    {
+        const QByteArray jpeg = DCTImageTestHelper::createJpeg(16, 16, QByteArray(1, char(1)), { 200, 56, 128, 200 }, -1, true, QByteArray());
+        ErrorCollector reporter;
+        const pdf::PDFImage image = DCTImageTestHelper::decode(jpeg, 16, 16, false, &reporter);
+        const pdf::PDFImageData& data = image.getImageData();
+        QCOMPARE(data.getWidth(), 16u);
+        QCOMPARE(data.getHeight(), 16u);
+        QCOMPARE(data.getComponents(), 1u);
+        QCOMPARE(data.getBitsPerComponent(), 8u);
+        QCOMPARE(data.getStride(), 16u);
+        QCOMPARE(data.getData().size(), qsizetype(16 * 16));
+        QVERIFY2(reporter.messages.isEmpty(), qPrintable(reporter.messages.join('\n')));
+
+        for (int y = 0; y < 16; ++y)
+        {
+            for (int x = 0; x < 16; ++x)
+            {
+                const int expected = (y < 8) ? (x < 8 ? 200 : 56) : (x < 8 ? 128 : 200);
+                QCOMPARE(DCTImageTestHelper::getSample(image, x, y, 0), expected);
+            }
+        }
+    }
+
+    // RGB by the identifiers 'R', 'G', 'B' (no JFIF / Adobe marker: no color transform),
+    // 16 x 8: two MCUs of (200, 128, 56) and (56, 200, 128)
+    {
+        const QByteArray jpeg = DCTImageTestHelper::createJpeg(16, 8, QByteArray("RGB"), { 200, 128, 56, 56, 200, 128 }, -1, true, QByteArray());
+        ErrorCollector reporter;
+        const pdf::PDFImage image = DCTImageTestHelper::decode(jpeg, 16, 8, true, &reporter);
+        const pdf::PDFImageData& data = image.getImageData();
+        QCOMPARE(data.getWidth(), 16u);
+        QCOMPARE(data.getHeight(), 8u);
+        QCOMPARE(data.getComponents(), 3u);
+        QCOMPARE(data.getStride(), 48u);
+        QCOMPARE(data.getData().size(), qsizetype(48 * 8));
+
+        for (int y = 0; y < 8; ++y)
+        {
+            for (int x = 0; x < 16; ++x)
+            {
+                const bool left = x < 8;
+                QCOMPARE(DCTImageTestHelper::getSample(image, x, y, 0), left ? 200 : 56);
+                QCOMPARE(DCTImageTestHelper::getSample(image, x, y, 1), left ? 128 : 200);
+                QCOMPARE(DCTImageTestHelper::getSample(image, x, y, 2), left ? 56 : 128);
+            }
+        }
+    }
+}
+
+void ImageOptimizerTest::test_dct_wrapping_size_is_refused()
+{
+    // 46341 x 30894 x 3 = 2^32 + 9266 bytes: in 32 bits the buffer would have 9266 bytes,
+    // while a row alone has 139023. The pixels (1 431 658 854) are below the limit of 2^31,
+    // the bytes are above what the image data address (32 bits): refused before decoding.
+    const QByteArray jpeg = DCTImageTestHelper::createJpeg(46341, 30894, QByteArray("RGB"), { 200, 128, 56 }, -1, false, QByteArray());
+    const QString error = DCTImageTestHelper::getDecodeError(jpeg, 46341, 30894, true);
+    QVERIFY2(error.contains(QStringLiteral("46341")) && error.contains(QStringLiteral("30894")), qPrintable(error));
+}
+
+void ImageOptimizerTest::test_dct_size_above_pixel_limit_is_refused()
+{
+    // 65500 x 32787 = 2 147 548 500 pixels, above 2^31 = 2 147 483 648 (one component, so the
+    // bytes alone, 2^31 + 64 852, would still be addressable): refused before decoding. 2^31
+    // itself is no product of two sides of at most 65500 (JPEG_MAX_DIMENSION of libjpeg).
+    const QByteArray jpeg = DCTImageTestHelper::createJpeg(65500, 32787, QByteArray(1, char(1)), { }, -1, true, QByteArray());
+    const QString error = DCTImageTestHelper::getDecodeError(jpeg, 65500, 32787, false);
+    QVERIFY2(error.contains(QStringLiteral("65500")) && error.contains(QStringLiteral("32787")), qPrintable(error));
+}
+
+void ImageOptimizerTest::test_dct_truncated_entropy_segment()
+{
+    // Gray, 8 x 64: eight blocks, one per MCU row. The first is 200 (13 bits: the code of
+    // category 7, its 7 bits, EOB), the second continues it (3 bits: difference 0, EOB) -
+    // together exactly the 2 bytes kept. libjpeg reads the missing bits of the third block as
+    // zeros (difference 0, EOB: 200 again), then it leaves the remaining blocks zero (128).
+    const std::vector<int> blocks = { 200, 200, 200, 200, 56, 56, 56, 56 };
+    const QByteArray truncated = DCTImageTestHelper::createJpeg(8, 64, QByteArray(1, char(1)), blocks, 2, false, QByteArray());
+    const QByteArray truncatedWithEndMarker = DCTImageTestHelper::createJpeg(8, 64, QByteArray(1, char(1)), blocks, 2, true, QByteArray());
+    QCOMPARE(truncatedWithEndMarker.size(), truncated.size() + 2);
+
+    for (const bool withEndMarker : { false, true })
+    {
+        ErrorCollector reporter;
+        const pdf::PDFImage image = DCTImageTestHelper::decode(withEndMarker ? truncatedWithEndMarker : truncated, 8, 64, false, &reporter);
+        const pdf::PDFImageData& data = image.getImageData();
+        QCOMPARE(data.getWidth(), 8u);
+        QCOMPARE(data.getHeight(), 64u);
+        QCOMPARE(data.getData().size(), qsizetype(8 * 64));
+
+        for (int y = 0; y < 64; ++y)
+        {
+            for (int x = 0; x < 8; ++x)
+            {
+                QCOMPARE(DCTImageTestHelper::getSample(image, x, y, 0), y < 24 ? 200 : 128);
+            }
+        }
+
+        // The data without the end marker are reported, the libjpeg warning of the other is not passed on
+        QCOMPARE(reporter.messages.size(), withEndMarker ? 0 : 1);
+    }
+}
+
+void ImageOptimizerTest::test_dct_header_size_differs_from_dictionary()
+{
+    // ISO 32000-2, 8.9.5: /Width and /Height of the dictionary describe the image, the DCT
+    // data carry their own size (16 x 8). The decoded data and every consumer use the size
+    // of the data consistently, whether the dictionary declares more or less.
+    const QByteArray jpeg = DCTImageTestHelper::createJpeg(16, 8, QByteArray(1, char(1)), { 200, 56 }, -1, true, QByteArray());
+    for (const QSize& dictionarySize : { QSize(1000, 1000), QSize(1, 1) })
+    {
+        ErrorCollector reporter;
+        const pdf::PDFImage image = DCTImageTestHelper::decode(jpeg, dictionarySize.width(), dictionarySize.height(), false, &reporter);
+        const pdf::PDFImageData& data = image.getImageData();
+        QCOMPARE(data.getWidth(), 16u);
+        QCOMPARE(data.getHeight(), 8u);
+        QCOMPARE(data.getData().size(), qsizetype(16 * 8));
+
+        pdf::PDFCMSGeneric cms;
+        const QImage picture = image.getImage(&cms, &reporter, nullptr);
+        QCOMPARE(picture.size(), QSize(16, 8));
+        QCOMPARE(qGray(picture.pixel(0, 0)), 200);
+        QCOMPARE(qGray(picture.pixel(15, 7)), 56);
+    }
+}
+
+void ImageOptimizerTest::test_dct_error_after_decoding()
+{
+    // A second SOF marker after the scan (B.2.1 allows one frame): libjpeg stops by an error
+    // in jpeg_finish_decompress, after all rows were decoded into the buffer. The error is the
+    // exception of the image with the text of libjpeg, nothing else is left behind.
+    QByteArray secondFrame("\xFF\xC0", 2);
+    secondFrame.append(QByteArray::fromHex("000B080008000801011100"));
+    const QByteArray jpeg = DCTImageTestHelper::createJpeg(16, 16, QByteArray(1, char(1)), { 200, 56, 128, 200 }, -1, true, secondFrame);
+    const QString error = DCTImageTestHelper::getDecodeError(jpeg, 16, 16, false);
+    QVERIFY2(error.startsWith(QStringLiteral("Error reading JPEG (DCT) image: ")), qPrintable(error));
+    QVERIFY2(error.contains(QStringLiteral("two SOF markers")), qPrintable(error));
+}
+
+/// Images of raw samples (no image filter, the data uncompressed) for the tests of the sizes of the
+/// data in PDFImage::createImage. ISO 32000-2, 8.9.3: the samples of a row are packed, a row is
+/// padded to whole bytes, so a row has ceil(width x components x bits / 8) bytes; 11.6.5.3: a soft
+/// mask is a DeviceGray image; 8.9.6.2: an image mask (stencil) has one bit per sample.
+class RawImageTestHelper
+{
+public:
+    struct Image
+    {
+        int width = 0;
+        int height = 0;
+        QByteArray colorSpace;              ///< A device color space, empty for an image mask
+        int bitsPerComponent = 8;
+        bool isImageMask = false;
+        std::vector<int> decode;            ///< /Decode, when not empty
+        QByteArray data;
+    };
+
+    /// Decodes \p image with \p mask (when its width is not zero) as its /SMask or, when
+    /// \p isExplicitMask, as its /Mask
+    static pdf::PDFImage decode(const Image& image, const Image& mask, bool isExplicitMask, ErrorCollector* reporter);
+
+    /// Message of the exception, by which decode() refuses the image, an empty string when it decodes it
+    static QString getDecodeError(const Image& image, const Image& mask, bool isExplicitMask);
+
+    /// Alpha of the decoded soft mask of \p image at \p x, \p y (its byte, the masks are 8-bit)
+    static int getMaskSample(const pdf::PDFImage& image, int x, int y);
+
+private:
+    static pdf::PDFObjectReference addImage(pdf::PDFDocumentBuilder& builder, const Image& image, const char* maskKey, pdf::PDFObjectReference mask);
+};
+
+pdf::PDFObjectReference RawImageTestHelper::addImage(pdf::PDFDocumentBuilder& builder, const Image& image, const char* maskKey, pdf::PDFObjectReference mask)
+{
+    pdf::PDFDictionaryBuilder dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XObject"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Image"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Width"), pdf::PDFObject::createInteger(image.width));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Height"), pdf::PDFObject::createInteger(image.height));
+    if (image.isImageMask)
+    {
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("ImageMask"), pdf::PDFObject::createBool(true));
+    }
+    else
+    {
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), pdf::PDFObject::createName(image.colorSpace));
+    }
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("BitsPerComponent"), pdf::PDFObject::createInteger(image.bitsPerComponent));
+    if (!image.decode.empty())
+    {
+        pdf::PDFArrayBuilder decode;
+        for (const int value : image.decode)
+        {
+            decode.appendItem(pdf::PDFObject::createInteger(value));
+        }
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Decode"), pdf::PDFObject::createArray(std::move(decode)));
+    }
+    if (maskKey)
+    {
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString(maskKey), pdf::PDFObject::createReference(mask));
+    }
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(image.data.size()));
+    return builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(image.data))));
+}
+
+pdf::PDFImage RawImageTestHelper::decode(const Image& image, const Image& mask, bool isExplicitMask, ErrorCollector* reporter)
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+
+    const char* maskKey = nullptr;
+    pdf::PDFObjectReference maskReference;
+    if (mask.width > 0)
+    {
+        maskKey = isExplicitMask ? "Mask" : "SMask";
+        maskReference = addImage(builder, mask, nullptr, pdf::PDFObjectReference());
+    }
+    const pdf::PDFObjectReference reference = addImage(builder, image, maskKey, maskReference);
+    const pdf::PDFDocument document = builder.build();
+
+    const pdf::PDFObject& object = document.getObjectByReference(reference);
+    pdf::PDFColorSpacePointer colorSpace;
+    if (!image.isImageMask)
+    {
+        colorSpace = pdf::PDFAbstractColorSpace::createDeviceColorSpaceByName(nullptr, &document, nullptr, image.colorSpace);
+    }
+    return pdf::PDFImage::createImage(&document, object.getStream(), colorSpace, false, pdf::RenderingIntent::Perceptual, reporter);
+}
+
+QString RawImageTestHelper::getDecodeError(const Image& image, const Image& mask, bool isExplicitMask)
+{
+    ErrorCollector reporter;
+    try
+    {
+        decode(image, mask, isExplicitMask, &reporter);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        return exception.getMessage();
+    }
+    catch (const pdf::PDFRendererException& exception)
+    {
+        return exception.getError().message;
+    }
+    return QString();
+}
+
+int RawImageTestHelper::getMaskSample(const pdf::PDFImage& image, int x, int y)
+{
+    const pdf::PDFImageData& mask = image.getSoftMaskData();
+    return int(static_cast<unsigned char>(mask.getData().at(qsizetype(y) * qsizetype(mask.getStride()) + x)));
+}
+
+void ImageOptimizerTest::test_raw_soft_mask_valid()
+{
+    // DeviceRGB 2 x 2: red, green / blue, white; the 8-bit soft mask 0, 85 / 170, 255 (11.6.5.3:
+    // the sample is the alpha). The rows have 6 and 2 bytes, the data are complete: nothing is
+    // reported, the samples and the drawn picture are the data. Qt keeps the drawn picture
+    // premultiplied: a channel of 0 or 255 comes back exactly, a fully transparent pixel has no color.
+    RawImageTestHelper::Image image{ 2, 2, "DeviceRGB", 8, false, { }, QByteArray::fromHex("FF000000FF000000FFFFFFFF") };
+    RawImageTestHelper::Image mask{ 2, 2, "DeviceGray", 8, false, { }, QByteArray::fromHex("0055AAFF") };
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, false, &reporter);
+    QVERIFY2(reporter.messages.isEmpty(), qPrintable(reporter.messages.join('\n')));
+    QCOMPARE(decoded.getImageData().getStride(), 6u);
+    QCOMPARE(decoded.getImageData().getData(), image.data);
+    QCOMPARE(decoded.getSoftMaskData().getStride(), 2u);
+    QCOMPARE(decoded.getSoftMaskData().getData(), mask.data);
+
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    QCOMPARE(picture.size(), QSize(2, 2));
+    QCOMPARE(qAlpha(picture.pixel(0, 0)), 0);
+    QCOMPARE(picture.pixelColor(1, 0), QColor(0, 255, 0, 85));
+    QCOMPARE(picture.pixelColor(0, 1), QColor(0, 0, 255, 170));
+    QCOMPARE(picture.pixelColor(1, 1), QColor(255, 255, 255, 255));
+    QVERIFY2(reporter.messages.isEmpty(), qPrintable(reporter.messages.join('\n')));
+}
+
+void ImageOptimizerTest::test_raw_soft_mask_of_one_byte()
+{
+    // A soft mask of 64 x 64 8-bit samples needs 4096 bytes and has 1 (the value 200): the missing
+    // samples are zero - transparent - and it is reported. Its rows were copied from behind the
+    // buffer of 1 byte before (an out-of-bounds read of the heap into the alpha channel).
+    RawImageTestHelper::Image image{ 64, 64, "DeviceGray", 8, false, { }, QByteArray(64 * 64, '\xFF') };
+    RawImageTestHelper::Image mask{ 64, 64, "DeviceGray", 8, false, { }, QByteArray(1, '\xC8') };
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, false, &reporter);
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    QCOMPARE(reporter.messages, QStringList({ QStringLiteral("Soft mask data are too short: 1 of 4096 bytes, the missing samples are zero.") }));
+    QCOMPARE(decoded.getSoftMaskData().getData().size(), qsizetype(4096));
+    QCOMPARE(picture.size(), QSize(64, 64));
+    QCOMPARE(picture.pixelColor(0, 0), QColor(255, 255, 255, 200));
+    for (int y = 0; y < 64; ++y)
+    {
+        for (int x = (y == 0) ? 1 : 0; x < 64; ++x)
+        {
+            QCOMPARE(qAlpha(picture.pixel(x, y)), 0);
+        }
+    }
+}
+
+void ImageOptimizerTest::test_raw_soft_mask_one_row_short()
+{
+    // 64 x 64, the rows 0 - 62 present (the row y has the value 4 y), the row 63 missing: it is
+    // zero (transparent), the other rows are the data
+    QByteArray data;
+    for (int y = 0; y < 63; ++y)
+    {
+        data.append(QByteArray(64, char(4 * y)));
+    }
+    RawImageTestHelper::Image image{ 64, 64, "DeviceGray", 8, false, { }, QByteArray(64 * 64, '\xFF') };
+    RawImageTestHelper::Image mask{ 64, 64, "DeviceGray", 8, false, { }, data };
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, false, &reporter);
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    QCOMPARE(reporter.messages, QStringList({ QStringLiteral("Soft mask data are too short: 4032 of 4096 bytes, the missing samples are zero.") }));
+    QCOMPARE(picture.size(), QSize(64, 64));
+    for (int y = 0; y < 64; ++y)
+    {
+        for (int x = 0; x < 64; ++x)
+        {
+            QCOMPARE(RawImageTestHelper::getMaskSample(decoded, x, y), y < 63 ? 4 * y : 0);
+            QCOMPARE(qAlpha(picture.pixel(x, y)), y < 63 ? 4 * y : 0);
+        }
+    }
+}
+
+void ImageOptimizerTest::test_raw_soft_mask_with_decode_short()
+{
+    // /Decode [1 0] inverts the mask (8.9.5.2): the sample 255 is the alpha 0, the sample 0 the
+    // alpha 1. 16 x 16, 8 rows of 255 present: those rows are transparent, the padded rows 8 - 15
+    // (zero samples) are opaque.
+    RawImageTestHelper::Image image{ 16, 16, "DeviceGray", 8, false, { }, QByteArray(16 * 16, char(0)) };
+    RawImageTestHelper::Image mask{ 16, 16, "DeviceGray", 8, false, { 1, 0 }, QByteArray(16 * 8, '\xFF') };
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, false, &reporter);
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    QCOMPARE(reporter.messages, QStringList({ QStringLiteral("Soft mask data are too short: 128 of 256 bytes, the missing samples are zero.") }));
+    QCOMPARE(picture.size(), QSize(16, 16));
+    for (int y = 0; y < 16; ++y)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            QCOMPARE(qAlpha(picture.pixel(x, y)), y < 8 ? 0 : 255);
+        }
+    }
+}
+
+void ImageOptimizerTest::test_raw_soft_mask_of_one_bit_short()
+{
+    // A soft mask of 1-bit samples, 16 x 16: a row has 2 bytes, 2 rows of 0xFF (alpha 1) are
+    // present, the other 14 rows are padded by zeros (alpha 0), as an 8-bit mask
+    RawImageTestHelper::Image image{ 16, 16, "DeviceGray", 8, false, { }, QByteArray(16 * 16, char(0)) };
+    RawImageTestHelper::Image mask{ 16, 16, "DeviceGray", 1, false, { }, QByteArray(4, '\xFF') };
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, false, &reporter);
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    QCOMPARE(reporter.messages, QStringList({ QStringLiteral("Soft mask data are too short: 4 of 32 bytes, the missing samples are zero.") }));
+    QCOMPARE(decoded.getSoftMaskData().getStride(), 2u);
+    for (int y = 0; y < 16; ++y)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            QCOMPARE(qAlpha(picture.pixel(x, y)), y < 2 ? 255 : 0);
+        }
+    }
+}
+
+void ImageOptimizerTest::test_raw_image_short()
+{
+    // The samples of an image itself are refused when they are shorter, as their reading refused
+    // them before: DeviceRGB 4 x 4 needs 48 bytes, 47 are present. Complete data are decoded.
+    RawImageTestHelper::Image image{ 4, 4, "DeviceRGB", 8, false, { }, QByteArray(47, char(10)) };
+    QCOMPARE(RawImageTestHelper::getDecodeError(image, RawImageTestHelper::Image(), false), QStringLiteral("Image data are too short: 47 of 48 bytes."));
+
+    image.data.append(char(10));
+    QCOMPARE(RawImageTestHelper::getDecodeError(image, RawImageTestHelper::Image(), false), QString());
+
+    // 4 bits, 3 x 1: 36 bits are 5 bytes (the row padded to a whole byte)
+    RawImageTestHelper::Image packed{ 3, 1, "DeviceRGB", 4, false, { }, QByteArray(4, char(0)) };
+    QCOMPARE(RawImageTestHelper::getDecodeError(packed, RawImageTestHelper::Image(), false), QStringLiteral("Image data are too short: 4 of 5 bytes."));
+}
+
+void ImageOptimizerTest::test_raw_image_mask_short()
+{
+    // An image mask (stencil, 1 bit per sample) of 16 x 16 needs 32 bytes, 3 are present
+    RawImageTestHelper::Image stencil{ 16, 16, QByteArray(), 1, true, { }, QByteArray(3, char(0)) };
+    QCOMPARE(RawImageTestHelper::getDecodeError(stencil, RawImageTestHelper::Image(), false), QStringLiteral("Image data are too short: 3 of 32 bytes."));
+}
+
+void ImageOptimizerTest::test_raw_explicit_mask_short()
+{
+    // An explicit mask (/Mask, an image mask: 8.9.6.3) of 16 x 16 with 3 of its 32 bytes is refused
+    // as the image mask itself; complete, it masks the image (the sample 1 masks out, its alpha 0)
+    RawImageTestHelper::Image image{ 16, 16, "DeviceGray", 8, false, { }, QByteArray(16 * 16, char(0)) };
+    RawImageTestHelper::Image mask{ 16, 16, QByteArray(), 1, true, { }, QByteArray(3, char(0)) };
+    QCOMPARE(RawImageTestHelper::getDecodeError(image, mask, true), QStringLiteral("Image data are too short: 3 of 32 bytes."));
+
+    mask.data = QByteArray(16, '\xFF') + QByteArray(16, char(0));
+    ErrorCollector reporter;
+    const pdf::PDFImage decoded = RawImageTestHelper::decode(image, mask, true, &reporter);
+    pdf::PDFCMSGeneric cms;
+    const QImage picture = decoded.getImage(&cms, &reporter, nullptr);
+    for (int y = 0; y < 16; ++y)
+    {
+        QCOMPARE(qAlpha(picture.pixel(5, y)), y < 8 ? 0 : 255);
+    }
+}
+
+void ImageOptimizerTest::test_raw_alpha_mask_of_short_data_is_refused()
+{
+    // Data built by hand, not by PDFImage::createImage (which pads or refuses them): a mask of
+    // 4 x 4 8-bit samples (stride 4) with 10 bytes - its rows 2 and 3 are not in the data; a
+    // mask of 4 x 2 with the stride 2 below its width and 4 bytes - its row 1 would be read from
+    // the bytes 2 - 5. Both are refused, no row is read behind the data.
+    const pdf::PDFImageData shortData(1, 8, 4, 4, 4, pdf::PDFImageData::MaskingType::None, QByteArray(10, char(1)), { }, { }, { });
+    const pdf::PDFImageData narrowStride(1, 8, 4, 2, 2, pdf::PDFImageData::MaskingType::None, QByteArray(4, char(1)), { }, { }, { });
+    for (const pdf::PDFImageData* data : { &shortData, &narrowStride })
+    {
+        QString error;
+        try
+        {
+            pdf::PDFAbstractColorSpace::createAlphaMask(*data);
+        }
+        catch (const pdf::PDFException& exception)
+        {
+            error = exception.getMessage();
+        }
+        QVERIFY2(!error.isEmpty(), "the mask was read");
+    }
+
+    // The same mask with the 16 bytes it needs is read
+    const pdf::PDFImageData complete(1, 8, 4, 4, 4, pdf::PDFImageData::MaskingType::None, QByteArray(16, char(7)), { }, { }, { });
+    const QImage alpha = pdf::PDFAbstractColorSpace::createAlphaMask(complete);
+    QCOMPARE(alpha.size(), QSize(4, 4));
+    QCOMPARE(qAlpha(alpha.pixel(3, 3)), 7);
 }
 
 QTEST_APPLESS_MAIN(ImageOptimizerTest)

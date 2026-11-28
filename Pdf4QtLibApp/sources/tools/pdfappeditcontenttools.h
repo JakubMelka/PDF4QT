@@ -167,6 +167,18 @@ public:
     /// painter state is saved and restored by the caller. Default: nothing.
     virtual void paint(QPainter* painter, const PDFAppEditContentToolPaintContext& paintContext) const;
 
+    /// The rectangle of the scene, which paint covers now (\p pixelSize: a pixel of the view in the
+    /// units of the scene, for the widths of the pens); the scene repaints only the old and the new
+    /// rectangle when the tool calls update() (R6-11). Empty = the tool paints nothing. P11 only.
+    /// Default: empty.
+    virtual QRectF getPreviewRectangle(qreal pixelSize) const;
+
+    /// The model changed (PDFContentEditSession::modelChanged of the session of the context; the
+    /// controller forwards it to the active tool only): a tool ends a gesture, whose nodes changed
+    /// or vanished, without a command (R6-21). Never executes a command here (the rule of
+    /// PDFAppEditContentContext::execute). Default: nothing.
+    virtual void modelChanged(const PDFContentChange& change);
+
     /// A command of the application routed to the tool (zadani_gui.md 4.20, way 2; the ids of
     /// PDFAppCommands): the active tool is asked before the action entries
     /// (PDFAppEditContentContext::getApplicationCommandState) - typing (E2, P22) answers Select
@@ -310,6 +322,13 @@ private:
     void onEditingAllowedChanged();
     void onPageChanged();
 
+    /// The model changed: the active tool is told (PDFAppEditContentTool::modelChanged)
+    void onModelChanged(const PDFContentChange& change);
+
+    /// PDFAppEditContentContext::reloadDocument replaced the session: the controller connects to the new one
+    void onSessionReplaced();
+    void connectSession();
+
     /// Select becomes the active tool without a commit and without a check of the editing (Preview, a run, a new
     /// page: the controller follows the context); emits activeToolChanged last, when the tool changed
     void resetToSelect();
@@ -351,6 +370,8 @@ public:
     virtual QString getStatusText() const override;
     virtual QCursor getCursor(const QPointF& scenePoint) const override;
     virtual void paint(QPainter* painter, const PDFAppEditContentToolPaintContext& paintContext) const override;
+    virtual QRectF getPreviewRectangle(qreal pixelSize) const override;
+    virtual void modelChanged(const PDFContentChange& change) override;
 
     // ---- P11 (tests of the canvas) ----
 
@@ -358,7 +379,7 @@ public:
     enum class Gesture
     {
         None,
-        Pending,        ///< The button is down on an object, the pointer has not moved enough yet
+        Pending,        ///< The button is down on an object or on a handle, the pointer has not moved by QApplication::startDragDistance yet (R6-10)
         Move,
         RubberBand,
         Resize,
@@ -388,8 +409,13 @@ private:
     /// Ends the gesture without a command
     void abortGesture();
 
-    /// A selected node can be moved (not locked, no opaque content)
+    /// The selected nodes a gesture may change: PDFAppEditContentContext::getChangeableSelection (the one rule of the
+    /// lock, R7-4: not locked, no locked ancestor, not opaque, inside of the edited root)
     std::vector<PDFContentNodeReference> getMovableSelection() const;
+
+    /// The change touches a node of the gesture (the node, an ancestor or a descendant of it changed, was added or
+    /// removed, or the node does not exist any more)
+    bool isGestureTouched(const PDFContentChange& change) const;
 
     PDFAppEditContentScene* getScene() const;
     PDFAppEditContentView* getView() const;
@@ -399,6 +425,7 @@ private:
     qreal getPixelSize() const;
 
     Gesture m_gesture = Gesture::None;
+    Gesture m_pendingGesture = Gesture::None;       ///< What Pending becomes behind the drag distance: Move, Resize or Rotate
     QPointF m_pressPoint;
     QPointF m_currentPoint;
     Qt::KeyboardModifiers m_modifiers = Qt::NoModifier;

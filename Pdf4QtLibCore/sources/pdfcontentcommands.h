@@ -57,6 +57,18 @@ struct PDFContentNodeReference
     auto operator<=>(const PDFContentNodeReference&) const = default;
 };
 
+/// The painting of a path or of a text switched on or off by set_appearance (zadani_gui.md 4.19,
+/// the check boxes Fill and Stroke of the card Fill and stroke): a value of each switch the
+/// command sets, no value for a switch it leaves as it is
+struct PDFContentPaintSwitches
+{
+    std::optional<bool> fill;       ///< The fill on / off
+    std::optional<bool> stroke;     ///< The stroke on / off
+
+    bool isEmpty() const { return !fill && !stroke; }
+    bool operator==(const PDFContentPaintSwitches&) const = default;
+};
+
 /// What a command changed: told by PDFContentEditSession::modelChanged after the model is in
 /// its new state
 struct PDFContentChange
@@ -273,8 +285,10 @@ public:
     /// Moves nodes of one container to another place of its tree (R-2)
     /// \param nodes Nodes of one container, kept in their mutual order
     /// \param parent The new parent
-    /// \param index Index among the children of the parent as they are before the command (the
-    ///        moved nodes are skipped), -1 = at the end; content, which must stay the last one,
+    /// \param index Index of a child of the parent as the children are before the command (the
+    ///        moved nodes are counted): the nodes go in front of that child; when that child is
+    ///        moved itself, in front of the next one, which is not moved; the number of the
+    ///        children or -1 = at the end; content, which must stay the last one,
     ///        stays the last one (PDFContentContainer::getAppendIndex)
     /// \param mode Layer and tag
     static PDFContentCommandPointer createReorder(std::vector<PDFContentNodeReference> nodes, PDFContentNodeReference parent, PDFInteger index, ReorderMode mode);
@@ -303,6 +317,32 @@ public:
     /// R-1: on leaves only; a Group or a MarkedContent gives the change to its leaves inside of
     /// the one command)
     static PDFContentCommandPointer createSetAppearance(std::vector<PDFContentNodeReference> nodes, std::map<PDFContentStateProperty, PDFContentStateValue> properties);
+
+    /// The same, which also switches the painting of the objects on or off (the JSON fields
+    /// "fillEnabled" and "strokeEnabled"; the properties may be empty, when a switch is given).
+    /// The color and the line state a switched on painting uses are the ones of the object at its
+    /// place (its override, else the state of the content there, R-1); a command, which sets them
+    /// too, gives them in \p properties. A Group or a MarkedContent gives the switches to its paths
+    /// and texts, as the properties.
+    ///  - A Path: its painting operator changes among n, f / f*, S, B / B* (ISO 32000-2, 8.5.3.1,
+    ///    Table 59). The fill rule of the path is kept (a path, which had no fill, fills by the
+    ///    nonzero winding number rule), a path closed by s, b or b* keeps its closing operator
+    ///    (s, b, b* when it strokes again), the clip W / W* stays as it is. The changed path is
+    ///    written by its geometry (as an edited path). A path with both switched off and without
+    ///    a clip stays an object of the tree, which paints nothing (n): it can be painted again,
+    ///    and PDFContentDisplay measures its points (the box of an unstroked path). A clipping path
+    ///    (W n), which the command names itself, is painted by a switch on (it keeps its clip);
+    ///    inside of a named group a clipping path is left alone.
+    ///  - A TextObject: the text rendering mode of its shows (ISO 32000-2, 9.3.6, Table 104)
+    ///    changes among 0 (fill), 1 (stroke), 2 (both), 3 (neither); the switch, which is not given,
+    ///    keeps its part of each show. The new mode is set by the wrap of the text and its own Tr
+    ///    operators are suppressed (R-1, as a color of the whole text), so the text objects behind it
+    ///    keep their mode (the residual state of R-3 keeps the mode the text leaves behind, 9.3.1).
+    ///    Refused: a text, whose shows would get different modes (they differ now, and the switch
+    ///    keeps the difference), and a text, which adds to the clipping path (as every change of
+    ///    its appearance).
+    ///  Refused as unchanged, when every object paints so already and has the properties already.
+    static PDFContentCommandPointer createSetAppearance(std::vector<PDFContentNodeReference> nodes, std::map<PDFContentStateProperty, PDFContentStateValue> properties, PDFContentPaintSwitches switches);
 
     /// Sets the alphas and the blend mode (an ExtGState with exactly these keys, never /SMask).
     /// A Group or a MarkedContent gives the change to its leaves inside of the one command.

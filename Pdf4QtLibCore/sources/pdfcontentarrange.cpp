@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <set>
 #include <utility>
 
@@ -172,7 +173,8 @@ public:
         return QRectF(QPointF(left, lower), QPointF(right, upper));
     }
 
-    /// The boxes, which take part, sorted by a key (stable)
+    /// The boxes, which take part, sorted (stable) by their left edges (isHorizontal) or by their
+    /// lower edges (QRectF::top) - the keys of the old code (LayoutHorizontally, LayoutVertically)
     static std::vector<SortItem> sortBy(const std::vector<QRectF>& boxes, const std::vector<size_t>& participants, bool isHorizontal, bool isAscending)
     {
         std::vector<SortItem> result;
@@ -180,7 +182,7 @@ public:
         for (const size_t index : participants)
         {
             const QRectF& box = boxes[index];
-            result.push_back(SortItem{ isHorizontal ? box.left() : box.bottom(), index });
+            result.push_back(SortItem{ isHorizontal ? box.left() : box.top(), index });
         }
         std::stable_sort(result.begin(), result.end(), isAscending ? &isKeyLess : &isKeyGreater);
         return result;
@@ -354,71 +356,104 @@ public:
         }
     }
 
-    /// The rows (isHorizontal false) or the columns (true) of a grid: the index of the line of
-    /// every box, which takes part, and the sizes of the lines (the first line is the top row or
-    /// the left column). O(n log n): the boxes, which overlap the box starting a line, are a run
-    /// at the end of the sorted remaining boxes.
+    /// The overlap, which the old code took for none (qFuzzyIsNull of its
+    /// PDFPageContentElementManipulator::performOperation, LayoutGrid)
+    static constexpr qreal GRID_OVERLAP_TOLERANCE = 1e-12;
+
+    /// A remaining box of a grid line search: its key in the set of the members and its index
+    using GridKey = std::pair<qreal, size_t>;
+
+    /// The rows (isHorizontal false) or the columns (true) of a grid by the old rules of
+    /// PDFPageContentElementManipulator (LayoutGrid): the index of the line of every box, which
+    /// takes part, and the sizes of the lines (the first line is the top row or the left column).
+    ///  - Rows: the boxes sorted by their lower edges ascending (stable); the last remaining box (the
+    ///    highest lower edge) starts a row and takes every remaining box, which overlaps it in y by
+    ///    more than the tolerance. As the starter has the highest lower edge, the overlap of a box is
+    ///    min(its upper edge, the upper edge of the starter) - the lower edge of the starter: the
+    ///    members are the boxes, whose upper edge lies above the lower edge of the starter by more
+    ///    than the tolerance (the starter itself not a line).
+    ///  - Columns: the boxes sorted by their left edges descending (stable); the last remaining box
+    ///    (the smallest left edge) starts a column and takes every remaining box, which overlaps it
+    ///    in x by more than the tolerance: min(its right edge, the right edge of the starter) - its
+    ///    left edge, so the members are the boxes of a width above the tolerance, whose left edge
+    ///    lies left of the right edge of the starter by more than the tolerance.
+    /// O(n log n): the members are taken from an ordered set of the remaining boxes from its end
+    /// (rows: by the upper edges, the highest first) or from its beginning (columns: by the left
+    /// edges, of the boxes of a width), each box once.
     static std::vector<qreal> findGridLines(const std::vector<QRectF>& boxes, const std::vector<size_t>& participants, bool isHorizontal, std::vector<size_t>* lineOfBox)
     {
-        // Rows: ascending by the upper edges, the highest is the last. Columns: descending by
-        // the left edges, the leftmost is the last.
-        const std::vector<SortItem> sorted = sortBy(boxes, participants, isHorizontal, !isHorizontal);
-
-        std::vector<qreal> sizes;
-        std::vector<size_t> lines;
-        size_t end = sorted.size();
-        while (end > 0)
+        std::vector<SortItem> sorted;
+        sorted.reserve(participants.size());
+        for (const size_t index : participants)
         {
-            const size_t starter = sorted[end - 1].index;
-            const QRectF& starterBox = boxes[starter];
-            const qreal starterSize = isHorizontal ? starterBox.width() : starterBox.height();
+            sorted.push_back(SortItem{ isHorizontal ? boxes[index].left() : boxes[index].top(), index });
+        }
+        std::stable_sort(sorted.begin(), sorted.end(), isHorizontal ? &isKeyGreater : &isKeyLess);
 
-            // A remaining box overlaps the starter by more than zero, if its interval (the
-            // starter's is the highest / leftmost one) reaches over the far edge of the starter
-            // and it is not a line itself. The boxes reaching over that edge are a run at the end.
-            size_t begin = end - 1;
-            while (begin > 0)
+        // The candidates of the members: rows by the upper edge, columns by the left edge (only
+        // the boxes of a width: a box without one overlaps nothing in x)
+        std::set<GridKey> candidates;
+        for (const size_t index : participants)
+        {
+            const QRectF& box = boxes[index];
+            if (!isHorizontal)
             {
-                const QRectF& box = boxes[sorted[begin - 1].index];
-                const bool isReaching = isHorizontal ? box.left() < starterBox.right() : box.bottom() > starterBox.top();
-                if (!isReaching)
-                {
-                    break;
-                }
-                --begin;
+                candidates.insert(GridKey(box.bottom(), index));
+            }
+            else if (box.width() > GRID_OVERLAP_TOLERANCE)
+            {
+                candidates.insert(GridKey(box.left(), index));
+            }
+        }
+
+        std::vector<bool> isPlaced(boxes.size(), false);
+        std::vector<qreal> sizes;
+        size_t end = sorted.size();
+        while (true)
+        {
+            while (end > 0 && isPlaced[sorted[end - 1].index])
+            {
+                --end;
+            }
+            if (end == 0)
+            {
+                break;
             }
 
+            const size_t starter = sorted[end - 1].index;
+            const QRectF& starterBox = boxes[starter];
             const size_t line = sizes.size();
-            qreal size = starterSize;
+            qreal size = isHorizontal ? starterBox.width() : starterBox.height();
+            isPlaced[starter] = true;
             (*lineOfBox)[starter] = line;
+            candidates.erase(GridKey(isHorizontal ? starterBox.left() : starterBox.bottom(), starter));
 
-            // The lines of the run (zero size: they overlap nothing) become lines of their own,
-            // in the order the remaining boxes give them (the last one first)
-            lines.clear();
-            for (size_t i = end - 1; i > begin; --i)
+            if (!isHorizontal && starterBox.height() > GRID_OVERLAP_TOLERANCE)
             {
-                const size_t index = sorted[i - 1].index;
-                const QRectF& box = boxes[index];
-                const qreal boxSize = isHorizontal ? box.width() : box.height();
-                if (boxSize > 0.0)
+                // The boxes, whose upper edge is above the lower edge of the starter
+                while (!candidates.empty() && std::prev(candidates.end())->first - starterBox.top() > GRID_OVERLAP_TOLERANCE)
                 {
+                    const size_t index = std::prev(candidates.end())->second;
+                    candidates.erase(std::prev(candidates.end()));
+                    isPlaced[index] = true;
                     (*lineOfBox)[index] = line;
-                    size = qMax(size, boxSize);
+                    size = qMax(size, boxes[index].height());
                 }
-                else
+            }
+            else if (isHorizontal)
+            {
+                // The boxes of a width, whose left edge is left of the right edge of the starter
+                while (!candidates.empty() && starterBox.right() - candidates.begin()->first > GRID_OVERLAP_TOLERANCE)
                 {
-                    lines.push_back(index);
+                    const size_t index = candidates.begin()->second;
+                    candidates.erase(candidates.begin());
+                    isPlaced[index] = true;
+                    (*lineOfBox)[index] = line;
+                    size = qMax(size, boxes[index].width());
                 }
             }
 
             sizes.push_back(size);
-            for (const size_t index : lines)
-            {
-                (*lineOfBox)[index] = sizes.size();
-                sizes.push_back(0.0);
-            }
-
-            end = begin;
         }
 
         return sizes;
@@ -744,6 +779,29 @@ std::optional<PDFContentArrange::Operation> PDFContentArrange::getOperation(cons
         }
     }
     return std::nullopt;
+}
+
+QTransform PDFContentArrange::getDisplayedPageMatrix(PageRotation rotation)
+{
+    // QTransform(m11, m12, m21, m22, dx, dy) maps (x, y) to (m11 x + m21 y, m12 x + m22 y)
+    switch (rotation)
+    {
+        case PageRotation::Rotate90:
+            // Clockwise by 90 degrees: the x axis of the page points down, its y axis right
+            return QTransform(0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
+
+        case PageRotation::Rotate180:
+            return QTransform(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0);
+
+        case PageRotation::Rotate270:
+            // Clockwise by 270 degrees: the x axis of the page points up, its y axis left
+            return QTransform(0.0, 1.0, -1.0, 0.0, 0.0, 0.0);
+
+        case PageRotation::None:
+            break;
+    }
+
+    return QTransform();
 }
 
 size_t PDFContentArrange::getMinimumBoxCount(Operation operation)

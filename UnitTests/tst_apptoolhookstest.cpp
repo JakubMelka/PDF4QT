@@ -437,6 +437,8 @@ private slots:
     void applyAndSaveKept();
     void applyAndSaveDiscarded();
     void applyAndSaveStoppedRun();
+    void applyAndSaveRetriedAfterFailure();
+    void applyAndSaveFailedThenOwnRun();
     void saveEnabledByQuestion();
     void saveQuestionOfReadOnlyFile_data();
     void saveQuestionOfReadOnlyFile();
@@ -1049,6 +1051,94 @@ void AppToolHooksTest::applyAndSaveStoppedRun()
     QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Applied by the tool"));
     QVERIFY(document->isModified());
     QVERIFY(!H::saver(tab)->isRunning());
+    QCOMPARE(savedSpy.count(), 0);
+    QCOMPARE(H::readFile(filePath), bytes);
+}
+
+void AppToolHooksTest::applyAndSaveRetriedAfterFailure()
+{
+    // R8-1 (zadani_gui.md 4.21, KE.3; the owner's rule "every choice of the user holds"): Apply and Save, the run fails,
+    // the GUI continues the same run (PDFDocumentToolShell::retryRun - Skip Page of Edit Content after the errors of
+    // writing): Keep in This Tab of its result saves the document, as the choice said
+    pdftest::NestedEventLoopGuard loopGuard;
+    AppToolShellFixture fixture;
+    const std::shared_ptr<HooksConfig> config = std::make_shared<HooksConfig>();
+    config->hasSaveQuestion = true;
+    std::shared_ptr<ShellTestTool> tool = H::registerTool(fixture, TOOL_ROTATE, config);
+    QVERIFY(tool);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, QStringLiteral("Retry.pdf"));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QString filePath = document->getFilePath();
+    PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("fail"));
+    shell->getModel()->setValue(QStringLiteral("title"), QStringLiteral("Applied by the tool"));
+    H::gui(shell)->setWork(true);
+
+    QSignalSpy savedSpy(pdf::PDFAppDocumentFileCommandHandler::find(tab), &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(tab->executeCommand(PDFAppCommands::save()));
+    AppToolShellFixture::settle();
+    QVERIFY(AppAsyncDialogs::answer(QStringLiteral("toolSaveQuestion"), QStringLiteral("toolSaveApply")));
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getExecuteCount() == 1; }));
+    QVERIFY(AppToolShellFixture::waitForState(shell, H::State::Editing));
+    QVERIFY(shell->getSaveAfterResultCommandId().isEmpty());
+    QVERIFY(!document->isModified());
+
+    // The continuation: the run succeeds, its result is kept - the document is saved with it
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("title"));
+    shell->retryRun();
+    pdf::PDFAppToolResultDialog* dialog = H::waitForResultDialog(shell);
+    QVERIFY(dialog);
+    QCOMPARE(shell->getSaveAfterResultCommandId(), PDFAppCommands::save());
+    dialog->confirm();
+    QVERIFY(AppToolShellFixture::waitFor([&savedSpy]() { return savedSpy.count() == 1; }));
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Applied by the tool"));
+    QVERIFY(!document->isModified());
+    QCOMPARE(H::fileTitle(filePath), QStringLiteral("Applied by the tool"));
+}
+
+void AppToolHooksTest::applyAndSaveFailedThenOwnRun()
+{
+    // R8-1, the other side: after the failed run of Apply and Save the user runs the tool himself (confirm, not the
+    // continuation of the GUI) and keeps the result - the choice was for the failed run only, nothing is saved
+    pdftest::NestedEventLoopGuard loopGuard;
+    AppToolShellFixture fixture;
+    const std::shared_ptr<HooksConfig> config = std::make_shared<HooksConfig>();
+    config->hasSaveQuestion = true;
+    std::shared_ptr<ShellTestTool> tool = H::registerTool(fixture, TOOL_ROTATE, config);
+    QVERIFY(tool);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, QStringLiteral("OwnRun.pdf"));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QString filePath = document->getFilePath();
+    const QByteArray bytes = H::readFile(filePath);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("fail"));
+    shell->getModel()->setValue(QStringLiteral("title"), QStringLiteral("Applied by the tool"));
+    H::gui(shell)->setWork(true);
+
+    QSignalSpy savedSpy(pdf::PDFAppDocumentFileCommandHandler::find(tab), &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(tab->executeCommand(PDFAppCommands::save()));
+    AppToolShellFixture::settle();
+    QVERIFY(AppAsyncDialogs::answer(QStringLiteral("toolSaveQuestion"), QStringLiteral("toolSaveApply")));
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getExecuteCount() == 1; }));
+    QVERIFY(AppToolShellFixture::waitForState(shell, H::State::Editing));
+
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("title"));
+    shell->confirm();
+    pdf::PDFAppToolResultDialog* dialog = H::waitForResultDialog(shell);
+    QVERIFY(dialog);
+    QVERIFY(shell->getSaveAfterResultCommandId().isEmpty());
+
+    // Keep in This Tab: the result is in the document, the file is not written
+    dialog->confirm();
+    AppToolShellFixture::settle();
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Applied by the tool"));
+    QVERIFY(document->isModified());
     QCOMPARE(savedSpy.count(), 0);
     QCOMPARE(H::readFile(filePath), bytes);
 }

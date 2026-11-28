@@ -42,6 +42,7 @@
 #include <QtMath>
 
 #include <cmath>
+#include <memory>
 
 namespace pdf
 {
@@ -106,15 +107,32 @@ class PDFAppEditContentGeometryCardHelper
 public:
     PDFAppEditContentGeometryCardHelper() = delete;
 
-    /// The matrix of the default space of the container to the default space of the page (identity for the page)
+    /// The matrix of the default space of the container to the space the user sees (R5-6: the default space of the page
+    /// turned by its /Rotate; PDFAppEditContentCardTools::getContainerToDisplayed). Every value and every matrix of the
+    /// cards of this file is in that space, so X, Y, W, H, Rotation, the flips and Arrange follow the screen.
     static std::optional<QTransform> getContainerToPage(const PDFAppEditContentContext* context)
     {
-        const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
-        if (!container)
+        return PDFAppEditContentCardTools::getContainerToDisplayed(context);
+    }
+
+    /// The box of the node in the space the user sees (PDFAppEditContentGeometryHelper::getPageBoundingBox, mapped by
+    /// the displayed page matrix \p displayed); null without a box
+    static QRectF getDisplayedBox(const PDFAppEditContentContext* context, const PDFContentNodeReference& node, const QTransform& displayed)
+    {
+        const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, node);
+        return box.isNull() ? box : displayed.mapRect(box);
+    }
+
+    /// The union of the boxes of the nodes in the space the user sees (as PDFAppEditContentSelection::getBoundingBox
+    /// for the whole selection)
+    static QRectF getDisplayedBox(const PDFAppEditContentContext* context, const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes)
+    {
+        QRectF box;
+        for (const PDFAppEditContentCardTools::SelectedNode& node : nodes)
         {
-            return std::nullopt;
+            box |= PDFAppEditContentGeometryHelper::getPageBoundingBox(context, node.reference);
         }
-        return PDFAppEditContentGeometryHelper::getContainerToPageMatrix(*context->getSession(), container->getKey(), context->getIsolationPath());
+        return box.isNull() ? box : PDFAppEditContentCardTools::getDisplayedPageMatrix(context).mapRect(box);
     }
 
     /// A matrix T of the page space in the container: C x T x C^-1
@@ -137,12 +155,13 @@ public:
         return QTransform::fromTranslate(-anchor.x(), -anchor.y()) * QTransform::fromScale(scaleX, scaleY) * QTransform::fromTranslate(anchor.x(), anchor.y());
     }
 
-    /// The matrix of the node to the page: of the node, or of its first drawing leaf for a group (the transform of a
-    /// group goes to its leaves, R-1)
+    /// The matrix of the node to the space the user sees: of the node, or of its first drawing leaf for a group (the
+    /// transform of a group goes to its leaves, R-1); a text by the text space of its first glyph, Tm x CTM (R7-5: a
+    /// text is mostly rotated by its text matrix, PDFAppEditContentCardTools::getLeafMatrix)
     static std::optional<QTransform> getNodeMatrix(const PDFAppEditContentContext* context, const PDFAppEditContentCardTools::SelectedNode& node, const QTransform& containerToPage)
     {
         const PDFContentContainerPointer container = context->getContainer();
-        PDFContentNodeId id = node.node->getId();
+        PDFContentNodePointer leaf = node.node;
         if (!PDFContentNode::isLeafKind(node.node->getKind()) && node.node->getKind() != PDFContentNodeKind::TextObject)
         {
             bool isTruncated = false;
@@ -151,26 +170,15 @@ public:
             {
                 return std::nullopt;
             }
-            id = leaves.front()->getId();
+            leaf = leaves.front();
         }
 
-        const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(*container, id, PDFAppEditContentCardTools::getDisplayContext(context));
-        if (!state)
+        const std::optional<QTransform> matrix = PDFAppEditContentCardTools::getLeafMatrix(*container, *leaf, PDFAppEditContentCardTools::getDisplayContext(context));
+        if (!matrix)
         {
             return std::nullopt;
         }
-        return state->matrix * containerToPage;
-    }
-
-    static std::vector<PDFContentNodeReference> getReferences(const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes)
-    {
-        std::vector<PDFContentNodeReference> references;
-        references.reserve(nodes.size());
-        for (const PDFAppEditContentCardTools::SelectedNode& node : nodes)
-        {
-            references.push_back(node.reference);
-        }
-        return references;
+        return *matrix * containerToPage;
     }
 
     /// A field of a length or of an angle
@@ -283,6 +291,7 @@ public:
         layout->addWidget(m_matrix);
         layout->addWidget(PDFAppEditContentCardTools::createNote(tr("The values describe the matrix of the object. Position is measured from the lower left corner of the page."), expanded));
         m_section->setExpandedWidget(expanded);
+        m_expanded = expanded;
 
         connect(m_x, &PDFDoubleSpinBox::valueEntered, this, &PDFAppEditContentPositionCard::onXEntered);
         connect(m_y, &PDFDoubleSpinBox::valueEntered, this, &PDFAppEditContentPositionCard::onYEntered);
@@ -309,10 +318,15 @@ public:
             return;
         }
 
+        // The values of the inspected nodes (bounded); the box is the box of the nodes a command moves - the whole
+        // changeable selection (R7-1, R7-4), or the selection read only, when only locked objects are selected. Every
+        // value is in the space the user sees (R5-6: the page turned by its /Rotate).
         bool isTruncated = false;
-        m_nodes = PDFAppEditContentCardTools::getSelectedNodes(context, &isTruncated);
-        m_box = context->getSelection()->getBoundingBox();
-        m_pageBox = PDFAppEditContentCardTools::getPageBox(context);
+        bool isChangeable = false;
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getInspectedNodes(context, &isTruncated, &isChangeable);
+        m_expanded->setEnabled(isChangeable);
+        m_box = isChangeable ? getBox(context) : PDFAppEditContentCardTools::getDisplayedPageMatrix(context).mapRect(context->getSelection()->getBoundingBox());
+        m_pageBox = getPageBox(context);
         const double factor = PDFAppEditContentCardTools::getUnitFactor(context);
         const QPointF origin = m_pageBox.isNull() ? QPointF() : m_pageBox.topLeft();
 
@@ -343,17 +357,13 @@ public:
         }
 
         // The matrices of the objects (Mixed, when they differ)
-        m_parts.clear();
         PDFAppEditContentMixedValue<double> angle;
         PDFAppEditContentMixedValue<double> scaleX;
         PDFAppEditContentMixedValue<double> scaleY;
         PDFAppEditContentMixedValue<double> shear;
-        const std::optional<QTransform> containerToPage = H::getContainerToPage(context);
-        for (const PDFAppEditContentCardTools::SelectedNode& node : m_nodes)
+        for (const Parts& node : getParts(context, nodes))
         {
-            std::optional<QTransform> matrix = containerToPage ? H::getNodeMatrix(context, node, *containerToPage) : std::nullopt;
-            std::optional<PDFAppEditContentMatrixParts> parts = matrix ? PDFAppEditContentMatrixParts::decompose(*matrix) : std::nullopt;
-            m_parts.push_back(Parts{ matrix, parts });
+            const std::optional<PDFAppEditContentMatrixParts>& parts = node.parts;
             if (parts)
             {
                 angle.add(parts->angle, &PDFAppEditContentGeometryCardHelper::isSameReal);
@@ -412,6 +422,7 @@ private:
     /// The matrix of a selected node to the page and its parts (no value: the node has none)
     struct Parts
     {
+        PDFAppEditContentCardTools::SelectedNode node;
         std::optional<QTransform> matrix;
         std::optional<PDFAppEditContentMatrixParts> parts;
     };
@@ -427,21 +438,67 @@ private:
         return row;
     }
 
-    /// One Transform command of the selection by the matrix of the page space
+    /// The matrices of the nodes to the space the user sees and their parts, in the order of \p nodes
+    static std::vector<Parts> getParts(const PDFAppEditContentContext* context, const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes)
+    {
+        std::vector<Parts> result;
+        const std::optional<QTransform> containerToPage = PDFAppEditContentGeometryCardHelper::getContainerToPage(context);
+        result.reserve(nodes.size());
+        for (const PDFAppEditContentCardTools::SelectedNode& node : nodes)
+        {
+            Parts parts;
+            parts.node = node;
+            parts.matrix = containerToPage ? PDFAppEditContentGeometryCardHelper::getNodeMatrix(context, node, *containerToPage) : std::nullopt;
+            parts.parts = parts.matrix ? PDFAppEditContentMatrixParts::decompose(*parts.matrix) : std::nullopt;
+            result.push_back(std::move(parts));
+        }
+        return result;
+    }
+
+    /// The box of the whole changeable selection in the space the user sees; computed once per container version and
+    /// selection (R7-9: a selection of 100 000 objects is not measured again at every rebuild of the stack)
+    QRectF getBox(const PDFAppEditContentContext* context)
+    {
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getCommandNodes(context);
+        std::vector<PDFContentNodeReference> references = PDFAppEditContentCardTools::getReferences(nodes);
+        const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
+        const QTransform displayed = PDFAppEditContentCardTools::getDisplayedPageMatrix(context);
+        if (!container || m_boxContainer.lock() != container || m_boxNodes != references || m_boxDisplayed != displayed ||
+            m_boxIsolation != context->getIsolationPath())
+        {
+            m_boxContainer = container;
+            m_boxNodes = std::move(references);
+            m_boxDisplayed = displayed;
+            m_boxIsolation = context ? context->getIsolationPath() : std::vector<PDFAppEditContentIsolationLevel>();
+            m_boxValue = PDFAppEditContentGeometryCardHelper::getDisplayedBox(context, nodes);
+        }
+        return m_boxValue;
+    }
+
+    /// The box of the page (its crop box) in the space the user sees
+    static QRectF getPageBox(const PDFAppEditContentContext* context)
+    {
+        const QRectF pageBox = PDFAppEditContentCardTools::getPageBox(context);
+        return pageBox.isNull() ? pageBox : PDFAppEditContentCardTools::getDisplayedPageMatrix(context).mapRect(pageBox);
+    }
+
+    /// One Transform command of the whole changeable selection by the matrix of the space the user sees
     void transformAll(const QTransform& pageMatrix)
     {
         PDFAppEditContentContext* context = getContext();
+        const std::vector<PDFContentNodeReference> nodes = PDFAppEditContentCardTools::getReferences(PDFAppEditContentCardTools::getCommandNodes(context));
         const std::optional<QTransform> containerToPage = PDFAppEditContentGeometryCardHelper::getContainerToPage(context);
         const std::optional<QTransform> matrix = containerToPage ? PDFAppEditContentGeometryCardHelper::toContainer(pageMatrix, *containerToPage) : std::nullopt;
-        if (!context || !matrix || m_nodes.empty())
+        if (!context || !matrix || nodes.empty())
         {
             return;
         }
-        context->execute(PDFContentCommandFactory::createTransform(PDFAppEditContentGeometryCardHelper::getReferences(m_nodes), *matrix));
+        context->execute(PDFContentCommandFactory::createTransform(nodes, *matrix));
     }
 
-    /// Each object by its own matrix of the page space (the rows of the matrix): one undo step
-    void transformEach(const std::vector<std::optional<QTransform>>& pageMatrices, const QString& text)
+    /// Each object by its own matrix of the space the user sees (\p pageMatrices: one per item of \p nodes): one undo
+    /// step. Cost: one command per object, which changes (a macro).
+    void transformEach(const std::vector<Parts>& nodes, const std::vector<std::optional<QTransform>>& pageMatrices, const QString& text)
     {
         PDFAppEditContentContext* context = getContext();
         const std::optional<QTransform> containerToPage = PDFAppEditContentGeometryCardHelper::getContainerToPage(context);
@@ -451,7 +508,7 @@ private:
         }
 
         std::vector<std::pair<PDFContentNodeReference, QTransform>> moves;
-        for (size_t i = 0; i < pageMatrices.size() && i < m_nodes.size(); ++i)
+        for (size_t i = 0; i < pageMatrices.size() && i < nodes.size(); ++i)
         {
             if (!pageMatrices[i] || pageMatrices[i]->isIdentity())
             {
@@ -460,7 +517,7 @@ private:
             const std::optional<QTransform> matrix = PDFAppEditContentGeometryCardHelper::toContainer(*pageMatrices[i], *containerToPage);
             if (matrix)
             {
-                moves.emplace_back(m_nodes[i].reference, *matrix);
+                moves.emplace_back(nodes[i].node.reference, *matrix);
             }
         }
 
@@ -501,8 +558,10 @@ private:
     /// 2 x 2 part x the old 2 x 2 part^-1 (the origin of the object stays)
     void changeParts(Part part, double value, const QString& text)
     {
+        // The whole changeable selection, read when the user acts (R7-1)
+        const std::vector<Parts> nodes = getParts(getContext(), PDFAppEditContentCardTools::getCommandNodes(getContext()));
         std::vector<std::optional<QTransform>> matrices;
-        for (const Parts& parts : m_parts)
+        for (const Parts& parts : nodes)
         {
             std::optional<QTransform> result;
             if (parts.matrix && parts.parts)
@@ -532,67 +591,80 @@ private:
             }
             matrices.push_back(result);
         }
-        transformEach(matrices, text);
+        transformEach(nodes, matrices, text);
     }
 
     void onXEntered(double value)
     {
-        const double factor = PDFAppEditContentCardTools::getUnitFactor(getContext());
-        const double left = value * factor + (m_pageBox.isNull() ? 0.0 : m_pageBox.left());
-        if (!m_box.isNull())
+        // The box of the whole changeable selection now (the box the field shows, R7-1)
+        PDFAppEditContentContext* context = getContext();
+        const QRectF box = getBox(context);
+        const QRectF pageBox = getPageBox(context);
+        const double factor = PDFAppEditContentCardTools::getUnitFactor(context);
+        const double left = value * factor + (pageBox.isNull() ? 0.0 : pageBox.left());
+        if (!box.isNull())
         {
-            transformAll(QTransform::fromTranslate(left - m_box.left(), 0.0));
+            transformAll(QTransform::fromTranslate(left - box.left(), 0.0));
         }
     }
 
     void onYEntered(double value)
     {
-        const double factor = PDFAppEditContentCardTools::getUnitFactor(getContext());
-        const double bottom = value * factor + (m_pageBox.isNull() ? 0.0 : m_pageBox.top());
-        if (!m_box.isNull())
+        PDFAppEditContentContext* context = getContext();
+        const QRectF box = getBox(context);
+        const QRectF pageBox = getPageBox(context);
+        const double factor = PDFAppEditContentCardTools::getUnitFactor(context);
+        const double bottom = value * factor + (pageBox.isNull() ? 0.0 : pageBox.top());
+        if (!box.isNull())
         {
-            transformAll(QTransform::fromTranslate(0.0, bottom - m_box.top()));
+            transformAll(QTransform::fromTranslate(0.0, bottom - box.top()));
         }
     }
 
     void onWidthEntered(double value)
     {
         // QE.6: until stage E3 a path is resized by a matrix too; a box without a width cannot be scaled
-        const double width = value * PDFAppEditContentCardTools::getUnitFactor(getContext());
-        if (!m_box.isNull() && m_box.width() > 0.0 && width > 0.0)
+        PDFAppEditContentContext* context = getContext();
+        const QRectF box = getBox(context);
+        const double width = value * PDFAppEditContentCardTools::getUnitFactor(context);
+        if (!box.isNull() && box.width() > 0.0 && width > 0.0)
         {
-            transformAll(PDFAppEditContentGeometryCardHelper::scaleAboutUpperLeft(m_box, width / m_box.width(), 1.0));
+            transformAll(PDFAppEditContentGeometryCardHelper::scaleAboutUpperLeft(box, width / box.width(), 1.0));
         }
     }
 
     void onHeightEntered(double value)
     {
-        const double height = value * PDFAppEditContentCardTools::getUnitFactor(getContext());
-        if (!m_box.isNull() && m_box.height() > 0.0 && height > 0.0)
+        PDFAppEditContentContext* context = getContext();
+        const QRectF box = getBox(context);
+        const double height = value * PDFAppEditContentCardTools::getUnitFactor(context);
+        if (!box.isNull() && box.height() > 0.0 && height > 0.0)
         {
-            transformAll(PDFAppEditContentGeometryCardHelper::scaleAboutUpperLeft(m_box, 1.0, height / m_box.height()));
+            transformAll(PDFAppEditContentGeometryCardHelper::scaleAboutUpperLeft(box, 1.0, height / box.height()));
         }
     }
 
     void onRotationEntered(double value)
     {
-        // Each object turns about the center of its own box to the angle (one undo step)
+        // Each object turns about the center of its own box (in the space the user sees) to the angle (one undo step)
         const PDFAppEditContentContext* context = getContext();
+        const std::vector<Parts> nodes = getParts(context, PDFAppEditContentCardTools::getCommandNodes(context));
+        const QTransform displayed = PDFAppEditContentCardTools::getDisplayedPageMatrix(context);
         std::vector<std::optional<QTransform>> matrices;
-        for (size_t i = 0; i < m_nodes.size() && i < m_parts.size(); ++i)
+        for (const Parts& node : nodes)
         {
             std::optional<QTransform> result;
-            const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, m_nodes[i].reference);
-            if (m_parts[i].parts && !box.isNull())
+            const QRectF box = PDFAppEditContentGeometryCardHelper::getDisplayedBox(context, node.node.reference, displayed);
+            if (node.parts && !box.isNull())
             {
                 const QPointF center = box.center();
                 QTransform rotation;
-                rotation.rotate(value - m_parts[i].parts->angle);
+                rotation.rotate(value - node.parts->angle);
                 result = QTransform::fromTranslate(-center.x(), -center.y()) * rotation * QTransform::fromTranslate(center.x(), center.y());
             }
             matrices.push_back(result);
         }
-        transformEach(matrices, tr("Rotate Objects"));
+        transformEach(nodes, matrices, tr("Rotate Objects"));
     }
 
     void onScaleXEntered(double value)
@@ -619,19 +691,22 @@ private:
 
     void onFlipHorizontallyClicked()
     {
-        // The selection flips as a whole about the center of its box (the frame of the selection)
-        if (!m_box.isNull())
+        // The selection flips as a whole about the center of its box (the frame of the selection), left and right as
+        // the user sees them
+        const QRectF box = getBox(getContext());
+        if (!box.isNull())
         {
-            const QPointF center = m_box.center();
+            const QPointF center = box.center();
             transformAll(QTransform::fromTranslate(-center.x(), -center.y()) * QTransform::fromScale(-1.0, 1.0) * QTransform::fromTranslate(center.x(), center.y()));
         }
     }
 
     void onFlipVerticallyClicked()
     {
-        if (!m_box.isNull())
+        const QRectF box = getBox(getContext());
+        if (!box.isNull())
         {
-            const QPointF center = m_box.center();
+            const QPointF center = box.center();
             transformAll(QTransform::fromTranslate(-center.x(), -center.y()) * QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(center.x(), center.y()));
         }
     }
@@ -658,10 +733,16 @@ private:
     PDFDoubleSpinBox* m_scaleX = nullptr;
     PDFDoubleSpinBox* m_scaleY = nullptr;
     PDFDoubleSpinBox* m_shear = nullptr;
-    std::vector<PDFAppEditContentCardTools::SelectedNode> m_nodes;
-    std::vector<Parts> m_parts;
-    QRectF m_box;
+    QWidget* m_expanded = nullptr;
+    QRectF m_box;               ///< Shown by X, Y, W, H (the space the user sees)
     QRectF m_pageBox;
+
+    // The cache of getBox
+    std::weak_ptr<const PDFContentContainer> m_boxContainer;
+    std::vector<PDFContentNodeReference> m_boxNodes;
+    QTransform m_boxDisplayed;
+    std::vector<PDFAppEditContentIsolationLevel> m_boxIsolation;
+    QRectF m_boxValue;
 };
 
 /// The card Arrange (-multi-selected, -nothing-selected): Align, Distribute, Match size of the core
@@ -714,7 +795,9 @@ public:
             m_keyLine->setText(tr("%Ln object(s) selected · aligned to the key object, the one with the thicker frame", nullptr, count));
         }
 
+        // An operation needs its count of objects, which may be changed (R7-4: a locked object is left alone)
         const bool isEditing = context->isEditingAllowed();
+        const int changeableCount = isEditing ? int(context->getChangeableSelection().size()) : 0;
         for (const Button& button : m_buttons)
         {
             if (!button.button)
@@ -725,7 +808,7 @@ public:
             if (button.actionId.isEmpty())
             {
                 const int minimum = int(PDFContentArrange::getMinimumBoxCount(button.operation));
-                button.button->setEnabled(isEditing && count >= minimum);
+                button.button->setEnabled(isEditing && changeableCount >= minimum);
             }
             else
             {
@@ -927,21 +1010,28 @@ private:
     /// The command of the core over the boxes of the selection (PDFAppEditContentGeometryHelper) and the key object
     static void arrange(PDFAppEditContentContext* context, PDFContentArrange::Operation operation)
     {
-        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getSelectedNodes(context);
+        // The whole changeable selection (R7-1, R7-4); the key object is the key node of the selection (the last
+        // selected one), wherever it lies in the selection; when it is locked, the last changeable node is the key
+        const std::vector<PDFAppEditContentCardTools::SelectedNode> nodes = PDFAppEditContentCardTools::getCommandNodes(context);
         const std::optional<QTransform> containerToPage = PDFAppEditContentGeometryCardHelper::getContainerToPage(context);
         if (nodes.empty() || !containerToPage)
         {
             return;
         }
 
+        // R5-6: the boxes and the page box in the space the user sees, the matrix of the container to that space
+        // (PDFContentArrange: containerToPage x getDisplayedPageMatrix)
+        const QTransform displayed = PDFAppEditContentCardTools::getDisplayedPageMatrix(context);
         std::vector<PDFContentNodeReference> references;
         std::vector<QRectF> boxes;
+        references.reserve(nodes.size());
+        boxes.reserve(nodes.size());
         size_t keyIndex = nodes.size() - 1;
         const PDFContentNodeReference key = context->getSelection()->getKeyNode();
         for (size_t i = 0; i < nodes.size(); ++i)
         {
             references.push_back(nodes[i].reference);
-            boxes.push_back(PDFAppEditContentGeometryHelper::getPageBoundingBox(context, nodes[i].reference));
+            boxes.push_back(PDFAppEditContentGeometryCardHelper::getDisplayedBox(context, nodes[i].reference, displayed));
             if (nodes[i].reference == key)
             {
                 keyIndex = i;
@@ -949,7 +1039,8 @@ private:
         }
 
         QString errorText;
-        const PDFContentCommandPointer command = PDFContentArrange::createCommand(operation, std::move(references), boxes, keyIndex, PDFAppEditContentCardTools::getPageBox(context),
+        const QRectF pageBox = PDFAppEditContentCardTools::getPageBox(context);
+        const PDFContentCommandPointer command = PDFContentArrange::createCommand(operation, std::move(references), boxes, keyIndex, pageBox.isNull() ? pageBox : displayed.mapRect(pageBox),
                                                                                   *containerToPage, &errorText);
         if (!command)
         {

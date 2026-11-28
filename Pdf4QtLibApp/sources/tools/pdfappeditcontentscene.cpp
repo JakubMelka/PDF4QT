@@ -22,6 +22,7 @@
 
 #include "pdfappeditcontentscene.h"
 
+#include "pdfannotation.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentitems.h"
 #include "pdfappeditcontentpreview.h"
@@ -29,9 +30,18 @@
 #include "pdfappeditcontenttools.h"
 #include "pdfappeditcontentview.h"
 #include "pdfcatalog.h"
+#include "pdfcms.h"
+#include "pdfcolorconvertor.h"
+#include "pdfcolorspaces.h"
+#include "pdfconstants.h"
+#include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
+#include "pdffont.h"
 #include "pdfoperationcontrol.h"
+#include "pdfoptionalcontent.h"
 #include "pdfpainterutils.h"
+#include "pdfrenderer.h"
+#include "pdftextlayout.h"
 #include "pdfthemecolors.h"
 #include "pdfthememanager.h"
 #include "pdfthreadannotations.h"
@@ -44,18 +54,22 @@
 #include <QThreadPool>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <set>
 
 namespace pdf
 {
 
-// Stage E1, package P11: the scene of the canvas. Bounds (hostile input): the walk over the content is iterative and
-// visits every node of the page container once (the container has at most PDFContentContainer::MAXIMUM_OPERATION_COUNT
-// nodes); the forms are built not deeper than PDFContentEditSession::MAXIMUM_CONTAINER_NESTING with the keys of the path
-// as the visited set (a form drawing itself is drawn once); a walk up to the child of the edited root is bounded by
-// MAXIMUM_PARENT_STEPS; at most one decoding job per image item and version runs.
+// Stage E1, package P11, fix package FX2: the scene of the canvas. Bounds (hostile input): the walk over the content is
+// iterative and visits every node of the page container once (the container has at most
+// PDFContentContainer::MAXIMUM_OPERATION_COUNT nodes); a clip costs O(1) (a persistent chain, kept over the walks for an
+// unchanged clipping node); the forms are built breadth first, not deeper than PDFContentEditSession::
+// MAXIMUM_CONTAINER_NESTING, with the keys of the path of the uses as the cycle check (a form drawing itself is drawn
+// once), and all of them together under m_formItemBudget items (a form is built only when its node count still fits);
+// a walk up to the child of the edited root is bounded by MAXIMUM_PARENT_STEPS; one decoding per image key and size
+// step, at most MAXIMUM_RUNNING_JOBS jobs of the scene in the pool, the pictures within m_pictureBudget pixels; the
+// editor state of any number of nodes is one walk per turn of the event loop.
 
 /// The way of a decoded picture back to the scene: cut by the destructor and the retire of the scene, a job does not
 /// hold the scene
@@ -81,21 +95,30 @@ private:
     PDFAppEditContentScene* m_scene;
 };
 
-/// One decoding of an image or a shading in the pool: plain values written before the start and read after the end
-/// (the hand-offs are annotated), except of the cancellation
+/// One job of a worker for the scene (an image, a shading, a pattern, the annotations): plain values written before
+/// the start and read after the end (the hand-offs are annotated), except of the cancellation
 class PDFAppEditContentDecodeJob : public PDFOperationControl
 {
 public:
     std::shared_ptr<PDFAppEditContentDecodeLink> link;
-    PDFDocumentPointer document;            ///< Held by the job (the document must outlive the decoding)
+    PDFDocumentPointer document;            ///< Held by the job (the document must outlive the work)
     PDFContentContainerPointer container;   ///< Immutable
     PDFCMSPointer cms;                      ///< Held by the job; nullptr = the generic one
+    PDFContentEditSnapshotPointer snapshot; ///< The new objects of the session (a pattern of a moved object, R5-3); may be nullptr
     PDFContentNodeId node;
     PDFInteger pageIndex = -1;
-    quint64 serial = 0;                     ///< The item, which waits for the result
-    bool isShading = false;
+    quint64 serial = 0;                     ///< The item, which waits for the result (0: the underlay)
+    PDFAppEditContentDecodeKind kind = PDFAppEditContentDecodeKind::Image;
+    PDFAppEditContentPictureKey pictureKey; ///< Image: the key of the picture
+    qint64 maximumPixels = 4000000;         ///< The budget of the picture (a size step)
+    QRectF pageRectangle;                   ///< Underlay: the crop box
+    QSize imageSize;                        ///< Underlay: the size of its picture
+    bool isStarted = false;                 ///< GUI thread only: it was given to the pool (counted as running)
+
     PDFContentDisplayImage image;           ///< The result of an image
-    PDFContentDisplayShading shading;       ///< The result of a shading
+    PDFContentDisplayShading shading;       ///< The result of a shading (also of a shading pattern)
+    PDFContentDisplayTilingCell cell;       ///< The result of a tiling pattern
+    QImage picture;                         ///< The result of the underlay
 
     virtual bool isOperationCanceled() const override
     {
@@ -113,17 +136,92 @@ public:
         PDFContentDisplayImageOptions options;
         options.pageIndex = pageIndex;
         options.cms = cms.data();
-        if (isShading)
+        options.maximumPixels = maximumPixels;
+        options.newObjects = snapshot ? &snapshot->newObjects : nullptr;
+        switch (kind)
         {
-            shading = PDFContentDisplay::getShading(document.data(), container, node, false, options, this);
-        }
-        else
-        {
-            image = PDFContentDisplay::decodeImage(document.data(), container, node, options, this);
+            case PDFAppEditContentDecodeKind::Image:
+                image = PDFContentDisplay::decodeImage(document.data(), container, node, options, this);
+                break;
+
+            case PDFAppEditContentDecodeKind::Shading:
+                shading = PDFContentDisplay::getShading(document.data(), container, node, false, options, this);
+                break;
+
+            case PDFAppEditContentDecodeKind::FillPattern:
+            case PDFAppEditContentDecodeKind::StrokePattern:
+            {
+                // A tiling pattern, else a shading pattern (item 2 of the fix package)
+                const bool isStroke = kind == PDFAppEditContentDecodeKind::StrokePattern;
+                cell = PDFContentDisplay::getTilingCell(document.data(), container, node, isStroke, options, this);
+                if (cell.status == PDFContentDisplayTilingCell::Status::NotTilingPattern && !isOperationCanceled())
+                {
+                    shading = PDFContentDisplay::getShading(document.data(), container, node, isStroke, options, this);
+                }
+                break;
+            }
+
+            case PDFAppEditContentDecodeKind::Underlay:
+                renderUnderlay();
+                break;
         }
     }
 
 private:
+    /// The annotations and the fields of the page (their appearances, as the view of the application draws them) into a
+    /// transparent picture of the crop box; the objects of the drawing are created and destroyed in this thread
+    void renderUnderlay()
+    {
+        const PDFDocument* pageDocument = document.data();
+        const PDFCatalog* catalog = pageDocument ? pageDocument->getCatalog() : nullptr;
+        if (!catalog || pageIndex < 0 || pageIndex >= PDFInteger(catalog->getPageCount()) || imageSize.isEmpty() || pageRectangle.isEmpty())
+        {
+            return;
+        }
+
+        PDFOptionalContentActivity activity(pageDocument, OCUsage::View, nullptr);
+        PDFCMSManager cmsManager(nullptr);
+        cmsManager.setDocument(pageDocument);
+        cmsManager.setSettings(cmsManager.getDefaultSettings());
+        const PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(pageDocument), &activity);
+        PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        fontCache.setDocument(modifiedDocument);
+        PDFFontCacheShrinkGuard shrinkGuard(&fontCache, this);
+        PDFICCProfileCache iccProfileCache;
+        iccProfileCache.setDocument(modifiedDocument);
+
+        PDFAnnotationManager manager(&fontCache, &iccProfileCache, &cmsManager, &activity, PDFMeshQualitySettings(), PDFRenderer::getDefaultFeatures(), PDFAnnotationManager::Target::View, nullptr);
+        manager.setDocument(modifiedDocument);
+
+        QImage result(imageSize, QImage::Format_ARGB32_Premultiplied);
+        result.fill(Qt::transparent);
+        const qreal scaleX = imageSize.width() / pageRectangle.width();
+        const qreal scaleY = imageSize.height() / pageRectangle.height();
+        const QTransform pageToImage(scaleX, 0.0, 0.0, -scaleY, -pageRectangle.left() * scaleX, pageRectangle.bottom() * scaleY);
+        QList<PDFRenderError> errors;
+        try
+        {
+            QPainter painter(&result);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setRenderHint(QPainter::TextAntialiasing, true);
+            PDFTextLayoutGetter layoutGetter(nullptr, pageIndex);
+            manager.drawPage(&painter, pageIndex, nullptr, layoutGetter, pageToImage, PDFColorConvertor(), errors);
+        }
+        catch (const PDFException&)
+        {
+            return;
+        }
+        catch (const PDFRendererException&)
+        {
+            return;
+        }
+
+        if (!isOperationCanceled())
+        {
+            picture = std::move(result);
+        }
+    }
+
     std::atomic_bool m_isCanceled = false;
 };
 
@@ -150,7 +248,10 @@ public:
 
     void operator()()
     {
-        m_job->run();
+        if (!m_job->isOperationCanceled())
+        {
+            m_job->run();
+        }
         const std::shared_ptr<PDFAppEditContentDecodeLink> link = m_job->link;
         link->finished(m_job);
     }
@@ -241,8 +342,13 @@ public:
             return;
         }
 
-        // The picture covers the rectangle of its request (the page space); its pixels by the matrix of the request
+        // The picture covers the rectangle of its request (the page space); its pixels by the matrix of the request. A
+        // picture of another page is not drawn on this paper (R6-18; the new picture comes)
         const PDFAppEditContentPreviewRequest& request = preview->getImageRequest();
+        if (request.pageIndex != m_context->getPageIndex())
+        {
+            return;
+        }
         const PDFCatalog* catalog = document->getCatalog();
         const PDFPage* page = request.pageIndex >= 0 && request.pageIndex < PDFInteger(catalog->getPageCount()) ? catalog->getPage(request.pageIndex) : nullptr;
         if (!page)
@@ -267,7 +373,8 @@ private:
     QRectF m_rectangle;
 };
 
-/// The one item, which paints the preview of the active tool (layer ToolPreview)
+/// The one item, which paints the preview of the active tool (layer ToolPreview); it covers the rectangle the tool
+/// paints (R6-11), so an update of the tool repaints only that
 class PDFAppEditContentToolPreviewItem : public QGraphicsItem
 {
 public:
@@ -279,6 +386,10 @@ public:
 
     void setRectangle(const QRectF& rectangle)
     {
+        if (rectangle == m_rectangle)
+        {
+            return;
+        }
         prepareGeometryChange();
         m_rectangle = rectangle;
     }
@@ -322,6 +433,10 @@ public:
     /// The steps of a walk up to the child of the edited root (the depth of the tree with a reserve)
     static constexpr int MAXIMUM_PARENT_STEPS = PDFContentContainer::MAXIMUM_DEPTH + 16;
 
+    /// Most pixels of the picture of the annotations of a page (4 points of the page per pixel at most)
+    static constexpr qreal MAXIMUM_UNDERLAY_PIXELS = 4000000.0;
+    static constexpr qreal MAXIMUM_UNDERLAY_SCALE = 4.0;
+
     /// The two pointers name one node (the owner comparison never reads an expired node)
     static bool isSameNode(const std::weak_ptr<const PDFContentNode>& known, const PDFContentNodePointer& node)
     {
@@ -355,14 +470,38 @@ public:
                 return true;
 
             default:
-                return false;
+                break;
         }
+        return false;
+    }
+
+    /// The node sets a clip for the content behind it in its scope: a path with W / W*, a text of the rendering modes
+    /// 4 - 7 (ISO 32000-2, 8.5.4, 9.3.6)
+    static bool hasClip(const PDFContentNode& node)
+    {
+        switch (node.getKind())
+        {
+            case PDFContentNodeKind::Path:
+                return node.getData().paint.clip != PDFContentPathPaint::Clip::None;
+
+            case PDFContentNodeKind::TextObject:
+                return node.getData().clipsByText;
+
+            default:
+                break;
+        }
+        return false;
     }
 
     /// The clip of a clipping node in the coordinates of its item (the default space of the container), nullopt =
-    /// the node does not clip
-    static std::optional<QPainterPath> getClipPath(const PDFContentNode& node, const PDFContentContainer& container, const PDFContentDisplayContext& context)
+    /// the node does not clip. A text takes the glyphs of its item (its clip takes effect at ET, item 3).
+    static std::optional<QPainterPath> getClipPath(const PDFContentNode& node, const PDFContentContainer& container, const PDFContentDisplayContext& context, const PDFAppEditContentItem* item)
     {
+        if (node.getKind() == PDFContentNodeKind::TextObject)
+        {
+            const PDFAppEditContentTextItem* textItem = dynamic_cast<const PDFAppEditContentTextItem*>(item);
+            return textItem ? textItem->getTextClip() : std::nullopt;
+        }
         if (node.getKind() != PDFContentNodeKind::Path)
         {
             return std::nullopt;
@@ -386,12 +525,16 @@ public:
         return path;
     }
 
-    /// The clip paths with one more path (a new shared list)
+    /// The chain with one more clip (O(1): the chain before it is shared)
     static PDFAppEditContentClipPathsPointer appendClip(const PDFAppEditContentClipPathsPointer& clips, QPainterPath path)
     {
-        auto result = std::make_shared<PDFAppEditContentClipPaths>(clips ? *clips : PDFAppEditContentClipPaths());
-        result->push_back(std::move(path));
-        return result;
+        return std::make_shared<const PDFAppEditContentClipNode>(clips, std::move(path));
+    }
+
+    /// The number of the pixels of a picture
+    static qint64 getPixels(const QImage& image)
+    {
+        return image.isNull() ? 0 : qint64(image.width()) * qint64(image.height());
     }
 };
 
@@ -446,19 +589,23 @@ PDFAppEditContentScene::PDFAppEditContentScene(PDFAppEditContentContext* context
             }
             overlay->setZValue(getLayerZ(entry->getLayer()));
             m_overlays.push_back(overlay);
+            if (!m_underlayItem)
+            {
+                m_underlayItem = dynamic_cast<PDFAppEditContentUnderlayItem*>(overlay);
+            }
         }
     }
 
+    // One environment of the host for the scene (R6-20: not one per decoding)
     m_cms = PDFAppEditContentDisplayAccess::getColorManagement(context);
 
-    // The context, its session, its options, its selection and its controller live longer than the scene (a part)
-    PDFContentEditSession* session = context->getSession();
+    // The context, its session, its options, its selection and its controller live longer than the scene (a part); a
+    // new session (reloadDocument) is connected by sessionReplaced
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::pageChanged, this, &PDFAppEditContentScene::onPageChanged);
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::containerChanged, this, &PDFAppEditContentScene::onContainerChanged);
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::previewActiveChanged, this, &PDFAppEditContentScene::onPreviewChanged);
-    PDFDeferredDeletion::connect(session, &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentScene::onContainerLoaded);
-    PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentScene::onModelChanged);
-    PDFDeferredDeletion::connect(session, &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentScene::onEditorStateChanged);
+    PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentScene::onSessionReplaced);
+    connectSession();
     PDFDeferredDeletion::connect(context->getOptions(), &PDFAppEditContentOptions::changed, this, &PDFAppEditContentScene::onOptionChanged);
     PDFDeferredDeletion::connect(context->getSelection(), &PDFAppEditContentSelection::changed, this, &PDFAppEditContentScene::onSelectionChanged);
     PDFDeferredDeletion::connect(context->getToolController(), &PDFAppEditContentToolController::stateChanged, this, &PDFAppEditContentScene::updateToolPreview);
@@ -474,12 +621,9 @@ PDFAppEditContentScene::~PDFAppEditContentScene()
     // No late result reaches the scene; the jobs end by themselves (they hold their data). The items (also the
     // retired ones, which are still in the scene) are deleted by QGraphicsScene.
     m_decodeLink->detach();
-    for (auto& job : m_decodingItems)
-    {
-        job.second->cancel();
-    }
-    m_decodingItems.clear();
+    cancelJobs();
     m_liveItems.clear();
+    m_formItems.clear();
     m_records.clear();
     m_retiredItems.clear();
     m_gestureItems.clear();
@@ -488,6 +632,29 @@ PDFAppEditContentScene::~PDFAppEditContentScene()
 qreal PDFAppEditContentScene::getLayerZ(PDFAppEditContentSceneLayer layer)
 {
     return qreal(int(layer)) * LAYER_STEP;
+}
+
+void PDFAppEditContentScene::connectSession()
+{
+    // The signals of the session of the context (the session is a child of the context; it is replaced by
+    // reloadDocument - the old one is disconnected here before it is deleted)
+    PDFContentEditSession* session = m_context ? m_context->getSession() : nullptr;
+    if (session == m_session.data())
+    {
+        return;
+    }
+    if (m_session)
+    {
+        disconnect(m_session.data(), nullptr, this, nullptr);
+    }
+
+    m_session = session;
+    if (session)
+    {
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentScene::onContainerLoaded);
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentScene::onModelChanged);
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentScene::onEditorStateChanged);
+    }
 }
 
 void PDFAppEditContentScene::rebuild()
@@ -523,9 +690,9 @@ void PDFAppEditContentScene::updateNodes(const PDFContentChange& change)
     }
 
     // A changed form: the items of its uses are built again
-    for (const PDFContentContainerKey& key : forms)
+    if (!forms.empty())
     {
-        onContainerLoaded(key);
+        requestMissingForms();
     }
 }
 
@@ -555,9 +722,10 @@ std::vector<PDFContentNodeReference> PDFAppEditContentScene::getNodesAt(const QP
     }
 
     // The items under the point from the top (the stacking order of the content), each mapped to the child of the
-    // edited root, which contains it
+    // edited root, which contains it; the children already returned by a set (R6-4: no search over the result)
     const QRectF area(scenePoint.x() - tolerance, scenePoint.y() - tolerance, 2.0 * tolerance, 2.0 * tolerance);
     const QList<QGraphicsItem*> candidates = items(area, Qt::IntersectsItemBoundingRect, Qt::DescendingOrder);
+    std::set<PDFContentNodeReference> returned;
     for (QGraphicsItem* candidate : candidates)
     {
         PDFAppEditContentItem* item = qgraphicsitem_cast<PDFAppEditContentItem*>(candidate);
@@ -580,7 +748,11 @@ std::vector<PDFContentNodeReference> PDFAppEditContentScene::getNodesAt(const QP
         }
 
         const PDFContentNodeReference child = getEditedRootChild(PDFContentNodeReference{ m_containerKey, pageItem->getNodeId() });
-        const PDFContentNodePointer childNode = child.isValid() ? container->getNode(child.node) : PDFContentNodePointer();
+        if (!child.isValid() || returned.count(child))
+        {
+            continue;
+        }
+        const PDFContentNodePointer childNode = container->getNode(child.node);
         if (!childNode || !PDFAppEditContentSceneHelper::isSelectableKind(childNode->getKind()))
         {
             continue;
@@ -589,10 +761,8 @@ std::vector<PDFContentNodeReference> PDFAppEditContentScene::getNodesAt(const QP
         {
             continue;
         }
-        if (std::find(result.cbegin(), result.cend(), child) == result.cend())
-        {
-            result.push_back(child);
-        }
+        returned.insert(child);
+        result.push_back(child);
     }
 
     return result;
@@ -633,7 +803,14 @@ PDFAppEditContentSelectionItem* PDFAppEditContentScene::getSelectionItem() const
 
 void PDFAppEditContentScene::updateToolPreview()
 {
-    m_toolPreviewItem->update();
+    // R6-11: the item covers what the active tool paints; prepareGeometryChange repaints the old rectangle, update the
+    // new one - not the whole scene at every move of a drag
+    const PDFAppEditContentToolController* controller = m_context ? m_context->getToolController() : nullptr;
+    const PDFAppEditContentTool* tool = controller ? controller->getActiveTool() : nullptr;
+    const QRectF rectangle = tool ? tool->getPreviewRectangle(getPixelSize()) : QRectF();
+    PDFAppEditContentToolPreviewItem* item = static_cast<PDFAppEditContentToolPreviewItem*>(m_toolPreviewItem);
+    item->setRectangle(rectangle);
+    item->update();
 }
 
 int PDFAppEditContentScene::getRetiredItemCount() const
@@ -644,6 +821,11 @@ int PDFAppEditContentScene::getRetiredItemCount() const
 int PDFAppEditContentScene::getContentItemCount() const
 {
     return int(m_liveItems.size());
+}
+
+int PDFAppEditContentScene::getDecodingCount() const
+{
+    return int(m_itemJobs.size() + m_pictureJobs.size());
 }
 
 PDFContentDisplayContext PDFAppEditContentScene::getDisplayContext() const
@@ -814,49 +996,206 @@ qreal PDFAppEditContentScene::getPixelSize() const
     return scale > 0.0 ? 1.0 / scale : 1.0;
 }
 
-void PDFAppEditContentScene::requestDecoding(PDFAppEditContentItem* item)
+void PDFAppEditContentScene::startJob(const std::shared_ptr<PDFAppEditContentDecodeJob>& job)
+{
+    // At most MAXIMUM_RUNNING_JOBS of the scene in the global pool (the other work of the application is not starved by
+    // one page of 10 000 images, R6-5); the others wait here in the order of their requests
+    if (m_runningJobCount >= MAXIMUM_RUNNING_JOBS)
+    {
+        m_waitingJobs.push_back(job);
+        return;
+    }
+
+    ++m_runningJobCount;
+    ++m_startedJobCount;
+    job->isStarted = true;
+    PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFAppEditContentDecodeTask(job));
+}
+
+void PDFAppEditContentScene::startWaitingJobs()
+{
+    while (m_runningJobCount < MAXIMUM_RUNNING_JOBS && !m_waitingJobs.empty())
+    {
+        std::shared_ptr<PDFAppEditContentDecodeJob> job = std::move(m_waitingJobs.front());
+        m_waitingJobs.pop_front();
+        if (!job->isOperationCanceled())
+        {
+            startJob(job);
+        }
+    }
+}
+
+void PDFAppEditContentScene::cancelJobs()
+{
+    // The running jobs end by themselves (their results are dropped by the identity of the job); the waiting ones never
+    // start
+    for (auto& job : m_itemJobs)
+    {
+        job.second->cancel();
+    }
+    for (auto& job : m_pictureJobs)
+    {
+        job.second->cancel();
+    }
+    for (const std::shared_ptr<PDFAppEditContentDecodeJob>& job : m_waitingJobs)
+    {
+        job->cancel();
+    }
+    m_itemJobs.clear();
+    m_pictureJobs.clear();
+    m_waitingJobs.clear();
+}
+
+PDFContentEditSnapshotPointer PDFAppEditContentScene::getSnapshot()
+{
+    if (!m_snapshot && m_session)
+    {
+        m_snapshot = m_session->createSnapshot();
+    }
+    return m_snapshot;
+}
+
+void PDFAppEditContentScene::requestDecoding(PDFAppEditContentItem* item, PDFAppEditContentDecodeKind kind, qint64 pixels)
 {
     if (!item || !m_context || PDFDeferredDeletion::isRetired(this) || m_liveItems.find(item->getSerial()) == m_liveItems.cend())
     {
         return;
     }
 
-    PDFAppEditContentImageItem* imageItem = dynamic_cast<PDFAppEditContentImageItem*>(item);
     PDFAppEditContentShadingItem* shadingItem = dynamic_cast<PDFAppEditContentShadingItem*>(item);
-    const PDFContentContainerKey key = imageItem ? imageItem->getContainerKey() : (shadingItem ? shadingItem->getContainerKey() : PDFContentContainerKey());
+    PDFAppEditContentPathItem* pathItem = dynamic_cast<PDFAppEditContentPathItem*>(item);
+    const bool isPattern = kind == PDFAppEditContentDecodeKind::FillPattern || kind == PDFAppEditContentDecodeKind::StrokePattern;
+    if (!(kind == PDFAppEditContentDecodeKind::Shading && shadingItem) && !(isPattern && pathItem))
+    {
+        return;
+    }
+
+    const PDFContentContainerKey key = shadingItem ? shadingItem->getContainerKey() : pathItem->getContainerKey();
     PDFDocumentPointer document = PDFAppEditContentDisplayAccess::getDocument(m_context.data());
     PDFContentContainerPointer container = getContainer(key);
     if (!document || !container)
     {
-        // No shared document (no GUI): nothing can hold the document in a worker - the placeholder stays
-        if (imageItem)
+        // Nothing can be computed: the placeholder stays
+        if (shadingItem)
         {
-            PDFContentDisplayImage failed;
-            failed.status = PDFContentDisplayImage::Status::Failed;
-            imageItem->setDecodedImage(failed);
+            PDFContentDisplayShading failed;
+            failed.status = PDFContentDisplayShading::Status::Failed;
+            shadingItem->setShading(failed);
+        }
+        else
+        {
+            PDFAppEditContentPatternPaint paint;
+            paint.isDone = true;
+            pathItem->setPatternPaint(kind == PDFAppEditContentDecodeKind::StrokePattern, paint);
         }
         return;
     }
 
-    // A job of the older version of the item is canceled (its result is dropped by the identity of the job)
-    auto it = m_decodingItems.find(item->getSerial());
-    if (it != m_decodingItems.end())
+    // A job of the older version or zoom step of the item is canceled (its result is dropped by the identity of the job)
+    const std::pair<quint64, int> jobKey(item->getSerial(), int(kind));
+    auto it = m_itemJobs.find(jobKey);
+    if (it != m_itemJobs.end())
     {
         it->second->cancel();
-        m_decodingItems.erase(it);
+        m_itemJobs.erase(it);
     }
 
     auto job = std::make_shared<PDFAppEditContentDecodeJob>();
     job->link = m_decodeLink;
     job->document = std::move(document);
     job->container = std::move(container);
-    job->cms = PDFAppEditContentDisplayAccess::getColorManagement(m_context.data());
+    job->cms = m_cms;
+    job->snapshot = getSnapshot();
     job->node = item->getNodeId();
     job->pageIndex = m_context->getPageIndex();
     job->serial = item->getSerial();
-    job->isShading = shadingItem != nullptr;
-    m_decodingItems[item->getSerial()] = job;
-    PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFAppEditContentDecodeTask(std::move(job)));
+    job->kind = kind;
+    job->maximumPixels = pixels;
+    m_itemJobs[jobKey] = job;
+    startJob(job);
+}
+
+const QImage* PDFAppEditContentScene::getPicture(const PDFAppEditContentImageItem* item, qreal pixels, bool* isFailed)
+{
+    *isFailed = false;
+    if (!item || !m_context || PDFDeferredDeletion::isRetired(this))
+    {
+        return nullptr;
+    }
+
+    const PDFAppEditContentPictureKey& key = item->getPictureKey();
+    Picture& entry = m_pictures[key];
+    entry.serials.insert(item->getSerial());
+    *isFailed = entry.isFailed && entry.image.isNull();
+
+    // A larger size step than the picture has: one decoding of the key (the uses of the image share it)
+    const qint64 step = PDFAppEditContentDisplayAccess::getPixelStep(pixels);
+    if (!entry.isFailed && !entry.isComplete && !entry.isOverBudget && entry.step < step)
+    {
+        auto it = m_pictureJobs.find(key);
+        if (it == m_pictureJobs.end() || it->second->maximumPixels < step)
+        {
+            if (it != m_pictureJobs.end())
+            {
+                it->second->cancel();
+                m_pictureJobs.erase(it);
+            }
+
+            PDFDocumentPointer document = PDFAppEditContentDisplayAccess::getDocument(m_context.data());
+            PDFContentContainerPointer container = getContainer(item->getContainerKey());
+            if (!document || !container)
+            {
+                entry.isFailed = true;
+                *isFailed = entry.image.isNull();
+            }
+            else
+            {
+                auto job = std::make_shared<PDFAppEditContentDecodeJob>();
+                job->link = m_decodeLink;
+                job->document = std::move(document);
+                job->container = std::move(container);
+                job->cms = m_cms;
+                job->node = item->getNodeId();
+                job->pageIndex = m_context->getPageIndex();
+                job->serial = item->getSerial();
+                job->kind = PDFAppEditContentDecodeKind::Image;
+                job->pictureKey = key;
+                job->maximumPixels = step;
+                m_pictureJobs[key] = job;
+                startJob(job);
+            }
+        }
+    }
+
+    return entry.image.isNull() ? nullptr : &entry.image;
+}
+
+bool PDFAppEditContentScene::hasPicture(const PDFAppEditContentPictureKey& key) const
+{
+    const auto it = m_pictures.find(key);
+    return it != m_pictures.cend() && !it->second.image.isNull();
+}
+
+void PDFAppEditContentScene::setPictureBudget(qint64 pixels)
+{
+    m_pictureBudget = qMax<qint64>(0, pixels);
+}
+
+void PDFAppEditContentScene::setFormItemBudget(size_t budget)
+{
+    m_formItemBudget = budget;
+    rebuild();
+}
+
+void PDFAppEditContentScene::clearPictures()
+{
+    for (auto& job : m_pictureJobs)
+    {
+        job.second->cancel();
+    }
+    m_pictureJobs.clear();
+    m_pictures.clear();
+    m_picturePixels = 0;
 }
 
 void PDFAppEditContentScene::onDecodeFinished(const std::shared_ptr<PDFAppEditContentDecodeJob>& job)
@@ -864,13 +1203,105 @@ void PDFAppEditContentScene::onDecodeFinished(const std::shared_ptr<PDFAppEditCo
     PDFThreadAnnotations::happensAfter(job.get());
     PDFThreadAnnotations::forget(job.get());
 
-    // A job, which is not the current one of its item (canceled, an older version, a retired item) is dropped
-    const auto it = m_decodingItems.find(job->serial);
-    if (it == m_decodingItems.end() || it->second != job || job->isOperationCanceled())
+    if (job->isStarted)
+    {
+        job->isStarted = false;
+        --m_runningJobCount;
+    }
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
-    m_decodingItems.erase(it);
+    startWaitingJobs();
+    if (job->isOperationCanceled())
+    {
+        return;
+    }
+
+    // A job, which is not the current one of its request (canceled, an older version or zoom step, a retired item, an old
+    // session) is dropped
+    switch (job->kind)
+    {
+        case PDFAppEditContentDecodeKind::Image:
+        {
+            const auto it = m_pictureJobs.find(job->pictureKey);
+            if (it == m_pictureJobs.end() || it->second != job)
+            {
+                return;
+            }
+            m_pictureJobs.erase(it);
+
+            Picture& entry = m_pictures[job->pictureKey];
+            const PDFContentDisplayImage& image = job->image;
+            if (image.status == PDFContentDisplayImage::Status::Decoded && !image.image.isNull())
+            {
+                // R6-5: within the budget of the scene; over it the placeholder (or the smaller picture the key has) -
+                // nothing is evicted, so the visible pictures are never decoded again and again
+                const qint64 pixels = PDFAppEditContentSceneHelper::getPixels(image.image);
+                const qint64 oldPixels = PDFAppEditContentSceneHelper::getPixels(entry.image);
+                if (m_picturePixels + pixels - oldPixels <= m_pictureBudget)
+                {
+                    m_picturePixels += pixels - oldPixels;
+                    entry.image = image.image;
+                    entry.step = job->maximumPixels;
+                    const qint64 sourcePixels = qint64(image.sourceSize.width()) * qint64(image.sourceSize.height());
+                    entry.isComplete = sourcePixels <= pixels || job->maximumPixels >= PDFContentDisplayImageOptions().maximumPixels;
+                }
+                else
+                {
+                    entry.isOverBudget = true;
+                }
+            }
+            else if (entry.image.isNull())
+            {
+                entry.isFailed = true;
+            }
+            else
+            {
+                // A larger picture cannot be decoded: the smaller one stays
+                entry.isComplete = true;
+            }
+
+            // The items, which painted the picture, paint the new one (the retired ones are forgotten)
+            for (auto serialIt = entry.serials.begin(); serialIt != entry.serials.end();)
+            {
+                const auto itemIt = m_liveItems.find(*serialIt);
+                if (itemIt == m_liveItems.end())
+                {
+                    serialIt = entry.serials.erase(serialIt);
+                    continue;
+                }
+                itemIt->second->update();
+                ++serialIt;
+            }
+            return;
+        }
+
+        case PDFAppEditContentDecodeKind::Underlay:
+        {
+            const auto it = m_itemJobs.find(std::make_pair(quint64(0), int(job->kind)));
+            if (it == m_itemJobs.end() || it->second != job)
+            {
+                return;
+            }
+            m_itemJobs.erase(it);
+            if (m_underlayItem && m_context && job->pageIndex == m_context->getPageIndex())
+            {
+                m_underlayItem->setPicture(job->picture, job->pageRectangle, job->pageIndex);
+            }
+            return;
+        }
+
+        default:
+            break;
+    }
+
+    const auto it = m_itemJobs.find(std::make_pair(job->serial, int(job->kind)));
+    if (it == m_itemJobs.end() || it->second != job)
+    {
+        return;
+    }
+    m_itemJobs.erase(it);
 
     const auto itemIt = m_liveItems.find(job->serial);
     if (itemIt == m_liveItems.end())
@@ -878,13 +1309,16 @@ void PDFAppEditContentScene::onDecodeFinished(const std::shared_ptr<PDFAppEditCo
         return;
     }
 
-    if (PDFAppEditContentImageItem* imageItem = dynamic_cast<PDFAppEditContentImageItem*>(itemIt->second))
+    if (job->kind == PDFAppEditContentDecodeKind::Shading)
     {
-        imageItem->setDecodedImage(job->image);
+        if (PDFAppEditContentShadingItem* shadingItem = dynamic_cast<PDFAppEditContentShadingItem*>(itemIt->second))
+        {
+            shadingItem->setShading(job->shading);
+        }
     }
-    else if (PDFAppEditContentShadingItem* shadingItem = dynamic_cast<PDFAppEditContentShadingItem*>(itemIt->second))
+    else if (PDFAppEditContentPathItem* pathItem = dynamic_cast<PDFAppEditContentPathItem*>(itemIt->second))
     {
-        shadingItem->setShading(job->shading);
+        pathItem->setPatternPaint(job->kind == PDFAppEditContentDecodeKind::StrokePattern, PDFAppEditContentDisplayAccess::createPatternPaint(job->cell, job->shading, job->maximumPixels));
     }
 }
 
@@ -892,11 +1326,7 @@ void PDFAppEditContentScene::retire()
 {
     // No late result, no queued deletion runs any more (the items are deleted by the destructor); emits nothing
     m_decodeLink->detach();
-    for (auto& job : m_decodingItems)
-    {
-        job.second->cancel();
-    }
-    m_decodingItems.clear();
+    cancelJobs();
 }
 
 void PDFAppEditContentScene::deleteRetiredItems()
@@ -946,12 +1376,21 @@ PDFAppEditContentItem* PDFAppEditContentScene::createItem(const PDFContentContai
         addItem(item);
     }
     m_liveItems[item->getSerial()] = item;
+    if (parentItem != m_contentRoot)
+    {
+        ++m_formItemCount;
+    }
+    if (dynamic_cast<PDFAppEditContentFormItem*>(item))
+    {
+        m_formItems.insert(item->getSerial());
+    }
     return item;
 }
 
 void PDFAppEditContentScene::forgetItemTree(QGraphicsItem* root)
 {
-    // The item and its descendants (the items of a form, bounded by the nesting of the forms)
+    // The item and its descendants (the items of a form, bounded by the nesting of the forms); the parents are still
+    // set here, so an item of a form is known by its parent
     std::vector<QGraphicsItem*> stack{ root };
     while (!stack.empty())
     {
@@ -959,12 +1398,19 @@ void PDFAppEditContentScene::forgetItemTree(QGraphicsItem* root)
         stack.pop_back();
         if (PDFAppEditContentItem* item = qgraphicsitem_cast<PDFAppEditContentItem*>(current))
         {
-            m_liveItems.erase(item->getSerial());
-            auto job = m_decodingItems.find(item->getSerial());
-            if (job != m_decodingItems.end())
+            if (m_liveItems.erase(item->getSerial()) > 0 && item->parentItem() && item->parentItem() != m_contentRoot && m_formItemCount > 0)
             {
-                job->second->cancel();
-                m_decodingItems.erase(job);
+                --m_formItemCount;
+            }
+            m_formItems.erase(item->getSerial());
+            for (int kind = int(PDFAppEditContentDecodeKind::Image); kind <= int(PDFAppEditContentDecodeKind::StrokePattern); ++kind)
+            {
+                auto job = m_itemJobs.find(std::make_pair(item->getSerial(), kind));
+                if (job != m_itemJobs.end())
+                {
+                    job->second->cancel();
+                    m_itemJobs.erase(job);
+                }
             }
             m_gestureItems.erase(std::remove(m_gestureItems.begin(), m_gestureItems.end(), item), m_gestureItems.end());
         }
@@ -1007,11 +1453,19 @@ void PDFAppEditContentScene::synchronize(bool isFullRebuild)
         return;
     }
 
+    // Any walk makes a queued walk of the editor state unnecessary (it reads the state too)
+    m_isEditorStateWalkQueued = false;
+    ++m_walkCount;
+
     PDFContentEditSession* session = m_context->getSession();
     const PDFContentContainerKey pageKey = m_context->getPageKey();
     const PDFContentContainerPointer container = getContainer(pageKey);
 
-    // Another page (or a rebuild): every item goes
+    // Another page (or a rebuild): every item goes; another page: the pictures of its images too
+    if (pageKey != m_containerKey)
+    {
+        clearPictures();
+    }
     if (isFullRebuild || pageKey != m_containerKey || !container)
     {
         clearGestureTransform();
@@ -1079,7 +1533,7 @@ void PDFAppEditContentScene::synchronize(bool isFullRebuild)
         stack.pop_back();
         if (entry.isExit)
         {
-            clip = entry.savedClip;
+            clip = std::move(entry.savedClip);
             continue;
         }
 
@@ -1101,20 +1555,35 @@ void PDFAppEditContentScene::synchronize(bool isFullRebuild)
         if (!Helper::hasNoItem(kind))
         {
             PDFAppEditContentItem* item = record.item;
-            if (item && (!isSame || entry.isRefreshed) && !item->updateNode(node, *container))
+            bool isRebuilt = false;
+            if (item && (!isSame || entry.isRefreshed))
             {
-                retireItem(item);
-                item = nullptr;
+                isRebuilt = true;
+                if (!item->updateNode(node, *container))
+                {
+                    retireItem(item);
+                    item = nullptr;
+                }
             }
             if (!item)
             {
+                isRebuilt = true;
                 item = createItem(*container, node, m_contentRoot);
             }
             record.item = item;
             if (item)
             {
                 item->setZValue(order);
-                item->setClipPaths(clip);
+                if (item->getClipPaths() != clip)
+                {
+                    item->setClipPaths(clip);
+
+                    // R6-19: the box of a shading is cut by the clips in effect - a new chain gives it again
+                    if (!isRebuilt && kind == PDFContentNodeKind::Shading)
+                    {
+                        item->updateNode(node, *container);
+                    }
+                }
                 item->setEditorState(isLocked, isHidden);
                 item->setDimmed(isEditedRootOnPage && !isInside);
             }
@@ -1126,10 +1595,30 @@ void PDFAppEditContentScene::synchronize(bool isFullRebuild)
             record.item = nullptr;
         }
 
-        // The clip of a path applies after its painting, to the content behind it in its scope (W, W*)
-        if (std::optional<QPainterPath> clipPath = Helper::getClipPath(node, *container, displayContext))
+        // The clip of a path applies after its painting, the clip of a text at its end (W, W*, ISO 32000-2, 8.5.4; the
+        // rendering modes 4 - 7, 9.3.6) - to the content behind it in its scope. An unchanged clipping node, which gets the
+        // same chain as at the last walk, gives the same chain object again (R6-12: the items behind it are not
+        // repainted, the path is not built again).
+        if (Helper::hasClip(node))
         {
-            clip = Helper::appendClip(clip, std::move(*clipPath));
+            if (isSame && !entry.isRefreshed && record.clipAfter && record.clipBefore == clip)
+            {
+                clip = record.clipAfter;
+            }
+            else
+            {
+                record.clipBefore = clip;
+                if (std::optional<QPainterPath> clipPath = Helper::getClipPath(node, *container, displayContext, record.item))
+                {
+                    clip = Helper::appendClip(clip, std::move(*clipPath));
+                }
+                record.clipAfter = clip;
+            }
+        }
+        else if (record.clipBefore || record.clipAfter)
+        {
+            record.clipBefore.reset();
+            record.clipAfter.reset();
         }
 
         if (Helper::hasChildItems(kind))
@@ -1175,62 +1664,74 @@ void PDFAppEditContentScene::synchronize(bool isFullRebuild)
 void PDFAppEditContentScene::requestMissingForms()
 {
     // The forms of the page, whose containers are loaded and not built into their items yet (the session loads the
-    // forms of a page with it)
-    std::vector<PDFAppEditContentFormItem*> formItems;
-    for (const auto& item : m_liveItems)
+    // forms of a page with it), breadth first: the uses of the page first, then their nested uses (R6-1: the budget of
+    // the items goes to the outer levels first). The nested uses built here join the queue.
+    std::vector<FormBuild> queue;
+    for (const quint64 serial : m_formItems)
     {
-        if (PDFAppEditContentFormItem* formItem = dynamic_cast<PDFAppEditContentFormItem*>(item.second))
-        {
-            formItems.push_back(formItem);
-        }
-    }
-
-    for (PDFAppEditContentFormItem* formItem : formItems)
-    {
-        if (m_liveItems.find(formItem->getSerial()) == m_liveItems.end())
-        {
-            // Retired meanwhile (a form of a form built again)
-            continue;
-        }
-
-        const PDFContentContainerPointer form = getContainer(formItem->getFormKey());
+        const auto it = m_liveItems.find(serial);
+        PDFAppEditContentFormItem* formItem = it != m_liveItems.end() ? dynamic_cast<PDFAppEditContentFormItem*>(it->second) : nullptr;
+        const PDFContentContainerPointer form = formItem ? getContainer(formItem->getFormKey()) : PDFContentContainerPointer();
         if (!form || form->getVersion() == formItem->getFormVersion())
         {
             continue;
         }
 
-        // The keys of the forms around the item (the visited set of the path) and its depth
-        std::vector<PDFContentContainerKey> path{ m_containerKey };
+        // The depth by the form items around it (bounded by the nesting of the forms)
         int depth = 1;
         for (QGraphicsItem* parent = formItem->parentItem(); parent && parent != m_contentRoot && depth <= PDFContentEditSession::MAXIMUM_CONTAINER_NESTING + 1; parent = parent->parentItem())
         {
-            if (const PDFAppEditContentFormItem* outer = dynamic_cast<const PDFAppEditContentFormItem*>(parent))
+            if (dynamic_cast<const PDFAppEditContentFormItem*>(parent))
             {
-                path.push_back(outer->getFormKey());
                 ++depth;
             }
         }
-        buildForm(formItem, depth, std::move(path));
+        queue.push_back(FormBuild{ depth, serial });
+    }
+    std::stable_sort(queue.begin(), queue.end());
+
+    for (size_t index = 0; index < queue.size(); ++index)
+    {
+        const FormBuild build = queue[index];
+        const auto it = m_liveItems.find(build.serial);
+        if (it == m_liveItems.end())
+        {
+            // Retired meanwhile (a form of a form built again)
+            continue;
+        }
+        if (PDFAppEditContentFormItem* formItem = dynamic_cast<PDFAppEditContentFormItem*>(it->second))
+        {
+            buildForm(formItem, build.depth, &queue);
+        }
     }
 }
 
-void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int nestingDepth, std::vector<PDFContentContainerKey> path)
+void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int nestingDepth, std::vector<FormBuild>* queue)
 {
     using Helper = PDFAppEditContentSceneHelper;
 
     const PDFContentContainerKey formKey = formItem->getFormKey();
     const PDFContentContainerPointer form = getContainer(formKey);
-    if (!form || !form->getRoot())
+    if (!form || !form->getRoot() || form->getVersion() == formItem->getFormVersion())
     {
         return;
     }
 
-    // A form nested too deep or drawing itself (a cycle through the path) keeps the outline of its box
-    if (nestingDepth > PDFContentEditSession::MAXIMUM_CONTAINER_NESTING || std::find(path.cbegin(), path.cend(), formKey) != path.cend())
+    // A form nested too deep or drawing itself (a cycle through the keys of the forms around the use - a form shared by
+    // two uses is drawn by both) keeps the outline of its box
+    if (nestingDepth > PDFContentEditSession::MAXIMUM_CONTAINER_NESTING)
     {
         return;
     }
-    path.push_back(formKey);
+    int steps = 0;
+    for (QGraphicsItem* parent = formItem->parentItem(); parent && parent != m_contentRoot && steps <= PDFContentEditSession::MAXIMUM_CONTAINER_NESTING + 1; parent = parent->parentItem(), ++steps)
+    {
+        const PDFAppEditContentFormItem* outer = dynamic_cast<const PDFAppEditContentFormItem*>(parent);
+        if (outer && outer->getFormKey() == formKey)
+        {
+            return;
+        }
+    }
 
     // The old children (another version of the form) go
     const QList<QGraphicsItem*> oldChildren = formItem->childItems();
@@ -1241,10 +1742,22 @@ void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int 
             retireItem(item);
         }
     }
+
+    // R6-1: the items of all forms of the page under one budget - a form, whose nodes do not fit any more, keeps the
+    // outline of its box (the count of the nodes is known per version, PDFContentDisplay::getCounts)
+    const size_t cost = PDFAppEditContentDisplayAccess::getCounts(*form).nodeCount;
+    if (m_formItemCount + cost > m_formItemBudget)
+    {
+        if (formItem->getFormVersion() != 0)
+        {
+            formItem->resetForm();
+        }
+        return;
+    }
     formItem->setForm(*form);
 
     // The content of the form in its order with its clip scopes (as the page; no records: the items of a form are
-    // not selected in stage E1)
+    // not selected in stage E1). The clips around the use apply to it through the form item (R6-7).
     const PDFContentDisplayContext displayContext = getDisplayContext();
     struct Entry
     {
@@ -1259,7 +1772,6 @@ void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int 
         stack.push_back(Entry{ *it, nullptr, false });
     }
 
-    std::vector<PDFAppEditContentFormItem*> nestedForms;
     PDFAppEditContentClipPathsPointer clip;
     qreal order = 0.0;
     while (!stack.empty())
@@ -1268,28 +1780,33 @@ void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int 
         stack.pop_back();
         if (entry.isExit)
         {
-            clip = entry.savedClip;
+            clip = std::move(entry.savedClip);
             continue;
         }
 
         const PDFContentNode& node = *entry.node;
+        PDFAppEditContentItem* item = nullptr;
         if (!Helper::hasNoItem(node.getKind()))
         {
-            if (PDFAppEditContentItem* item = createItem(*form, node, formItem))
+            item = createItem(*form, node, formItem);
+            if (item)
             {
                 item->setZValue(order);
                 item->setClipPaths(clip);
-                if (PDFAppEditContentFormItem* nested = dynamic_cast<PDFAppEditContentFormItem*>(item))
+                if (dynamic_cast<PDFAppEditContentFormItem*>(item))
                 {
-                    nestedForms.push_back(nested);
+                    queue->push_back(FormBuild{ nestingDepth + 1, item->getSerial() });
                 }
             }
             order += 1.0;
         }
 
-        if (std::optional<QPainterPath> clipPath = Helper::getClipPath(node, *form, displayContext))
+        if (Helper::hasClip(node))
         {
-            clip = Helper::appendClip(clip, std::move(*clipPath));
+            if (std::optional<QPainterPath> clipPath = Helper::getClipPath(node, *form, displayContext, item))
+            {
+                clip = Helper::appendClip(clip, std::move(*clipPath));
+            }
         }
 
         if (Helper::hasChildItems(node.getKind()))
@@ -1305,10 +1822,8 @@ void PDFAppEditContentScene::buildForm(PDFAppEditContentFormItem* formItem, int 
         }
     }
 
-    for (PDFAppEditContentFormItem* nested : nestedForms)
-    {
-        buildForm(nested, nestingDepth + 1, path);
-    }
+    // A hidden use hides its new content too (R6-8)
+    formItem->updateChildrenVisibility();
 }
 
 void PDFAppEditContentScene::updateOptions()
@@ -1338,23 +1853,22 @@ void PDFAppEditContentScene::updatePaper()
 
 void PDFAppEditContentScene::updateComplexity()
 {
+    // The one policy of the complex page of the context (integration row 27: the notice of the tool GUI asks the same)
     const PDFContentContainerPointer container = getContainer(m_containerKey);
-    if (!container)
-    {
-        m_isComplexPage = false;
-        return;
-    }
-
-    const PDFContentDisplayCounts counts = PDFAppEditContentDisplayAccess::getCounts(*container);
-    m_isComplexPage = counts.nodeCount > COMPLEX_PAGE_OBJECTS || counts.pathSegmentCount > COMPLEX_PAGE_PATH_SEGMENTS;
+    m_isComplexPage = container && PDFAppEditContentContext::isComplexPage(PDFAppEditContentDisplayAccess::getCounts(*container));
 }
 
 void PDFAppEditContentScene::updateSceneRectangle()
 {
-    // The paper and the content outside of it, with a margin of the half of the larger side (so the page can be moved
-    // to the middle of the view at any zoom and the overlays do not cover its edge)
+    // The paper and the content outside of it - the content bounded to the paper grown by CONTENT_REACH page sizes
+    // (R6-22); no margin: the view adds the margins, in which the page can be centered and the overlays do not cover it
     QRectF rectangle = m_paperRectangle;
-    const QRectF content = getContentRectangle();
+    QRectF content = getContentRectangle();
+    if (!rectangle.isNull() && !content.isNull())
+    {
+        const qreal reach = qMax(rectangle.width(), rectangle.height()) * CONTENT_REACH;
+        content = content.intersected(rectangle.adjusted(-reach, -reach, reach, reach));
+    }
     if (!content.isNull())
     {
         rectangle = rectangle.isNull() ? content : rectangle.united(content);
@@ -1363,16 +1877,71 @@ void PDFAppEditContentScene::updateSceneRectangle()
     {
         rectangle = QRectF(0.0, 0.0, 612.0, 792.0);
     }
+    setSceneRect(rectangle);
+}
 
-    const qreal margin = qMax(rectangle.width(), rectangle.height()) * 0.5 + 36.0;
-    const QRectF sceneRectangle = rectangle.adjusted(-margin, -margin, margin, margin);
-    setSceneRect(sceneRectangle);
-    static_cast<PDFAppEditContentToolPreviewItem*>(m_toolPreviewItem)->setRectangle(sceneRectangle);
+void PDFAppEditContentScene::updateUnderlay()
+{
+    // zadani_gui.md 4.15: the annotations and fields of the page, dimmed under the content, while the option is on and
+    // Preview is off; their picture is rendered in a worker once per page (the tool does not change them)
+    if (!m_underlayItem || !m_context || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    const PDFAppEditContentOptions* options = m_context->getOptions();
+    const bool isShown = options && options->getBool(QString::fromLatin1(PDFAppEditContentOptions::SHOW_ANNOTATIONS)) && !m_context->isPreviewActive();
+    m_underlayItem->setVisible(isShown);
+    const PDFInteger pageIndex = m_context->getPageIndex();
+    if (!isShown || pageIndex < 0 || m_underlayPage == pageIndex)
+    {
+        return;
+    }
+
+    // Another page: the job of the old one is dropped, its picture too
+    m_underlayPage = pageIndex;
+    const std::pair<quint64, int> jobKey(0, int(PDFAppEditContentDecodeKind::Underlay));
+    auto it = m_itemJobs.find(jobKey);
+    if (it != m_itemJobs.end())
+    {
+        it->second->cancel();
+        m_itemJobs.erase(it);
+    }
+    m_underlayItem->setPicture(QImage(), QRectF(), pageIndex);
+
+    PDFDocumentPointer document = PDFAppEditContentDisplayAccess::getDocument(m_context.data());
+    const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && pageIndex < PDFInteger(catalog->getPageCount()) ? catalog->getPage(pageIndex) : nullptr;
+    if (!page || page->getAnnotations().empty())
+    {
+        return;
+    }
+
+    const QRectF cropBox = page->getCropBox().normalized();
+    const qreal area = cropBox.width() * cropBox.height();
+    if (!(area > 0.0) || !std::isfinite(area))
+    {
+        return;
+    }
+    const qreal scale = qMin(PDFAppEditContentSceneHelper::MAXIMUM_UNDERLAY_SCALE, std::sqrt(PDFAppEditContentSceneHelper::MAXIMUM_UNDERLAY_PIXELS / area));
+    const QSize size(qMax(1, int(std::floor(cropBox.width() * scale))), qMax(1, int(std::floor(cropBox.height() * scale))));
+
+    auto job = std::make_shared<PDFAppEditContentDecodeJob>();
+    job->link = m_decodeLink;
+    job->document = std::move(document);
+    job->cms = m_cms;
+    job->pageIndex = pageIndex;
+    job->kind = PDFAppEditContentDecodeKind::Underlay;
+    job->pageRectangle = cropBox;
+    job->imageSize = size;
+    m_itemJobs[jobKey] = job;
+    startJob(job);
 }
 
 void PDFAppEditContentScene::onPageChanged()
 {
     rebuild();
+    updateUnderlay();
 }
 
 void PDFAppEditContentScene::onContainerChanged()
@@ -1397,13 +1966,27 @@ void PDFAppEditContentScene::onContainerLoaded(const PDFContentContainerKey& key
 
 void PDFAppEditContentScene::onModelChanged(const PDFContentChange& change)
 {
+    // A new version of the model: a new snapshot for the new objects of the next job
+    m_snapshot.reset();
     updateNodes(change);
 }
 
 void PDFAppEditContentScene::onEditorStateChanged(const PDFContentNodeReference& node)
 {
-    // The lock or "hidden" of a node reaches its subtree: one walk (no new items)
-    if (node.container == m_containerKey)
+    // The lock or "hidden" of a node reaches its subtree: one walk for any number of changes in one turn of the event
+    // loop (R6-2: Lock of 100 000 selected objects is 100 000 emissions, not 100 000 walks)
+    if (node.container != m_containerKey || m_isEditorStateWalkQueued)
+    {
+        return;
+    }
+    m_isEditorStateWalkQueued = true;
+    QMetaObject::invokeMethod(this, &PDFAppEditContentScene::onEditorStateWalk, Qt::QueuedConnection);
+}
+
+void PDFAppEditContentScene::onEditorStateWalk()
+{
+    // Another walk ran meanwhile (it read the state): nothing
+    if (m_isEditorStateWalkQueued)
     {
         synchronize(false);
     }
@@ -1415,6 +1998,10 @@ void PDFAppEditContentScene::onOptionChanged(const QString& name)
     {
         updateOptions();
         update();
+    }
+    else if (name == QLatin1String(PDFAppEditContentOptions::SHOW_ANNOTATIONS))
+    {
+        updateUnderlay();
     }
 }
 
@@ -1445,7 +2032,20 @@ void PDFAppEditContentScene::onPreviewChanged()
     {
         overlay->setVisible(!isPreview);
     }
+    updateUnderlay();
     m_previewItem->update();
+}
+
+void PDFAppEditContentScene::onSessionReplaced()
+{
+    // PDFAppEditContentContext::reloadDocument: the jobs of the old session are dropped (its container keys and node
+    // identifiers may be equal in the new one), its pictures and snapshot go, the new session is connected; pageChanged
+    // follows and builds the items again
+    cancelJobs();
+    clearPictures();
+    m_snapshot.reset();
+    m_underlayPage = -1;
+    connectSession();
 }
 
 void PDFAppEditContentScene::updateEditorStates()

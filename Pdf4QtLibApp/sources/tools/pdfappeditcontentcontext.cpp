@@ -24,6 +24,7 @@
 
 #include "pdfappeditcontentpreview.h"
 #include "pdfappeditcontentregistry.h"
+#include "pdfappeditcontentscene.h"
 #include "pdfappeditcontentselection.h"
 #include "pdfappeditcontenttools.h"
 #include "pdfappeditcontentview.h"
@@ -32,6 +33,7 @@
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfcatalog.h"
+#include "pdfcontentdisplay.h"
 #include "pdfcontentundostack.h"
 
 #include <QCoreApplication>
@@ -186,7 +188,9 @@ void PDFAppEditContentOptions::onModelChanged(const QString& name)
 PDFAppEditContentContext::PDFAppEditContentContext(PDFDocumentPointer document, PDFCMSPointer cms, const PDFAppEditContentRegistry* registry, QObject* parent) :
     BaseClass(parent),
     PDFRetirable(this),
-    m_registry(registry ? registry : &PDFAppEditContentRegistry::getInstance())
+    m_registry(registry ? registry : &PDFAppEditContentRegistry::getInstance()),
+    m_document(document),
+    m_cms(cms)
 {
     // The destructor deletes the children in the reverse order of this creation: the tab states, the preview, the
     // controller and the selection go before the session they read
@@ -196,8 +200,7 @@ PDFAppEditContentContext::PDFAppEditContentContext(PDFDocumentPointer document, 
     m_toolController = new PDFAppEditContentToolController(this, this);
     m_preview = new PDFAppEditContentPreview(this, this);
 
-    connect(m_session, &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentContext::onContainerLoaded);
-    connect(m_session, &PDFContentEditSession::containerFailed, this, &PDFAppEditContentContext::onContainerFailed);
+    connectSession();
 
     for (const PDFAppEditContentTabEntry* tab : m_registry->getTabs())
     {
@@ -404,6 +407,143 @@ bool PDFAppEditContentContext::isEditingAllowed() const
     }
     const PDFContentContainerPointer container = getContainer();
     return container && !container->isReadOnly();
+}
+
+std::vector<PDFContentNodeReference> PDFAppEditContentContext::getChangeableSelection() const
+{
+    std::vector<PDFContentNodeReference> result;
+    if (!m_selection || m_selection->isEmpty())
+    {
+        return result;
+    }
+
+    result.reserve(m_selection->getNodes().size());
+    for (const PDFContentNodeReference& node : m_selection->getNodes())
+    {
+        if (isNodeChangeable(node))
+        {
+            result.push_back(node);
+        }
+    }
+    return result;
+}
+
+bool PDFAppEditContentContext::isNodeChangeable(const PDFContentNodeReference& node) const
+{
+    const PDFContentContainerPointer container = getContainer();
+    if (!container || !node.isValid() || node.container != container->getKey())
+    {
+        return false;
+    }
+
+    const PDFContentNodePointer target = container->getNode(node.node);
+    const PDFContentNodeReference root = getEditedRoot();
+    if (!target || target->getKind() == PDFContentNodeKind::Opaque || node.node == root.node)
+    {
+        return false;
+    }
+
+    // Up to the edited root: the node and every ancestor unlocked; the root must be reached (a node outside of the
+    // edited group is not the user's to change). The depth of a tree of the core is bounded by MAXIMUM_DEPTH.
+    PDFContentNodeId current = node.node;
+    for (int depth = 0; depth <= PDFContentContainer::MAXIMUM_DEPTH + 2 && current.isValid(); ++depth)
+    {
+        if (current == root.node)
+        {
+            return true;
+        }
+        if (m_session->isNodeLocked(PDFContentNodeReference{ node.container, current }))
+        {
+            return false;
+        }
+        const PDFContentNodePointer parent = container->getParent(current);
+        current = parent ? parent->getId() : PDFContentNodeId();
+    }
+    return false;
+}
+
+bool PDFAppEditContentContext::isComplexPage(const PDFContentDisplayCounts& counts)
+{
+    return counts.nodeCount > PDFAppEditContentScene::COMPLEX_PAGE_OBJECTS || counts.pathSegmentCount > PDFAppEditContentScene::COMPLEX_PAGE_PATH_SEGMENTS;
+}
+
+void PDFAppEditContentContext::connectSession()
+{
+    connect(m_session, &PDFContentEditSession::containerLoaded, this, &PDFAppEditContentContext::onContainerLoaded);
+    connect(m_session, &PDFContentEditSession::containerFailed, this, &PDFAppEditContentContext::onContainerFailed);
+}
+
+void PDFAppEditContentContext::reloadDocument(PDFDocumentPointer document)
+{
+    if (PDFDeferredDeletion::isRetired(this) || !document || document == m_document)
+    {
+        return;
+    }
+
+    // Nothing of the old version runs any more: the queued commands and actions name its nodes
+    m_queuedCommands.clear();
+    m_queuedActions.clear();
+    while (m_macroDepth > 0)
+    {
+        --m_macroDepth;
+        m_session->getUndoStack()->endMacro();
+    }
+    m_lastRefusalText.clear();
+    m_isolationPath.clear();
+
+    // The selection and the mode of the canvas end over the old session (their slots read it, and may close the
+    // tool: guarded)
+    QPointer<PDFAppEditContentContext> guard(this);
+    m_selection->clear();
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    setLockedClickNode(PDFContentNodeReference());
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    m_toolController->cancel();
+    m_toolController->activateSelectTool();
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    // The new session; the old one is cut off at once and deleted from the event loop (a caller up the stack may
+    // still be inside of one of its functions). Its workers hold their own data; their queued results reach the old
+    // session only and die with it.
+    PDFContentEditSession* oldSession = m_session;
+    oldSession->disconnect();
+    m_document = document;
+    m_session = new PDFContentEditSession(std::move(document), m_cms, this);
+    connectSession();
+    oldSession->deleteLater();
+
+    // The page stays (clamped to the new version), its container is requested again
+    const PDFInteger pageCount = getPageCount();
+    if (m_pageIndex >= pageCount)
+    {
+        m_pageIndex = pageCount - 1;
+    }
+    const PDFContentContainerKey key = getPageKey();
+    if (key.isValid() && !m_session->getContainer(key))
+    {
+        m_session->requestContainer(key);
+    }
+
+    Q_EMIT sessionReplaced();
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    Q_EMIT pageChanged(m_pageIndex);
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    Q_EMIT editingAllowedChanged();
 }
 
 bool PDFAppEditContentContext::execute(const PDFContentCommandPointer& command)

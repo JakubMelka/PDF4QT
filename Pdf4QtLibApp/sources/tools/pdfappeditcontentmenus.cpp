@@ -30,6 +30,7 @@
 #include "pdfappeditcontentselection.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfdocumenttoolgui.h"
+#include "pdfshortcutrepository.h"
 
 #include "pdfcomponentrows.h"
 #include "pdfthemeiconengine.h"
@@ -61,70 +62,119 @@ public:
     /// The move of Duplicate in the default space of the container (to the right and down)
     static constexpr PDFReal DUPLICATE_OFFSET = 10.0;
 
+    /// The work of the helpers (R7-3, R7-9; tests): the selected nodes inspected and the comparisons of the sets of
+    /// places. GUI thread.
+    static quint64& getWorkCounter()
+    {
+        static quint64 counter = 0;
+        return counter;
+    }
+
+    /// The order of the node identifiers, which counts its comparisons (getWorkCounter)
+    struct CountingLess
+    {
+        bool operator()(const PDFContentNodeId& left, const PDFContentNodeId& right) const
+        {
+            ++getWorkCounter();
+            return left < right;
+        }
+    };
+
+    /// The selected node is an object of the actions: a node of the edited container (the selection holds nodes of one
+    /// container), a row of the tree, not the edited root, not unknown content, inside of the edited root, without a
+    /// selected ancestor (the ancestor carries it); for a change of the content (\p isLockedIncluded false) the one rule
+    /// of the lock, PDFAppEditContentContext::isNodeChangeable (R7-4: the node and its ancestors unlocked). \p position
+    /// gets the indices from the root to the node (the order of the content). Cost: the depth of the node, one lookup
+    /// of the selection per level.
+    static bool isObject(const PDFAppEditContentContext* context, const PDFContentContainer& container, const PDFAppEditContentSelection& selection,
+                         const PDFContentNodeReference& reference, bool isLockedIncluded, std::vector<PDFInteger>* position)
+    {
+        ++getWorkCounter();
+        const PDFContentNodeReference root = context->getEditedRoot();
+        const PDFContentNodePointer node = container.getNode(reference.node);
+        if (reference.container != container.getKey() || !node || reference.node == root.node || !PDFAppEditContentObjectsModel::getRowNodeOfChild(*node) ||
+            node->getKind() == PDFContentNodeKind::Opaque)
+        {
+            return false;
+        }
+        if (!isLockedIncluded && !context->isNodeChangeable(reference))
+        {
+            return false;
+        }
+
+        // Inside of the edited root, and no selected ancestor; the position in the content on the way up
+        bool isInsideRoot = false;
+        PDFContentNodeId current = reference.node;
+        for (int depth = 0; depth < MAXIMUM_DEPTH && current.isValid(); ++depth)
+        {
+            if (current == root.node)
+            {
+                isInsideRoot = true;
+                break;
+            }
+            if (current != reference.node && selection.contains(PDFContentNodeReference{ reference.container, current }))
+            {
+                return false;
+            }
+            if (position)
+            {
+                position->push_back(container.getIndexInParent(current));
+            }
+            const PDFContentNodePointer parent = container.getParent(current);
+            current = parent ? parent->getId() : PDFContentNodeId();
+        }
+        if (position)
+        {
+            std::reverse(position->begin(), position->end());
+        }
+        return isInsideRoot;
+    }
+
+    /// Some selected node is an object (isObject): the cheap question of isEnabled (R7-9: the scan stops at the first
+    /// object, nothing is sorted)
+    static bool hasObjects(const PDFAppEditContentContext* context, bool isLockedIncluded)
+    {
+        const PDFAppEditContentSelection* selection = context ? context->getSelection() : nullptr;
+        const PDFContentContainerPointer container = context ? context->getContainer() : PDFContentContainerPointer();
+        if (!selection || !container)
+        {
+            return false;
+        }
+        for (const PDFContentNodeReference& node : selection->getNodes())
+        {
+            if (isObject(context, *container, *selection, node, isLockedIncluded, nullptr))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// The selected objects in the order of the content; \p isLockedIncluded keeps locked objects (Lock, Hide)
     static std::vector<PDFContentNodeReference> getObjects(const PDFAppEditContentContext* context, bool isLockedIncluded)
     {
         std::vector<PDFContentNodeReference> result;
         const PDFAppEditContentSelection* selection = context ? context->getSelection() : nullptr;
         const PDFContentContainerPointer container = context ? context->getContainer() : PDFContentContainerPointer();
-        const PDFContentEditSession* session = context ? context->getSession() : nullptr;
-        if (!selection || !container || !session || selection->isEmpty())
+        if (!selection || !container || selection->isEmpty())
         {
             return result;
         }
 
-        const PDFContentNodeReference root = context->getEditedRoot();
-        std::set<PDFContentNodeId> selected;
+        // The selection holds no node twice (PDFAppEditContentSelection::setNodes)
+        std::vector<std::pair<std::vector<PDFInteger>, PDFContentNodeReference>> ordered;
+        ordered.reserve(selection->getNodes().size());
         for (const PDFContentNodeReference& node : selection->getNodes())
         {
-            if (node.container == container->getKey())
-            {
-                selected.insert(node.node);
-            }
-        }
-
-        std::vector<std::pair<std::vector<PDFInteger>, PDFContentNodeReference>> ordered;
-        for (const PDFContentNodeId& id : selected)
-        {
-            const PDFContentNodePointer node = container->getNode(id);
-            if (!node || id == root.node || !PDFAppEditContentObjectsModel::getRowNodeOfChild(*node) || node->getKind() == PDFContentNodeKind::Opaque)
-            {
-                continue;
-            }
-            const PDFContentNodeReference reference{ container->getKey(), id };
-            if (!isLockedIncluded && session->isNodeLocked(reference))
-            {
-                continue;
-            }
-
-            // Inside of the edited root, and no selected ancestor; the position in the content on the way up
             std::vector<PDFInteger> position;
-            bool isInsideRoot = false;
-            bool hasSelectedAncestor = false;
-            PDFContentNodeId current = id;
-            for (int depth = 0; depth < MAXIMUM_DEPTH && current.isValid(); ++depth)
+            if (isObject(context, *container, *selection, node, isLockedIncluded, &position))
             {
-                if (current == root.node)
-                {
-                    isInsideRoot = true;
-                    break;
-                }
-                if (current != id && selected.count(current))
-                {
-                    hasSelectedAncestor = true;
-                }
-                position.push_back(container->getIndexInParent(current));
-                const PDFContentNodePointer parent = container->getParent(current);
-                current = parent ? parent->getId() : PDFContentNodeId();
-            }
-            if (isInsideRoot && !hasSelectedAncestor)
-            {
-                std::reverse(position.begin(), position.end());
-                ordered.emplace_back(std::move(position), reference);
+                ordered.emplace_back(std::move(position), node);
             }
         }
 
         std::sort(ordered.begin(), ordered.end());
+        result.reserve(ordered.size());
         for (auto& item : ordered)
         {
             result.push_back(item.second);
@@ -133,7 +183,7 @@ public:
     }
 
     /// The selected objects grouped by the parent of their places in the tree (getPlaceId): the places in the order
-    /// of the content
+    /// of the content, each once (a set of the places: a selection of 100 000 objects of one parent stays O(n log n))
     static std::map<PDFContentNodeId, std::vector<PDFContentNodeId>> getPlacesByParent(const PDFAppEditContentContext* context)
     {
         std::map<PDFContentNodeId, std::vector<PDFContentNodeId>> result;
@@ -142,17 +192,14 @@ public:
         {
             return result;
         }
+        std::set<PDFContentNodeId, CountingLess> added;
         for (const PDFContentNodeReference& node : getObjects(context, false))
         {
             const PDFContentNodeId place = PDFAppEditContentObjectsModel::getPlaceId(*container, node.node);
             const PDFContentNodePointer parent = container->getParent(place);
-            if (parent)
+            if (parent && added.insert(place).second)
             {
-                std::vector<PDFContentNodeId>& places = result[parent->getId()];
-                if (std::find(places.cbegin(), places.cend(), place) == places.cend())
-                {
-                    places.push_back(place);
-                }
+                result[parent->getId()].push_back(place);
             }
         }
         return result;
@@ -360,11 +407,9 @@ public:
     }
 };
 
-/// The base of the entries of this file: a description of the row of a panel (the menu View, -menus-view)
+/// The base of the entries of this file
 class PDFAppEditContentMenuEntry : public PDFAppEditContentActionEntry
 {
-public:
-    virtual QString getDescription() const { return QString(); }
 };
 
 /// Delete: the one owner of "delete the selection" (pe1_skeleton_notes.md 11, R3-7); the key Delete of the tool
@@ -387,7 +432,8 @@ public:
 
     virtual bool isEnabled(const PDFAppEditContentContext* context) const override
     {
-        return context && context->isEditingAllowed() && !PDFAppEditContentMenusHelper::getObjects(context, false).empty();
+        // Asked at every refresh of the window (edit.delete): the scan stops at the first object (R7-9)
+        return context && context->isEditingAllowed() && PDFAppEditContentMenusHelper::hasObjects(context, false);
     }
 
     virtual void trigger(PDFAppEditContentContext* context) const override
@@ -664,7 +710,7 @@ public:
 
     virtual bool isEnabled(const PDFAppEditContentContext* context) const override
     {
-        return context && context->isEditingAllowed() && !PDFAppEditContentMenusHelper::getObjects(context, true).empty();
+        return context && context->isEditingAllowed() && PDFAppEditContentMenusHelper::hasObjects(context, true);
     }
 
     virtual void trigger(PDFAppEditContentContext* context) const override
@@ -676,7 +722,9 @@ public:
         }
 
         // Every selected object gets the state, unless all have it already (then all lose it); the session tells each
-        // change by editorStateChanged - its slots may close the tool
+        // change by editorStateChanged - its slots may close the tool. R6-2: PDFContentEditSession has no call for many
+        // nodes at once, so it is told node by node; the tree bounds its work per turn of the event loop
+        // (PDFAppEditContentObjectsModel), the scene coalesces its walk (FX2).
         const bool isOn = !isAllOn(context);
         const QPointer<PDFContentEditSession> guard(session);
         for (const PDFContentNodeReference& node : PDFAppEditContentMenusHelper::getObjects(context, true))
@@ -697,22 +745,31 @@ public:
     }
 
 private:
+    /// Every object of the selection has the state (and there is one): a scan without an order, it stops at the first
+    /// object without the state (the title is asked at every opening of a menu)
     bool isAllOn(const PDFAppEditContentContext* context) const
     {
         const PDFContentEditSession* session = context ? context->getSession() : nullptr;
-        const std::vector<PDFContentNodeReference> nodes = PDFAppEditContentMenusHelper::getObjects(context, true);
-        if (!session || nodes.empty())
+        const PDFAppEditContentSelection* selection = context ? context->getSelection() : nullptr;
+        const PDFContentContainerPointer container = context ? context->getContainer() : PDFContentContainerPointer();
+        if (!session || !selection || !container)
         {
             return false;
         }
-        for (const PDFContentNodeReference& node : nodes)
+        bool hasObject = false;
+        for (const PDFContentNodeReference& node : selection->getNodes())
         {
+            if (!PDFAppEditContentMenusHelper::isObject(context, *container, *selection, node, true, nullptr))
+            {
+                continue;
+            }
             if (!(m_isLock ? session->isNodeLocked(node) : session->isNodeHidden(node)))
             {
                 return false;
             }
+            hasObject = true;
         }
-        return true;
+        return hasObject;
     }
 
     bool m_isLock;
@@ -733,7 +790,7 @@ public:
 
     virtual bool isEnabled(const PDFAppEditContentContext* context) const override
     {
-        return context && context->isEditingAllowed() && !PDFAppEditContentMenusHelper::getObjects(context, false).empty();
+        return context && context->isEditingAllowed() && PDFAppEditContentMenusHelper::hasObjects(context, false);
     }
 
     virtual void trigger(PDFAppEditContentContext* context) const override
@@ -818,8 +875,9 @@ public:
         return QString();
     }
 
-    virtual QString getDescription() const override
+    virtual QString getDescription(const PDFAppEditContentContext* context) const override
     {
+        Q_UNUSED(context);
         switch (m_view)
         {
             case View::ClippingPaths:
@@ -937,9 +995,7 @@ public:
         bool isFirst = true;
         for (const PDFAppEditContentActionEntry* entry : registry->getMenuActions(m_menuId))
         {
-            // getPlacements returns a value: the placement points into this local vector
-            const std::vector<PDFAppEditContentActionEntry::Placement> placements = entry->getPlacements();
-            const PDFAppEditContentActionEntry::Placement* placement = PDFAppEditContentRegistry::findPlacement(placements, m_menuId);
+            const std::optional<PDFAppEditContentActionEntry::Placement> placement = PDFAppEditContentRegistry::findPlacement(entry->getPlacements(), m_menuId);
             if (!placement || !entry->isVisible(m_context) || !entry->getChoices(m_context).empty())
             {
                 // A submenu has no row in a panel (no entry of stage E1 has one)
@@ -961,7 +1017,7 @@ public:
                 isFirst = false;
             }
 
-            PDFTileRow* row = m_panel->addRow(entry->getTitle(m_context), PDFAppEditContentMenus::getDescription(entry), entry->getIconName(), PDFTileRow::Kind::MenuItem);
+            PDFTileRow* row = m_panel->addRow(entry->getTitle(m_context), PDFAppEditContentMenus::getDescription(entry, m_context), entry->getIconName(), PDFTileRow::Kind::MenuItem);
             row->setObjectName(QStringLiteral("editContentMenuRow-") + entry->getId());
             row->setProperty(PDFAppEditContentMenus::ACTION_PROPERTY, entry->getId());
             const QKeySequence key = PDFAppEditContentMenus::getShownKey(entry, m_context);
@@ -1083,15 +1139,28 @@ QKeySequence PDFAppEditContentMenus::getShownKey(const PDFAppEditContentActionEn
         return keys.front().sequence;
     }
 
-    // An entry, which answers a command of the application, shows its key (the default one; the view of the tool turns
-    // the key into the command, pe1_skeleton_notes.md 8.2)
+    // An entry, which answers a command of the application, shows the key of the command as the user has it now (a
+    // rebinding in Settings, read from the database at each opening of a menu; the view of the tool turns the same key
+    // into the command, PDFAppEditContentView::loadCommandKeys); the default key without a stored one, none when the
+    // user removed it
     const QStringList commandIds = entry->getApplicationCommandIds();
     const PDFDocumentToolGUI* gui = context ? context->getGUI() : nullptr;
     const PDFAppContext* appContext = gui ? gui->getContext() : nullptr;
-    const PDFAppCommand* command = (appContext && !commandIds.isEmpty()) ? appContext->getCommandRegistry()->findCommand(commandIds.front()) : nullptr;
+    const PDFAppCommandRegistry* commandRegistry = appContext ? appContext->getCommandRegistry() : nullptr;
+    const PDFAppCommand* command = (commandRegistry && !commandIds.isEmpty()) ? commandRegistry->findCommand(commandIds.front()) : nullptr;
     if (command)
     {
-        return command->defaultShortcut;
+        PDFAppCommandRegistry::UserShortcuts userShortcuts;
+        if (appContext->getDatabase())
+        {
+            PDFDatabaseError error;
+            userShortcuts = appContext->getShortcuts().getShortcuts(&error);
+            if (error.isError())
+            {
+                userShortcuts.clear();
+            }
+        }
+        return commandRegistry->getShortcut(command->id, userShortcuts);
     }
     if (!commandIds.isEmpty() && commandIds.front() == PDFAppCommands::deleteSelection())
     {
@@ -1101,10 +1170,14 @@ QKeySequence PDFAppEditContentMenus::getShownKey(const PDFAppEditContentActionEn
     return QKeySequence();
 }
 
-QString PDFAppEditContentMenus::getDescription(const PDFAppEditContentActionEntry* entry)
+quint64 PDFAppEditContentMenus::getWorkCount()
 {
-    const PDFAppEditContentMenuEntry* ownEntry = dynamic_cast<const PDFAppEditContentMenuEntry*>(entry);
-    return ownEntry ? ownEntry->getDescription() : QString();
+    return PDFAppEditContentMenusHelper::getWorkCounter();
+}
+
+QString PDFAppEditContentMenus::getDescription(const PDFAppEditContentActionEntry* entry, const PDFAppEditContentContext* context)
+{
+    return entry ? entry->getDescription(context) : QString();
 }
 
 QMenu* PDFAppEditContentMenus::openMenu(const QString& menuId, const QPoint& globalPosition)
@@ -1133,9 +1206,7 @@ QMenu* PDFAppEditContentMenus::openMenu(const QString& menuId, const QPoint& glo
     bool isFirst = true;
     for (const PDFAppEditContentActionEntry* entry : registry->getMenuActions(menuId))
     {
-        // getPlacements returns a value: the placement points into this local vector
-        const std::vector<PDFAppEditContentActionEntry::Placement> placements = entry->getPlacements();
-        const PDFAppEditContentActionEntry::Placement* placement = PDFAppEditContentRegistry::findPlacement(placements, menuId);
+        const std::optional<PDFAppEditContentActionEntry::Placement> placement = PDFAppEditContentRegistry::findPlacement(entry->getPlacements(), menuId);
         if (!placement || !entry->isVisible(m_context))
         {
             // Rows of a later stage and rows, which do not apply to the selection, are hidden (zadani_gui.md 4.16)

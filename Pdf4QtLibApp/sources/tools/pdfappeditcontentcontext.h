@@ -60,6 +60,7 @@ class PDFAppEditContentToolController;
 class PDFAppEditContentView;
 class PDFAppToolParameterModel;
 class PDFDocumentToolGUI;
+struct PDFContentDisplayCounts;
 
 // Edit Content, stage E1, skeleton. Plan: zadani_gui.md 4.14 (classes and ownership), 4.19
 // (pending values of the cards), 4.26 (stored options), 4.27 (edge situations); zadani.md KE.28,
@@ -240,6 +241,12 @@ public:
 
     const PDFAppEditContentRegistry* getRegistry() const { return m_registry; }
     PDFContentEditSession* getSession() const { return m_session; }
+
+    /// The document being edited as the shared pointer the context was made with (the document of
+    /// getSession; never nullptr). For a job in another thread, which must keep the document alive
+    /// (the decoding of an image, the rendering of Preview): the job holds the pointer, the GUI
+    /// thread reads the document through the session as before.
+    const PDFDocumentPointer& getDocumentPointer() const { return m_document; }
     PDFAppEditContentOptions* getOptions() const { return m_options; }
     PDFAppEditContentSelection* getSelection() const { return m_selection; }
     PDFAppEditContentToolController* getToolController() const { return m_toolController; }
@@ -318,6 +325,54 @@ public:
     /// the preview is off, no run of the tool is in progress (setRunning) and the session is not
     /// inside of a change. The tools, the cards and the actions are disabled otherwise.
     bool isEditingAllowed() const;
+
+    /// The one rule of the lock (R7-4; QE.8, RE-16): the selected nodes, which a command of the
+    /// user may change - a command of a card, a drag of a row of the tree, an action of a menu and
+    /// a gesture of the canvas all take their nodes from here, so a locked object is left alone
+    /// everywhere. A node passes isNodeChangeable; the nodes keep the order of the selection (the
+    /// key object of PDFAppEditContentSelection::getKeyNode is in the list exactly when it passes).
+    /// The whole selection is taken (never a part of it: a cap of a card is a cap of what it shows,
+    /// never of what its command changes, R7-1). Cost: the selection x the depth of the nodes
+    /// (PDFContentContainer::MAXIMUM_DEPTH at most), one lookup of the lock per level.
+    std::vector<PDFContentNodeReference> getChangeableSelection() const;
+
+    /// The node may be changed by a command of the user: a node of the edited container
+    /// (getContainer), inside of the edited root and not the root itself, not of the kind Opaque
+    /// (its content is kept byte for byte), and neither the node nor one of its ancestors up to
+    /// the edited root is locked (PDFContentEditSession::isNodeLocked: a locked group locks what
+    /// it holds). False while the container is not loaded. The descendants are not asked: a lock
+    /// protects an object from a direct selection and a direct command; a command on an unlocked
+    /// group changes the group as a whole with a locked object inside of it (owner 2026-11-28).
+    bool isNodeChangeable(const PDFContentNodeReference& node) const;
+
+    /// The one policy of the complex page (zadani.md QE.10, 12.1; integration row 27): the
+    /// container is complex above PDFAppEditContentScene::COMPLEX_PAGE_OBJECTS nodes or above
+    /// PDFAppEditContentScene::COMPLEX_PAGE_PATH_SEGMENTS segments of its paths (the counts of
+    /// PDFContentDisplay::getCounts, which the core keeps per version). The canvas (a drag shows
+    /// the common outline) and the notice of the tool GUI both ask this.
+    static bool isComplexPage(const PDFContentDisplayCounts& counts);
+
+    // ------------------------------------------------------------- a new version of the document (zadani_gui.md 4.21)
+
+    /// Loads the session again over \p document, a new version of the document of the tab, while
+    /// the tool has no work ("a session without work is loaded again"; the GUI of the tool calls
+    /// it from onDocumentChanged when the undo stack is clean and no value of a card is pending -
+    /// with work the stale-document notice stays). Nothing for a retired context, a null document
+    /// or the document of the session.
+    ///
+    /// In this order: the queued commands and actions are dropped, an open macro is closed; the
+    /// selection and the node of the card Locked object are cleared, the active tool goes back to
+    /// Select (its gesture and mode end); a new session over \p document replaces the old one
+    /// (getSession, getDocumentPointer follow; a clean undo stack; the locks and hidden flags of
+    /// the old session are gone - they belong to the nodes of the old version); the old session
+    /// is disconnected and deleted from the event loop (its builds and their late results die
+    /// with it - a build of the old session never reaches a holder of the new one). The page
+    /// index stays (clamped to the pages of the new version), the isolation path is cleared, the
+    /// container of the page is requested again. Then, each emission guarded (a slot may close the
+    /// tool): sessionReplaced (every holder of a connection to the session connects to the new
+    /// one), pageChanged (every part reads the page again: the scene, the tabs, the cards, the
+    /// preview start over with new request numbers), editingAllowedChanged.
+    void reloadDocument(PDFDocumentPointer document);
 
     /// Executes the command now (PDFContentEditSession::execute: one undo step, or a part of the
     /// open macro). \returns true = applied. A refused command leaves the model unchanged; its
@@ -439,8 +494,16 @@ Q_SIGNALS:
     /// requestPage
     void pageRequested(pdf::PDFInteger pageIndex);
 
-    /// The shown page changed (setPage); the edited root changed with it (no containerChanged)
+    /// The shown page changed (setPage); the edited root changed with it (no containerChanged).
+    /// Also emitted by reloadDocument for the same page index (the page of a new version).
     void pageChanged(pdf::PDFInteger pageIndex);
+
+    /// reloadDocument has replaced the session (getSession is another object now; the old one is
+    /// disconnected and deleted from the event loop): an object, which connected to the signals
+    /// of the session (modelChanged, editorStateChanged, containerLoaded, ...), connects to the
+    /// new getSession() in its slot; pageChanged follows right after it. A new signal, because no
+    /// existing one can tell a holder of a connection to the old session.
+    void sessionReplaced();
 
     /// The edited root changed without a change of the page (setIsolationPath), or the container
     /// of the edited root was loaded or failed to load (getContainer changed between nullptr and a
@@ -497,7 +560,12 @@ private:
     void onContainerLoaded(const pdf::PDFContentContainerKey& key);
     void onContainerFailed(const pdf::PDFContentContainerKey& key, const QString& errorText);
 
+    /// The connections of the context to the session (the constructor, reloadDocument)
+    void connectSession();
+
     const PDFAppEditContentRegistry* m_registry = nullptr;
+    PDFDocumentPointer m_document;                              ///< The document of the session
+    PDFCMSPointer m_cms;                                        ///< The color management of the session (reloadDocument)
     PDFContentEditSession* m_session = nullptr;                 ///< A child
     PDFAppEditContentOptions* m_options = nullptr;              ///< A child
     PDFAppEditContentSelection* m_selection = nullptr;          ///< A child

@@ -22,7 +22,6 @@
 
 #include "pdfappeditcontentitems.h"
 
-#include "pdfappdocument.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentregistry.h"
 #include "pdfappeditcontentscene.h"
@@ -36,25 +35,38 @@
 
 #include <QBrush>
 #include <QGradient>
+#include <QPaintDevice>
 #include <QPainterPathStroker>
 #include <QStyleOptionGraphicsItem>
 #include <QtGlobal>
+#include <QtMath>
 
 #include <cmath>
+#include <tuple>
 
 namespace pdf
 {
 
-// Stage E1, package P11: the items of the canvas. Every item draws in the default space of its container (the item
-// coordinates; a form item maps the space of its form into the space of its use). Bounds: an item draws the data of
-// one node - a path its segments, a text its glyphs (the lines are built at their first paint, only the lines
-// exposed), an image one picture of at most 4 megapixels.
+// Stage E1, package P11, fix package FX2: the items of the canvas. Every item draws in the default space of its
+// container (the item coordinates; a form item maps the space of its form into the space of its use). Bounds: an item
+// draws the data of one node - a path its segments, a text its glyphs (the lines are built at their first paint, only
+// the lines exposed), an image one picture of the scene (at most 4 megapixels, shared by the uses of the image); a
+// paint or a hit intersects at most PDFAppEditContentClipNode::MAXIMUM_EXACT_CLIPS clip paths exactly and walks up at
+// most the nesting of the forms (PDFContentEditSession::MAXIMUM_CONTAINER_NESTING); the tile of a pattern repeats its
+// cell at most MAXIMUM_TILE_REPEATS times per axis.
 
 /// Helpers of this file (static functions only)
 class PDFAppEditContentItemsHelper
 {
 public:
     PDFAppEditContentItemsHelper() = delete;
+
+    /// Most copies of a pattern cell per axis drawn into one tile (a cell larger than its steps overlaps its
+    /// neighbors); more: the pattern is drawn as the placeholder (Preview draws it)
+    static constexpr int MAXIMUM_TILE_REPEATS = 8;
+
+    /// Most pixels of the tile of a pattern
+    static constexpr qreal MAXIMUM_TILE_PIXELS = 4000000.0;
 
     /// A new serial of an item (GUI thread only)
     static quint64 allocateSerial()
@@ -107,7 +119,125 @@ public:
     {
         return std::sqrt(std::abs(matrix.determinant()));
     }
+
+    /// The item of a form use around \p item (its parent, when it is one), nullptr else
+    static const PDFAppEditContentItem* getFormParent(const QGraphicsItem* item)
+    {
+        const QGraphicsItem* parent = item->parentItem();
+        const PDFAppEditContentItem* parentItem = parent ? qgraphicsitem_cast<const PDFAppEditContentItem*>(parent) : nullptr;
+        return parentItem && parentItem->getNodeKind() == PDFContentNodeKind::FormUse ? parentItem : nullptr;
+    }
+
+    /// The device pixel ratio of the device of the painter
+    static qreal getDevicePixelRatio(const QPainter* painter)
+    {
+        const QPaintDevice* device = painter ? painter->device() : nullptr;
+        return device ? device->devicePixelRatioF() : 1.0;
+    }
+
+    /// The gradient of an axial or a radial shading in the shading space
+    static QGradient createGradient(const PDFContentDisplayShading& shading)
+    {
+        QGradient gradient = shading.kind == PDFContentDisplayShading::Kind::Axial ? QGradient(QLinearGradient(shading.start, shading.end))
+                                                                                   : QGradient(QRadialGradient(shading.end, shading.endRadius, shading.start, shading.startRadius));
+        for (const PDFContentDisplayShading::Stop& stop : shading.stops)
+        {
+            gradient.setColorAt(qBound(0.0, stop.position, 1.0), stop.color);
+        }
+        gradient.setSpread(QGradient::PadSpread);
+        return gradient;
+    }
+
+    /// The transform of the pixels of a picture onto a rectangle (row 0 is its top, the larger y)
+    static QTransform getPictureToRectangle(const QImage& picture, const QRectF& rectangle)
+    {
+        if (picture.isNull())
+        {
+            return QTransform();
+        }
+        return QTransform(rectangle.width() / picture.width(), 0.0, 0.0, -rectangle.height() / picture.height(), rectangle.left(), rectangle.bottom());
+    }
 };
+
+// ---------------------------------------------------------------- PDFAppEditContentClipNode
+
+PDFAppEditContentClipNode::PDFAppEditContentClipNode(std::shared_ptr<const PDFAppEditContentClipNode> parent, QPainterPath path) :
+    m_parent(std::move(parent)),
+    m_path(std::move(path))
+{
+    const QRectF bounds = m_path.boundingRect();
+    m_bounds = m_parent ? m_parent->m_bounds.intersected(bounds) : bounds;
+    m_length = m_parent ? m_parent->m_length + 1 : 1;
+}
+
+PDFAppEditContentClipNode::~PDFAppEditContentClipNode()
+{
+    // A chain of 100 000 clips would be released recursively (one frame per clip): the parents, which only this node
+    // holds, are released one by one here instead
+    std::shared_ptr<const PDFAppEditContentClipNode> parent = std::move(m_parent);
+    while (parent && parent.use_count() == 1)
+    {
+        std::shared_ptr<const PDFAppEditContentClipNode> next = std::move(parent->m_parent);
+        parent = std::move(next);
+    }
+}
+
+void PDFAppEditContentClipNode::apply(QPainter* painter, int* budget) const
+{
+    for (const PDFAppEditContentClipNode* node = this; node; node = node->m_parent.get())
+    {
+        const Qt::ClipOperation operation = painter->hasClipping() ? Qt::IntersectClip : Qt::ReplaceClip;
+        if (*budget <= 0)
+        {
+            // The rest of the chain by the intersection of its bounding rectangles (one rectangle, the chain is cut here)
+            painter->setClipRect(node->m_bounds, operation);
+            return;
+        }
+        painter->setClipPath(node->m_path, operation);
+        --*budget;
+    }
+}
+
+bool PDFAppEditContentClipNode::contains(const QPointF& point, int* budget) const
+{
+    for (const PDFAppEditContentClipNode* node = this; node; node = node->m_parent.get())
+    {
+        if (*budget <= 0)
+        {
+            return node->m_bounds.contains(point);
+        }
+        if (!node->m_path.contains(point))
+        {
+            return false;
+        }
+        --*budget;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------- PDFAppEditContentPictureKey
+
+bool PDFAppEditContentPictureKey::operator==(const PDFAppEditContentPictureKey& other) const
+{
+    return xobject == other.xobject && container == other.container && node == other.node && maskColor == other.maskColor;
+}
+
+bool PDFAppEditContentPictureKey::operator<(const PDFAppEditContentPictureKey& other) const
+{
+    if (xobject != other.xobject)
+    {
+        return xobject < other.xobject;
+    }
+    if (container != other.container)
+    {
+        return container < other.container;
+    }
+    if (node != other.node)
+    {
+        return node < other.node;
+    }
+    return maskColor < other.maskColor;
+}
 
 // ---------------------------------------------------------------- PDFAppEditContentItem
 
@@ -152,7 +282,19 @@ void PDFAppEditContentItem::setDimmed(bool isDimmed)
     }
 
     m_isDimmed = isDimmed;
-    setOpacity(isDimmed ? 0.35 : 1.0);
+    updateOpacity();
+}
+
+void PDFAppEditContentItem::setBaseOpacity(qreal opacity)
+{
+    m_baseOpacity = qBound(0.0, opacity, 1.0);
+    updateOpacity();
+}
+
+void PDFAppEditContentItem::updateOpacity()
+{
+    // R6-15: the dimming multiplies the constant alpha of the content, it never replaces it
+    setOpacity(m_baseOpacity * (m_isDimmed ? 0.35 : 1.0));
 }
 
 void PDFAppEditContentItem::clearCache()
@@ -161,7 +303,22 @@ void PDFAppEditContentItem::clearCache()
 
 bool PDFAppEditContentItem::isHit(const QPointF& scenePoint, qreal tolerance) const
 {
-    return isVisible() && sceneBoundingRect().adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(scenePoint);
+    // The bounding rectangle under the clips in effect (R6-9: a part cut away by a clip is not hit)
+    if (!isVisible())
+    {
+        return false;
+    }
+
+    const QPointF point = mapFromScene(scenePoint);
+    const qreal itemTolerance = getItemTolerance(tolerance);
+    const QRectF rectangle = boundingRect();
+    if (isHiddenInEditor())
+    {
+        QPainterPath outline;
+        outline.addRect(rectangle);
+        return isHitByOutline(outline, point, itemTolerance) && isInsideClipPaths(point);
+    }
+    return rectangle.adjusted(-itemTolerance, -itemTolerance, itemTolerance, itemTolerance).contains(point) && isInsideClipPaths(point);
 }
 
 void PDFAppEditContentItem::setClipPaths(PDFAppEditContentClipPathsPointer clipPaths)
@@ -200,27 +357,48 @@ PDFAppEditContentScene* PDFAppEditContentItem::getContentScene() const
 
 void PDFAppEditContentItem::applyClipPaths(QPainter* painter) const
 {
-    if (!m_clipPaths)
+    // The chain of an item is in the coordinates of its parent; the chains of the form uses around it apply too (R6-7),
+    // each in the coordinates of its own parent - one budget of exact paths for all of them. Bounded by the nesting of
+    // the forms (the parent of a form item of the page is the content root, no form).
+    const QTransform itemToDevice = painter->worldTransform();
+    QTransform toDevice = itemToDevice;
+    int budget = PDFAppEditContentClipNode::MAXIMUM_EXACT_CLIPS;
+    bool isTransformChanged = false;
+    for (const PDFAppEditContentItem* current = this; current; current = PDFAppEditContentItemsHelper::getFormParent(current))
     {
-        return;
+        const QTransform& transform = current->transform();
+        if (!transform.isIdentity())
+        {
+            if (!transform.isInvertible())
+            {
+                break;
+            }
+            toDevice = transform.inverted() * toDevice;
+        }
+
+        if (current->m_clipPaths)
+        {
+            painter->setWorldTransform(toDevice);
+            isTransformChanged = true;
+            current->m_clipPaths->apply(painter, &budget);
+        }
     }
 
-    for (const QPainterPath& path : *m_clipPaths)
+    if (isTransformChanged)
     {
-        painter->setClipPath(path, painter->hasClipping() ? Qt::IntersectClip : Qt::ReplaceClip);
+        painter->setWorldTransform(itemToDevice);
     }
 }
 
 bool PDFAppEditContentItem::isInsideClipPaths(const QPointF& itemPoint) const
 {
-    if (!m_clipPaths)
+    QPointF point = itemPoint;
+    int budget = PDFAppEditContentClipNode::MAXIMUM_EXACT_CLIPS;
+    for (const PDFAppEditContentItem* current = this; current; current = PDFAppEditContentItemsHelper::getFormParent(current))
     {
-        return true;
-    }
-
-    for (const QPainterPath& path : *m_clipPaths)
-    {
-        if (!path.contains(itemPoint))
+        // Into the coordinates of the parent, where the chain of the item is
+        point = current->transform().map(point);
+        if (current->m_clipPaths && !current->m_clipPaths->contains(point, &budget))
         {
             return false;
         }
@@ -243,6 +421,13 @@ void PDFAppEditContentItem::paintHiddenOutline(QPainter* painter, const QPainter
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(outline);
+}
+
+bool PDFAppEditContentItem::isHitByOutline(const QPainterPath& outline, const QPointF& itemPoint, qreal itemTolerance) const
+{
+    QPainterPathStroker stroker;
+    stroker.setWidth(2.0 * itemTolerance);
+    return stroker.createStroke(outline).contains(itemPoint);
 }
 
 // ---------------------------------------------------------------- PDFAppEditContentDisplayAccess
@@ -294,7 +479,7 @@ QPainterPath PDFAppEditContentDisplayAccess::createPath(const PDFContentPath& pa
 QPen PDFAppEditContentDisplayAccess::createPen(const PDFContentDisplayState& state, const QColor& color)
 {
     // As the renderer of the project (PDFPainterHelper::createPenFromState): the values of the state in the space of the
-    // node; the line width 0 is the thinnest line of the device
+    // node; the line width 0 is the thinnest line of the device; the dash array by the core (item 7 of the fix package)
     QPen pen(color);
     pen.setWidthF(state.lineWidth);
     pen.setCosmetic(state.lineWidth <= 0.0);
@@ -307,14 +492,8 @@ QPen PDFAppEditContentDisplayAccess::createPen(const PDFContentDisplayState& sta
     }
     else
     {
-        // The dash array of QPen is in the units of the pen width (as PDFLineDashPattern::createForQPen)
-        QList<qreal> dashes;
-        for (const PDFReal value : state.dashPattern.getDashArray())
-        {
-            dashes.push_back(value / state.lineWidth);
-        }
         pen.setStyle(Qt::CustomDashLine);
-        pen.setDashPattern(dashes);
+        pen.setDashPattern(state.dashPattern.createForQPen(pen.widthF()));
         pen.setDashOffset(state.dashPattern.getDashOffset());
     }
     return pen;
@@ -331,39 +510,19 @@ QColor PDFAppEditContentDisplayAccess::getColor(const PDFContentDisplayColor& co
 
 QPainter::CompositionMode PDFAppEditContentDisplayAccess::getCompositionMode(BlendMode blendMode)
 {
-    // The separable blend modes QPainter has (as PDFBlendModeInfo::getCompositionModeFromBlendMode of the core, which
-    // is not exported); the others are drawn as Normal (Preview shows them)
-    switch (blendMode)
+    // The separable blend modes QPainter has (PDFBlendModeInfo of the core, exported since the fix package FX1); the
+    // others are drawn as Normal (Preview shows them)
+    if (!PDFBlendModeInfo::isSupportedByQt(blendMode))
     {
-        case BlendMode::Multiply:   return QPainter::CompositionMode_Multiply;
-        case BlendMode::Screen:     return QPainter::CompositionMode_Screen;
-        case BlendMode::Overlay:    return QPainter::CompositionMode_Overlay;
-        case BlendMode::Darken:     return QPainter::CompositionMode_Darken;
-        case BlendMode::Lighten:    return QPainter::CompositionMode_Lighten;
-        case BlendMode::ColorDodge: return QPainter::CompositionMode_ColorDodge;
-        case BlendMode::ColorBurn:  return QPainter::CompositionMode_ColorBurn;
-        case BlendMode::HardLight:  return QPainter::CompositionMode_HardLight;
-        case BlendMode::SoftLight:  return QPainter::CompositionMode_SoftLight;
-        case BlendMode::Difference: return QPainter::CompositionMode_Difference;
-        case BlendMode::Exclusion:  return QPainter::CompositionMode_Exclusion;
-        default:
-            break;
+        return QPainter::CompositionMode_SourceOver;
     }
-    return QPainter::CompositionMode_SourceOver;
+    return PDFBlendModeInfo::getCompositionModeFromBlendMode(blendMode);
 }
 
 PDFDocumentPointer PDFAppEditContentDisplayAccess::getDocument(const PDFAppEditContentContext* context)
 {
-    // The context does not give its shared document (a request of pe1p11_state.md); the GUI has it - only when it is
-    // the very document of the session (a document reloaded under the tool is another one)
-    const PDFDocumentToolGUI* gui = context ? context->getGUI() : nullptr;
-    const PDFAppDocument* document = gui && gui->getShell() ? gui->getDocument() : nullptr;
-    PDFDocumentPointer pointer = document ? document->getDocument() : PDFDocumentPointer();
-    if (!pointer || pointer.data() != context->getSession()->getDocument())
-    {
-        return PDFDocumentPointer();
-    }
-    return pointer;
+    // The shared document of the context (item 6 of the fix package): a worker holds it, also without a GUI
+    return context ? context->getDocumentPointer() : PDFDocumentPointer();
 }
 
 PDFCMSPointer PDFAppEditContentDisplayAccess::getColorManagement(const PDFAppEditContentContext* context)
@@ -371,6 +530,115 @@ PDFCMSPointer PDFAppEditContentDisplayAccess::getColorManagement(const PDFAppEdi
     const PDFDocumentToolGUI* gui = context ? context->getGUI() : nullptr;
     PDFAppToolHost* host = gui ? gui->getHost() : nullptr;
     return host ? host->createEnvironment().cms : PDFCMSPointer();
+}
+
+qint64 PDFAppEditContentDisplayAccess::getPixelStep(qreal pixels)
+{
+    // Powers of 4 (the double of the width and of the height), so a zoom changes the step seldom
+    const qint64 maximum = PDFContentDisplayImageOptions().maximumPixels;
+    qint64 step = 4096;
+    while (step < maximum && qreal(step) < pixels)
+    {
+        step *= 4;
+    }
+    return qMin(step, maximum);
+}
+
+qreal PDFAppEditContentDisplayAccess::getDevicePixels(const QRectF& rectangle, const QTransform& transform)
+{
+    const qreal pixels = std::abs(transform.determinant()) * std::abs(rectangle.width() * rectangle.height());
+    return std::isfinite(pixels) ? pixels : 0.0;
+}
+
+PDFAppEditContentPatternPaint PDFAppEditContentDisplayAccess::createPatternPaint(const PDFContentDisplayTilingCell& cell, const PDFContentDisplayShading& shading, qint64 pixels)
+{
+    using Helper = PDFAppEditContentItemsHelper;
+
+    PDFAppEditContentPatternPaint paint;
+    paint.isDone = true;
+    paint.pixels = pixels;
+
+    if (cell.status == PDFContentDisplayTilingCell::Status::Done && !cell.picture.isNull())
+    {
+        // A tiling pattern (ISO 32000-2, 8.7.3.1): the cell /BBox repeated by /XStep and /YStep in the pattern space. One
+        // tile of the size of the steps gets every copy of the cell, which reaches into it (a cell larger than its steps
+        // overlaps its neighbors); the texture brush repeats the tile.
+        const QRectF cellRectangle = cell.cellRectangle;
+        const qreal xStep = std::abs(cell.xStep);
+        const qreal yStep = std::abs(cell.yStep);
+        if (!(xStep > 0.0) || !(yStep > 0.0) || cellRectangle.isEmpty())
+        {
+            return paint;
+        }
+
+        const qreal unitsX = cell.picture.width() / cellRectangle.width();
+        const qreal unitsY = cell.picture.height() / cellRectangle.height();
+        const qreal tileWidth = std::ceil(xStep * unitsX);
+        const qreal tileHeight = std::ceil(yStep * unitsY);
+        const qreal repeatsX = std::ceil(cellRectangle.width() / xStep) + 1.0;
+        const qreal repeatsY = std::ceil(cellRectangle.height() / yStep) + 1.0;
+        if (!(tileWidth >= 1.0) || !(tileHeight >= 1.0) || tileWidth * tileHeight > Helper::MAXIMUM_TILE_PIXELS ||
+            repeatsX > Helper::MAXIMUM_TILE_REPEATS || repeatsY > Helper::MAXIMUM_TILE_REPEATS)
+        {
+            return paint;
+        }
+
+        QImage tile(int(tileWidth), int(tileHeight), QImage::Format_ARGB32_Premultiplied);
+        tile.fill(Qt::transparent);
+        const qreal scaleX = tileWidth / xStep;
+        const qreal scaleY = tileHeight / yStep;
+        const qreal left = cellRectangle.left();
+        const qreal bottom = cellRectangle.top();      // the smaller y of the pattern space
+        {
+            QPainter tilePainter(&tile);
+            tilePainter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            const int countX = int(repeatsX);
+            const int countY = int(repeatsY);
+            for (int i = -countX; i <= countX; ++i)
+            {
+                for (int j = -countY; j <= countY; ++j)
+                {
+                    // The copy (i, j) of the cell in the pixels of the tile (row 0 = the larger y of the tile)
+                    const qreal x = (cellRectangle.left() + i * xStep - left) * scaleX;
+                    const qreal y = (bottom + yStep - (cellRectangle.bottom() + j * yStep)) * scaleY;
+                    const QRectF target(x, y, cellRectangle.width() * scaleX, cellRectangle.height() * scaleY);
+                    if (target.intersects(QRectF(0.0, 0.0, tileWidth, tileHeight)))
+                    {
+                        tilePainter.drawImage(target, cell.picture);
+                    }
+                }
+            }
+        }
+
+        // The pixels of the tile -> the pattern space -> the default space of the container (/Matrix)
+        const QTransform tileToPattern(1.0 / scaleX, 0.0, 0.0, -1.0 / scaleY, left, bottom + yStep);
+        paint.brush = QBrush(tile);
+        paint.brush.setTransform(tileToPattern * cell.matrix);
+        paint.isPainted = true;
+        return paint;
+    }
+
+    if (shading.status == PDFContentDisplayShading::Status::Done)
+    {
+        // A shading pattern (8.7.4): a gradient in the shading space, or the picture of the other types over its rectangle
+        if (shading.kind == PDFContentDisplayShading::Kind::Picture)
+        {
+            if (shading.picture.isNull())
+            {
+                return paint;
+            }
+            paint.brush = QBrush(shading.picture);
+            paint.brush.setTransform(Helper::getPictureToRectangle(shading.picture, shading.pictureRectangle));
+        }
+        else
+        {
+            paint.brush = QBrush(Helper::createGradient(shading));
+            paint.brush.setTransform(shading.matrix);
+            paint.backgroundColor = shading.backgroundColor;
+        }
+        paint.isPainted = true;
+    }
+    return paint;
 }
 
 // ---------------------------------------------------------------- PDFAppEditContentPathItem
@@ -388,6 +656,7 @@ void PDFAppEditContentPathItem::setData(const PDFContentNode& node, const PDFCon
     prepareGeometryChange();
 
     const PDFContentNode::Data& data = node.getData();
+    m_containerKey = container.getKey();
     m_paint = data.paint;
     m_state = PDFAppEditContentDisplayAccess::getDisplayState(container, node.getId(), context);
     m_matrix = m_state ? m_state->matrix : QTransform();
@@ -409,6 +678,12 @@ void PDFAppEditContentPathItem::setData(const PDFContentNode& node, const PDFCon
     m_boundingRect = box.adjusted(-margin, -margin, margin, margin);
     m_strokeShape = QPainterPath();
     m_strokeShapeWidth = -1.0;
+
+    // A new version: the paints of its patterns are made again (the pattern or the matrix may be another one)
+    m_fillPattern = PDFAppEditContentPatternPaint();
+    m_strokePattern = PDFAppEditContentPatternPaint();
+    m_requestedPixels[0] = 0;
+    m_requestedPixels[1] = 0;
 }
 
 QRectF PDFAppEditContentPathItem::boundingRect() const
@@ -419,6 +694,39 @@ QRectF PDFAppEditContentPathItem::boundingRect() const
 QPainterPath PDFAppEditContentPathItem::shape() const
 {
     return m_containerPath;
+}
+
+bool PDFAppEditContentPathItem::hasPattern(bool isStroke) const
+{
+    if (!m_state)
+    {
+        return false;
+    }
+    const PDFContentDisplayColor& color = isStroke ? m_state->strokeColor : m_state->fillColor;
+    return color.kind == PDFContentDisplayColor::Kind::Pattern && (isStroke ? m_paint.stroke : m_paint.fill);
+}
+
+void PDFAppEditContentPathItem::setPatternPaint(bool isStroke, const PDFAppEditContentPatternPaint& paint)
+{
+    (isStroke ? m_strokePattern : m_fillPattern) = paint;
+    update();
+}
+
+void PDFAppEditContentPathItem::requestPattern(bool isStroke, qreal pixels)
+{
+    // One request per zoom step: a larger picture is asked for when the zoom needs it, the old one is drawn meanwhile
+    const qint64 step = PDFAppEditContentDisplayAccess::getPixelStep(pixels);
+    qint64& requested = m_requestedPixels[isStroke ? 1 : 0];
+    if (requested >= step)
+    {
+        return;
+    }
+
+    requested = step;
+    if (PDFAppEditContentScene* scene = getContentScene())
+    {
+        scene->requestDecoding(this, isStroke ? PDFAppEditContentDecodeKind::StrokePattern : PDFAppEditContentDecodeKind::FillPattern, step);
+    }
 }
 
 void PDFAppEditContentPathItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
@@ -436,18 +744,58 @@ void PDFAppEditContentPathItem::paint(QPainter* painter, const QStyleOptionGraph
         return;
     }
 
-    if (m_state && (m_paint.fill || m_paint.stroke))
+    if (m_state && isPainted())
     {
         PDFPainterStateGuard contentGuard(painter);
         painter->setCompositionMode(PDFAppEditContentDisplayAccess::getCompositionMode(m_state->blendMode));
-        painter->setWorldTransform(m_matrix, true);
+        const qreal devicePixelRatio = PDFAppEditContentItemsHelper::getDevicePixelRatio(painter);
+        const qreal pixels = PDFAppEditContentDisplayAccess::getDevicePixels(m_boundingRect, painter->worldTransform()) * devicePixelRatio * devicePixelRatio;
+        const QTransform containerToDevice = painter->worldTransform();
+
         if (m_paint.fill)
         {
-            painter->fillPath(m_path, PDFAppEditContentDisplayAccess::getColor(m_state->fillColor, m_state->alphaFilling));
+            if (hasPattern(false))
+            {
+                // A pattern fill: its brush is in the default space of the container (item 2 of the fix package)
+                requestPattern(false, pixels);
+                if (m_fillPattern.isPainted)
+                {
+                    if (m_fillPattern.backgroundColor.isValid())
+                    {
+                        painter->fillPath(m_containerPath, m_fillPattern.backgroundColor);
+                    }
+                    painter->setOpacity(painter->opacity() * qBound(0.0, m_state->alphaFilling, 1.0));
+                    painter->fillPath(m_containerPath, m_fillPattern.brush);
+                    painter->setOpacity(1.0);
+                }
+                else
+                {
+                    painter->fillPath(m_containerPath, PDFAppEditContentDisplayAccess::getColor(m_state->fillColor, m_state->alphaFilling));
+                }
+            }
+            else
+            {
+                painter->setWorldTransform(m_matrix * containerToDevice);
+                painter->fillPath(m_path, PDFAppEditContentDisplayAccess::getColor(m_state->fillColor, m_state->alphaFilling));
+            }
         }
         if (m_paint.stroke)
         {
-            painter->strokePath(m_path, PDFAppEditContentDisplayAccess::createPen(*m_state, PDFAppEditContentDisplayAccess::getColor(m_state->strokeColor, m_state->alphaStroking)));
+            painter->setWorldTransform(m_matrix * containerToDevice);
+            QPen pen = PDFAppEditContentDisplayAccess::createPen(*m_state, PDFAppEditContentDisplayAccess::getColor(m_state->strokeColor, m_state->alphaStroking));
+            if (hasPattern(true))
+            {
+                requestPattern(true, pixels);
+                if (m_strokePattern.isPainted && m_matrix.isInvertible())
+                {
+                    // The brush of the pen in the space of the node (the painter draws the stroke there)
+                    QBrush brush = m_strokePattern.brush;
+                    brush.setTransform(brush.transform() * m_matrix.inverted());
+                    pen.setBrush(brush);
+                    painter->setOpacity(painter->opacity() * qBound(0.0, m_state->alphaStroking, 1.0));
+                }
+            }
+            painter->strokePath(m_path, pen);
         }
     }
 
@@ -487,6 +835,16 @@ bool PDFAppEditContentPathItem::isHit(const QPointF& scenePoint, qreal tolerance
         return false;
     }
 
+    // Hidden: only a band around its outline (R6-17); painting switched off: no shape (item 8 - the tree selects it)
+    if (isHiddenInEditor())
+    {
+        return isHitByOutline(m_containerPath, point, itemTolerance);
+    }
+    if (!isPainted())
+    {
+        return false;
+    }
+
     // By the fill, or by a band around the outline at least as wide as the tolerance (zadani_gui.md 4.15)
     if (m_paint.fill && m_containerPath.contains(point))
     {
@@ -512,8 +870,13 @@ bool PDFAppEditContentPathItem::isHit(const QPointF& scenePoint, qreal tolerance
 
 void PDFAppEditContentPathItem::clearCache()
 {
+    // The theme or the device pixel ratio changed: the paths of the hit and the pictures of the patterns are made again
     m_strokeShape = QPainterPath();
     m_strokeShapeWidth = -1.0;
+    m_fillPattern = PDFAppEditContentPatternPaint();
+    m_strokePattern = PDFAppEditContentPatternPaint();
+    m_requestedPixels[0] = 0;
+    m_requestedPixels[1] = 0;
     update();
 }
 
@@ -588,9 +951,7 @@ bool PDFAppEditContentClipPathItem::isHit(const QPointF& scenePoint, qreal toler
     }
 
     const QPointF point = mapFromScene(scenePoint);
-    QPainterPathStroker stroker;
-    stroker.setWidth(2.0 * getItemTolerance(tolerance));
-    return stroker.createStroke(m_containerPath).contains(point);
+    return isHitByOutline(m_containerPath, point, getItemTolerance(tolerance));
 }
 
 // ---------------------------------------------------------------- PDFAppEditContentTextItem
@@ -631,6 +992,28 @@ const PDFContentDisplayTextPointer& PDFAppEditContentTextItem::getText() const
 bool PDFAppEditContentTextItem::isInvisible() const
 {
     return m_text && m_text->isInvisible;
+}
+
+std::optional<QPainterPath> PDFAppEditContentTextItem::getTextClip() const
+{
+    // ISO 32000-2, 9.3.6: the glyphs of the modes 4 - 7 are added to the clip, which takes effect at ET (one loop over
+    // the glyphs of the text object; a glyph without an outline adds nothing)
+    if (!m_text || !m_text->isClipping)
+    {
+        return std::nullopt;
+    }
+
+    QPainterPath clip;
+    clip.setFillRule(Qt::WindingFill);
+    for (const PDFContentDisplayGlyph& glyph : m_text->glyphs)
+    {
+        if (glyph.run < m_text->runs.size() && m_text->runs[glyph.run].isClipping && glyph.outline)
+        {
+            clip.addPath(glyph.outline->createPath(glyph.matrix));
+        }
+    }
+    clip.setFillRule(Qt::WindingFill);
+    return clip;
 }
 
 QRectF PDFAppEditContentTextItem::boundingRect() const
@@ -784,7 +1167,7 @@ bool PDFAppEditContentTextItem::isHit(const QPointF& scenePoint, qreal tolerance
         return false;
     }
 
-    // By the rectangles of its lines (zadani_gui.md 4.15)
+    // By the rectangles of its lines (zadani_gui.md 4.15); hidden: by the outlines of the lines (R6-17)
     const QPointF point = mapFromScene(scenePoint);
     const qreal itemTolerance = getItemTolerance(tolerance);
     if (!m_boundingRect.adjusted(-itemTolerance, -itemTolerance, itemTolerance, itemTolerance).contains(point) || !isInsideClipPaths(point))
@@ -792,8 +1175,15 @@ bool PDFAppEditContentTextItem::isHit(const QPointF& scenePoint, qreal tolerance
         return false;
     }
 
+    const bool isHidden = isHiddenInEditor();
     if (!m_text || m_text->lines.empty())
     {
+        if (isHidden)
+        {
+            QPainterPath outline;
+            outline.addRect(m_builderBox);
+            return isHitByOutline(outline, point, itemTolerance);
+        }
         return m_builderBox.adjusted(-itemTolerance, -itemTolerance, itemTolerance, itemTolerance).contains(point);
     }
 
@@ -803,6 +1193,16 @@ bool PDFAppEditContentTextItem::isHit(const QPointF& scenePoint, qreal tolerance
     {
         if (line.isInvisible && !isInvisibleShown)
         {
+            continue;
+        }
+        if (isHidden)
+        {
+            QPainterPath outline;
+            outline.addRect(line.boundingBox);
+            if (isHitByOutline(outline, point, itemTolerance))
+            {
+                return true;
+            }
             continue;
         }
         if (line.boundingBox.adjusted(-itemTolerance, -itemTolerance, itemTolerance, itemTolerance).contains(point))
@@ -839,8 +1239,24 @@ void PDFAppEditContentImageItem::setData(const PDFContentNode& node, const PDFCo
     const std::optional<PDFContentDisplayState> state = PDFAppEditContentDisplayAccess::getDisplayState(container, node.getId(), context);
     m_containerKey = container.getKey();
     m_matrix = state ? state->matrix : QTransform();
-    m_maskColor = state ? PDFAppEditContentDisplayAccess::getColor(state->fillColor, 1.0) : QColor(Qt::black);
-    setOpacity(state ? qBound(0.0, state->alphaFilling, 1.0) * (isDimmed() ? 0.35 : 1.0) : 1.0);
+    m_blendMode = state ? state->blendMode : BlendMode::Normal;
+    setBaseOpacity(state ? state->alphaFilling : 1.0);
+
+    // The picture of the scene: one per image XObject, an inline image per its node; a stencil mask per its color. A new
+    // version with the same key (a move, a resize) keeps its picture (R6-14).
+    const PDFContentNode::Data& data = node.getData();
+    PDFAppEditContentPictureKey key;
+    if (data.xobject.isValid())
+    {
+        key.xobject = data.xobject;
+    }
+    else
+    {
+        key.container = m_containerKey;
+        key.node = node.getId();
+    }
+    key.maskColor = state ? PDFAppEditContentDisplayAccess::getColor(state->fillColor, 1.0).rgba() : qRgba(0, 0, 0, 255);
+    m_pictureKey = key;
 
     // The unit square under the matrix (a degenerate matrix: the box of the builder)
     QRectF box = m_matrix.mapRect(QRectF(0.0, 0.0, 1.0, 1.0));
@@ -849,17 +1265,17 @@ void PDFAppEditContentImageItem::setData(const PDFContentNode& node, const PDFCo
         box = node.getBoundingBox();
     }
     m_boundingRect = box;
-
-    // A new version: the picture is decoded again at the next paint (the matrix alone does not change the pixels, but
-    // the image of a new node may be another one)
-    m_image = QImage();
-    m_isDecodingRequested = false;
-    m_isDecodingFailed = false;
 }
 
 QRectF PDFAppEditContentImageItem::boundingRect() const
 {
     return m_boundingRect;
+}
+
+bool PDFAppEditContentImageItem::hasPicture() const
+{
+    const PDFAppEditContentScene* scene = getContentScene();
+    return scene && scene->hasPicture(m_pictureKey);
 }
 
 void PDFAppEditContentImageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
@@ -879,29 +1295,27 @@ void PDFAppEditContentImageItem::paint(QPainter* painter, const QStyleOptionGrap
         return;
     }
 
-    // The first paint asks for the picture (a worker decodes it, zadani_gui.md 4.24)
-    if (!m_isDecodingRequested && PDFAppEditContentDisplayAccess::IS_IMAGE_READY)
-    {
-        m_isDecodingRequested = true;
-        if (PDFAppEditContentScene* scene = getContentScene())
-        {
-            scene->requestDecoding(this);
-        }
-    }
-
+    // The picture of the scene for the size on the device (the scene decodes a larger one in a worker when the zoom
+    // needs it; R6-5, zadani_gui.md 4.24)
+    painter->setCompositionMode(PDFAppEditContentDisplayAccess::getCompositionMode(m_blendMode));
     painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter->setWorldTransform(m_matrix, true);
-    if (!m_image.isNull())
+    const qreal devicePixelRatio = PDFAppEditContentItemsHelper::getDevicePixelRatio(painter);
+    const qreal pixels = PDFAppEditContentDisplayAccess::getDevicePixels(QRectF(0.0, 0.0, 1.0, 1.0), painter->worldTransform()) * devicePixelRatio * devicePixelRatio;
+    bool isFailed = false;
+    PDFAppEditContentScene* scene = getContentScene();
+    const QImage* picture = scene ? scene->getPicture(this, pixels, &isFailed) : nullptr;
+    if (picture && !picture->isNull())
     {
         // Row 0 of the picture is the top of the unit square (v = 1)
-        const QTransform pixelToUnit(1.0 / m_image.width(), 0.0, 0.0, -1.0 / m_image.height(), 0.0, 1.0);
+        const QTransform pixelToUnit(1.0 / picture->width(), 0.0, 0.0, -1.0 / picture->height(), 0.0, 1.0);
         painter->setWorldTransform(pixelToUnit, true);
-        painter->drawImage(QPointF(0.0, 0.0), m_image);
+        painter->drawImage(QPointF(0.0, 0.0), *picture);
         return;
     }
 
     // Until the picture comes (or without one): a light placeholder of the image area
-    painter->fillRect(QRectF(0.0, 0.0, 1.0, 1.0), QColor(200, 200, 200, m_isDecodingFailed ? 64 : 128));
+    painter->fillRect(QRectF(0.0, 0.0, 1.0, 1.0), QColor(200, 200, 200, isFailed ? 64 : 128));
 }
 
 bool PDFAppEditContentImageItem::updateNode(const PDFContentNode& node, const PDFContentContainer& container)
@@ -916,24 +1330,35 @@ bool PDFAppEditContentImageItem::updateNode(const PDFContentNode& node, const PD
     return true;
 }
 
-void PDFAppEditContentImageItem::clearCache()
+bool PDFAppEditContentImageItem::isHit(const QPointF& scenePoint, qreal tolerance) const
 {
-    // The picture does not depend on the theme; a new device pixel ratio does not need another one (at most 4
-    // megapixels are decoded whatever the zoom)
-    update();
-}
-
-void PDFAppEditContentImageItem::setDecodedImage(const PDFContentDisplayImage& image)
-{
-    if (image.status != PDFContentDisplayImage::Status::Decoded || image.image.isNull())
+    // R6-9: by the unit square under the matrix of the image (a rotated image not in the corners of its bounding
+    // rectangle) and by the clips in effect
+    if (!isVisible())
     {
-        m_isDecodingFailed = true;
-        update();
-        return;
+        return false;
     }
 
-    // A stencil mask comes painted in the fill color of the display state already (PDFContentDisplay::decodeImage)
-    m_image = image.image;
+    const QPointF point = mapFromScene(scenePoint);
+    const qreal itemTolerance = getItemTolerance(tolerance);
+    if (!isInsideClipPaths(point))
+    {
+        return false;
+    }
+
+    QPainterPath outline;
+    outline.addPolygon(m_matrix.map(QPolygonF(QRectF(0.0, 0.0, 1.0, 1.0))));
+    outline.closeSubpath();
+    if (isHiddenInEditor())
+    {
+        return isHitByOutline(outline, point, itemTolerance);
+    }
+    return outline.contains(point) || isHitByOutline(outline, point, itemTolerance);
+}
+
+void PDFAppEditContentImageItem::clearCache()
+{
+    // The pictures are the scene's (dropped there on a change of the theme)
     update();
 }
 
@@ -959,7 +1384,13 @@ void PDFAppEditContentShadingItem::setData(const PDFContentNode& node, const PDF
         box = node.getBoundingBox();
     }
     m_boundingRect = box;
-    m_shading.reset();
+
+    // R6-16: the constant alpha and the blend mode of the state (sh paints with the fill alpha, ISO 32000-2, 11.6.4.4)
+    const std::optional<PDFContentDisplayState> state = PDFAppEditContentDisplayAccess::getDisplayState(container, node.getId(), context);
+    m_alpha = state ? qBound(0.0, state->alphaFilling, 1.0) : 1.0;
+    m_blendMode = state ? state->blendMode : BlendMode::Normal;
+
+    // A new version: the shading of the old one is drawn until the new one comes (no flicker); asked again
     m_isDecodingRequested = false;
 }
 
@@ -985,22 +1416,27 @@ void PDFAppEditContentShadingItem::paint(QPainter* painter, const QStyleOptionGr
         return;
     }
 
-    if (!m_isDecodingRequested && PDFAppEditContentDisplayAccess::IS_SHADING_READY)
+    if (!m_isDecodingRequested)
     {
         m_isDecodingRequested = true;
         if (PDFAppEditContentScene* scene = getContentScene())
         {
-            scene->requestDecoding(this);
+            const qreal devicePixelRatio = PDFAppEditContentItemsHelper::getDevicePixelRatio(painter);
+            const qreal pixels = PDFAppEditContentDisplayAccess::getDevicePixels(m_boundingRect, painter->worldTransform()) * devicePixelRatio * devicePixelRatio;
+            scene->requestDecoding(this, PDFAppEditContentDecodeKind::Shading, PDFAppEditContentDisplayAccess::getPixelStep(pixels));
         }
     }
 
     // The area of the shading: its box (clipped by the clips in effect)
     painter->setClipRect(m_boundingRect, painter->hasClipping() ? Qt::IntersectClip : Qt::ReplaceClip);
+    painter->setOpacity(painter->opacity() * m_alpha);
+    painter->setCompositionMode(PDFAppEditContentDisplayAccess::getCompositionMode(m_blendMode));
     if (m_shading && m_shading->status == PDFContentDisplayShading::Status::Done)
     {
         const PDFContentDisplayShading& shading = *m_shading;
         if (shading.kind == PDFContentDisplayShading::Kind::Picture)
         {
+            // The types 1, 4 - 7 (the meshes since FX1): the picture of the core over its rectangle
             painter->drawImage(shading.pictureRectangle, shading.picture);
             return;
         }
@@ -1010,25 +1446,17 @@ void PDFAppEditContentShadingItem::paint(QPainter* painter, const QStyleOptionGr
             painter->fillRect(m_boundingRect, shading.backgroundColor);
         }
 
-        QGradient gradient = shading.kind == PDFContentDisplayShading::Kind::Axial ? QGradient(QLinearGradient(shading.start, shading.end))
-                                                                                   : QGradient(QRadialGradient(shading.end, shading.endRadius, shading.start, shading.startRadius));
-        for (const PDFContentDisplayShading::Stop& stop : shading.stops)
-        {
-            gradient.setColorAt(qBound(0.0, stop.position, 1.0), stop.color);
-        }
-        gradient.setSpread(QGradient::PadSpread);
-
         // The gradient in the shading space, the area in the default space of the container
         const QTransform& matrix = shading.matrix;
         if (matrix.isInvertible())
         {
             painter->setWorldTransform(matrix, true);
-            painter->fillRect(matrix.inverted().mapRect(m_boundingRect), QBrush(gradient));
+            painter->fillRect(matrix.inverted().mapRect(m_boundingRect), QBrush(PDFAppEditContentItemsHelper::createGradient(shading)));
         }
         return;
     }
 
-    // Until the shading comes (or without one): a light area
+    // Until the shading comes, and for TooLarge / Failed: a light area
     painter->fillRect(m_boundingRect, QColor(160, 160, 160, 64));
 }
 
@@ -1044,8 +1472,17 @@ bool PDFAppEditContentShadingItem::updateNode(const PDFContentNode& node, const 
     return true;
 }
 
+bool PDFAppEditContentShadingItem::isHit(const QPointF& scenePoint, qreal tolerance) const
+{
+    // The box of the core (/BBox and the clips) and the clip paths themselves
+    return PDFAppEditContentItem::isHit(scenePoint, tolerance);
+}
+
 void PDFAppEditContentShadingItem::clearCache()
 {
+    // The theme changed: the shading is computed again (the colors of the display)
+    m_shading.reset();
+    m_isDecodingRequested = false;
     update();
 }
 
@@ -1078,7 +1515,7 @@ void PDFAppEditContentFormItem::setData(const PDFContentNode& node, const PDFCon
     {
         m_builderBox = node.getBoundingBox();
     }
-    setOpacity(state ? qBound(0.0, state->alphaFilling, 1.0) : 1.0);
+    setBaseOpacity(state ? state->alphaFilling : 1.0);
 
     // The children (of the old version of the form) stay until the scene builds the new ones; a new use matrix moves
     // them at once
@@ -1107,6 +1544,32 @@ void PDFAppEditContentFormItem::setForm(const PDFContentContainer& form)
     setFlag(QGraphicsItem::ItemHasNoContents, false);
 }
 
+void PDFAppEditContentFormItem::resetForm()
+{
+    // Without children: the outline of the box of the builder in the space of the use
+    prepareGeometryChange();
+    m_formVersion = 0;
+    m_formBox = QRectF();
+    setBaseTransform(QTransform());
+    setFlag(QGraphicsItem::ItemClipsChildrenToShape, false);
+}
+
+void PDFAppEditContentFormItem::updateChildrenVisibility()
+{
+    // R6-8: a hidden use shows its outline only, its content is hidden (a nested use with it)
+    const bool isShown = !isHiddenInEditor();
+    for (QGraphicsItem* child : childItems())
+    {
+        child->setVisible(isShown);
+    }
+}
+
+void PDFAppEditContentFormItem::setEditorState(bool isLocked, bool isHidden)
+{
+    PDFAppEditContentItem::setEditorState(isLocked, isHidden);
+    updateChildrenVisibility();
+}
+
 QRectF PDFAppEditContentFormItem::boundingRect() const
 {
     return m_formVersion != 0 ? m_formBox : m_builderBox;
@@ -1124,7 +1587,8 @@ void PDFAppEditContentFormItem::paint(QPainter* painter, const QStyleOptionGraph
     Q_UNUSED(option);
     Q_UNUSED(widget);
 
-    // The children draw the form; without them (not loaded yet, not loadable, nested too deep) a light outline of its box
+    // The children draw the form; without them (not loaded yet, not loadable, nested too deep, beyond the budget) and
+    // when hidden: a light outline of its box
     if (m_formVersion != 0 && !isHiddenInEditor())
     {
         return;
@@ -1154,7 +1618,7 @@ bool PDFAppEditContentFormItem::updateNode(const PDFContentNode& node, const PDF
 
 bool PDFAppEditContentFormItem::isHit(const QPointF& scenePoint, qreal tolerance) const
 {
-    // By the box of the form (its /BBox under the matrices)
+    // By the box of the form (its /BBox under the matrices) and by the clips around the use, each in its own space (R6-7)
     if (!isVisible())
     {
         return false;
@@ -1162,6 +1626,12 @@ bool PDFAppEditContentFormItem::isHit(const QPointF& scenePoint, qreal tolerance
 
     const QPointF point = mapFromScene(scenePoint);
     const qreal itemTolerance = getItemTolerance(tolerance);
+    if (isHiddenInEditor())
+    {
+        QPainterPath outline;
+        outline.addRect(boundingRect());
+        return isHitByOutline(outline, point, itemTolerance) && isInsideClipPaths(point);
+    }
     return boundingRect().adjusted(-itemTolerance, -itemTolerance, itemTolerance, itemTolerance).contains(point) && isInsideClipPaths(point);
 }
 
@@ -1255,9 +1725,52 @@ bool PDFAppEditContentOpaqueItem::updateNode(const PDFContentNode& node, const P
     return true;
 }
 
+// ---------------------------------------------------------------- PDFAppEditContentUnderlayItem
+
+PDFAppEditContentUnderlayItem::PDFAppEditContentUnderlayItem()
+{
+    // Never selectable, no events (zadani_gui.md 4.15: the annotations are not edited by the tool)
+    setAcceptedMouseButtons(Qt::NoButton);
+    setAcceptHoverEvents(false);
+    setAcceptDrops(false);
+}
+
+PDFAppEditContentUnderlayItem::~PDFAppEditContentUnderlayItem() = default;
+
+QRectF PDFAppEditContentUnderlayItem::boundingRect() const
+{
+    return m_picture.isNull() ? QRectF() : m_rectangle;
+}
+
+void PDFAppEditContentUnderlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+{
+    Q_UNUSED(option);
+    Q_UNUSED(widget);
+
+    if (m_picture.isNull() || m_rectangle.isEmpty())
+    {
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setOpacity(painter->opacity() * DIMMED_OPACITY);
+    painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter->setWorldTransform(PDFAppEditContentItemsHelper::getPictureToRectangle(m_picture, m_rectangle), true);
+    painter->drawImage(QPointF(0.0, 0.0), m_picture);
+}
+
+void PDFAppEditContentUnderlayItem::setPicture(const QImage& picture, const QRectF& pageRectangle, PDFInteger pageIndex)
+{
+    prepareGeometryChange();
+    m_picture = picture;
+    m_rectangle = pageRectangle;
+    m_pageIndex = pageIndex;
+    update();
+}
+
 // ---------------------------------------------------------------- the entries of the registry
 
-/// The entry of the items of the paths, which paint
+/// The entry of the items of the paths, which paint (or whose painting is switched off)
 class PDFAppEditContentPathItemEntry : public PDFAppEditContentItemEntry
 {
 public:
@@ -1329,6 +1842,22 @@ public:
     virtual PDFAppEditContentItem* createItem(const PDFAppEditContentItemArguments& arguments) const override { return new PDFAppEditContentOpaqueItem(arguments); }
 };
 
+/// The entry of the overlay of the annotations and fields (zadani_gui.md 4.15; layer Underlay)
+class PDFAppEditContentUnderlayEntry : public PDFAppEditContentOverlayEntry
+{
+public:
+    virtual QString getId() const override { return QStringLiteral("annotation-underlay"); }
+    virtual PDFAppEditContentSceneLayer getLayer() const override { return PDFAppEditContentSceneLayer::Underlay; }
+
+    virtual QGraphicsItem* createOverlay(PDFAppEditContentContext* context, PDFAppEditContentScene* scene) const override
+    {
+        // The scene fills it (it finds it among its overlays); the item keeps nothing of the context
+        Q_UNUSED(context);
+        Q_UNUSED(scene);
+        return new PDFAppEditContentUnderlayItem();
+    }
+};
+
 void PDFAppEditContentItems::registerParts(PDFAppEditContentRegistry* registry)
 {
     registry->addItem(std::make_unique<PDFAppEditContentPathItemEntry>());
@@ -1339,6 +1868,7 @@ void PDFAppEditContentItems::registerParts(PDFAppEditContentRegistry* registry)
     registry->addItem(std::make_unique<PDFAppEditContentFormItemEntry>());
     registry->addItem(std::make_unique<PDFAppEditContentGroupItemEntry>());
     registry->addItem(std::make_unique<PDFAppEditContentOpaqueItemEntry>());
+    registry->addOverlay(std::make_unique<PDFAppEditContentUnderlayEntry>());
 }
 
 }   // namespace pdf

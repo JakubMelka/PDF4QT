@@ -24,6 +24,7 @@
 
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
+#include "pdfappeditcontentcards.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentregistry.h"
 #include "pdfappeditcontentscene.h"
@@ -37,6 +38,7 @@
 #include "pdfthemecolors.h"
 #include "pdfthemefonts.h"
 
+#include <QAccessible>
 #include <QContextMenuEvent>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -183,6 +185,9 @@ PDFAppEditContentView::PDFAppEditContentView(PDFAppEditContentContext* context, 
     m_scene = new PDFAppEditContentScene(context, this);
     setScene(m_scene);
 
+    // The scroll range is the view's own (item 5): the rectangle of the scene (a child) grown by the margins
+    connect(m_scene, &QGraphicsScene::sceneRectChanged, this, &PDFAppEditContentView::onSceneRectChanged);
+
     // Preview renders again 150 ms after the last change of its input (zadani_gui.md 4.15)
     m_previewTimer = new QTimer(this);
     m_previewTimer->setSingleShot(true);
@@ -197,6 +202,7 @@ PDFAppEditContentView::PDFAppEditContentView(PDFAppEditContentContext* context, 
         PDFDeferredDeletion::connect(context->getPreview(), &PDFAppEditContentPreview::imageChanged, this, &PDFAppEditContentView::onPreviewImageChanged);
         PDFDeferredDeletion::connect(context->getOptions(), &PDFAppEditContentOptions::changed, this, &PDFAppEditContentView::onOptionChanged);
         PDFDeferredDeletion::connect(context->getToolController(), &PDFAppEditContentToolController::stateChanged, this, &PDFAppEditContentView::onToolStateChanged);
+        PDFDeferredDeletion::connect(context->getSelection(), &PDFAppEditContentSelection::changed, this, &PDFAppEditContentView::onSelectionChanged);
         m_shownPage = context->getPageIndex();
     }
 
@@ -237,10 +243,63 @@ void PDFAppEditContentView::applyTransform()
     QTransform rotation;
     rotation.rotate(PDFAppEditContentViewHelper::getAngle(getRotation()));
     setTransform(QTransform::fromScale(scale, -scale) * rotation);
+    updateSceneRectangle();
     if (m_scene)
     {
         m_scene->getSelectionItem()->updateGeometry();
     }
+}
+
+void PDFAppEditContentView::setOverlayMargins(int top, int bottom)
+{
+    top = qMax(0, top);
+    bottom = qMax(0, bottom);
+    if (m_overlayTop == top && m_overlayBottom == bottom)
+    {
+        return;
+    }
+
+    m_overlayTop = top;
+    m_overlayBottom = bottom;
+    updateSceneRectangle();
+}
+
+void PDFAppEditContentView::onSceneRectChanged(const QRectF& rectangle)
+{
+    Q_UNUSED(rectangle);
+    updateSceneRectangle();
+}
+
+void PDFAppEditContentView::updateSceneRectangle()
+{
+    if (!m_scene || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    // In the pixels of the screen (the transform of the view scales, flips and turns by /Rotate; it has no scroll), so
+    // that "top" is the top of the screen for every /Rotate; back by the inverse (turns by 90 degrees map rectangles to
+    // rectangles exactly)
+    const QTransform matrix = transform();
+    if (!matrix.isInvertible())
+    {
+        return;
+    }
+
+    const QRectF device = matrix.mapRect(m_scene->sceneRect());
+    const qreal horizontal = viewport()->width() * 0.5;
+    const qreal vertical = viewport()->height() * 0.5;
+    const QRectF grown = device.adjusted(-horizontal, -vertical - m_overlayTop, horizontal, vertical + m_overlayBottom);
+    const QRectF rectangle = matrix.inverted().mapRect(grown);
+    if (!rectangle.isValid() || rectangle == sceneRect())
+    {
+        return;
+    }
+
+    // The visible part stays where it is (a new left / top edge of the range would shift it)
+    const QPointF center = getVisibleCenter();
+    setSceneRect(rectangle);
+    centerOn(center);
 }
 
 qreal PDFAppEditContentView::getZoom() const
@@ -256,10 +315,20 @@ void PDFAppEditContentView::setZoom(qreal zoom)
         return;
     }
 
+    // A zoom, which was asked for, wins over the fit, which waits for the show of the view (a fit, which waits for the
+    // paper of a page being loaded, stays)
+    if (m_scene && !m_scene->getPaperRectangle().isEmpty())
+    {
+        m_isFitPending = false;
+    }
+
     const QPointF center = getVisibleCenter();
     m_zoom = bounded;
     applyTransform();
     centerOn(center);
+
+    // R6-18: Preview renders the new zoom also when no scroll value changed (the whole paper visible)
+    schedulePreview();
     Q_EMIT viewChanged();
 }
 
@@ -310,12 +379,26 @@ void PDFAppEditContentView::fit(bool isWidth, bool isHeight)
     m_zoom = qBound(MINIMUM_ZOOM, zoom, MAXIMUM_ZOOM);
     applyTransform();
     centerOn(paper.center());
+    schedulePreview();
     Q_EMIT viewChanged();
 }
 
 void PDFAppEditContentView::fitPage()
 {
     fit(true, true);
+}
+
+void PDFAppEditContentView::fitPendingPage()
+{
+    if (!m_isFitPending || !m_scene || m_scene->getPaperRectangle().isEmpty())
+    {
+        return;
+    }
+
+    // A view, which is not shown yet, has the size of a new widget, not the one of the layout of the tool (the page would
+    // stay at the smallest zoom): the page is fitted to the size the view has and once more when the view is shown
+    fitPage();
+    m_isFitPending = !isVisible();
 }
 
 void PDFAppEditContentView::fitWidth()
@@ -335,7 +418,9 @@ qreal PDFAppEditContentView::getPixelSize() const
 
 QPointF PDFAppEditContentView::getVisibleCenter() const
 {
-    return mapToScene(viewport()->rect().center());
+    // The exact middle (QRect::center of an even width is half a pixel to the left: each centerOn would move the view by
+    // a pixel)
+    return viewportTransform().inverted().map(QRectF(viewport()->rect()).center());
 }
 
 void PDFAppEditContentView::ensureVisible(const QRectF& sceneRectangle)
@@ -415,6 +500,28 @@ QString PDFAppEditContentView::getCanvasCommand(const QKeyEvent* event) const
     return QString();
 }
 
+bool PDFAppEditContentView::isRegistryKey(const QKeyEvent* event) const
+{
+    // The same keys as PDFAppEditContentToolController::keyPress takes: the unmodified key of a tool entry, which is no
+    // mode of another tool, and a canvas key of an action entry (without Ctrl, Alt, Meta)
+    const PDFAppEditContentRegistry* registry = m_context ? m_context->getRegistry() : nullptr;
+    const Qt::KeyboardModifiers modifiers = event->modifiers() & ~Qt::KeypadModifier;
+    if (!registry || (modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)))
+    {
+        return false;
+    }
+
+    if (modifiers == Qt::NoModifier)
+    {
+        const PDFAppEditContentToolEntry* entry = registry->findToolByKey(QKeySequence(event->key()));
+        if (entry && entry->getPlace() != PDFAppEditContentToolEntry::Place::Mode)
+        {
+            return true;
+        }
+    }
+    return registry->findActionByKey(PDFAppEditContentViewHelper::getSequence(event), PDFAppEditContentKeyScope::Canvas) != nullptr;
+}
+
 bool PDFAppEditContentView::isCanvasKey(const QKeyEvent* event) const
 {
     if (!m_context || PDFDeferredDeletion::isRetired(this))
@@ -489,6 +596,24 @@ void PDFAppEditContentView::keyPressEvent(QKeyEvent* event)
         return;
     }
 
+    // R6-6: the keys of the tool entries and the canvas keys of the action entries first - the tool's own keys win on
+    // its canvas over the Canvas-scope shortcuts of the application (P = Preview, not view.fitPage). A key, which the
+    // controller did not use (a tool key while the editing is not allowed), goes on to the commands of the application.
+    const bool isRegistry = isRegistryKey(event);
+    if (isRegistry)
+    {
+        QPointer<PDFAppEditContentView> guard(this);
+        if (context->getToolController()->keyPress(event))
+        {
+            event->accept();
+            return;
+        }
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_context)
+        {
+            return;
+        }
+    }
+
     // A command of the application of the scope Canvas: handled from the event loop by the context
     const QString command = getCanvasCommand(event);
     if (!command.isEmpty() && context->handleApplicationCommand(command))
@@ -497,8 +622,8 @@ void PDFAppEditContentView::keyPressEvent(QKeyEvent* event)
         return;
     }
 
-    // The keys of the tools and of the canvas actions (the controller may close the tool: nothing after it)
-    if (context->getToolController()->keyPress(event))
+    // The keys of the tools (the arrows, Enter, Delete; the controller may close the tool: nothing after it)
+    if (!isRegistry && context->getToolController()->keyPress(event))
     {
         event->accept();
         return;
@@ -621,6 +746,7 @@ void PDFAppEditContentView::wheelEvent(QWheelEvent* event)
             const QPointF moved = mapFromScene(anchor);
             horizontalScrollBar()->setValue(horizontalScrollBar()->value() + qRound(moved.x() - position.x()));
             verticalScrollBar()->setValue(verticalScrollBar()->value() + qRound(moved.y() - position.y()));
+            schedulePreview();
             Q_EMIT viewChanged();
         }
         event->accept();
@@ -662,20 +788,24 @@ void PDFAppEditContentView::contextMenuEvent(QContextMenuEvent* event)
 void PDFAppEditContentView::resizeEvent(QResizeEvent* event)
 {
     BaseClass::resizeEvent(event);
-    if (m_isFitPending)
-    {
-        fitPage();
-        m_isFitPending = m_scene ? m_scene->getPaperRectangle().isEmpty() : true;
-    }
-    Q_EMIT viewChanged();
+    updateSceneRectangle();
+    fitPendingPage();
     schedulePreview();
+    Q_EMIT viewChanged();
+}
+
+void PDFAppEditContentView::showEvent(QShowEvent* event)
+{
+    // The view has its real size now (the pending resize comes before the show)
+    BaseClass::showEvent(event);
+    fitPendingPage();
 }
 
 void PDFAppEditContentView::scrollContentsBy(int dx, int dy)
 {
     BaseClass::scrollContentsBy(dx, dy);
-    Q_EMIT viewChanged();
     schedulePreview();
+    Q_EMIT viewChanged();
 }
 
 bool PDFAppEditContentView::focusNextPrevChild(bool next)
@@ -800,22 +930,14 @@ void PDFAppEditContentView::onPageChanged()
     {
         m_isFitPending = true;
         applyTransform();
-        if (m_scene && !m_scene->getPaperRectangle().isEmpty())
-        {
-            fitPage();
-            m_isFitPending = false;
-        }
+        fitPendingPage();
     }
     schedulePreview();
 }
 
 void PDFAppEditContentView::onContainerChanged()
 {
-    if (m_isFitPending && m_scene && !m_scene->getPaperRectangle().isEmpty())
-    {
-        fitPage();
-        m_isFitPending = false;
-    }
+    fitPendingPage();
 }
 
 void PDFAppEditContentView::onPreviewActiveChanged(bool isActive)
@@ -854,6 +976,61 @@ void PDFAppEditContentView::onToolStateChanged()
     {
         updateCursor(mapToScene(viewport()->mapFromGlobal(QCursor::pos())));
     }
+}
+
+void PDFAppEditContentView::onSelectionChanged()
+{
+    // One announcement per turn of the event loop (Select All, a rubber band and the pruning after a command change the
+    // selection more times in one turn; nothing per item)
+    if (m_isAnnouncementQueued || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    m_isAnnouncementQueued = true;
+    QMetaObject::invokeMethod(this, &PDFAppEditContentView::onAnnouncementQueued, Qt::QueuedConnection);
+}
+
+void PDFAppEditContentView::onAnnouncementQueued()
+{
+    m_isAnnouncementQueued = false;
+    const PDFAppEditContentContext* context = m_context.data();
+    if (!context || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    // The rule of the title of the card Selection: the kind of one object (PDFAppEditContentCardTools::getKindTitle),
+    // the count of more objects
+    const PDFAppEditContentSelection* selection = context->getSelection();
+    QString text;
+    if (selection->isEmpty())
+    {
+        text = tr("No object selected");
+    }
+    else if (selection->getCount() == 1)
+    {
+        const PDFContentNodeReference node = selection->getKeyNode();
+        const PDFContentContainerPointer container = context->getSession()->getContainer(node.container);
+        const PDFContentNodePointer target = container ? container->getNode(node.node) : PDFContentNodePointer();
+        text = target ? PDFAppEditContentCardTools::getKindTitle(*target, context->getSession()->getDocument()) : tr("%Ln object(s)", nullptr, 1);
+    }
+    else
+    {
+        text = tr("%Ln object(s)", nullptr, selection->getCount());
+    }
+
+    // One event: the announcement (a changed description would be a second one)
+    m_announcementText = text;
+    ++m_announcementCount;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    if (QAccessible::isActive())
+    {
+        QAccessibleAnnouncementEvent announcement(this, text);
+        QAccessible::updateAccessibility(&announcement);
+    }
+#endif
 }
 
 void PDFAppEditContentView::schedulePreview()
@@ -1129,12 +1306,20 @@ void PDFAppEditContentCanvas::layoutOverlays()
         }
     }
 
+    // The overlays over the top edge, which the scroll range of the view grows by (zadani_gui.md 4.15): the bars, and
+    // below them the mode label and the floating panels shown with their margins
+    int overlayTop = top - area.top();
+    int overlayBelowBars = 0;
     if (m_modeLabel->isVisibleTo(this) || !getModeLabelText().isEmpty())
     {
         const QSize size = m_modeLabel->sizeHint();
         const QRect rectangle(area.left() + margin, top + margin, qMin(size.width(), qMax(0, area.width() - 2 * margin)), size.height());
         m_modeLabel->setGeometry(QStyle::visualRect(layoutDirection(), area, rectangle));
         m_modeLabel->raise();
+        if (!getModeLabelText().isEmpty())
+        {
+            overlayBelowBars = qMax(overlayBelowBars, 2 * margin + size.height());
+        }
     }
 
     for (const QPointer<QWidget>& panel : m_floatingPanels)
@@ -1145,16 +1330,29 @@ void PDFAppEditContentCanvas::layoutOverlays()
             const QRect rectangle(area.right() - margin - size.width() + 1, top + margin, size.width(), size.height());
             panel->setGeometry(QStyle::visualRect(layoutDirection(), area, rectangle));
             panel->raise();
+            if (panel->isVisibleTo(this))
+            {
+                overlayBelowBars = qMax(overlayBelowBars, 2 * margin + size.height());
+            }
         }
     }
+    overlayTop += overlayBelowBars;
 
+    int overlayBottom = 0;
     if (QWidget* notice = m_noticeWidget.data())
     {
         const int width = qMax(0, area.width() - 2 * margin);
         const int height = notice->hasHeightForWidth() ? notice->heightForWidth(width) : notice->sizeHint().height();
         notice->setGeometry(area.left() + margin, area.bottom() - margin - height + 1, width, qMax(0, height));
         notice->raise();
+        if (notice->isVisibleTo(this) && height > 0)
+        {
+            overlayBottom = 2 * margin + height;
+        }
     }
+
+    // Last: the view may scroll (its slots of viewChanged run)
+    m_view->setOverlayMargins(overlayTop, overlayBottom);
 }
 
 }   // namespace pdf

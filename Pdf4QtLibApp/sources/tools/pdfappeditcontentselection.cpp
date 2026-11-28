@@ -54,7 +54,29 @@ PDFAppEditContentSelection::PDFAppEditContentSelection(PDFAppEditContentContext*
     // P11: the pruning after a change of the model, the answer to the requests of the session, the end of the node of
     // the card Locked object (the first receiver of changed, connected before every other one)
     connect(this, &PDFAppEditContentSelection::changed, this, &PDFAppEditContentSelection::onChanged);
-    if (PDFContentEditSession* session = context ? context->getSession() : nullptr)
+    if (context)
+    {
+        // A new session of reloadDocument is connected again (FX3 request 1)
+        PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentSelection::connectSession);
+    }
+    connectSession();
+}
+
+void PDFAppEditContentSelection::connectSession()
+{
+    // The signals of the session of the context; the old session of a reload is disconnected here before it is deleted
+    PDFContentEditSession* session = m_context ? m_context->getSession() : nullptr;
+    if (session == m_session.data())
+    {
+        return;
+    }
+    if (m_session)
+    {
+        disconnect(m_session.data(), nullptr, this, nullptr);
+    }
+
+    m_session = session;
+    if (session)
     {
         PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentSelection::onModelChanged);
         PDFDeferredDeletion::connect(session, &PDFContentEditSession::selectionChangeRequested, this, &PDFAppEditContentSelection::onSelectionChangeRequested);
@@ -70,27 +92,36 @@ void PDFAppEditContentSelection::onModelChanged(const PDFContentChange& change)
         return;
     }
 
+    // R6-4, R7-3: the removed nodes as a set (selected x removed would be quadratic); every selected node is of one
+    // container, which is looked up once
+    const std::set<PDFContentNodeReference> removed(change.removedNodes.cbegin(), change.removedNodes.cend());
+    const PDFContentContainerPointer container = session->getContainer(m_nodes.front().container);
     std::vector<PDFContentNodeReference> nodes;
     nodes.reserve(m_nodes.size());
+    bool isKeyKept = false;
     for (const PDFContentNodeReference& node : m_nodes)
     {
-        const bool isRemoved = std::find(change.removedNodes.cbegin(), change.removedNodes.cend(), node) != change.removedNodes.cend();
-        const PDFContentContainerPointer container = session->getContainer(node.container);
-        if (!isRemoved && container && container->getNode(node.node))
+        if (!removed.count(node) && container && container->getNode(node.node))
         {
             nodes.push_back(node);
+            isKeyKept = isKeyKept || node == m_keyNode;
         }
     }
 
     if (nodes.size() != m_nodes.size())
     {
         // The key object stays, when it stays selected
-        const PDFContentNodeReference keyNode = m_keyNode;
-        const bool isKeyKept = std::find(nodes.cbegin(), nodes.cend(), keyNode) != nodes.cend();
-        m_nodes = std::move(nodes);
-        m_keyNode = isKeyKept ? keyNode : (m_nodes.empty() ? PDFContentNodeReference() : m_nodes.back());
-        Q_EMIT changed();
+        const PDFContentNodeReference keyNode = isKeyKept ? m_keyNode : (nodes.empty() ? PDFContentNodeReference() : nodes.back());
+        assign(std::move(nodes), keyNode);
     }
+}
+
+void PDFAppEditContentSelection::assign(std::vector<PDFContentNodeReference> nodes, const PDFContentNodeReference& keyNode)
+{
+    m_nodes = std::move(nodes);
+    m_nodeSet = std::set<PDFContentNodeReference>(m_nodes.cbegin(), m_nodes.cend());
+    m_keyNode = keyNode;
+    Q_EMIT changed();
 }
 
 void PDFAppEditContentSelection::onSelectionChangeRequested(const QList<PDFContentNodeReference>& nodes)
@@ -117,13 +148,15 @@ PDFAppEditContentSelection::~PDFAppEditContentSelection() = default;
 
 bool PDFAppEditContentSelection::contains(const PDFContentNodeReference& node) const
 {
-    return std::find(m_nodes.cbegin(), m_nodes.cend(), node) != m_nodes.cend();
+    return m_nodeSet.count(node) > 0;
 }
 
 void PDFAppEditContentSelection::setNodes(const std::vector<PDFContentNodeReference>& nodes)
 {
-    // References, which are not valid, duplicates and the nodes of another container than the first one are dropped
+    // References, which are not valid, duplicates and the nodes of another container than the first one are dropped;
+    // the duplicates by a set (R6-4, R7-3: O(n log n) for Select All of a page of 100 000 objects)
     std::vector<PDFContentNodeReference> selected;
+    std::set<PDFContentNodeReference> seen;
     selected.reserve(nodes.size());
     for (const PDFContentNodeReference& node : nodes)
     {
@@ -131,7 +164,7 @@ void PDFAppEditContentSelection::setNodes(const std::vector<PDFContentNodeRefere
         {
             continue;
         }
-        if (std::find(selected.cbegin(), selected.cend(), node) == selected.cend())
+        if (seen.insert(node).second)
         {
             selected.push_back(node);
         }
@@ -144,6 +177,7 @@ void PDFAppEditContentSelection::setNodes(const std::vector<PDFContentNodeRefere
     }
 
     m_nodes = std::move(selected);
+    m_nodeSet = std::move(seen);
     m_keyNode = keyNode;
     Q_EMIT changed();
 }
@@ -178,19 +212,20 @@ void PDFAppEditContentSelection::addNode(const PDFContentNodeReference& node)
     }
 
     m_nodes.push_back(node);
+    m_nodeSet.insert(node);
     m_keyNode = node;
     Q_EMIT changed();
 }
 
 void PDFAppEditContentSelection::removeNode(const PDFContentNodeReference& node)
 {
-    const auto it = std::find(m_nodes.begin(), m_nodes.end(), node);
-    if (it == m_nodes.end())
+    if (!contains(node))
     {
         return;
     }
 
-    m_nodes.erase(it);
+    m_nodes.erase(std::find(m_nodes.begin(), m_nodes.end(), node));
+    m_nodeSet.erase(node);
     if (m_keyNode == node)
     {
         m_keyNode = m_nodes.empty() ? PDFContentNodeReference() : m_nodes.back();
@@ -416,6 +451,69 @@ PDFAppEditContentSelectionItem::Handle PDFAppEditContentSelectionItem::getHandle
     return Handle::None;
 }
 
+int PDFAppEditContentSelectionItem::getFrameCount() const
+{
+    // The frames of the nodes and the common frame of more nodes (paint)
+    return int(m_frames.size()) + (m_isMultiple ? 1 : 0);
+}
+
+void PDFAppEditContentSelectionItem::updateBoxes(const PDFAppEditContentContext* context)
+{
+    // The key of the cache: the selection (the nodes and the key object), the versions of the containers the boxes are
+    // read from (the container of the nodes, the page and the containers of the isolation path; a command makes a new
+    // version of every container it changes, undo and redo set another one again) and the isolation path. The key is
+    // compared in O(n) (no box is computed); the boxes cost the walks of PDFAppEditContentGeometryHelper.
+    const PDFAppEditContentSelection* selection = context->getSelection();
+    const PDFContentEditSession* session = context->getSession();
+    const std::vector<PDFContentNodeReference>& nodes = selection->getNodes();
+
+    std::vector<PDFContentNodeReference> isolationPath;
+    for (const PDFAppEditContentIsolationLevel& level : context->getIsolationPath())
+    {
+        isolationPath.push_back(level.root);
+        isolationPath.push_back(level.entry);
+    }
+
+    std::vector<PDFContentContainerPointer> containers;
+    containers.push_back(nodes.empty() ? PDFContentContainerPointer() : session->getContainer(nodes.front().container));
+    containers.push_back(session->getContainer(context->getPageKey()));
+    for (const PDFContentNodeReference& node : isolationPath)
+    {
+        containers.push_back(node.isValid() ? session->getContainer(node.container) : PDFContentContainerPointer());
+    }
+
+    bool isSameVersions = m_boxContainers.size() == containers.size();
+    for (size_t i = 0; isSameVersions && i < containers.size(); ++i)
+    {
+        // The owners are compared (an expired version and a new one at the same address differ)
+        const std::weak_ptr<const PDFContentContainer>& cached = m_boxContainers[i];
+        isSameVersions = !cached.owner_before(containers[i]) && !containers[i].owner_before(cached) && cached.expired() == !containers[i];
+    }
+
+    if (m_isBoxesValid && isSameVersions && m_boxKeyNode == selection->getKeyNode() && m_boxIsolationPath == isolationPath && m_boxNodes == nodes)
+    {
+        return;
+    }
+
+    ++m_boxComputationCount;
+    m_isBoxesValid = true;
+    m_boxNodes = nodes;
+    m_boxKeyNode = selection->getKeyNode();
+    m_boxIsolationPath = std::move(isolationPath);
+    m_boxContainers.assign(containers.cbegin(), containers.cend());
+    m_boxes.clear();
+    m_boxesUnion = QRectF();
+    for (const PDFContentNodeReference& node : nodes)
+    {
+        const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, node);
+        if (!box.isNull())
+        {
+            m_boxes.push_back(Frame{ box, node == m_boxKeyNode && nodes.size() > 1 });
+            m_boxesUnion = m_boxesUnion.isNull() ? box : m_boxesUnion.united(box);
+        }
+    }
+}
+
 void PDFAppEditContentSelectionItem::updateGeometry()
 {
     using Helper = PDFAppEditContentSelectionItemHelper;
@@ -451,22 +549,24 @@ void PDFAppEditContentSelectionItem::updateGeometry()
         }
     }
 
-    // The boxes of the one policy (PDFAppEditContentGeometryHelper), moved by a gesture in progress
+    // The boxes of the one policy (PDFAppEditContentGeometryHelper) from the cache (R6-13: computed once per change of
+    // the selection or of the model), moved by a gesture in progress. Above the limit of the items of a gesture only the
+    // common frame is painted (zadani_gui.md 4.24): the boxes are not even mapped one by one then.
+    updateBoxes(context);
     const QTransform gesture = scene->isGestureActive() ? scene->getGestureTransform() : QTransform();
-    const PDFAppEditContentSelection* selection = context->getSelection();
-    const PDFContentNodeReference keyNode = selection->getKeyNode();
-    for (const PDFContentNodeReference& node : selection->getNodes())
+    m_isMultiple = m_boxes.size() > 1;
+    if (m_boxes.size() > size_t(PDFAppEditContentScene::GESTURE_ITEM_LIMIT))
     {
-        const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, node);
-        if (!box.isNull())
-        {
-            m_frames.push_back(Frame{ gesture.mapRect(box), node == keyNode && selection->getCount() > 1 });
-        }
+        m_handleBox = gesture.mapRect(m_boxesUnion);
     }
-    m_isMultiple = m_frames.size() > 1;
-    for (const Frame& frame : m_frames)
+    else
     {
-        m_handleBox = m_handleBox.isNull() ? frame.box : m_handleBox.united(frame.box);
+        m_frames.reserve(m_boxes.size());
+        for (const Frame& box : m_boxes)
+        {
+            m_frames.push_back(Frame{ gesture.mapRect(box.box), box.isKey });
+            m_handleBox = m_handleBox.isNull() ? m_frames.back().box : m_handleBox.united(m_frames.back().box);
+        }
     }
 
     m_lockedLabel.clear();

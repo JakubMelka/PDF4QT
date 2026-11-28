@@ -44,6 +44,17 @@ PatternType PDFShadingPattern::getType() const
     return PatternType::Shading;
 }
 
+bool PDFShadingPattern::isOverLimit(PDFMeshLimit* limit, PDFReal triangleCount)
+{
+    // A count, which is not a number, is no count (the meshing goes on as without a limit)
+    if (limit && triangleCount > PDFReal(limit->maximumTriangleCount))
+    {
+        limit->isExceeded = true;
+        return true;
+    }
+    return false;
+}
+
 const PDFAbstractColorSpace* PDFShadingPattern::getColorSpace() const
 {
     return m_colorSpace.data();
@@ -616,11 +627,10 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings,
                                        const PDFCMS* cms,
                                        RenderingIntent intent,
                                        PDFRenderErrorReporter* reporter,
-                                       const PDFOperationControl* operationControl) const
+                                       const PDFOperationControl* operationControl,
+                                       PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
-
-    Q_UNUSED(operationControl);
 
     QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QTransform domainToDeviceSpaceMatrix = m_domainToTargetTransform * patternSpaceToDeviceSpaceMatrix;
@@ -647,6 +657,12 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings,
         const PDFReal ySteps = qMax(std::floor(leftLineDS.length() / resolution), 2.0);
         const PDFReal xStep = 1.0 / xSteps;
         const PDFReal yStep = 1.0 / ySteps;
+
+        if (limit && (isOverLimit(limit, 2.0 * (xSteps + 1.0) * (ySteps + 1.0)) || PDFOperationControl::isOperationCanceled(operationControl)))
+        {
+            // Two triangles per cell of the grid: refused before the grid is allocated
+            return PDFMesh();
+        }
 
         // Prepare x/y ordinates array for given resolution
         std::vector<PDFReal> xOrdinates;
@@ -930,11 +946,10 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
                                     const PDFCMS* cms,
                                     RenderingIntent intent,
                                     PDFRenderErrorReporter* reporter,
-                                    const PDFOperationControl* operationControl) const
+                                    const PDFOperationControl* operationControl,
+                                    PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
-
-    Q_UNUSED(operationControl);
 
     QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
@@ -970,6 +985,13 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
     PDFReal xr = meshingRectangle.right();
     PDFReal yt = meshingRectangle.top();
     PDFReal yb = meshingRectangle.bottom();
+
+    if (limit && (isOverLimit(limit, 2.0 * ((xr - xl) / settings.minimalMeshResolution + 3.0) + 4.0) || PDFOperationControl::isOperationCanceled(operationControl)))
+    {
+        // Two triangles per strip of the minimal resolution and the background: refused before
+        // the strips are allocated
+        return PDFMesh();
+    }
 
     // Create coordinate array filled with stops, where we will determine the color
     std::vector<PDFReal> xCoords;
@@ -1445,11 +1467,10 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
                                      const PDFCMS* cms,
                                      RenderingIntent intent,
                                      PDFRenderErrorReporter* reporter,
-                                     const PDFOperationControl* operationControl) const
+                                     const PDFOperationControl* operationControl,
+                                     PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
-
-    Q_UNUSED(operationControl);
 
     QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
@@ -1543,6 +1564,13 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
                 xr = meshingRectangle.right() + 2 * r2;
             }
         }
+    }
+
+    if (limit && (isOverLimit(limit, 2.0 * ((xr - xl) / settings.minimalMeshResolution + 3.0)) || PDFOperationControl::isOperationCanceled(operationControl)))
+    {
+        // At least two triangles per ring of the minimal resolution: refused before the rings
+        // are allocated
+        return PDFMesh();
     }
 
     // Create coordinate array filled with stops, where we will determine the color
@@ -2267,19 +2295,44 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
                                                      const PDFCMS* cms,
                                                      RenderingIntent intent,
                                                      PDFRenderErrorReporter* reporter,
-                                                     const PDFOperationControl* operationControl) const
+                                                     const PDFOperationControl* operationControl,
+                                                     PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
 
-    Q_UNUSED(operationControl);
-
-    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    if (limit)
     {
+        // The triangles of the data (the vertices - 2, see processTriangles), counted before the
+        // vertices are read
+        size_t bitsPerVertex = m_bitsPerFlag + 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
+        bitsPerVertex += (8 - (bitsPerVertex % 8)) % 8;
+        const size_t vertexCount = bitsPerVertex > 0 ? m_data.size() / (bitsPerVertex / 8) : 0;
+        if (isOverLimit(limit, PDFReal(vertexCount) - 2.0))
+        {
+            return PDFMesh();
+        }
+    }
+
+    bool isCanceled = false;
+    size_t addedCount = 0;
+    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter, limit, operationControl, &isCanceled, &addedCount](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        if (limit && (limit->isExceeded || isCanceled))
+        {
+            return;
+        }
+
+        if (limit && ++addedCount % MESH_LIMIT_CANCEL_BLOCK == 0 && PDFOperationControl::isOperationCanceled(operationControl))
+        {
+            isCanceled = true;
+            return;
+        }
+
         const uint32_t via = va->index;
         const uint32_t vib = vb->index;
         const uint32_t vic = vc->index;
 
-        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter, limit);
     };
 
     auto initializeMeshFunction = [&mesh](std::vector<QPointF>&& vertices, size_t triangleCount)
@@ -2291,6 +2344,11 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     if (!processTriangles(initializeMeshFunction, addTriangle, settings.userSpaceToDeviceSpaceMatrix, true))
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid free form gourad triangle data stream."));
+    }
+
+    if (limit && (limit->isExceeded || isCanceled))
+    {
+        return PDFMesh();
     }
 
     if (m_backgroundColor.isValid())
@@ -2435,19 +2493,46 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
                                                         const PDFCMS* cms,
                                                         RenderingIntent intent,
                                                         PDFRenderErrorReporter* reporter,
-                                                        const PDFOperationControl* operationControl) const
+                                                        const PDFOperationControl* operationControl,
+                                                        PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
 
-    Q_UNUSED(operationControl);
-
-    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    if (limit && m_verticesPerRow > 0)
     {
+        // Two triangles per cell of the lattice (see processTriangles), counted before the
+        // vertices are read
+        size_t bitsPerVertex = 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
+        bitsPerVertex += (8 - (bitsPerVertex % 8)) % 8;
+        const size_t vertexCount = bitsPerVertex > 0 ? m_data.size() / (bitsPerVertex / 8) : 0;
+        const size_t columnCount = size_t(m_verticesPerRow);
+        const size_t rowCount = vertexCount / columnCount;
+        if (rowCount >= 2 && isOverLimit(limit, 2.0 * PDFReal(rowCount - 1) * PDFReal(columnCount - 1)))
+        {
+            return PDFMesh();
+        }
+    }
+
+    bool isCanceled = false;
+    size_t addedCount = 0;
+    auto addTriangle = [this, &settings, &mesh, cms, intent, reporter, limit, operationControl, &isCanceled, &addedCount](const VertexData* va, const VertexData* vb, const VertexData* vc)
+    {
+        if (limit && (limit->isExceeded || isCanceled))
+        {
+            return;
+        }
+
+        if (limit && ++addedCount % MESH_LIMIT_CANCEL_BLOCK == 0 && PDFOperationControl::isOperationCanceled(operationControl))
+        {
+            isCanceled = true;
+            return;
+        }
+
         const uint32_t via = va->index;
         const uint32_t vib = vb->index;
         const uint32_t vic = vc->index;
 
-        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter);
+        addSubdividedTriangles(settings, mesh, via, vib, vic, va->color, vb->color, vc->color, cms, intent, reporter, limit);
     };
 
     auto initializeMeshFunction = [&mesh](std::vector<QPointF>&& vertices, size_t triangleCount)
@@ -2459,6 +2544,11 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     if (!processTriangles(initializeMeshFunction, addTriangle, settings.userSpaceToDeviceSpaceMatrix, true))
     {
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid lattice form gourad triangle data stream."));
+    }
+
+    if (limit && (limit->isExceeded || isCanceled))
+    {
+        return PDFMesh();
     }
 
     if (m_backgroundColor.isValid())
@@ -2538,8 +2628,16 @@ PDFColor PDFType4567Shading::getColor(PDFColor colorOrFunctionParameter) const
 void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& settings,
                                                 PDFMesh& mesh, uint32_t v1, uint32_t v2, uint32_t v3,
                                                 PDFColor c1, PDFColor c2, PDFColor c3,
-                                                const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter) const
+                                                const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter,
+                                                PDFMeshLimit* limit) const
 {
+    // A meshing over its limit stops (a triangle of the mesh more than the limit: no further
+    // vertex either, so the subdivision stops too)
+    if (limit && (limit->isExceeded || isOverLimit(limit, PDFReal(mesh.getTriangles().size()) + 1.0)))
+    {
+        return;
+    }
+
     // First, verify, if we can subdivide the triangle
     QLineF v12(mesh.getVertex(v1), mesh.getVertex(v2));
     QLineF v13(mesh.getVertex(v1), mesh.getVertex(v3));
@@ -2566,8 +2664,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c2, c3, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter);
-            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter, limit);
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter, limit);
         }
         else if (length13 == maxLength)
         {
@@ -2577,8 +2675,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c3, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter);
-            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v1, v2, vx, c1, c2, cx, cms, intent, reporter, limit);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter, limit);
         }
         else
         {
@@ -2590,8 +2688,8 @@ void PDFType4567Shading::addSubdividedTriangles(const PDFMeshQualitySettings& se
             PDFColor cx = PDFAbstractColorSpace::mixColors(c1, c2, 0.5);
             const uint32_t vx = mesh.addVertex(x);
 
-            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter);
-            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter);
+            addSubdividedTriangles(settings, mesh, v1, v3, vx, c1, c3, cx, cms, intent, reporter, limit);
+            addSubdividedTriangles(settings, mesh, v2, v3, vx, c2, c3, cx, cms, intent, reporter, limit);
         }
     }
     else
@@ -3111,9 +3209,17 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
                                                  const PDFCMS* cms,
                                                  RenderingIntent intent,
                                                  PDFRenderErrorReporter* reporter,
-                                                 const PDFOperationControl* operationControl) const
+                                                 const PDFOperationControl* operationControl,
+                                                 PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
+
+    // Two triangles per patch at least (fillMesh), the patches counted before they are made: a
+    // patch of the least size has 12 points (ISO 32000-2, 8.7.4.5.8)
+    if (isOverLimit(limit, 2.0 * PDFReal(getMaximumPatchCount(12))))
+    {
+        return mesh;
+    }
 
     PDFTensorPatches patches = createPatches(settings.userSpaceToDeviceSpaceMatrix, true);
 
@@ -3122,8 +3228,16 @@ PDFMesh PDFTensorProductPatchShading::createMesh(const PDFMeshQualitySettings& s
         throw PDFException(PDFTranslationContext::tr("Invalid data in tensor product patch shading."));
     }
 
-    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings.userSpaceToDeviceSpaceMatrix), settings, patches, cms, intent, reporter, operationControl);
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings.userSpaceToDeviceSpaceMatrix), settings, patches, cms, intent, reporter, operationControl, limit);
     return mesh;
+}
+
+size_t PDFTensorProductPatchShadingBase::getMaximumPatchCount(size_t pointCount) const
+{
+    // A patch, which shares an edge with the previous one (the flag 1, 2 or 3), has the flag, its
+    // own points and two colors
+    const size_t bitsPerPatch = m_bitsPerFlag + pointCount * 2 * m_bitsPerCoordinate + 2 * m_colorComponentCount * m_bitsPerComponent;
+    return bitsPerPatch > 0 ? (size_t(m_data.size()) * 8) / bitsPerPatch : 0;
 }
 
 struct PDFTensorProductPatchShadingBase::Triangle
@@ -3269,7 +3383,8 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 RenderingIntent intent,
                                                 PDFRenderErrorReporter* reporter,
                                                 bool fastAlgorithm,
-                                                const PDFOperationControl* operationControl) const
+                                                const PDFOperationControl* operationControl,
+                                                PDFMeshLimit* limit) const
 {
     // We implement algorithm similar to Ruppert's algorithm (see https://en.wikipedia.org/wiki/Ruppert%27s_algorithm), but
     // we do not need a mesh for FEM calculation, so we do not care about quality of the triangles (we can have triangles with
@@ -3418,6 +3533,14 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
         {
             finishedTriangles.emplace_back(qMove(triangle));
         }
+
+        // Every triangle, which is not finished, ends as one triangle of the mesh at least: a
+        // mesh over the limit is known now
+        if (limit && isOverLimit(limit, PDFReal(mesh.getTriangles().size()) + PDFReal(finishedTriangles.size()) + PDFReal(unfinishedTriangles.size())))
+        {
+            mesh = PDFMesh();
+            return;
+        }
     }
 
     Q_ASSERT(unfinishedTriangles.empty());
@@ -3466,12 +3589,20 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
                                                 const PDFCMS* cms,
                                                 RenderingIntent intent,
                                                 PDFRenderErrorReporter* reporter,
-                                                const PDFOperationControl* operationControl) const
+                                                const PDFOperationControl* operationControl,
+                                                PDFMeshLimit* limit) const
 {
     const bool fastAlgorithm = patches.size() > 16;
     for (const auto& patch : patches)
     {
-        fillMesh(mesh, settings, patch, cms, intent, reporter, fastAlgorithm, operationControl);
+        fillMesh(mesh, settings, patch, cms, intent, reporter, fastAlgorithm, operationControl, limit);
+
+        if (limit && (limit->isExceeded || PDFOperationControl::isOperationCanceled(operationControl)))
+        {
+            // Over the limit, or canceled (the mesh of a patch is empty then): no mesh
+            mesh = PDFMesh();
+            return;
+        }
     }
 
     // Create bounding path
@@ -3710,9 +3841,18 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
                                          const PDFCMS* cms,
                                          RenderingIntent intent,
                                          PDFRenderErrorReporter* reporter,
-                                         const PDFOperationControl* operationControl) const
+                                         const PDFOperationControl* operationControl,
+                                         PDFMeshLimit* limit) const
 {
     PDFMesh mesh;
+
+    // Two triangles per patch at least (fillMesh), the patches counted before they are made: a
+    // patch of the least size has 8 points (ISO 32000-2, 8.7.4.5.7)
+    if (isOverLimit(limit, 2.0 * PDFReal(getMaximumPatchCount(8))))
+    {
+        return mesh;
+    }
+
     PDFTensorPatches patches = createPatches(settings.userSpaceToDeviceSpaceMatrix, true);
 
     if (patches.empty())
@@ -3720,7 +3860,7 @@ PDFMesh PDFCoonsPatchShading::createMesh(const PDFMeshQualitySettings& settings,
         throw PDFException(PDFTranslationContext::tr("Invalid data in coons patch shading."));
     }
 
-    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings), settings, patches, cms, intent, reporter, operationControl);
+    fillMesh(mesh, getPatternSpaceToDeviceSpaceMatrix(settings), settings, patches, cms, intent, reporter, operationControl, limit);
     return mesh;
 }
 

@@ -24,6 +24,7 @@
 
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
+#include "pdfappdocumentview.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentregistry.h"
 #include "pdfapplocale.h"
@@ -120,15 +121,42 @@ PDFAppEditContentPagesPanel::PDFAppEditContentPagesPanel(PDFAppEditContentContex
     if (context)
     {
         PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::pageChanged, this, &PDFAppEditContentPagesPanel::onPageChanged);
-        if (PDFContentEditSession* session = context->getSession())
-        {
-            PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentPagesPanel::onModelChanged);
-        }
+        PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentPagesPanel::onSessionReplaced);
+        connectSession();
     }
     updateTexts();
 }
 
 PDFAppEditContentPagesPanel::~PDFAppEditContentPagesPanel() = default;
+
+void PDFAppEditContentPagesPanel::connectSession()
+{
+    if (m_session)
+    {
+        m_session->disconnect(this);
+    }
+    m_session = m_context ? m_context->getSession() : nullptr;
+    if (m_session)
+    {
+        PDFDeferredDeletion::connect(m_session.data(), &PDFContentEditSession::modelChanged, this, &PDFAppEditContentPagesPanel::onModelChanged);
+    }
+}
+
+void PDFAppEditContentPagesPanel::onSessionReplaced()
+{
+    // A new version of the document without work (PDFAppEditContentContext::reloadDocument): its pages with changes
+    // come from the new session, the thumbnails show the new version; pageChanged follows
+    connectSession();
+    if (m_context && !m_documentId.isEmpty())
+    {
+        setDocument(m_context->getDocumentPointer(), m_documentId, m_view.data());
+    }
+    else
+    {
+        updateTiles();
+        updateTexts();
+    }
+}
 
 void PDFAppEditContentPagesPanel::registerParts(PDFAppEditContentRegistry* registry)
 {
@@ -147,6 +175,8 @@ PDFAppHeaderText* PDFAppEditContentPagesPanel::getSubtitle() const
 
 void PDFAppEditContentPagesPanel::setDocument(PDFDocumentPointer document, const QString& documentId, PDFAppDocumentView* view)
 {
+    m_documentId = documentId;
+    m_view = view;
     if (m_grid)
     {
         m_grid->setDocument(std::move(document), documentId, view);

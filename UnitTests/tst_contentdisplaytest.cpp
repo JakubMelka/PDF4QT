@@ -30,7 +30,9 @@
 #include "pdfcatalog.h"
 #include "pdfcms.h"
 #include "pdfcolorspaces.h"
+#include "pdfcontentcommands.h"
 #include "pdfcontentdisplay.h"
+#include "pdfcontenteditsession.h"
 #include "pdfcontentnode.h"
 #include "pdfcontentstate.h"
 #include "pdfcontenttreebuilder.h"
@@ -46,6 +48,7 @@
 #include <QRectF>
 #include <QTransform>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -107,9 +110,58 @@ private slots:
     void shadingGradients();
     void tilingCell();
 
+    // ---- stage E1, fix package FX1 (pe1_fixes.md) ----
+    void meshShadings();
+    void meshLimitAndCancel();
+    void countsOfComplexPagePolicy();
+    void imageCodestreamHeaders();
+    void imageResourcesInheritedFromCaller();
+    void patternOfMovedObject();
+    void boundingBoxOfMiterAndUnpaintedPath();
+    void boundingBoxOfLongStrokedPath();
+    void clippedNodesOfTextInMarkedContent();
+    void textVerticalCell();
+
 private:
     static PDFContentContainerKey pageKey(const PDFDocument& document);
     static PDFContentContainerPointer build(const PDFDocument& document, const PDFContentContainerKey& key);
+
+    /// The same with the resources of the content, which draws a form without /Resources of its
+    /// own (PDFContentBuildContext::callerResources)
+    static PDFContentContainerPointer build(const PDFDocument& document, const PDFContentContainerKey& key, const PDFObject& callerResources);
+
+    /// The document of the mesh shadings (createMeshDocument in the source file): /S1 function based,
+    /// /S4 free-form, /S5 lattice-form, /S6 Coons, /S7 tensor-product, and the large /L4, /L4E,
+    /// /L5, /L6 for the limit
+    static PDFDocument createMeshDocument(const QByteArray& content);
+
+    /// A baseline JPEG of one 8 x 8 gray block of the sample \p sample (ISO/IEC 10918-1 Annex B;
+    /// the tables of tst_imageoptimizertest.cpp: the quantization 8, so the sample is coded as its
+    /// DC coefficient sample - 128); \p withEndMarker: EOI at the end; \p width, \p height: the size
+    /// written into SOF (one block is coded whatever it says)
+    static QByteArray createGrayJpeg(int sample, int width, int height, bool withEndMarker);
+
+    /// A JPEG 2000 codestream of SOC and SIZ only (ISO/IEC 15444-1, A.5.1): one component of 8 bits
+    static QByteArray createJpeg2000Codestream(quint32 width, quint32 height);
+
+    /// The color of a pixel within \p tolerance of the expected one, opaque
+    static bool isPixelNear(const QImage& image, int x, int y, int red, int green, int blue, int tolerance);
+
+    /// The bytes of the values (each one modulo 256)
+    static QByteArray bytes(std::initializer_list<int> values);
+
+    /// An operation control, which is canceled from its \p cancelAt-th question on; it counts them
+    class CountingControl : public PDFOperationControl
+    {
+    public:
+        explicit CountingControl(int cancelAt) : m_cancelAt(cancelAt) { }
+        virtual bool isOperationCanceled() const override { return ++m_count >= m_cancelAt; }
+        int getCount() const { return m_count; }
+
+    private:
+        int m_cancelAt = 0;
+        mutable std::atomic<int> m_count = 0;
+    };
 
     /// The nodes of a kind in the order of the content
     static std::vector<PDFContentNodePointer> getNodes(const PDFContentContainer& container, PDFContentNodeKind kind);
@@ -164,6 +216,11 @@ PDFContentContainerKey ContentDisplayTest::pageKey(const PDFDocument& document)
 
 PDFContentContainerPointer ContentDisplayTest::build(const PDFDocument& document, const PDFContentContainerKey& key)
 {
+    return build(document, key, PDFObject());
+}
+
+PDFContentContainerPointer ContentDisplayTest::build(const PDFDocument& document, const PDFContentContainerKey& key, const PDFObject& callerResources)
+{
     // The caches live only for the call: the container must not need them afterwards
     PDFCMSGeneric cms;
     PDFFontCache fontCache(32, 32);
@@ -177,6 +234,7 @@ PDFContentContainerPointer ContentDisplayTest::build(const PDFDocument& document
     context.iccProfileCache = &iccProfileCache;
     context.cms = &cms;
     context.pageIndex = 0;
+    context.callerResources = callerResources;
 
     return PDFContentTreeBuilder::build(&document, key, nullptr, context, PDFContentBuildOptions(), nullptr, nullptr).container;
 }
@@ -976,10 +1034,18 @@ void ContentDisplayTest::textLineDirection()
     QVERIFY(isClose(text->lines[0].baseline.p1(), QPointF(50, 50)));
     QVERIFY(isClose(text->lines[0].baseline.p2(), QPointF(50, 63.5)));
 
-    // The line space is the text space of A: the cell of B lies at x 7 ... 13.5, y -2 ... 10 of it;
-    // the rectangle of the line includes the cells of A and B (x 0 ... 13.5)
-    QVERIFY(text->lines[0].rectangle.left() <= 1e-9);
-    QVERIFY(text->lines[0].rectangle.right() >= 13.5 - 1e-9);
+    // The line space is the text space of A. With the Type 3 font /T3 (no outlines: the boxes are
+    // the cells, review R5-10) the rectangle is exact: A (w0 0.6) has the cell x 0 ... 6, B (w0 0.8)
+    // begins at 6 and ends at 14; y -2 ... 10 (-0.2 |Tfs| ... |Tfs|). The base line goes from (50 50)
+    // to the end of B along the turned x axis: (50 64); the box on the page is x 40 ... 52, y 50 ... 64.
+    PDFDocument type3Document = Documents::createFontsDocument("BT /T3 10 Tf 0 1 -1 0 50 50 Tm (AB) Tj ET");
+    PDFContentContainerPointer type3 = build(type3Document, pageKey(type3Document));
+    const PDFContentDisplayTextPointer type3Text = PDFContentDisplay::getText(*type3, getNodes(*type3, PDFContentNodeKind::TextObject)[0]->getId(), createContext(&type3Document));
+    QVERIFY(type3Text);
+    QCOMPARE(type3Text->lines.size(), size_t(1));
+    QVERIFY(isClose(type3Text->lines[0].rectangle, QRectF(0, -2, 14, 12), 1e-9));
+    QVERIFY(isClose(type3Text->lines[0].baseline.p2(), QPointF(50, 64)));
+    QVERIFY(isClose(type3Text->lines[0].boundingBox, QRectF(40, 50, 12, 14), 1e-9));
 
     // A mirrored text matrix reverses the x axis: B begins a new line, though on the same base line
     PDFDocument mirroredDocument = Documents::createFontsDocument("BT /F1 10 Tf 1 0 0 1 0 50 Tm (A) Tj -1 0 0 1 100 50 Tm (B) Tj ET");
@@ -1065,8 +1131,35 @@ void ContentDisplayTest::textOverride()
     QVERIFY(isClose(text->glyphs[0].textMatrix, QTransform(1, 0, 0, 1, 25, 30)));
     QVERIFY(isRgb(text->runs[0].state.fillColor.color, 0, 0, 255));
 
-    // The realized font of the glyphs is kept by the text
-    QVERIFY(text->glyphs[0].outline == nullptr || !text->realizedFonts.empty());
+    // The text keeps exactly the realized fonts of its shows (review R5-10: the outlines of its
+    // glyphs point into them), each once
+    std::vector<PDFRealizedFontPointer> expectedFonts;
+    for (const PDFContentNodePointer& show : getNodes(*changed, PDFContentNodeKind::TextShow))
+    {
+        const PDFRealizedFontPointer& font = show->getData().textState.realizedFont;
+        if (font && std::find(expectedFonts.cbegin(), expectedFonts.cend(), font) == expectedFonts.cend())
+        {
+            expectedFonts.push_back(font);
+        }
+    }
+    QVERIFY(text->realizedFonts == expectedFonts);
+
+    // The glyph box moved by the wrap, exact for the Type 3 font /T3 (a cell, no outline): A at
+    // (20 30) has the cell x 0 ... 6, y -2 ... 10, moved by [1 0 0 1 5 0]: x 25 ... 31, y 28 ... 40
+    PDFDocument type3Document = Documents::createFontsDocument("BT /T3 10 Tf 20 30 Td (A) Tj ET");
+    PDFContentContainerPointer type3 = build(type3Document, pageKey(type3Document));
+    const PDFContentNodeId type3Id = getNodes(*type3, PDFContentNodeKind::TextObject)[0]->getId();
+    PDFContentContainerPointer type3Changed = withOverride(type3, type3Id, override);
+    QVERIFY(isClose(PDFContentDisplay::getBoundingBox(*type3, type3Id, createContext(&type3Document)).box, QRectF(20, 28, 6, 12), 1e-9));
+    QVERIFY(isClose(PDFContentDisplay::getBoundingBox(*type3Changed, type3Id, createContext(&type3Document)).box, QRectF(25, 28, 6, 12), 1e-9));
+    const PDFContentDisplayTextPointer type3Text = PDFContentDisplay::getText(*type3Changed, type3Id, createContext(&type3Document));
+    QVERIFY(type3Text && isClose(type3Text->boundingBox, QRectF(25, 28, 6, 12), 1e-9));
+
+    // A show inside of a marked content of the text object counts to its box: B (w0 0.8) behind A
+    // at x 26 ... 34
+    PDFDocument markedDocument = Documents::createFontsDocument("BT /T3 10 Tf 20 30 Td (A) Tj /Span BMC (B) Tj EMC ET");
+    PDFContentContainerPointer marked = build(markedDocument, pageKey(markedDocument));
+    QVERIFY(isClose(PDFContentDisplay::getBoundingBox(*marked, getNodes(*marked, PDFContentNodeKind::TextObject)[0]->getId(), createContext(&markedDocument)).box, QRectF(20, 28, 14, 12), 1e-9));
 }
 
 void ContentDisplayTest::textThreads()
@@ -1494,10 +1587,15 @@ void ContentDisplayTest::shadingGradients()
     QVERIFY(isRgb(radial.stops[0].color, 0, 0, 0));
     QVERIFY(isRgb(radial.stops[255].color, 255, 255, 255));
 
-    // /Sh4: function based - not done (declared)
-    const PDFContentDisplayShading functionBased = PDFContentDisplay::getShading(&document, container, shadings[2]->getId(), false, PDFContentDisplayImageOptions(), nullptr);
-    QCOMPARE(functionBased.status, PDFContentDisplayShading::Status::NotImplemented);
+    // /Sh4: function based - a picture since the fix package FX1 (the expected colors of every
+    // type of a picture: meshShadings); without /BBox and a clip its rectangle is the media box
+    PDFContentDisplayImageOptions pictureOptions;
+    pictureOptions.maximumPixels = 400;
+    const PDFContentDisplayShading functionBased = PDFContentDisplay::getShading(&document, container, shadings[2]->getId(), false, pictureOptions, nullptr);
+    QCOMPARE(functionBased.status, PDFContentDisplayShading::Status::Done);
     QCOMPARE(functionBased.kind, PDFContentDisplayShading::Kind::Picture);
+    QVERIFY(isClose(functionBased.pictureRectangle, QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE), 1e-9));
+    QCOMPARE(functionBased.picture.size(), QSize(20, 20));
 
     // The shading pattern /PS fills the rectangle: the pattern space under /Matrix [1 0 0 1 5 5]
     const PDFContentDisplayShading pattern = PDFContentDisplay::getShading(&document, container, paths[0]->getId(), false, PDFContentDisplayImageOptions(), nullptr);
@@ -1564,6 +1662,712 @@ void ContentDisplayTest::tilingCell()
     const PDFContentDisplayTilingCell canceledCell = PDFContentDisplay::getTilingCell(&document, container, paths[1]->getId(), false, options, &canceled);
     QCOMPARE(canceledCell.status, PDFContentDisplayTilingCell::Status::Canceled);
     QVERIFY(canceledCell.picture.isNull());
+}
+
+// ---------------------------------------------------------------- fix package FX1 of stage E1
+
+PDFDocument ContentDisplayTest::createMeshDocument(const QByteArray& content)
+{
+    return Documents::createDocument(content, [](PDFDocumentBuilder* builder)
+    {
+        // The vertices and the patches in the units of the page: the coordinates are written with
+        // /Decode [0 2^n - 1] (8 or 16 bits), so a value is its coordinate; the colors of 8 bits
+        // with /Decode [0 1], DeviceRGB (ISO 32000-2, 8.7.4.5.5 - 8.7.4.5.8)
+        auto meshEntries = [](int shadingType, int bitsPerCoordinate, bool hasFlag)
+        {
+            const int coordinateMaximum = (1 << bitsPerCoordinate) - 1;
+            Documents::DictionaryEntries entries = { { "ShadingType", PDFObject::createInteger(shadingType) },
+                                                     { "ColorSpace", PDFObject::createName("DeviceRGB") },
+                                                     { "BitsPerCoordinate", PDFObject::createInteger(bitsPerCoordinate) },
+                                                     { "BitsPerComponent", PDFObject::createInteger(8) },
+                                                     { "Decode", Documents::createIntegerArrayObject({ 0, coordinateMaximum, 0, coordinateMaximum, 0, 1, 0, 1, 0, 1 }) } };
+            if (hasFlag)
+            {
+                entries.emplace_back("BitsPerFlag", PDFObject::createInteger(8));
+            }
+            return entries;
+        };
+
+        auto byte = [](int value) { return char(value & 0xFF); };
+        auto word = [&byte](int value) { return bytes({ byte(value >> 8), byte(value) }); };
+
+        // /S1: type 1 over the domain [0 1 0 1] mapped by /Matrix [100 0 0 100 0 0] onto the square
+        // 0 ... 100; the function { 0 } of the type 4 gives (x, y, 0): red = x / 100, green = y / 100
+        PDFObject function = Documents::addStreamObject(builder, { { "FunctionType", PDFObject::createInteger(4) },
+                                                                   { "Domain", Documents::createIntegerArrayObject({ 0, 1, 0, 1 }) },
+                                                                   { "Range", Documents::createIntegerArrayObject({ 0, 1, 0, 1, 0, 1 }) } }, QByteArray("{ 0 }"));
+        PDFObject functionShading = Documents::createDictionaryObject({ { "ShadingType", PDFObject::createInteger(1) },
+                                                                        { "ColorSpace", PDFObject::createName("DeviceRGB") },
+                                                                        { "Matrix", Documents::createIntegerArrayObject({ 100, 0, 0, 100, 0, 0 }) },
+                                                                        { "Function", function } });
+
+        // /S4: one free-form triangle (flag 0): (0 0) red, (100 0) green, (0 100) blue
+        QByteArray freeForm;
+        freeForm += bytes({ byte(0), byte(0), byte(0), byte(255), byte(0), byte(0) });
+        freeForm += bytes({ byte(0), byte(100), byte(0), byte(0), byte(255), byte(0) });
+        freeForm += bytes({ byte(0), byte(0), byte(100), byte(0), byte(0), byte(255) });
+        PDFObject freeFormShading = Documents::addStreamObject(builder, meshEntries(4, 8, true), freeForm);
+
+        // /S5: a lattice of 2 x 2 vertices: (0 0) red, (100 0) green; (0 100) blue, (100 100) white
+        Documents::DictionaryEntries latticeEntries = meshEntries(5, 8, false);
+        latticeEntries.emplace_back("VerticesPerRow", PDFObject::createInteger(2));
+        QByteArray lattice;
+        lattice += bytes({ byte(0), byte(0), byte(255), byte(0), byte(0) });
+        lattice += bytes({ byte(100), byte(0), byte(0), byte(255), byte(0) });
+        lattice += bytes({ byte(0), byte(100), byte(0), byte(0), byte(255) });
+        lattice += bytes({ byte(100), byte(100), byte(255), byte(255), byte(255) });
+        PDFObject latticeShading = Documents::addStreamObject(builder, latticeEntries, lattice);
+
+        // /S6, /S7: one patch over the square 0 ... 99 with straight edges and the control points at
+        // the thirds (so the patch maps (u, v) linearly: x = 99 u, y = 99 v); the colors of the
+        // corners (u v) = (0 0) black, (0 1) green, (1 1) yellow, (1 0) red: the color (u, v, 0)
+        auto point = [&word](int x, int y) { return word(x) + word(y); };
+        QByteArray coons(1, byte(0));
+        for (const auto& corner : { std::pair(0, 0), std::pair(0, 33), std::pair(0, 66), std::pair(0, 99), std::pair(33, 99), std::pair(66, 99),
+                                    std::pair(99, 99), std::pair(99, 66), std::pair(99, 33), std::pair(99, 0), std::pair(66, 0), std::pair(33, 0) })
+        {
+            coons += point(corner.first, corner.second);
+        }
+        QByteArray tensor = coons;
+        for (const auto& inner : { std::pair(33, 33), std::pair(33, 66), std::pair(66, 66), std::pair(66, 33) })
+        {
+            tensor += point(inner.first, inner.second);
+        }
+        const QByteArray colors = bytes({ byte(0), byte(0), byte(0), byte(0), byte(255), byte(0), byte(255), byte(255), byte(0), byte(255), byte(0), byte(0) });
+        PDFObject coonsShading = Documents::addStreamObject(builder, meshEntries(6, 16, true), coons + colors);
+        PDFObject tensorShading = Documents::addStreamObject(builder, meshEntries(7, 16, true), tensor + colors);
+
+        // The limit of 200 000 triangles (PDFContentDisplay::MAXIMUM_MESH_TRIANGLES), counted from
+        // the sizes of the data: /L4 200 003 vertices of 6 bytes (200 001 triangles), /L4E 200 002
+        // (200 000 triangles: within the limit; the flag 0, then the flag 1 - every vertex makes a
+        // triangle with the two before it, 8.7.4.5.5); /L5 a lattice of 2 x 100 002 vertices of 5
+        // bytes (2 x 100 001 x 1 = 200 002 triangles); /L6 Coons of 8-bit coordinates, 2 300 023
+        // bytes: at most 18 400 184 / 184 = 100 001 patches of the least size (a flag, 8 points, 2
+        // colors: 8 + 128 + 48 bits), two triangles each
+        PDFObject large4 = Documents::addStreamObject(builder, meshEntries(4, 8, true), QByteArray(200003 * 6, char(0)));
+        QByteArray edgeData(200002 * 6, char(0));
+        for (qsizetype i = 6; i < edgeData.size(); i += 6)
+        {
+            edgeData[i] = char(1);
+        }
+        PDFObject large4Edge = Documents::addStreamObject(builder, meshEntries(4, 8, true), edgeData);
+        Documents::DictionaryEntries large5Entries = meshEntries(5, 8, false);
+        large5Entries.emplace_back("VerticesPerRow", PDFObject::createInteger(2));
+        PDFObject large5 = Documents::addStreamObject(builder, large5Entries, QByteArray(2 * 100002 * 5, char(0)));
+        PDFObject large6 = Documents::addStreamObject(builder, meshEntries(6, 8, true), QByteArray(2300023, char(0)));
+
+        // Over the limit by the subdivision (the data are within it): /L4S 30 triangles of the data,
+        // each one a half of the square 0 ... 100 with the colors red, green, blue at its corners
+        // (the flag 0, then the flag 1: each vertex a triangle with the two before it; the vertices
+        // go round the four corners, the colors round the three), subdivided down to one pixel -
+        // about 20 000 triangles each; /L6S eight patches of /S6, each subdivided until the colors of
+        // the corners of a triangle differ by 1 % (the legs 99 / 2^7): 2 x 4^7 = 32 768 triangles
+        // each, 262 144 together
+        QByteArray subdivided;
+        const std::pair<int, int> corners[] = { { 0, 0 }, { 100, 0 }, { 0, 100 }, { 100, 100 } };
+        const QByteArray rgb[] = { bytes({ 255, 0, 0 }), bytes({ 0, 255, 0 }), bytes({ 0, 0, 255 }) };
+        for (int i = 0; i < 32; ++i)
+        {
+            const std::pair<int, int>& corner = corners[i % 4];
+            subdivided += bytes({ i < 3 ? 0 : 1, corner.first, corner.second }) + rgb[i % 3];
+        }
+        PDFObject subdividedShading = Documents::addStreamObject(builder, meshEntries(4, 8, true), subdivided);
+        PDFObject subdividedPatches = Documents::addStreamObject(builder, meshEntries(6, 16, true), (coons + colors).repeated(8));
+
+        // /PM: a shading pattern of the triangle of /S4 with /Background [1 1 1] (8.7.4.3: the
+        // background fills what the shading does not paint, when it is used as a pattern)
+        Documents::DictionaryEntries backgroundEntries = meshEntries(4, 8, true);
+        backgroundEntries.emplace_back("Background", Documents::createIntegerArrayObject({ 1, 1, 1 }));
+        PDFObject backgroundShading = Documents::addStreamObject(builder, backgroundEntries, freeForm);
+        PDFObject pattern = Documents::createDictionaryObject({ { "PatternType", PDFObject::createInteger(2) }, { "Shading", backgroundShading } });
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("Shading"), Documents::createDictionaryObject({ { "S1", functionShading }, { "S4", freeFormShading }, { "S5", latticeShading },
+                                                                                                    { "S6", coonsShading }, { "S7", tensorShading }, { "L4", large4 },
+                                                                                                    { "L4E", large4Edge }, { "L5", large5 }, { "L6", large6 },
+                                                                                                    { "L4S", subdividedShading }, { "L6S", subdividedPatches } }));
+        resources.addEntry(PDFInplaceOrMemoryString("Pattern"), Documents::createDictionaryObject({ { "PM", pattern } }));
+        return resources;
+    });
+}
+
+QByteArray ContentDisplayTest::createGrayJpeg(int sample, int width, int height, bool withEndMarker)
+{
+    auto word = [](int value) { return bytes({ char((value >> 8) & 0xFF), char(value & 0xFF) }); };
+
+    QByteArray data("\xFF\xD8", 2);
+
+    // DQT (B.2.4.1): table 0, all values 8
+    data += QByteArray("\xFF\xDB", 2) + word(67) + QByteArray(1, char(0)) + QByteArray(64, char(8));
+
+    // DHT (B.2.4.2): the luminance DC table of Annex K (Table K.3) and an AC table of the end of
+    // block alone (the code 0)
+    data += QByteArray("\xFF\xC4", 2) + word(2 + 17 + 12 + 17 + 1);
+    data += QByteArray(1, char(0x00));
+    for (const int count : { 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 })
+    {
+        data += char(count);
+    }
+    for (int value = 0; value < 12; ++value)
+    {
+        data += char(value);
+    }
+    data += char(0x10);
+    data += char(1);
+    data += QByteArray(15, char(0));
+    data += char(0x00);
+
+    // SOF0 (B.2.2): 8 bits, Y, X, one component (H = V = 1, table 0)
+    data += QByteArray("\xFF\xC0", 2) + word(11) + QByteArray(1, char(8)) + word(height) + word(width) + bytes({ char(1), char(1), char(0x11), char(0) });
+
+    // SOS (B.2.3): the component, the tables 0 / 0, Ss 0, Se 63, Ah = Al = 0
+    data += QByteArray("\xFF\xDA", 2) + word(8) + bytes({ char(1), char(1), char(0), char(0), char(0x3F), char(0) });
+
+    // The block: the DC difference 192 - 128 = 64 is of the category 7 (the code 11110 of Table
+    // K.3), its 7 additional bits 1000000, the end of block 0, padded by 1 bits (F.1.2.3):
+    // 11110100 00000111 = F4 07. Other samples are not needed by the tests.
+    Q_ASSERT(sample == 192);
+    Q_UNUSED(sample);
+    data += bytes({ 0xF4, 0x07 });
+
+    if (withEndMarker)
+    {
+        data += QByteArray("\xFF\xD9", 2);
+    }
+    return data;
+}
+
+QByteArray ContentDisplayTest::createJpeg2000Codestream(quint32 width, quint32 height)
+{
+    auto number = [](quint64 value, int byteCount)
+    {
+        QByteArray result;
+        for (int i = byteCount - 1; i >= 0; --i)
+        {
+            result += char((value >> (8 * i)) & 0xFF);
+        }
+        return result;
+    };
+
+    // SOC, SIZ: Lsiz 41, Rsiz 0, Xsiz, Ysiz, XOsiz 0, YOsiz 0, XTsiz, YTsiz, XTOsiz 0, YTOsiz 0,
+    // Csiz 1, Ssiz 7 (8 bits), XRsiz 1, YRsiz 1 (Table A.9)
+    return QByteArray("\xFF\x4F\xFF\x51", 4) + number(41, 2) + number(0, 2) + number(width, 4) + number(height, 4) + number(0, 4) + number(0, 4) +
+           number(width, 4) + number(height, 4) + number(0, 4) + number(0, 4) + number(1, 2) + bytes({ char(7), char(1), char(1) });
+}
+
+QByteArray ContentDisplayTest::bytes(std::initializer_list<int> values)
+{
+    QByteArray result;
+    for (const int value : values)
+    {
+        result.append(char(value & 0xFF));
+    }
+    return result;
+}
+
+bool ContentDisplayTest::isPixelNear(const QImage& image, int x, int y, int red, int green, int blue, int tolerance)
+{
+    const QColor color = image.pixelColor(x, y);
+    const bool result = std::abs(color.red() - red) <= tolerance && std::abs(color.green() - green) <= tolerance && std::abs(color.blue() - blue) <= tolerance && color.alpha() == 255;
+    if (!result)
+    {
+        qWarning() << "pixel" << x << y << color << "expected" << red << green << blue;
+    }
+    return result;
+}
+
+void ContentDisplayTest::meshShadings()
+{
+    // Every shading is drawn under the clip of the square 0 ... 100: the box of sh is the clip
+    // (getBoundingBox), the picture of 10 000 pixels is 100 x 100, one pixel per unit; the pixel
+    // (px, py) is the point (px + 0.5, 100 - py - 0.5) of the page. The expected colors are those
+    // of the definitions, the meshing approximates them within its tolerance (1 % of a component)
+    // and the flat triangles of its resolution: 4 of 255 are allowed.
+    PDFDocument document = createMeshDocument("q 0 0 100 100 re W n /S1 sh Q q 0 0 100 100 re W n /S4 sh Q q 0 0 100 100 re W n /S5 sh Q "
+                                              "q 0 0 100 100 re W n /S6 sh Q q 0 0 100 100 re W n /S7 sh Q");
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const std::vector<PDFContentNodePointer> shadings = getNodes(*container, PDFContentNodeKind::Shading);
+    QCOMPARE(shadings.size(), size_t(5));
+
+    PDFContentDisplayImageOptions options;
+    options.maximumPixels = 10000;
+    std::vector<PDFContentDisplayShading> results;
+    for (const PDFContentNodePointer& shading : shadings)
+    {
+        results.push_back(PDFContentDisplay::getShading(&document, container, shading->getId(), false, options, nullptr));
+        const PDFContentDisplayShading& result = results.back();
+        QCOMPARE(result.status, PDFContentDisplayShading::Status::Done);
+        QCOMPARE(result.kind, PDFContentDisplayShading::Kind::Picture);
+        QCOMPARE(result.picture.size(), QSize(100, 100));
+        QVERIFY(isClose(result.pictureRectangle, QRectF(0, 0, 100, 100), 1e-9));
+    }
+
+    // Type 1 (8.7.4.5.2): the function at the point - (24.5 74.5): (0.245, 0.745, 0)
+    QVERIFY(isPixelNear(results[0].picture, 24, 25, 62, 190, 0, 4));
+    QVERIFY(isPixelNear(results[0].picture, 79, 89, 202, 27, 0, 4));
+
+    // Type 4 (8.7.4.5.5): Gouraud by the barycentric coordinates - (19.5 20.5): 0.6 red, 0.195
+    // green, 0.205 blue; outside of the triangle (80.5 80.5) nothing is painted
+    QVERIFY(isPixelNear(results[1].picture, 19, 79, 153, 50, 52, 4));
+    QCOMPARE(results[1].picture.pixelColor(80, 19).alpha(), 0);
+
+    // Type 5 (8.7.4.5.6): the cells split into (v0 v1 v3) and (v3 v2 v0) - (74.5 25.5) in the first:
+    // 0.255 red + 0.49 green + 0.255 white = (0.51, 0.745, 0.255); (24.5 75.5) in the second: 0.245
+    // white + 0.51 blue + 0.245 red = (0.49, 0.245, 0.755)
+    QVERIFY(isPixelNear(results[2].picture, 74, 74, 130, 190, 65, 4));
+    QVERIFY(isPixelNear(results[2].picture, 24, 24, 125, 62, 193, 4));
+
+    // Types 6, 7 (8.7.4.5.7, 8.7.4.5.8): the color bilinear in (u, v) - (24.5 25.5): u = 0.2475, v =
+    // 0.2576; (74.5 75.5): u = 0.7525, v = 0.7626
+    for (size_t i : { size_t(3), size_t(4) })
+    {
+        QVERIFY(isPixelNear(results[i].picture, 24, 74, 63, 66, 0, 4));
+        QVERIFY(isPixelNear(results[i].picture, 74, 24, 192, 194, 0, 4));
+    }
+
+    // The rectangle of the picture is the box of the node within the box of the container: a clip
+    // of -50 ... 350 on the page 0 ... 200 gives the page
+    PDFDocument wideDocument = createMeshDocument("q -50 -50 400 400 re W n /S4 sh Q /Pattern cs /PM scn 0 0 100 100 re f");
+    PDFContentContainerPointer wide = build(wideDocument, pageKey(wideDocument));
+    const PDFContentDisplayShading wideShading = PDFContentDisplay::getShading(&wideDocument, wide, getNodes(*wide, PDFContentNodeKind::Shading)[0]->getId(), false, options, nullptr);
+    QCOMPARE(wideShading.status, PDFContentDisplayShading::Status::Done);
+    QVERIFY(isClose(wideShading.pictureRectangle, QRectF(0, 0, Documents::PAGE_SIZE, Documents::PAGE_SIZE), 1e-9));
+
+    // A shading pattern with /Background fills the square of the path: the triangle as /S4, the rest
+    // of the picture white (ISO 32000-2, 8.7.4.3); the color is given beside the picture too
+    const PDFContentDisplayShading background = PDFContentDisplay::getShading(&wideDocument, wide, getNodes(*wide, PDFContentNodeKind::Path)[1]->getId(), false, options, nullptr);
+    QCOMPARE(background.status, PDFContentDisplayShading::Status::Done);
+    QCOMPARE(background.kind, PDFContentDisplayShading::Kind::Picture);
+    QVERIFY(isClose(background.pictureRectangle, QRectF(0, 0, 100, 100), 1e-9));
+    QVERIFY(isRgb(background.backgroundColor, 255, 255, 255));
+    QVERIFY(isPixelNear(background.picture, 19, 79, 153, 50, 52, 4));
+    QVERIFY(isPixelNear(background.picture, 80, 19, 255, 255, 255, 0));
+}
+
+void ContentDisplayTest::meshLimitAndCancel()
+{
+    PDFDocument document = createMeshDocument("q 0 0 100 100 re W n /L4 sh Q q 0 0 100 100 re W n /L4E sh Q q 0 0 100 100 re W n /L5 sh Q "
+                                              "q 0 0 100 100 re W n /L6 sh Q q 0 0 100 100 re W n /S4 sh Q");
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const std::vector<PDFContentNodePointer> shadings = getNodes(*container, PDFContentNodeKind::Shading);
+    QCOMPARE(shadings.size(), size_t(5));
+
+    PDFContentDisplayImageOptions options;
+    options.maximumPixels = 10000;
+
+    // Above MAXIMUM_MESH_TRIANGLES by the sizes of the data: refused before the mesh is made - the
+    // operation control is asked twice only (after the pattern, after the meshing), never by the
+    // meshing, which asks it every 1024 triangles of the data and for every triangle of a patch
+    for (size_t i : { size_t(0), size_t(2), size_t(3) })
+    {
+        CountingControl never(1000000);
+        const PDFContentDisplayShading refused = PDFContentDisplay::getShading(&document, container, shadings[i]->getId(), false, options, &never);
+        QCOMPARE(refused.status, PDFContentDisplayShading::Status::TooLarge);
+        QCOMPARE(refused.kind, PDFContentDisplayShading::Kind::Picture);
+        QVERIFY(refused.picture.isNull());
+        QCOMPARE(never.getCount(), 2);
+    }
+
+    // Within the limit by the data, over it by the subdivision: refused while it is meshed
+    PDFDocument subdividedDocument = createMeshDocument("q 0 0 100 100 re W n /L4S sh Q q 0 0 100 100 re W n /L6S sh Q");
+    PDFContentContainerPointer subdividedContainer = build(subdividedDocument, pageKey(subdividedDocument));
+    for (const PDFContentNodePointer& shading : getNodes(*subdividedContainer, PDFContentNodeKind::Shading))
+    {
+        const PDFContentDisplayShading refused = PDFContentDisplay::getShading(&subdividedDocument, subdividedContainer, shading->getId(), false, options, nullptr);
+        QVERIFY2(refused.status == PDFContentDisplayShading::Status::TooLarge, qPrintable(QStringLiteral("%1: %2 %3").arg(shading->getData().resourceName).arg(int(refused.status)).arg(refused.errorText)));
+        QVERIFY(refused.picture.isNull());
+    }
+
+    // 200 000 triangles of the data are within the limit (all of them at one point, nothing is
+    // painted)
+    const PDFContentDisplayShading edge = PDFContentDisplay::getShading(&document, container, shadings[1]->getId(), false, options, nullptr);
+    QCOMPARE(edge.status, PDFContentDisplayShading::Status::Done);
+    QCOMPARE(edge.picture.size(), QSize(100, 100));
+    QCOMPARE(edge.picture.pixelColor(50, 50).alpha(), 0);
+
+    // Canceled: before the mesh; while its triangles are painted (a block of 4096 triangles: the
+    // triangle of /S4 is subdivided into more than 8192 ones at one pixel per unit) - the questions
+    // are the one after the pattern, the one after the meshing, the first block (canceled), the one
+    // after the painting
+    CanceledControl canceled;
+    QCOMPARE(PDFContentDisplay::getShading(&document, container, shadings[4]->getId(), false, options, &canceled).status, PDFContentDisplayShading::Status::Canceled);
+
+    CountingControl painting(3);
+    const PDFContentDisplayShading canceledPainting = PDFContentDisplay::getShading(&document, container, shadings[4]->getId(), false, options, &painting);
+    QCOMPARE(canceledPainting.status, PDFContentDisplayShading::Status::Canceled);
+    QVERIFY(canceledPainting.picture.isNull());
+    QCOMPARE(painting.getCount(), 4);
+
+    CountingControl never(1000000);
+    QCOMPARE(PDFContentDisplay::getShading(&document, container, shadings[4]->getId(), false, options, &never).status, PDFContentDisplayShading::Status::Done);
+    QVERIFY(never.getCount() >= 5);
+
+    // A budget of pixels, which no picture fits (zero pixels are one pixel): one pixel
+    options.maximumPixels = 0;
+    QCOMPARE(PDFContentDisplay::getShading(&document, container, shadings[4]->getId(), false, options, nullptr).picture.size(), QSize(1, 1));
+}
+
+void ContentDisplayTest::countsOfComplexPagePolicy()
+{
+    // The two numbers of the one complex-page policy of the canvas and the tool GUI (pe1_fixes.md
+    // FX3 item 4): every node of the tree and the segments of the paths. The root, the square
+    // (5 segments), the state run "1 0 0 rg", the open path m l (2 segments), the empty group, the
+    // text object with its state run "/F1 10 Tf" and its show: 8 nodes, 7 segments.
+    PDFDocument document = Documents::createFontsDocument("0 0 10 10 re f 1 0 0 rg 0 0 m 10 10 l S q Q BT /F1 10 Tf (A) Tj ET");
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const PDFContentDisplayCounts counts = PDFContentDisplay::getCounts(*container);
+    QCOMPARE(counts.nodeCount, size_t(8));
+    QCOMPARE(counts.nodeCount, container->getNodeCount());
+    QCOMPARE(counts.pathCount, size_t(2));
+    QCOMPARE(counts.pathSegmentCount, size_t(7));
+    QCOMPARE(counts.glyphCount, size_t(1));
+
+    // A page of many objects and of few long paths gives the same two numbers to both parts
+    QByteArray longPath("0 0 m");
+    for (int i = 1; i <= 1000; ++i)
+    {
+        longPath += ' ' + QByteArray::number(i) + " 0 l";
+    }
+    longPath += " S";
+    PDFDocument longDocument = Documents::createDocument(longPath, &Documents::createNoResources);
+    PDFContentContainerPointer longContainer = build(longDocument, pageKey(longDocument));
+    const PDFContentDisplayCounts longCounts = PDFContentDisplay::getCounts(*longContainer);
+    QCOMPARE(longCounts.nodeCount, size_t(2));
+    QCOMPARE(longCounts.pathSegmentCount, size_t(1001));
+}
+
+void ContentDisplayTest::imageCodestreamHeaders()
+{
+    auto image = [](const QByteArray& filter, int width, int height, const QByteArray& data) -> ImageDefinition
+    {
+        return ImageDefinition({ { "Width", PDFObject::createInteger(width) }, { "Height", PDFObject::createInteger(height) },
+                                 { "ColorSpace", PDFObject::createName("DeviceGray") }, { "BitsPerComponent", PDFObject::createInteger(8) },
+                                 { "Filter", PDFObject::createName(filter) } }, data);
+    };
+
+    const QString differentSize = QStringLiteral("The size of the image in its data differs from /Width and /Height.");
+    const QString truncated = QStringLiteral("The data of the image end before the image does.");
+
+    // A JPEG of 8 x 8 with the size of its frame header: decoded, the sample 192 everywhere
+    const PDFContentDisplayImage decoded = decodeFirstImage(createImageDocument("/Im0 Do", { image("DCTDecode", 8, 8, createGrayJpeg(192, 8, 8, true)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(decoded.status, PDFContentDisplayImage::Status::Decoded);
+    QCOMPARE(decoded.image.size(), QSize(8, 8));
+    QCOMPARE(getPixel(decoded.image, 3, 5), QByteArray("192 192 192 255"));
+
+    // The same data under /Width 1 /Height 1: the decoder would allocate by the frame header, so the
+    // dictionary is no bound - refused (SECURITY_TODO item 77)
+    const PDFContentDisplayImage smaller = decodeFirstImage(createImageDocument("/Im0 Do", { image("DCTDecode", 1, 1, createGrayJpeg(192, 8, 8, true)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(smaller.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(smaller.errorText, differentSize);
+
+    // A frame header of 40000 x 40000 with three components (written by hand, B.2.2): 1.6 x 10^9
+    // pixels are within 2^31, but 4.8 x 10^9 samples exceed the 32-bit buffer of the decoder
+    QByteArray large("\xFF\xD8\xFF\xC0\x00\x11\x08\x9C\x40\x9C\x40\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00", 21);
+    const PDFContentDisplayImage tooLarge = decodeFirstImage(createImageDocument("/Im0 Do", { image("DCTDecode", 40000, 40000, large) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(tooLarge.status, PDFContentDisplayImage::Status::TooLarge);
+    QCOMPARE(tooLarge.sourceSize, QSize(40000, 40000));
+
+    // The data end inside of the scan (no EOI): the decoder would not end on them
+    const PDFContentDisplayImage cut = decodeFirstImage(createImageDocument("/Im0 Do", { image("DCTDecode", 8, 8, createGrayJpeg(192, 8, 8, false)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(cut.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(cut.errorText, truncated);
+
+    // No frame header at all
+    const PDFContentDisplayImage noHeader = decodeFirstImage(createImageDocument("/Im0 Do", { image("DCTDecode", 8, 8, QByteArray("\xFF\xD8\xFF\xD9", 4)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(noHeader.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(noHeader.errorText, QStringLiteral("The size of the image cannot be read from its data."));
+
+    // JPEG 2000: the codestream of SIZ 100000 x 100000 (10^10 pixels) under /Width 1 /Height 1; a
+    // codestream of 4 x 4 under /Width 2 /Height 2 and inside of the box jp2c of a JP2 file; the same
+    // under /Width 4 /Height 4 passes the header and is refused by the decoder (no tiles)
+    const PDFContentDisplayImage jpxLarge = decodeFirstImage(createImageDocument("/Im0 Do", { image("JPXDecode", 1, 1, createJpeg2000Codestream(100000, 100000)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(jpxLarge.status, PDFContentDisplayImage::Status::TooLarge);
+
+    const PDFContentDisplayImage jpxSmaller = decodeFirstImage(createImageDocument("/Im0 Do", { image("JPXDecode", 2, 2, createJpeg2000Codestream(4, 4)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(jpxSmaller.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(jpxSmaller.errorText, differentSize);
+
+    // A JP2 file (I.5): the signature box, ftyp, jp2h with ihdr (2 x 2: not read, the codestream
+    // decides), jp2c with the codestream
+    auto box = [](const char* type, const QByteArray& content)
+    {
+        const quint32 length = quint32(8 + content.size());
+        return bytes({ char(length >> 24), char((length >> 16) & 0xFF), char((length >> 8) & 0xFF), char(length & 0xFF) }) + QByteArray(type, 4) + content;
+    };
+    const QByteArray imageHeader = QByteArray(3, char(0)) + char(2) + QByteArray(3, char(0)) + char(2) + bytes({ char(0), char(1), char(7), char(7), char(0), char(0) });
+    const QByteArray jp2 = box("jP  ", QByteArray("\x0D\x0A\x87\x0A", 4)) + box("ftyp", QByteArray("jp2 \0\0\0\0jp2 ", 12)) + box("jp2h", box("ihdr", imageHeader)) +
+                           box("jp2c", createJpeg2000Codestream(4, 4));
+    const PDFContentDisplayImage jp2Smaller = decodeFirstImage(createImageDocument("/Im0 Do", { image("JPXDecode", 2, 2, jp2) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(jp2Smaller.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(jp2Smaller.errorText, differentSize);
+
+    const PDFContentDisplayImage jpxSame = decodeFirstImage(createImageDocument("/Im0 Do", { image("JPXDecode", 4, 4, createJpeg2000Codestream(4, 4)) }), PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(jpxSame.status, PDFContentDisplayImage::Status::Failed);
+    QVERIFY(jpxSame.errorText != differentSize);
+
+    // The soft mask is checked as the image: a JPEG mask of a frame header 8 x 8 under /Width 1
+    PDFDocument maskedDocument = Documents::createDocument("/Im0 Do", [](PDFDocumentBuilder* builder)
+    {
+        PDFObject mask = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Image") },
+                                                               { "Width", PDFObject::createInteger(1) }, { "Height", PDFObject::createInteger(1) },
+                                                               { "ColorSpace", PDFObject::createName("DeviceGray") }, { "BitsPerComponent", PDFObject::createInteger(8) },
+                                                               { "Filter", PDFObject::createName("DCTDecode") } }, createGrayJpeg(192, 8, 8, true));
+        PDFObject masked = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Image") },
+                                                                 { "Width", PDFObject::createInteger(1) }, { "Height", PDFObject::createInteger(1) },
+                                                                 { "ColorSpace", PDFObject::createName("DeviceGray") }, { "BitsPerComponent", PDFObject::createInteger(8) },
+                                                                 { "SMask", mask } }, QByteArray(1, char(0)));
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "Im0", masked } }));
+        return resources;
+    });
+    const PDFContentDisplayImage maskRefused = decodeFirstImage(maskedDocument, PDFContentDisplayImageOptions(), nullptr);
+    QCOMPARE(maskRefused.status, PDFContentDisplayImage::Status::Failed);
+    QCOMPARE(maskRefused.errorText, differentSize);
+}
+
+void ContentDisplayTest::imageResourcesInheritedFromCaller()
+{
+    // The page draws /FmA and defines /Im1 blue; /FmA has its own resources with /Im1 red and /FmB;
+    // /FmB has no resources and draws /Im1: the renderer draws the red one of its caller (NOTES.txt
+    // 7.8.3, the caller first, then the page), so the display does
+    PDFObject callerResources;
+    PDFDocument document = Documents::createDocument("/FmA Do", [&callerResources](PDFDocumentBuilder* builder)
+    {
+        auto addImage = [builder](const QByteArray& rgb)
+        {
+            return Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Image") },
+                                                         { "Width", PDFObject::createInteger(1) }, { "Height", PDFObject::createInteger(1) },
+                                                         { "ColorSpace", PDFObject::createName("DeviceRGB") }, { "BitsPerComponent", PDFObject::createInteger(8) } }, rgb);
+        };
+        PDFObject red = addImage(QByteArray("\xFF\x00\x00", 3));
+        PDFObject blue = addImage(QByteArray("\x00\x00\xFF", 3));
+        PDFObject formB = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) } }, QByteArray("q 10 0 0 10 0 0 cm /Im1 Do Q"));
+        callerResources = Documents::createDictionaryObject({ { "XObject", Documents::createDictionaryObject({ { "Im1", red }, { "FmB", formB } }) } });
+        PDFObject formA = Documents::addStreamObject(builder, { { "Type", PDFObject::createName("XObject") }, { "Subtype", PDFObject::createName("Form") },
+                                                                { "BBox", Documents::createIntegerArrayObject({ 0, 0, 100, 100 }) }, { "Resources", callerResources } }, QByteArray("/FmB Do"));
+
+        PDFDictionaryBuilder resources;
+        resources.addEntry(PDFInplaceOrMemoryString("XObject"), Documents::createDictionaryObject({ { "FmA", formA }, { "Im1", blue } }));
+        return resources;
+    });
+
+    // The key of /FmB from the use in /FmA
+    PDFContentContainerPointer page = build(document, pageKey(document));
+    const PDFObjectReference formAReference = getNodes(*page, PDFContentNodeKind::FormUse)[0]->getData().xobject;
+    PDFContentContainerPointer formA = build(document, PDFContentContainerKey::createForm(formAReference));
+    QVERIFY(formA);
+    const PDFObjectReference formBReference = getNodes(*formA, PDFContentNodeKind::FormUse)[0]->getData().xobject;
+    PDFContentContainerPointer formB = build(document, PDFContentContainerKey::createForm(formBReference), callerResources);
+    QVERIFY(formB);
+    QVERIFY(formB->getInheritedResources().isDictionary());
+
+    PDFContentDisplayImageOptions options;
+    options.pageIndex = 0;
+    const PDFContentDisplayImage image = PDFContentDisplay::decodeImage(&document, formB, getNodes(*formB, PDFContentNodeKind::Image)[0]->getId(), options, nullptr);
+    QCOMPARE(image.status, PDFContentDisplayImage::Status::Decoded);
+    QCOMPARE(getPixel(image.image, 0, 0), QByteArray("255 0 0 255"));
+
+    // Drawn by the page alone (no caller known): the blue one of the page
+    PDFContentContainerPointer formOfPage = build(document, PDFContentContainerKey::createForm(formBReference));
+    const PDFContentDisplayImage pageImage = PDFContentDisplay::decodeImage(&document, formOfPage, getNodes(*formOfPage, PDFContentNodeKind::Image)[0]->getId(), options, nullptr);
+    QCOMPARE(pageImage.status, PDFContentDisplayImage::Status::Decoded);
+    QCOMPARE(getPixel(pageImage.image, 0, 0), QByteArray("0 0 255 255"));
+}
+
+void ContentDisplayTest::patternOfMovedObject()
+{
+    // R-5: a moved object paints with a copy of its pattern with /Matrix x D, a new object of the
+    // session. The second path of createTwoTilingPatternsDocument fills with /PC (/Matrix the
+    // identity), moved by D = [1 0 0 1 10 0]: the copy has /Matrix [1 0 0 1 10 0]. The shading
+    // pattern /PS of createShadingDocument (/Matrix [1 0 0 1 5 5]) moved by [1 0 0 1 0 20]:
+    // [1 0 0 1 5 25] (ISO 32000-2, 8.7.3.1).
+    PDFDocumentPointer document(new PDFDocument(Documents::createTwoTilingPatternsDocument()));
+    PDFContentEditSession session(document, PDFCMSPointer(), nullptr);
+    const PDFContentContainerKey key = session.getPageKey(0);
+    QString errorText;
+    QVERIFY2(session.loadContainer(key, nullptr, &errorText), qPrintable(errorText));
+    const PDFContentNodeId pathId = getNodes(*session.getContainer(key), PDFContentNodeKind::Path)[1]->getId();
+    const PDFObject sourcePattern = PDFContentDisplay::getDisplayState(*session.getContainer(key), pathId, createContext(document.get()))->fillColor.patternObject;
+    QVERIFY(sourcePattern.isReference());
+
+    QVERIFY2(session.execute(PDFContentCommandFactory::createTransform({ PDFContentNodeReference{ key, pathId } }, QTransform(1, 0, 0, 1, 10, 0)), &errorText), qPrintable(errorText));
+    const PDFContentContainerPointer moved = session.getContainer(key);
+    const PDFContentEditSnapshotPointer snapshot = session.createSnapshot();
+    const PDFObject copy = PDFContentDisplay::getDisplayState(*moved, pathId, createContext(document.get()))->fillColor.patternObject;
+    QVERIFY(copy.isReference() && !(copy == sourcePattern) && snapshot->newObjects.count(copy.getReference()));
+
+    PDFContentDisplayImageOptions options;
+    options.maximumPixels = 100;
+    options.newObjects = &snapshot->newObjects;
+    const PDFContentDisplayTilingCell cell = PDFContentDisplay::getTilingCell(document.get(), moved, pathId, false, options, nullptr);
+    QCOMPARE(cell.status, PDFContentDisplayTilingCell::Status::Done);
+    QVERIFY(isClose(cell.matrix, QTransform(1, 0, 0, 1, 10, 0)));
+    QCOMPARE(getPixel(cell.picture, 2, 7), QByteArray("255 0 0 255"));
+
+    // Without the new objects the pattern is not found
+    options.newObjects = nullptr;
+    QVERIFY(PDFContentDisplay::getTilingCell(document.get(), moved, pathId, false, options, nullptr).status != PDFContentDisplayTilingCell::Status::Done);
+
+    // The cell of the pattern under the use of the moved path: the matrix of the copy
+    const PDFContentContainerPointer cellContainer = build(*document, PDFContentContainerKey::createPatternCell(sourcePattern.getReference()));
+    QVERIFY(cellContainer);
+    const PDFContentDisplayUsePath uses = { PDFContentDisplayUse{ moved, pathId } };
+    PDFContentDisplayContext context = createContext(document.get());
+    context.newObjects = &snapshot->newObjects;
+    const std::optional<QTransform> cellMatrix = PDFContentDisplay::getContainerMatrix(*cellContainer, uses, context);
+    QVERIFY(cellMatrix.has_value());
+    QVERIFY(isClose(*cellMatrix, QTransform(1, 0, 0, 1, 10, 0)));
+    QVERIFY(!PDFContentDisplay::getContainerMatrix(*cellContainer, uses).has_value());
+
+    // Another pattern is no copy of the cell: the first path fills with /PU
+    const PDFContentNodeId otherId = getNodes(*moved, PDFContentNodeKind::Path)[0]->getId();
+    QVERIFY(!PDFContentDisplay::getContainerMatrix(*cellContainer, { PDFContentDisplayUse{ moved, otherId } }, context).has_value());
+
+    // New objects written by hand: the stream of /PC with /Matrix [1 0 0 1 7 0] is a copy; with
+    // one byte more of the data, or with another /XStep, it is none
+    const PDFStream* cellStream = document->getObjectByReference(sourcePattern.getReference()).getStream();
+    QVERIFY(cellStream);
+    auto makeCopy = [cellStream](bool isContentChanged, bool isDictionaryChanged)
+    {
+        PDFDictionaryBuilder dictionary(*cellStream->getDictionary());
+        dictionary.setEntry(PDFInplaceOrMemoryString("Matrix"), Documents::createIntegerArrayObject({ 1, 0, 0, 1, 7, 0 }));
+        if (isDictionaryChanged)
+        {
+            dictionary.setEntry(PDFInplaceOrMemoryString("XStep"), PDFObject::createInteger(11));
+        }
+        QByteArray content = *cellStream->getContent();
+        if (isContentChanged)
+        {
+            content += ' ';
+        }
+        return PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content)));
+    };
+    const std::map<PDFObjectReference, PDFObject> handMade = { { PDFObjectReference(1, PDFContentEditSession::NEW_OBJECT_GENERATION), makeCopy(false, false) },
+                                                               { PDFObjectReference(2, PDFContentEditSession::NEW_OBJECT_GENERATION), makeCopy(true, false) },
+                                                               { PDFObjectReference(3, PDFContentEditSession::NEW_OBJECT_GENERATION), makeCopy(false, true) } };
+    PDFContentDisplayContext handMadeContext = createContext(document.get());
+    handMadeContext.newObjects = &handMade;
+    const PDFContentContainerPointer source = build(*document, key);
+    for (const auto& [reference, expectedCopy] : std::vector<std::pair<PDFInteger, bool>>{ { 1, true }, { 2, false }, { 3, false } })
+    {
+        PDFContentStateOverride override;
+        override.properties[PDFContentStateProperty::FillColor] = makeColor(QByteArray(), { });
+        override.properties[PDFContentStateProperty::FillColor].color.patternObject = PDFObject::createReference(PDFObjectReference(reference, PDFContentEditSession::NEW_OBJECT_GENERATION));
+        const PDFContentContainerPointer withCopy = withOverride(source, pathId, override);
+        const std::optional<QTransform> handMadeMatrix = PDFContentDisplay::getContainerMatrix(*cellContainer, { PDFContentDisplayUse{ withCopy, pathId } }, handMadeContext);
+        QCOMPARE(handMadeMatrix.has_value(), expectedCopy);
+        if (expectedCopy)
+        {
+            QVERIFY(isClose(*handMadeMatrix, QTransform(1, 0, 0, 1, 7, 0)));
+        }
+    }
+
+    // A shading pattern of a moved path
+    PDFDocumentPointer shadingDocument(new PDFDocument(createShadingDocument("/Pattern cs /PS scn 0 0 10 10 re f")));
+    PDFContentEditSession shadingSession(shadingDocument, PDFCMSPointer(), nullptr);
+    const PDFContentContainerKey shadingKey = shadingSession.getPageKey(0);
+    QVERIFY2(shadingSession.loadContainer(shadingKey, nullptr, &errorText), qPrintable(errorText));
+    const PDFContentNodeId shadedId = getNodes(*shadingSession.getContainer(shadingKey), PDFContentNodeKind::Path)[0]->getId();
+    QVERIFY2(shadingSession.execute(PDFContentCommandFactory::createTransform({ PDFContentNodeReference{ shadingKey, shadedId } }, QTransform(1, 0, 0, 1, 0, 20)), &errorText), qPrintable(errorText));
+    const PDFContentEditSnapshotPointer shadingSnapshot = shadingSession.createSnapshot();
+    PDFContentDisplayImageOptions shadingOptions;
+    shadingOptions.newObjects = &shadingSnapshot->newObjects;
+    const PDFContentDisplayShading shading = PDFContentDisplay::getShading(shadingDocument.get(), shadingSession.getContainer(shadingKey), shadedId, false, shadingOptions, nullptr);
+    QCOMPARE(shading.status, PDFContentDisplayShading::Status::Done);
+    QVERIFY(isClose(shading.matrix, QTransform(1, 0, 0, 1, 5, 25)));
+}
+
+void ContentDisplayTest::boundingBoxOfMiterAndUnpaintedPath()
+{
+    // 0 0 m 100 10 l 0 20 l S, 2 w, a miter join: at (100 10) the segments make the angle
+    // 2 atan(0.1) = 11.42 degrees, the miter length ratio 1 / sin(5.71 degrees) = 10.0499 (ISO
+    // 32000-2, 8.4.3.5). Under the miter limit 10 the join is beveled: the outer corners of the
+    // two strokes are (100 + 0.0995, 10 -+ 0.995), the right edge 100.0995. Under 11 the miter: its
+    // tip lies 1 x 10.0499 from the corner along the bisector, at x 110.0499.
+    PDFDocument document = Documents::createDocument("2 w 0 j 10 M 0 0 m 100 10 l 0 20 l S 11 M 0 0 m 100 10 l 0 20 l S", &Documents::createNoResources);
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const std::vector<PDFContentNodePointer> paths = getNodes(*container, PDFContentNodeKind::Path);
+    QCOMPARE(paths.size(), size_t(2));
+    const PDFContentDisplayBox beveled = PDFContentDisplay::getBoundingBox(*container, paths[0]->getId(), createContext(&document));
+    const PDFContentDisplayBox mitered = PDFContentDisplay::getBoundingBox(*container, paths[1]->getId(), createContext(&document));
+    QVERIFY2(std::abs(beveled.box.right() - 100.0995) <= 0.005, qPrintable(QString::number(beveled.box.right())));
+    QVERIFY2(std::abs(mitered.box.right() - 110.0499) <= 0.005, qPrintable(QString::number(mitered.box.right())));
+
+    // A path, which paints nothing (n without a clip, the painting switched off): the box of its
+    // points, no stroke
+    PDFDocument unpaintedDocument = Documents::createDocument("4 w 10 20 30 40 re n", &Documents::createNoResources);
+    PDFContentContainerPointer unpainted = build(unpaintedDocument, pageKey(unpaintedDocument));
+    const PDFContentDisplayBox unpaintedBox = PDFContentDisplay::getBoundingBox(*unpainted, getNodes(*unpainted, PDFContentNodeKind::Path)[0]->getId(), createContext(&unpaintedDocument));
+    QVERIFY(unpaintedBox.isValid && !unpaintedBox.isUnknown);
+    QVERIFY(isClose(unpaintedBox.box, QRectF(10, 20, 30, 40), 1e-9));
+}
+
+void ContentDisplayTest::boundingBoxOfLongStrokedPath()
+{
+    // 10 001 segments (m and 10 000 l) over x 0 ... 100, y 0 ... 1, stroked with 2 w, a miter join
+    // and the miter limit 10: more than 10 000 segments, so the box is the box of the points
+    // enlarged by the reach w / 2 x max(sqrt(2), 10) = 10 - (-10 -10) to (110 11)
+    QByteArray content("2 w 0 j 10 M 0 0 m");
+    for (int i = 1; i <= 10000; ++i)
+    {
+        content += ' ' + QByteArray::number(PDFReal(i) / 100.0) + ' ' + QByteArray::number(i % 2) + " l";
+    }
+    content += " S";
+    PDFDocument document = Documents::createDocument(content, &Documents::createNoResources);
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const PDFContentNodePointer path = getNodes(*container, PDFContentNodeKind::Path)[0];
+    QCOMPARE(path->getData().path.getSegments().size(), size_t(10001));
+
+    const PDFContentDisplayBox box = PDFContentDisplay::getBoundingBox(*container, path->getId(), createContext(&document));
+    QVERIFY(isClose(box.box, QRectF(-10, -10, 120, 21), 1e-9));
+
+    // A round join reaches sqrt(2) x w / 2 (the projecting square cap would): the same path with 1 j
+    PDFDocument roundDocument = Documents::createDocument(content.replace("0 j", "1 j"), &Documents::createNoResources);
+    PDFContentContainerPointer roundContainer = build(roundDocument, pageKey(roundDocument));
+    const PDFContentDisplayBox roundBox = PDFContentDisplay::getBoundingBox(*roundContainer, getNodes(*roundContainer, PDFContentNodeKind::Path)[0]->getId(), createContext(&roundDocument));
+    const PDFReal reach = std::sqrt(2.0);
+    QVERIFY(isClose(roundBox.box, QRectF(-reach, -reach, 100 + 2 * reach, 1 + 2 * reach), 1e-9));
+}
+
+void ContentDisplayTest::clippedNodesOfTextInMarkedContent()
+{
+    // The clip of the show A (7 Tr) inside of a marked content of the text object becomes real at
+    // ET (ISO 32000-2, 9.3.6): it applies to the rectangle behind the text, not to the show B
+    PDFDocument document = Documents::createFontsDocument("BT /F1 10 Tf /Span BMC 7 Tr (A) Tj EMC (B) Tj ET 0 0 10 10 re f");
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const std::vector<PDFContentNodePointer> shows = getNodes(*container, PDFContentNodeKind::TextShow);
+    const std::vector<PDFContentNodePointer> paths = getNodes(*container, PDFContentNodeKind::Path);
+    QCOMPARE(shows.size(), size_t(2));
+    QCOMPARE(paths.size(), size_t(1));
+    QCOMPARE(PDFContentDisplay::getClippedNodes(*container, shows[0]->getId()), (std::vector<PDFContentNodeId>{ paths[0]->getId() }));
+}
+
+void ContentDisplayTest::textVerticalCell()
+{
+    // /FV: /Identity-V, w1 of the CID 65 is -0.7, of the other CIDs -0.9 (/DW2): at 10 Tf the cell of
+    // A goes from 0 down to -7 in y and from -5 to 5 in x (ISO 32000-2, 9.7.4.3), with 50 Tz from -10
+    // to 10 in the glyph space (x_text = 0.5 x x_glyph); the glyph B (CID 66) down to -9. The cell is
+    // the box of a glyph without an outline: a vertical text without a font program has a box.
+    PDFDocument document = Documents::createFontsDocument("BT /FV 10 Tf 50 100 Td <00410042> Tj 50 Tz <0041> Tj ET");
+    PDFContentContainerPointer container = build(document, pageKey(document));
+    const PDFContentDisplayTextPointer text = PDFContentDisplay::getText(*container, getNodes(*container, PDFContentNodeKind::TextObject)[0]->getId(), createContext(&document));
+    QVERIFY(text);
+    QCOMPARE(text->glyphs.size(), size_t(3));
+    QVERIFY(isClose(text->glyphs[0].cell, QRectF(-5, -7, 10, 7), 1e-9));
+    QVERIFY(isClose(text->glyphs[1].cell, QRectF(-5, -9, 10, 9), 1e-9));
+    QVERIFY(isClose(text->glyphs[2].cell, QRectF(-10, -7, 20, 7), 1e-9));
+
+    // The box of the text object: the cells, or the outlines where the font is realized - never empty
+    const PDFContentDisplayBox box = PDFContentDisplay::getBoundingBox(*container, getNodes(*container, PDFContentNodeKind::TextObject)[0]->getId(), createContext(&document));
+    QVERIFY(!box.box.isEmpty());
+    for (const PDFContentDisplayGlyph& glyph : text->glyphs)
+    {
+        if (!glyph.outline || glyph.outline->isEmpty())
+        {
+            QVERIFY(box.box.contains(glyph.matrix.mapRect(glyph.cell)));
+        }
+    }
 }
 
 QTEST_MAIN(ContentDisplayTest)

@@ -1128,6 +1128,10 @@ public:
             case Operator::SetLineDashPattern:
                 return Property::DashPattern;
 
+            case Operator::TextSetRenderMode:
+                // The mode a switch of the painting of the whole text sets (set_appearance)
+                return Property::TextRenderingMode;
+
             default:
                 return Property::Count;
         }
@@ -1764,8 +1768,11 @@ public:
     // inside of it. What the commands refuse because of it:
     //  - the unclosed node itself is not moved, copied, grouped, ungrouped or transformed (R-7:
     //    the model adds a missing closing operator only where something is written behind the
-    //    node; a command never gives such a node another place or a wrap) - also not as the wrap
-    //    an order command would take along with its only content;
+    //    node; these commands never give such a node another place or a wrap) - also not as the
+    //    wrap an order command would take along with its only content. A change of the state
+    //    (set_appearance, set_transparency, the paint switches) is not refused: an unclosed text
+    //    object gets its wrap with the missing ET written inside of it ("q 0.5 g BT ... ET Q"),
+    //    as since stage E0;
     //  - nothing is placed behind an unclosed text, which adds to the clipping path
     //    (isClipPendingBehind): the ET the model would write makes that clip real. The builder
     //    marks such a text as an open end, so the end of its parent is in front of it
@@ -2686,13 +2693,86 @@ public:
         return true;
     }
 
+    /// The text rendering mode a switch of the painting gives to a show of the mode \p mode
+    /// (ISO 32000-2, 9.3.6, Table 104: 0 fill, 1 stroke, 2 fill and stroke, 3 neither; 4 - 7 the
+    /// same, which also clip): the switch, which is not given, keeps its part, the clip is kept
+    static PDFInteger getSwitchedTextRenderingMode(PDFInteger mode, const PDFContentPaintSwitches& switches)
+    {
+        const PDFInteger clip = mode >= 4 ? 4 : 0;
+        const PDFInteger paint = mode - clip;
+        const bool isFilled = switches.fill.value_or(paint == 0 || paint == 2);
+        const bool isStroked = switches.stroke.value_or(paint == 1 || paint == 2);
+        const PDFInteger switched = isFilled ? (isStroked ? 2 : 0) : (isStroked ? 1 : 3);
+        return clip + switched;
+    }
+
+    /// The text rendering mode a text object gives its shows by a switch of the painting: the
+    /// property TextRenderingMode of its wrap. No value: nothing changes (every show has its mode
+    /// already); an error: its shows would get different modes.
+    /// \param mode The mode for the wrap
+    /// \returns false, when the switch cannot be made for the whole text
+    static bool getSwitchedTextRenderingMode(const PDFContentNodePointer& text, const PDFContentPaintSwitches& switches, std::optional<PDFInteger>* mode, QString* errorText)
+    {
+        *mode = std::nullopt;
+
+        // The mode a show is painted with: the one of the wrap of the text (its own Tr operators
+        // are suppressed then, R-1), else the one of its state
+        std::optional<PDFInteger> wrapMode;
+        if (const PDFContentStateOverride* override = text->getOverride())
+        {
+            auto it = override->properties.find(Property::TextRenderingMode);
+            if (it != override->properties.cend() && it->second.kind == PDFContentStateValue::Kind::Integer)
+            {
+                wrapMode = it->second.integer;
+            }
+        }
+
+        bool isChanged = false;
+        std::optional<PDFInteger> switchedMode;
+        for (const PDFContentNodePointer& item : Helper::getSubtree(text))
+        {
+            if (item->getKind() != Kind::TextShow)
+            {
+                continue;
+            }
+
+            PDFInteger current = 0;
+            if (wrapMode)
+            {
+                current = *wrapMode;
+            }
+            else if (item->getState())
+            {
+                current = PDFInteger(item->getState()->getState().getTextRenderingMode());
+            }
+
+            const PDFInteger switched = getSwitchedTextRenderingMode(current, switches);
+            isChanged = isChanged || switched != current;
+            if (switchedMode && *switchedMode != switched)
+            {
+                *errorText = PDFTranslationContext::tr("The parts of the text are painted in different ways; the painting cannot be switched for the whole text yet.");
+                return false;
+            }
+            switchedMode = switched;
+        }
+
+        if (isChanged)
+        {
+            *mode = switchedMode;
+        }
+        return true;
+    }
+
     /// Sets properties of the appearance or of the transparency of a node: a leaf gets them into
-    /// its override, a group or a marked content gives them to its leaves (R-1).
+    /// its override, a group or a marked content gives them to its leaves (R-1). The switches of
+    /// the painting (the appearance only, PDFContentCommandFactory::createSetAppearance) change
+    /// the painting operator of a path and the text rendering mode of a text.
     /// \param isAppearance Colors and line parameters (paths and texts only); else the alphas
     ///        and the blend mode (every leaf, which paints)
     bool setProperties(Container* container,
                        PDFContentNodeId id,
-                       const std::map<Property, PDFContentStateValue>& properties,
+                       const std::map<Property, PDFContentStateValue>& nodeProperties,
+                       const PDFContentPaintSwitches& switches,
                        bool isAppearance,
                        bool isNamed,
                        int depth,
@@ -2724,7 +2804,7 @@ public:
 
             for (const PDFContentNodeId childId : children)
             {
-                if (!setProperties(container, childId, properties, isAppearance, false, depth + 1, count, errorText))
+                if (!setProperties(container, childId, nodeProperties, switches, isAppearance, false, depth + 1, count, errorText))
                 {
                     return false;
                 }
@@ -2733,7 +2813,10 @@ public:
         }
 
         PDFContentNode::Data data = node->getData();
-        const bool isClippingPath = kind == Kind::Path && data.paint.isClippingPath();
+
+        // A clipping path paints nothing: the properties do not apply to it. A switch, which
+        // paints it, does, when the command names the path itself (a group leaves it alone).
+        const bool isClippingPath = kind == Kind::Path && data.paint.isClippingPath() && !(isNamed && !switches.isEmpty());
 
         if (!isLeaf || isClippingPath)
         {
@@ -2752,6 +2835,37 @@ public:
             return false;
         }
 
+        // The switches of the painting: a path gets its new painting operator, a text the mode of
+        // its wrap (a property as the others, so the operators Tr of the text are suppressed)
+        std::map<Property, PDFContentStateValue> textProperties;
+        const std::map<Property, PDFContentStateValue>* propertiesPointer = &nodeProperties;
+        PDFContentPathPaint paint = data.paint;
+        if (!switches.isEmpty() && kind == Kind::Path)
+        {
+            paint.fill = switches.fill.value_or(paint.fill);
+            paint.stroke = switches.stroke.value_or(paint.stroke);
+        }
+        else if (!switches.isEmpty() && kind == Kind::TextObject)
+        {
+            std::optional<PDFInteger> mode;
+            if (!getSwitchedTextRenderingMode(node, switches, &mode, errorText))
+            {
+                return false;
+            }
+
+            if (mode)
+            {
+                textProperties = nodeProperties;
+                PDFContentStateValue value;
+                value.kind = PDFContentStateValue::Kind::Integer;
+                value.integer = *mode;
+                textProperties[Property::TextRenderingMode] = value;
+                propertiesPointer = &textProperties;
+            }
+        }
+        const std::map<Property, PDFContentStateValue>& properties = *propertiesPointer;
+        const bool isPaintChanged = paint.fill != data.paint.fill || paint.stroke != data.paint.stroke;
+
         // The object has every value already: nothing is set (no wrap, no state run, no
         // suppressed operator), and a command, which changes no object at all, is refused as
         // unchanged. An object has a value, when its override sets it; an object without that
@@ -2759,10 +2873,11 @@ public:
         // whose own operators may set the property again for a part of it (the override of
         // a text suppresses them, which is a change), and not a property a form or a pattern
         // cell inherits (Container::isForm): the state of the form is the one of its first use,
-        // another use draws the object with another value (ISO 32000-2, 8.10.1).
+        // another use draws the object with another value (ISO 32000-2, 8.10.1). A path, whose
+        // painting is switched, changes in any case.
+        bool isSetAlready = true;
         {
             const State state{ data.state, data.symbolicState };
-            bool isSetAlready = true;
 
             for (const auto& item : properties)
             {
@@ -2796,32 +2911,43 @@ public:
                 }
             }
 
-            if (isSetAlready)
+            if (isSetAlready && !isPaintChanged)
             {
                 ++*count;
                 return true;
             }
         }
 
-        if (kind == Kind::TextObject)
+        if (!isSetAlready)
         {
-            std::set<Property> keys;
+            if (kind == Kind::TextObject)
+            {
+                std::set<Property> keys;
+                for (const auto& item : properties)
+                {
+                    keys.insert(item.first);
+                }
+                if (!suppressOperations(container, node, keys, errorText))
+                {
+                    return false;
+                }
+            }
+
+            PDFContentStateOverride override = data.override ? *data.override : PDFContentStateOverride();
             for (const auto& item : properties)
             {
-                keys.insert(item.first);
+                override.properties[item.first] = item.second;
             }
-            if (!suppressOperations(container, node, keys, errorText))
-            {
-                return false;
-            }
+            data.override = std::move(override);
         }
 
-        PDFContentStateOverride override = data.override ? *data.override : PDFContentStateOverride();
-        for (const auto& item : properties)
+        if (isPaintChanged)
         {
-            override.properties[item.first] = item.second;
+            // The painting operator of the path changes: the path is written by its geometry
+            // (PDFContentStreamWriter::writePathPaint keeps the fill rule, the closing and the clip)
+            data.paint = paint;
+            data.isModified = true;
         }
-        data.override = std::move(override);
 
         ++*count;
         return setOverride(container, std::move(data), errorText);
@@ -3730,6 +3856,8 @@ public:
     static constexpr const char* KEY_LINE_JOIN = "lineJoin";
     static constexpr const char* KEY_MITER_LIMIT = "miterLimit";
     static constexpr const char* KEY_DASH = "dash";
+    static constexpr const char* KEY_FILL_ENABLED = "fillEnabled";
+    static constexpr const char* KEY_STROKE_ENABLED = "strokeEnabled";
     static constexpr const char* KEY_DASH_ARRAY = "array";
     static constexpr const char* KEY_DASH_PHASE = "phase";
     static constexpr const char* KEY_STROKE_ALPHA = "strokeAlpha";

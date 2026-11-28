@@ -44,7 +44,18 @@ PDFAppEditContentUndoTarget::PDFAppEditContentUndoTarget(PDFAppEditContentContex
         connect(context->getSession(), &PDFContentEditSession::modelChanged, this, &PDFAppEditContentUndoTarget::onStateChanged);
         connect(context, &PDFAppEditContentContext::editingAllowedChanged, this, &PDFAppEditContentUndoTarget::onStateChanged);
         connect(context, &PDFAppEditContentContext::previewActiveChanged, this, &PDFAppEditContentUndoTarget::onStateChanged);
+        connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentUndoTarget::onSessionReplaced);
     }
+}
+
+void PDFAppEditContentUndoTarget::onSessionReplaced()
+{
+    // reloadDocument: the steps are the ones of the new session (a clean stack); the old session is disconnected
+    if (m_context)
+    {
+        connect(m_context->getSession(), &PDFContentEditSession::modelChanged, this, &PDFAppEditContentUndoTarget::onStateChanged);
+    }
+    onStateChanged();
 }
 
 PDFAppEditContentUndoTarget::~PDFAppEditContentUndoTarget() = default;

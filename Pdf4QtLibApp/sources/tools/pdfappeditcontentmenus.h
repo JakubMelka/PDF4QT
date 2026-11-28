@@ -98,14 +98,19 @@ public:
     static constexpr const char* ACTION_PROPERTY = "editContentAction";
     static constexpr const char* CHOICE_PROPERTY = "editContentChoice";
 
-    /// The key shown at the row of the entry: its first key, else the default shortcut of the
-    /// first command of the application it answers (the Delete row shows Del); empty = none
+    /// The key shown at the row of the entry: its first key, else the current shortcut of the
+    /// first command of the application it answers - the user's one (a rebinding in Settings),
+    /// else the default one (the Delete row shows Del); empty = none (also when the user removed
+    /// the shortcut of the command)
     static QKeySequence getShownKey(const PDFAppEditContentActionEntry* entry, const PDFAppEditContentContext* context);
 
-    /// The description of a row of a panel (Clipping paths: "Blue dashed outlines"): the entries of
-    /// this file have one, an entry of another package none (request of P12 to the coordinator:
-    /// PDFAppEditContentActionEntry::getDescription)
-    static QString getDescription(const PDFAppEditContentActionEntry* entry);
+    /// The work of the actions of the selection (tests; R7-3, R7-9): a monotonic count of the
+    /// selected nodes inspected and of the comparisons of their sets. GUI thread.
+    static quint64 getWorkCount();
+
+    /// The description of a row of a panel (Clipping paths: "Blue dashed outlines"):
+    /// PDFAppEditContentActionEntry::getDescription of the entry; empty without an entry
+    static QString getDescription(const PDFAppEditContentActionEntry* entry, const PDFAppEditContentContext* context);
 
 protected:
     virtual void retire() override;

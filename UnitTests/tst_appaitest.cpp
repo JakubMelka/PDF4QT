@@ -287,7 +287,9 @@ public:
     static pdf::PDFMcpActivityRow activity(const QString& action, pdf::PDFMcpActivityStatus status, const QJsonObject& detail = QJsonObject())
     {
         pdf::PDFMcpActivityRow row;
-        row.time = QDateTime(QDate(2026, 10, 27), QTime(16, 44)).toMSecsSinceEpoch();
+        // Yesterday: the repository keeps the activity of the last 30 days only (PDFMcpRepository::MAXIMUM_ACTIVITY_AGE),
+        // so a fixed date stops being listed a month later (the tests failed from 2026-11-26 on); the row shows the clock
+        row.time = QDateTime(QDate::currentDate().addDays(-1), QTime(16, 44)).toMSecsSinceEpoch();
         row.client = QStringLiteral("Claude Code");
         row.action = action;
         row.document = QStringLiteral("Project_Report.pdf");

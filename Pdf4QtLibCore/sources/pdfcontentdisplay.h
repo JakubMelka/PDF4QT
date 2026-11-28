@@ -35,6 +35,7 @@
 #include <QString>
 #include <QTransform>
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -74,6 +75,12 @@ struct PDFContentDisplayContext
 
     /// Decoded ICC profiles of the document; may be nullptr
     const PDFICCProfileCache* iccProfileCache = nullptr;
+
+    /// The new objects of the session by their provisional references (PDFContentEditSnapshot::
+    /// newObjects): a pattern, which exists only in the session (the copy of rule R-5 made when an
+    /// object is moved, ISO 32000-2, 8.7.3.1), is read from here. nullptr: the document only (a
+    /// pattern of a moved object is not found then).
+    const std::map<PDFObjectReference, PDFObject>* newObjects = nullptr;
 };
 
 /// One level of a path of uses: a content, which draws the next container of the path (zadani_gui.md
@@ -152,7 +159,10 @@ struct PDFContentDisplayGlyph
 
     /// The advance cell in the glyph space: x from 0 to w0 x |Tfs| (w0 of the font dictionary; the
     /// move of the text matrix, when the dictionary has no width), y from -0.2 |Tfs| to |Tfs| (as the
-    /// builder measures a glyph without an outline); normalized
+    /// builder measures a glyph without an outline); normalized. A font of the vertical writing mode
+    /// (ISO 32000-2, 9.7.4.3): y from 0 to w1 x |Tfs| (the vertical displacement w1 of /W2, else of
+    /// /DW2, -1 by default: downward), x from -|Tfs| / 2 to |Tfs| / 2 in the text space (divided by
+    /// |Th| in the glyph space) - centered on the origin, where the glyph is placed
     QRectF cell;
 
     /// Glyph space -> target space: [Th x s 0 0 s 0 Ts] x Tm x (the matrix of the display state of
@@ -227,6 +237,10 @@ struct PDFContentDisplayImageOptions
 
     const PDFCMS* cms = nullptr;                        ///< Color management; nullptr = the generic one
     const PDFICCProfileCache* iccProfileCache = nullptr; ///< May be nullptr
+
+    /// The new objects of the session (PDFContentDisplayContext::newObjects; must outlive the call,
+    /// the worker holds the snapshot, whose map it is): the patterns of moved objects
+    const std::map<PDFObjectReference, PDFObject>* newObjects = nullptr;
 };
 
 /// The decoded image of an Image node
@@ -236,8 +250,8 @@ struct PDFContentDisplayImage
     {
         Decoded,        ///< \p image is the picture
         NotImage,       ///< The node is no Image node, or the container or the document is missing
-        TooLarge,       ///< /Width x /Height of the image or of its mask above MAXIMUM_DECODED_PIXELS (or not positive): refused before any decoding
-        Failed,         ///< The image cannot be decoded (\p errorText)
+        TooLarge,       ///< /Width x /Height of the image or of its mask above MAXIMUM_DECODED_PIXELS (or not positive), or the size in the JPEG / JPEG 2000 data too large: refused before any decoding
+        Failed,         ///< The image cannot be decoded (\p errorText), also JPEG / JPEG 2000 data refused by their header (decodeImage)
         Canceled        ///< The operation control canceled the work
     };
 
@@ -283,9 +297,9 @@ struct PDFContentDisplayShading
     {
         Done,
         NotShading,         ///< Neither a Shading node nor a node painted with a shading pattern; or the container or the document is missing
-        NotImplemented,     ///< A kind this package does not draw (listed in the report of P10)
-        TooLarge,           ///< A mesh above MAXIMUM_MESH_TRIANGLES or a picture above the limit of pixels
-        Failed,             ///< The shading cannot be read (\p errorText)
+        NotImplemented,     ///< Not returned any more (every type is drawn since the fix package FX1 of stage E1); kept for the callers
+        TooLarge,           ///< A mesh above MAXIMUM_MESH_TRIANGLES (refused while it is meshed, before it is painted), or no picture fits the limit of pixels
+        Failed,             ///< The shading cannot be read or meshed (\p errorText), or the extent of its picture is empty
         Canceled
     };
 
@@ -293,7 +307,7 @@ struct PDFContentDisplayShading
     {
         Axial,              ///< A linear gradient: \p start, \p end, \p stops
         Radial,             ///< A radial gradient: \p start, \p startRadius, \p end, \p endRadius, \p stops
-        Picture             ///< Another type (1, 4 - 7): \p picture over \p pictureRectangle - not done by P10 (Status::NotImplemented, the picture is empty)
+        Picture             ///< Another type (1 function based, 4 - 7 meshes): \p picture over \p pictureRectangle
     };
 
     struct Stop
@@ -312,9 +326,9 @@ struct PDFContentDisplayShading
     bool extendStart = false;
     bool extendEnd = false;
     std::vector<Stop> stops;        ///< At most MAXIMUM_GRADIENT_STOPS
-    QColor backgroundColor;         ///< /Background of a shading pattern (invalid without one)
-    QImage picture;                 ///< Picture: the rendered shading
-    QRectF pictureRectangle;        ///< Picture: the rectangle of the picture in the default space of the container
+    QColor backgroundColor;         ///< /Background of a shading pattern (invalid without one; a picture has it painted already)
+    QImage picture;                 ///< Picture: the shading painted (ARGB32 premultiplied, opaque colors, transparent where it paints nothing; row 0 is the top of \p pictureRectangle)
+    QRectF pictureRectangle;        ///< Picture: the rectangle of the picture in the default space of the container (the box of the node, see getShading)
     QString errorText;
 };
 
@@ -391,13 +405,24 @@ public:
     ///          inner container), a key is met twice, or a matrix cannot be inverted
     static std::optional<QTransform> getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses);
 
+    /// The same with a context: a level of a pattern cell, whose node is painted with a copy of the
+    /// pattern of the cell, which exists only in the session (rule R-5: an object moved by a matrix D
+    /// paints with a copy of /Matrix x D; context.newObjects), takes the /Matrix of the copy. A copy
+    /// is a new object, whose stream has the bytes of the stream of the pattern of the cell (the
+    /// pattern of the document; context.document) and whose dictionary has its entries, /Matrix
+    /// aside. getDisplayState, getBoundingBox and getText with a path of uses take their context
+    /// here.
+    static std::optional<QTransform> getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses, const PDFContentDisplayContext& context);
+
     // ---- item 2: bounding boxes ----
 
     /// The box of a node in the default space of its container after the effective override:
     ///  - Path: its points (control points included) under the matrix of the display state; a stroked
     ///    path also its solid stroke (the line width, the cap, the join and the miter limit of the
     ///    display state in the space of the node; a dash pattern only takes parts away); the line
-    ///    width 0 adds nothing;
+    ///    width 0 adds nothing; a path, which paints nothing (n: its fill and its stroke switched
+    ///    off, PDFContentCommandFactory::createSetAppearance, or a clipping path), its points - the
+    ///    box it fills, when its fill is switched on again;
     ///  - Image: the unit square under the matrix;
     ///  - FormUse: /BBox of the form under its /Matrix and the matrix (the document of the context;
     ///    without it the box of the builder moved by the override);
@@ -454,9 +479,17 @@ public:
 
     /// Decodes the image of an Image node (an image XObject or an inline image, /Decode, /SMask and
     /// /Mask as the alpha, /ImageMask in the fill color of the display state, through the color
-    /// management) by the image decoding of the processor. /Width x /Height of the image and of its mask
-    /// above MAXIMUM_DECODED_PIXELS is refused before anything is decoded. An image of a new object of
-    /// the session (a provisional reference, stage E3) is not available here (Failed).
+    /// management) by the image decoding of the processor, under the resources of the container (a
+    /// form or a pattern cell without /Resources of its own: the resources it was built with -
+    /// those of the content drawing it, else of the page, NOTES.txt 7.8.3 - with the entries an
+    /// editor added over them). Refused before anything is decoded: /Width x /Height of the image
+    /// and of its mask above MAXIMUM_DECODED_PIXELS (TooLarge); for the data of DCTDecode and
+    /// JPXDecode (whose decoders allocate by the size in the data, not by the dictionary) the size
+    /// read from the JPEG frame header (SOF) or the JPEG 2000 SIZ / ihdr above the limit or above
+    /// 2^32 samples of the 32-bit buffer of the JPEG decoder (TooLarge), a size, which differs from
+    /// /Width and /Height, a header, which cannot be read, and JPEG data without EOI behind their
+    /// scan (Failed: the decoder would not end on such data). An image of a new object of the
+    /// session (a provisional reference, stage E3) is not available here (Failed).
     /// Thread: a worker (also any other thread); it creates and destroys its own processor and
     /// caches. Cost: the decoding of the whole image and a scaling. Cancelable by \p control.
     /// \param document The document (must outlive the call; the worker holds it)
@@ -496,12 +529,25 @@ public:
     /// The shading of a Shading node (sh) or of a node painted with a shading pattern (\p isStroke:
     /// the stroke color, else the fill color): an axial or a radial shading (types 2, 3) as values of
     /// a gradient - the functions sampled at MAXIMUM_GRADIENT_STOPS points of the domain into display
-    /// colors, \p matrix the shading space of the node (sh) or the /Matrix of the pattern. The other
-    /// types (1, 4 - 7) are not done by package P10: Status::NotImplemented with the kind Picture
-    /// (\p picture stays empty). /Background: \p backgroundColor of a pattern (sh ignores it).
-    /// \p options: the color management; maximumPixels and pageIndex are not used.
-    /// Thread: a worker (also any other thread). Cost: the creation of the shading and 256
-    /// evaluations of its function. Cancelable (between the steps).
+    /// colors, \p matrix the shading space of the node (sh) or the /Matrix of the pattern.
+    /// The other types - 1 (function based) and the meshes 4 - 7 - give the kind Picture: the shading
+    /// meshed and painted by the meshing of the renderer (PDFShadingPattern::createMesh, its default
+    /// quality, ISO 32000-2, 8.7.4.5.2 - 8.7.4.5.8) into a picture of at most options.maximumPixels
+    /// pixels (the aspect ratio of \p pictureRectangle), clipped by /BBox of the shading.
+    /// \p pictureRectangle is the box of the node in the default space of its container
+    /// (getBoundingBox: the path filled or stroked with the pattern; for sh /BBox and the clips),
+    /// intersected with the box of the container (the media box of a page, /BBox of a form); the
+    /// box of the container alone, when the box of the node is not known. A mesh of more than
+    /// MAXIMUM_MESH_TRIANGLES triangles is refused while it is meshed (Status::TooLarge, nothing is
+    /// painted). /Background: \p backgroundColor of a pattern (sh ignores it); a picture has it
+    /// painted where the shading paints nothing.
+    /// A pattern, which exists only in the session (a moved object, R-5), is read from
+    /// options.newObjects.
+    /// \p options: the color management, maximumPixels (a picture); pageIndex is not used.
+    /// Thread: a worker (also any other thread; the picture is painted by a QPainter on a QImage of
+    /// its own). Cost: the creation of the shading and 256 evaluations of its function; a picture:
+    /// the meshing (bounded by MAXIMUM_MESH_TRIANGLES) and the painting of the triangles.
+    /// Cancelable: between the steps, during the meshing and between blocks of triangles painted.
     static PDFContentDisplayShading getShading(const PDFDocument* document,
                                                const PDFContentContainerPointer& container,
                                                PDFContentNodeId id,
@@ -515,7 +561,9 @@ public:
     /// the size is checked before the picture is allocated); transparent where the cell paints
     /// nothing. An uncolored pattern (/PaintType 2) is painted in the color of the node (ISO 32000-2,
     /// 8.7.3.3). \p matrix is /Matrix (pattern space -> the default space of the container), the steps
-    /// /XStep and /YStep; the canvas repeats the picture itself.
+    /// /XStep and /YStep; the canvas repeats the picture itself. A pattern, which exists only in the
+    /// session (the copy of a moved object, R-5, with its own /Matrix), is read from
+    /// options.newObjects.
     /// Thread: a worker (QPainter on a QImage of its own; it creates its own font cache). Cost: the
     /// painting of the cell. Cancelable.
     static PDFContentDisplayTilingCell getTilingCell(const PDFDocument* document,

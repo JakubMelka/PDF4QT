@@ -41,6 +41,7 @@
 #include <QtMath>
 
 #include <cmath>
+#include <set>
 
 namespace pdf
 {
@@ -148,6 +149,17 @@ void PDFAppEditContentTool::paint(QPainter* painter, const PDFAppEditContentTool
     Q_UNUSED(paintContext);
 }
 
+QRectF PDFAppEditContentTool::getPreviewRectangle(qreal pixelSize) const
+{
+    Q_UNUSED(pixelSize);
+    return QRectF();
+}
+
+void PDFAppEditContentTool::modelChanged(const PDFContentChange& change)
+{
+    Q_UNUSED(change);
+}
+
 void PDFAppEditContentTool::update()
 {
     if (!isAlive())
@@ -181,6 +193,33 @@ PDFAppEditContentToolController::PDFAppEditContentToolController(PDFAppEditConte
     {
         PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::editingAllowedChanged, this, &PDFAppEditContentToolController::onEditingAllowedChanged);
         PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::pageChanged, this, &PDFAppEditContentToolController::onPageChanged);
+        PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentToolController::onSessionReplaced);
+        connectSession();
+    }
+}
+
+void PDFAppEditContentToolController::connectSession()
+{
+    // The session is created before the controller (the context creates it first) and replaced by reloadDocument, which
+    // cuts every connection of the old one (R6-21: a gesture ends when its nodes change under it)
+    if (PDFContentEditSession* session = m_context ? m_context->getSession() : nullptr)
+    {
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentToolController::onModelChanged, Qt::UniqueConnection);
+    }
+}
+
+void PDFAppEditContentToolController::onSessionReplaced()
+{
+    connectSession();
+}
+
+void PDFAppEditContentToolController::onModelChanged(const PDFContentChange& change)
+{
+    // Only the active tool has a gesture; a retired controller tells nobody
+    PDFAppEditContentTool* tool = getActiveTool();
+    if (tool && !PDFDeferredDeletion::isRetired(this))
+    {
+        tool->modelChanged(change);
     }
 }
 
@@ -666,22 +705,92 @@ void PDFAppEditContentSelectTool::deactivate()
 
 std::vector<PDFContentNodeReference> PDFAppEditContentSelectTool::getMovableSelection() const
 {
-    std::vector<PDFContentNodeReference> result;
-    const PDFAppEditContentSelection* selection = getSelection();
-    const PDFContentEditSession* session = getContext() ? getContext()->getSession() : nullptr;
-    if (!selection || !session)
+    // R7-4: the one rule of the lock of the context (a locked ancestor locks its children too)
+    const PDFAppEditContentContext* context = getContext();
+    return context ? context->getChangeableSelection() : std::vector<PDFContentNodeReference>();
+}
+
+bool PDFAppEditContentSelectTool::isGestureTouched(const PDFContentChange& change) const
+{
+    // The nodes of the gesture (the node under the press of a gesture, which has not started yet, too)
+    std::set<PDFContentNodeReference> gestureNodes(m_nodes.cbegin(), m_nodes.cend());
+    if (m_pressNode.isValid())
     {
-        return result;
+        gestureNodes.insert(m_pressNode);
+    }
+    const PDFAppEditContentContext* context = getContext();
+    if (gestureNodes.empty() || !context)
+    {
+        return false;
     }
 
-    for (const PDFContentNodeReference& node : selection->getNodes())
+    std::set<PDFContentNodeReference> touched(change.changedNodes.cbegin(), change.changedNodes.cend());
+    touched.insert(change.removedNodes.cbegin(), change.removedNodes.cend());
+
+    // A node of the gesture or one of its ancestors changed (a moved group moves its children), or the node is gone. A
+    // walk up is bounded by the depth of a tree of the core.
+    const PDFContentEditSession* session = context->getSession();
+    for (const PDFContentNodeReference& node : gestureNodes)
     {
-        if (!session->isNodeLocked(node))
+        const PDFContentContainerPointer container = session ? session->getContainer(node.container) : PDFContentContainerPointer();
+        if (!container || !container->getNode(node.node))
         {
-            result.push_back(node);
+            return true;
+        }
+
+        PDFContentNodeId current = node.node;
+        for (int depth = 0; depth <= PDFContentContainer::MAXIMUM_DEPTH + 2 && current.isValid(); ++depth)
+        {
+            if (touched.count(PDFContentNodeReference{ node.container, current }))
+            {
+                return true;
+            }
+            const PDFContentNodePointer parent = container->getParent(current);
+            current = parent ? parent->getId() : PDFContentNodeId();
         }
     }
-    return result;
+
+    // A descendant of a node of the gesture changed or was added (its box is another one now)
+    std::vector<PDFContentNodeReference> inside(change.changedNodes.cbegin(), change.changedNodes.cend());
+    inside.insert(inside.end(), change.addedNodes.cbegin(), change.addedNodes.cend());
+    for (const PDFContentNodeReference& node : inside)
+    {
+        const PDFContentContainerPointer container = session ? session->getContainer(node.container) : PDFContentContainerPointer();
+        const PDFContentNodePointer target = container ? container->getNode(node.node) : PDFContentNodePointer();
+        PDFContentNodeId current = target ? target->getParentId() : PDFContentNodeId();
+        for (int depth = 0; depth <= PDFContentContainer::MAXIMUM_DEPTH + 2 && current.isValid(); ++depth)
+        {
+            if (gestureNodes.count(PDFContentNodeReference{ node.container, current }))
+            {
+                return true;
+            }
+            const PDFContentNodePointer parent = container->getParent(current);
+            current = parent ? parent->getId() : PDFContentNodeId();
+        }
+    }
+    return false;
+}
+
+void PDFAppEditContentSelectTool::modelChanged(const PDFContentChange& change)
+{
+    // R6-21: a gesture, whose nodes changed under it (an undo by Ctrl+Z with the button held, a command of a key), ends
+    // without a command: the release executes nothing, the scene drops the gesture transform
+    switch (m_gesture)
+    {
+        case Gesture::Pending:
+        case Gesture::Move:
+        case Gesture::Resize:
+        case Gesture::Rotate:
+            if (isGestureTouched(change))
+            {
+                abortGesture();
+            }
+            break;
+
+        case Gesture::None:
+        case Gesture::RubberBand:
+            break;
+    }
 }
 
 QTransform PDFAppEditContentSelectTool::getResizeTransform(const QRectF& box, int handleValue, const QPointF& point, bool isAspectKept)
@@ -759,6 +868,8 @@ void PDFAppEditContentSelectTool::mousePress(QMouseEvent* event, const QPointF& 
     m_currentPoint = scenePoint;
     m_modifiers = event->modifiers();
     m_isToggleDeferred = false;
+    m_pressNode = PDFContentNodeReference();
+    m_pendingGesture = Gesture::None;
     const qreal pixelSize = getPixelSize();
     const std::vector<PDFContentNodeReference> nodes = scene->getNodesAt(scenePoint, Helper::HIT_TOLERANCE * pixelSize, true);
 
@@ -783,14 +894,16 @@ void PDFAppEditContentSelectTool::mousePress(QMouseEvent* event, const QPointF& 
         return;
     }
 
-    // A handle of the selection: a resize or a rotation
+    // A handle of the selection: a resize or a rotation, behind the distance of a drag of the system (R6-10: a click on
+    // a handle with a jitter of the hand changes nothing)
     const Handle handle = scene->getSelectionItem()->getHandleAt(scenePoint, pixelSize);
     if (handle != Handle::None)
     {
         m_nodes = getMovableSelection();
         if (!m_nodes.empty())
         {
-            m_gesture = handle == Handle::Rotation ? Gesture::Rotate : Gesture::Resize;
+            m_gesture = Gesture::Pending;
+            m_pendingGesture = handle == Handle::Rotation ? Gesture::Rotate : Gesture::Resize;
             m_handle = int(handle);
             m_startBox = scene->getSelectionItem()->getHandleBox();
             m_isAspectDefault = true;
@@ -887,6 +1000,7 @@ void PDFAppEditContentSelectTool::mousePress(QMouseEvent* event, const QPointF& 
     }
 
     m_gesture = target.isValid() ? Gesture::Pending : Gesture::RubberBand;
+    m_pendingGesture = target.isValid() ? Gesture::Move : Gesture::None;
     m_nodes = getMovableSelection();
     update();
 }
@@ -902,19 +1016,20 @@ void PDFAppEditContentSelectTool::mouseMove(QMouseEvent* event, const QPointF& s
 
     if (m_gesture == Gesture::Pending)
     {
-        // A move starts behind the distance of a drag of the system
+        // A move, a resize or a rotation starts behind the distance of a drag of the system; the gesture then follows
+        // the pointer from the point of the press (no jump)
         const qreal distance = QLineF(m_pressPoint, scenePoint).length() / getPixelSize();
         if (distance < QApplication::startDragDistance())
         {
             return;
         }
         m_nodes = getMovableSelection();
-        if (m_nodes.empty())
+        if (m_nodes.empty() || m_pendingGesture == Gesture::None)
         {
             m_gesture = Gesture::None;
             return;
         }
-        m_gesture = Gesture::Move;
+        m_gesture = m_pendingGesture;
         m_isToggleDeferred = false;
     }
 
@@ -954,8 +1069,10 @@ void PDFAppEditContentSelectTool::updateGesture()
         case Gesture::Resize:
         {
             // An image keeps its proportions (Shift frees them), the other objects the reverse (zadani_gui.md 4.16)
+            // The handle moves by the move of the pointer (R6-10: the grab point keeps its distance from the edge)
             const bool isAspectKept = m_isAspectDefault != isShift;
-            m_transform = getResizeTransform(m_startBox, m_handle, m_currentPoint, isAspectKept);
+            const QPointF handlePoint = PDFAppEditContentSelectionItem::getHandlePoint(m_startBox, PDFAppEditContentSelectionItem::Handle(m_handle)) + (m_currentPoint - m_pressPoint);
+            m_transform = getResizeTransform(m_startBox, m_handle, handlePoint, isAspectKept);
 
             // Not smaller than a pixel: the scale is not degenerate
             const QRectF result = m_transform.mapRect(m_startBox);
@@ -1081,6 +1198,7 @@ void PDFAppEditContentSelectTool::abortGesture()
 {
     const bool wasActive = m_gesture != Gesture::None;
     m_gesture = Gesture::None;
+    m_pendingGesture = Gesture::None;
     m_transform = QTransform();
     m_nodes.clear();
     m_isToggleDeferred = false;
@@ -1288,6 +1406,13 @@ QCursor PDFAppEditContentSelectTool::getCursor(const QPointF& scenePoint) const
         case Gesture::Rotate:
             return QCursor(Helper::getHandleCursor(getView(), m_startBox, Handle(m_handle)));
 
+        case Gesture::Pending:
+            if (m_pendingGesture == Gesture::Resize || m_pendingGesture == Gesture::Rotate)
+            {
+                return QCursor(Helper::getHandleCursor(getView(), m_startBox, Handle(m_handle)));
+            }
+            break;
+
         default:
             break;
     }
@@ -1319,6 +1444,18 @@ void PDFAppEditContentSelectTool::paint(QPainter* painter, const PDFAppEditConte
     painter->setPen(pen);
     painter->setBrush(fill);
     painter->drawRect(rectangle);
+}
+
+QRectF PDFAppEditContentSelectTool::getPreviewRectangle(qreal pixelSize) const
+{
+    // R6-11: only the rubber band is painted; its pen is cosmetic, 1 px wide and antialiased (a pixel on each side)
+    if (m_gesture != Gesture::RubberBand)
+    {
+        return QRectF();
+    }
+
+    const qreal margin = 2.0 * pixelSize;
+    return QRectF(m_pressPoint, m_currentPoint).normalized().adjusted(-margin, -margin, margin, margin);
 }
 
 // ---------------------------------------------------------------- registration

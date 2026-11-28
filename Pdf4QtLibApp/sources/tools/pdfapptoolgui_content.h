@@ -155,9 +155,10 @@ public:
     QWidget* getLeftPanelWidget() const { return m_leftPanelWidget.data(); }
     QWidget* getToolActionsWidget() const { return m_toolActionsWidget.data(); }
 
-    /// The objects of a page, from which it is a complex page (zadani.md QE.10 (a): 20 000 objects; the integration of
-    /// stage E6 adjusts it after the measurement)
-    static constexpr PDFInteger COMPLEX_PAGE_OBJECT_COUNT = 20000;
+    /// The container has an object (a text object, a path, an image, a use of a form, a shading, an opaque part; groups
+    /// and marked content hold objects, state runs and marked points are none): Clear Page has something to remove
+    /// (R8-10). Stops at the first object; at most one visit per node.
+    static bool hasObjects(const PDFContentContainer& container);
 
     /// The most errors of writing listed in the dialog -apply-error (hostile input: one row per error); the rest is
     /// told by a count
@@ -206,7 +207,7 @@ public:
     virtual bool confirmWithoutRun() override;                      ///< Commits the pending values of the cards (they belong to the run); never takes the confirmation
     virtual void onRunNotAccepted(const PDFDocumentToolResult& result) override;    ///< The dialog -apply-error for the errors of the pages (RE-19), a notice otherwise
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;      ///< The texts of the frame -done
-    virtual void onDocumentChanged() override;                      ///< zadani_gui.md 4.21: the notice of a document changed under the tool
+    virtual void onDocumentChanged() override;                      ///< zadani_gui.md 4.21: without work the session is loaded again over the new version (PDFAppEditContentContext::reloadDocument), with work the notice of the stale document
     virtual void retranslate() override;                            ///< commitPendingEdits first (see the class), then the notices of the states again
 
     // ---- requests of the action entries of P14 (pdfappeditcontentkeyboard.cpp) and tests
@@ -261,10 +262,27 @@ private:
     void onContainerChanged();
     void onPreviewActiveChanged();
     void onCommandRefused(const QString& text);
-    void onModelChanged();
+    void onModelChanged(const pdf::PDFContentChange& change);
     void onOptionsChanged(const QString& name);
     void onToolStateChanged();
     void onSelectionChanged();
+    void onSessionReplaced();
+
+    /// The page item of the status bar of the document view (row 28): Go to page of the tool
+    void onStatusPageClicked();
+
+    /// Emits statusTextChanged only when the message or one of the own status items changed (R8-9: a scroll or a
+    /// selection, which changes none of them, is no change of the work for the shell)
+    void updateStatusTextIfChanged();
+
+    /// The states of the commands of the application answered by the entries (R8-2): read again, \returns one of them
+    /// changed since the last call (the caller refreshes the actions of the window then)
+    bool refreshCommandStates();
+
+    /// Refreshes the states of the routed commands from the event loop (one request per turn); \p isForced - the actions
+    /// of the window are refreshed even when no answer changed (after a command: see onModelChanged)
+    void queueCommandRefresh(bool isForced);
+    void onCommandRefreshQueued();
 
     // ---- slots of the parts
     void onToolButtonClicked(QAbstractButton* button);
@@ -344,7 +362,16 @@ private:
     bool m_isClean = true;                      ///< The undo stack was at its clean point (confirmStateChanged at a crossing)
     bool m_isDocumentStale = false;             ///< The document changed under the tool (onDocumentChanged, the error of the fingerprint)
     bool m_isScannedPage = false;               ///< The page shown is a scan (measured by updateStateNotices)
-    bool m_isComplexPage = false;               ///< The page shown has COMPLEX_PAGE_OBJECT_COUNT objects (measured by updateStateNotices)
+    bool m_isComplexPage = false;               ///< The page shown is complex (PDFAppEditContentContext::isComplexPage; measured by updateStateNotices)
+    QStringList m_conformanceDeclarations;      ///< PDF/A, PDF/UA of the document of the session (read once per session, R8-8)
+    QString m_lastStatusText;                   ///< The status message, the page and the zoom item last told (R8-9)
+    QString m_lastPageText;
+    QString m_lastZoomText;
+    bool m_isStatusTold = false;                ///< statusTextChanged was emitted at least once
+    std::map<QString, PDFAppToolCommandState> m_commandStates;  ///< The states of the routed commands last told (R8-2)
+    bool m_isCommandRefreshQueued = false;      ///< onCommandRefreshQueued is posted
+    bool m_isCommandRefreshForced = false;      ///< The posted refresh refreshes the window in any case
+    QPointer<QObject> m_statusBar;              ///< The status bar of the document view, whose page item opens Go to page (connected once)
 };
 
 }   // namespace pdf

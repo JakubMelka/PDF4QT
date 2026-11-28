@@ -58,7 +58,7 @@ class PDFOptionalContentActivity;
 static constexpr const char* PDF_RESOURCE_EXTGSTATE = "ExtGState";
 
 
-class PDFLineDashPattern
+class PDF4QTLIBCORESHARED_EXPORT PDFLineDashPattern
 {
 public:
     inline PDFLineDashPattern() = default;

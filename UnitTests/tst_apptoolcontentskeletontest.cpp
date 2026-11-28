@@ -39,6 +39,7 @@
 #include "pdfappeditcontentpanels_objects.h"
 #include "pdfappeditcontentpreview.h"
 #include "pdfappeditcontentregistry.h"
+#include "pdfappeditcontentscene.h"
 #include "pdfappeditcontentselection.h"
 #include "pdfappeditcontenttools.h"
 #include "pdfappeditcontentundo.h"
@@ -56,6 +57,7 @@
 #include "pdfsettingdefinitions.h"
 #include "pdftoolparameterrepository.h"
 
+#include "pdfcontentdisplay.h"
 #include "pdfcontentundostack.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumenttool_content.h"
@@ -638,6 +640,7 @@ private Q_SLOTS:
     void keyTableKeyTwiceInScope();
     void keyTableAgainstApplication();
     void keyTableApplicationCommands();
+    void keyTableCanvasKeys();
 
     // selection, options, geometry
     void selectionState();
@@ -657,6 +660,9 @@ private Q_SLOTS:
     void contextChildren();
     void contextChildrenCreatedAndDeletedInOrder();
     void contextRetireDropsQueues();
+    void contextChangeableSelection();
+    void contextComplexPagePolicy();
+    void contextReloadDocument();
 
     // developer switch, the tool over the stubs
     void developerSwitch();
@@ -769,12 +775,14 @@ void AppToolContentSkeletonTest::registryTabsByOrder()
 void AppToolContentSkeletonTest::registryCardsInTableOrder()
 {
     // zadani_gui.md 4.19, the table of the cards from the top (Selection always the first, Arrange the last card of
-    // the selection; the cards without a selection or on request after it, Locked object the last row)
+    // the selection; the cards without a selection or on request after it). The frames place two cards: Locked object
+    // right below Selection (-locked-click: Selection, Locked object, Arrange), Annotations and fields between
+    // Selection and Arrange (-annotations-underlay, -annotations-hidden)
     using C = pdf::PDFAppEditContentCardIds;
     using H = ContentSkeletonHelper;
-    const QStringList table = { C::SELECTION, C::GLYPH, C::NODE, C::CLIPPING, C::IMAGE, C::CROP, C::SHARED_CONTENT, C::SHADING, C::TILING_PATTERN,
-                                C::TEXT, C::FILL_AND_STROKE, C::TRANSPARENCY, C::PRINT_PRODUCTION, C::POSITION_AND_SIZE, C::LAYER_AND_TAG, C::ARRANGE,
-                                C::LAYER, C::TAG, C::ARTIFACT, C::GRID_AND_UNITS, C::ANNOTATIONS, C::PREVIEW, C::KEYBOARD, C::LOCKED_OBJECT };
+    const QStringList table = { C::SELECTION, C::LOCKED_OBJECT, C::ANNOTATIONS, C::GLYPH, C::NODE, C::CLIPPING, C::IMAGE, C::CROP, C::SHARED_CONTENT,
+                                C::SHADING, C::TILING_PATTERN, C::TEXT, C::FILL_AND_STROKE, C::TRANSPARENCY, C::PRINT_PRODUCTION, C::POSITION_AND_SIZE,
+                                C::LAYER_AND_TAG, C::ARRANGE, C::LAYER, C::TAG, C::ARTIFACT, C::GRID_AND_UNITS, C::PREVIEW, C::KEYBOARD };
     int previous = 0;
     for (const QString& cardId : table)
     {
@@ -844,12 +852,13 @@ void AppToolContentSkeletonTest::registryMenuActionsByGroupAndOrder()
     QVERIFY(registry.getMenuActions(QString::fromLatin1(M::LAYER_ROW)).empty());
     QCOMPARE(H::ids(registry.getActions()), QStringList({ "a", "b", "c", "d", "e", "f" }));
 
-    const Placements placements = registry.findAction(QStringLiteral("b"))->getPlacements();
-    const ActionEntry::Placement* view = Registry::findPlacement(placements, QString::fromLatin1(M::VIEW));
-    QVERIFY(view);
+    // A value (R8-12): taken straight from the temporary vector of getPlacements, it stays valid
+    const std::optional<ActionEntry::Placement> view = Registry::findPlacement(registry.findAction(QStringLiteral("b"))->getPlacements(), QString::fromLatin1(M::VIEW));
+    QVERIFY(view.has_value());
+    QCOMPARE(view->menuId, QString::fromLatin1(M::VIEW));
     QCOMPARE(view->group, 100);
     QCOMPARE(view->order, 10);
-    QVERIFY(!Registry::findPlacement(placements, QString::fromLatin1(M::TAG_ROW)));
+    QVERIFY(!Registry::findPlacement(registry.findAction(QStringLiteral("b"))->getPlacements(), QString::fromLatin1(M::TAG_ROW)).has_value());
 }
 
 void AppToolContentSkeletonTest::registryActionByKeyAndScope()
@@ -1113,6 +1122,63 @@ void AppToolContentSkeletonTest::keyTableApplicationCommands()
     QCOMPARE(registry.findActionByApplicationCommand(QStringLiteral("edit.copy"))->getId(), QStringLiteral("copy-again"));
     QCOMPARE(registry.findActionByApplicationCommand(QStringLiteral("edit.cut"))->getId(), QStringLiteral("copy"));
     QCOMPARE(KeyTable::getShellCommandIds(), QStringList({ "edit.undo", "edit.redo", "file.save", "file.saveAs" }));
+}
+
+void AppToolContentSkeletonTest::keyTableCanvasKeys()
+{
+    // R6-6: a canvas key of the registry (of a tool entry, or of the scope Canvas of an action entry), which is the
+    // Canvas-scope shortcut of a command of the application an entry answers, is reported (on the canvas of the tool the
+    // key of the registry wins, the command is reached by the menu and the status bar); a command no entry answers is
+    // no conflict (its shortcut never reaches the canvas of the tool), a key of the scope Tool neither
+    using A = ContentSkeletonActionEntry;
+    using C = ContentSkeletonCommandEntry;
+    using E = ContentSkeletonToolEntry;
+    using H = ContentSkeletonHelper;
+    const std::map<QString, std::vector<QKeySequence>> canvasShortcuts = {
+        { QStringLiteral("view.fitPage"), { QKeySequence(Qt::Key_P) } }, { QStringLiteral("view.fitWidth"), { QKeySequence(Qt::Key_W) } }
+    };
+
+    {
+        Registry registry;
+        QVERIFY(registry.addAction(std::make_unique<A>(QStringLiteral("preview"), std::vector<ActionEntry::Key>({ H::key(QKeySequence(Qt::Key_P), KeyScope::Canvas) }))));
+        QVERIFY(registry.addAction(std::make_unique<A>(QStringLiteral("tool-key"), std::vector<ActionEntry::Key>({ H::key(QKeySequence(Qt::CTRL | Qt::Key_W), KeyScope::Tool) }))));
+        QVERIFY(registry.addTool(std::make_unique<E>(QStringLiteral("wide"), ToolEntry::Place::Toolbar, 100, QKeySequence(Qt::Key_W))));
+        QVERIFY(KeyTable::checkCanvasKeys(registry, canvasShortcuts).isEmpty());
+
+        QVERIFY(registry.addAction(std::make_unique<C>(QStringLiteral("fit-page"), QStringList({ "view.fitPage" }))));
+        QCOMPARE(KeyTable::checkCanvasKeys(registry, canvasShortcuts),
+                 QStringList({ QStringLiteral("action 'preview': the canvas key 'P' is the Canvas shortcut of the command 'view.fitPage', which the action 'fit-page' answers") }));
+
+        QVERIFY(registry.addAction(std::make_unique<C>(QStringLiteral("fit-width"), QStringList({ "view.fitWidth" }))));
+        QCOMPARE(KeyTable::checkCanvasKeys(registry, canvasShortcuts),
+                 QStringList({ QStringLiteral("tool 'wide': the canvas key 'W' is the Canvas shortcut of the command 'view.fitWidth', which the action 'fit-width' answers"),
+                               QStringLiteral("action 'preview': the canvas key 'P' is the Canvas shortcut of the command 'view.fitPage', which the action 'fit-page' answers") }));
+    }
+
+    // The registry of the application against the default shortcuts of the scope Canvas: exactly the one the plan
+    // decided (zadani_gui.md 4.15 / 4.20: P is Preview on the canvas of the tool, view.fitPage stays in the menu and the
+    // status bar) - a new conflict of a package fails here
+    pdf::PDFAppCommandRegistry commands;
+    pdf::PDFAppCommands::registerBuiltinCommands(&commands);
+    std::map<QString, std::vector<QKeySequence>> applicationCanvasShortcuts;
+    for (const pdf::PDFAppCommand* command : commands.getCommands())
+    {
+        if (command->scope != pdf::PDFAppCommandScope::Canvas)
+        {
+            continue;
+        }
+        std::vector<QKeySequence>& keys = applicationCanvasShortcuts[command->id];
+        if (!command->defaultShortcut.isEmpty())
+        {
+            keys.push_back(command->defaultShortcut);
+        }
+        keys.insert(keys.end(), command->alternateShortcuts.cbegin(), command->alternateShortcuts.cend());
+    }
+    const std::vector<QKeySequence>& fitPageKeys = applicationCanvasShortcuts[QStringLiteral("view.fitPage")];
+    QVERIFY(std::find(fitPageKeys.cbegin(), fitPageKeys.cend(), QKeySequence(Qt::Key_P)) != fitPageKeys.cend());
+    const QStringList problems = KeyTable::checkCanvasKeys(Registry::getInstance(), applicationCanvasShortcuts);
+    QVERIFY2(problems.size() == 1, qPrintable(problems.join(QLatin1Char('\n'))));
+    QVERIFY2(problems.front().startsWith(QStringLiteral("action 'preview': the canvas key 'P' is the Canvas shortcut of the command 'view.fitPage', which the action ")), qPrintable(problems.front()));
 }
 
 void AppToolContentSkeletonTest::selectionState()
@@ -1878,6 +1944,126 @@ void AppToolContentSkeletonTest::contextRetireDropsQueues()
     QCOMPARE(notice.size(), 0);
     pdf::PDFDeferredDeletion::flush();
     QVERIFY(!context);
+}
+
+void AppToolContentSkeletonTest::contextChangeableSelection()
+{
+    // R7-4 (QE.8, RE-16): the one rule of the lock - the selected nodes a command may change are the nodes of the edited
+    // container inside of the edited root, not the root, without a locked node on the way up (a locked group locks what
+    // it holds), in the order of the selection. The geometry page: a in a group, b, c and d in the group G.
+    using H = ContentSkeletonHelper;
+    using Kind = pdf::PDFContentNodeKind;
+    Registry registry;
+    QPointer<Context> context = new Context(H::createGeometryDocument(), pdf::PDFCMSPointer(), &registry, nullptr);
+    auto cleanup = qScopeGuard([&context]() { ContentSkeletonHelper::finish(context); });
+    QVERIFY(H::showPage(context, 0));
+    const pdf::PDFContentContainerPointer page = context->getContainer();
+    const std::vector<pdf::PDFContentNodeReference> paths = H::findNodes(page, Kind::Path);
+    const std::vector<pdf::PDFContentNodeReference> groups = H::findNodes(page, Kind::Group);
+    QCOMPARE(paths.size(), size_t(4));
+    const pdf::PDFContentNodeReference a = paths[0];
+    const pdf::PDFContentNodeReference b = paths[1];
+    const pdf::PDFContentNodeReference c = paths[2];
+    const pdf::PDFContentNodeReference d = paths[3];
+    const pdf::PDFContentNodeReference g = groups[1];
+    const pdf::PDFContentNodeReference root = H::node(page->getKey(), page->getRoot()->getId().value);
+
+    pdf::PDFAppEditContentSelection* selection = context->getSelection();
+    selection->setNodes({ c, a, b, root });
+    QCOMPARE(context->getChangeableSelection(), std::vector<pdf::PDFContentNodeReference>({ c, a, b }));
+    QVERIFY(!context->isNodeChangeable(root));
+
+    pdf::PDFContentEditSession* session = context->getSession();
+    session->setNodeLocked(b, true);
+    session->setNodeLocked(g, true);
+    QVERIFY(!context->isNodeChangeable(b));
+    QVERIFY(!context->isNodeChangeable(c));
+    QVERIFY(!context->isNodeChangeable(d));
+    QVERIFY(!context->isNodeChangeable(g));
+    QVERIFY(context->isNodeChangeable(a));
+    QCOMPARE(context->getChangeableSelection(), std::vector<pdf::PDFContentNodeReference>({ a }));
+
+    session->setNodeLocked(g, false);
+    QCOMPARE(context->getChangeableSelection(), std::vector<pdf::PDFContentNodeReference>({ c, a }));
+    QVERIFY(!context->isNodeChangeable(H::node(page->getKey(), 999999)));
+    QVERIFY(!context->isNodeChangeable(pdf::PDFContentNodeReference()));
+}
+
+void AppToolContentSkeletonTest::contextComplexPagePolicy()
+{
+    // Integration row 27, zadani.md QE.10: one policy of the complex page for the canvas and the notice - more than
+    // COMPLEX_PAGE_OBJECTS nodes or more than COMPLEX_PAGE_PATH_SEGMENTS segments
+    using Scene = pdf::PDFAppEditContentScene;
+    pdf::PDFContentDisplayCounts counts;
+    QVERIFY(!Context::isComplexPage(counts));
+    counts.nodeCount = Scene::COMPLEX_PAGE_OBJECTS;
+    QVERIFY(!Context::isComplexPage(counts));
+    counts.nodeCount = Scene::COMPLEX_PAGE_OBJECTS + 1;
+    QVERIFY(Context::isComplexPage(counts));
+    counts.nodeCount = 2;
+    counts.pathSegmentCount = Scene::COMPLEX_PAGE_PATH_SEGMENTS;
+    QVERIFY(!Context::isComplexPage(counts));
+    counts.pathSegmentCount = Scene::COMPLEX_PAGE_PATH_SEGMENTS + 1;
+    QVERIFY(Context::isComplexPage(counts));
+}
+
+void AppToolContentSkeletonTest::contextReloadDocument()
+{
+    // zadani_gui.md 4.21 (integration row 26): reloadDocument - the queued work of the old version dropped, the selection
+    // and the node of Locked object cleared, a new session over the new version (no locks of the old one, a clean
+    // stack), the page kept (clamped), sessionReplaced before pageChanged, the old session deleted from the event loop;
+    // nothing for the same document, a null document or a retired context
+    using H = ContentSkeletonHelper;
+    using Kind = pdf::PDFContentNodeKind;
+    ContentSkeletonActionRecorder recorder;
+    Registry registry;
+    QVERIFY(registry.addAction(std::make_unique<ContentSkeletonActionEntry>(QStringLiteral("act"), std::vector<ActionEntry::Key>(), std::vector<ActionEntry::Placement>(), &recorder)));
+    QPointer<Context> context = new Context(H::createDocument(2), pdf::PDFCMSPointer(), &registry, nullptr);
+    auto cleanup = qScopeGuard([&context]() { ContentSkeletonHelper::finish(context); });
+    QVERIFY(H::showPage(context, 1));
+    const std::vector<pdf::PDFContentNodeReference> paths = H::findNodes(context->getContainer(), Kind::Path);
+    QCOMPARE(paths.size(), size_t(2));
+    context->getSelection()->setNodes(paths);
+    context->setLockedClickNode(paths.front());
+    context->getSession()->setNodeLocked(paths.front(), true);
+    QVERIFY(context->execute(pdf::PDFContentCommandFactory::createDelete({ paths.back() })));
+    QStringList log;
+    context->requestExecute(std::make_shared<ContentSkeletonRecordingCommand>(QStringLiteral("queued"), &log));
+    QVERIFY(context->triggerAction(QStringLiteral("act")));
+
+    QPointer<pdf::PDFContentEditSession> oldSession = context->getSession();
+    QStringList order;
+    QObject receiver;
+    QObject::connect(context.data(), &Context::sessionReplaced, &receiver, [&]() { order << (context->getSession() != oldSession.data() ? QStringLiteral("session") : QStringLiteral("same")); });
+    QObject::connect(context.data(), &Context::pageChanged, &receiver, [&](pdf::PDFInteger pageIndex) { order << QStringLiteral("page %1").arg(pageIndex); });
+
+    const pdf::PDFDocumentPointer newDocument = H::createDocument(3);
+    context->reloadDocument(newDocument);
+    QCOMPARE(order, QStringList({ "session", "page 1" }));
+    QVERIFY(context->getDocumentPointer() == newDocument);
+    QCOMPARE(context->getSession()->getDocument(), newDocument.data());
+    QCOMPARE(context->getPageIndex(), pdf::PDFInteger(1));
+    QVERIFY(context->getSelection()->isEmpty());
+    QVERIFY(!context->getLockedClickNode().isValid());
+    QVERIFY(!context->getSession()->isNodeLocked(paths.front()));
+    QCOMPARE(context->getSession()->getUndoStack()->getCount(), size_t(0));
+    QVERIFY(oldSession);
+    QTRY_VERIFY_WITH_TIMEOUT(!oldSession, H::timeout(5000));
+    QTRY_VERIFY_WITH_TIMEOUT(context->getContainer() != nullptr, H::timeout(15000));
+    QCOMPARE(H::findNodes(context->getContainer(), Kind::Path).size(), size_t(2));
+    QVERIFY(log.isEmpty());
+    QVERIFY(recorder.log.isEmpty());
+
+    // Nothing for the same document and for a null one
+    order.clear();
+    context->reloadDocument(newDocument);
+    context->reloadDocument(pdf::PDFDocumentPointer());
+    QVERIFY(order.isEmpty());
+
+    // A version of one page: the page is clamped
+    context->reloadDocument(H::createDocument(1));
+    QCOMPARE(order, QStringList({ "session", "page 0" }));
+    QCOMPARE(context->getPageIndex(), pdf::PDFInteger(0));
 }
 
 void AppToolContentSkeletonTest::developerSwitch()

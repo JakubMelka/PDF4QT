@@ -76,6 +76,9 @@ public:
 private:
     void onStateChanged();
 
+    /// PDFAppEditContentContext::reloadDocument: the steps of the new session (connected again)
+    void onSessionReplaced();
+
     /// Undo and Redo may act now (see the class)
     bool isAvailable() const;
 

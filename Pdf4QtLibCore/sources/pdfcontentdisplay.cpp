@@ -42,6 +42,7 @@
 #include <QPainterPathStroker>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <deque>
@@ -65,6 +66,10 @@ public:
 
     /// Versions of containers, whose counts are kept (getCounts)
     static constexpr size_t COUNT_CACHE_SIZE = 64;
+
+    /// A stroked path of more segments has the box of its points enlarged by the reach of the
+    /// stroke, not the box of its outline (getStrokeBoundingBox)
+    static constexpr size_t STROKE_OUTLINE_SEGMENTS = 10000;
 
     /// Computes the lazily evaluated type of a matrix, so that a const copy is plain data for more
     /// threads (QTransform::type writes a mutable member at its first call)
@@ -112,7 +117,31 @@ public:
     static PDFObject getPatternObject(const PDFContentContainer& container, const PDFContentNode& node, bool isStroke);
 
     /// getContainerMatrix with a context (the colors are not needed)
-    static std::optional<QTransform> getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses);
+    static std::optional<QTransform> getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses, const PDFContentDisplayContext& context);
+
+    /// A pattern object as the content names it, read through the new objects of the session: the
+    /// direct object of a provisional reference (a copy of R-5), else the object itself
+    static PDFObject getSessionObject(const PDFObject& object, const std::map<PDFObjectReference, PDFObject>* newObjects);
+
+    /// The /Matrix of a copy of a pattern made by the session (R-5): \p patternObject is a new
+    /// object, whose stream has the bytes of the stream of \p cellReference and whose dictionary
+    /// has its entries except /Matrix. No value for anything else.
+    static std::optional<QTransform> getCopyMatrix(const PDFObject& patternObject, PDFObjectReference cellReference, const PDFContentDisplayContext& context);
+
+    /// Paints a shading of the kind Picture (types 1, 4 - 7) into result.picture (getShading)
+    /// \param userToContainer The space, in which the shading is meshed, -> the default space of the container
+    static void paintMeshPicture(PDFContentDisplayShading& result,
+                                 const PDFShadingPattern& shading,
+                                 const QRectF& pictureRectangle,
+                                 const QTransform& userToContainer,
+                                 bool isBackgroundPainted,
+                                 const PDFContentDisplayImageOptions& options,
+                                 const PDFCMS* cms,
+                                 RenderingIntent intent,
+                                 const PDFOperationControl* control);
+
+    /// The triangles of a mesh painted between two checks of the cancellation (paintMeshPicture)
+    static constexpr size_t MESH_PAINT_BLOCK = 4096;
 
     /// The box of a subtree in the target space
     static PDFContentDisplayBox getBoundingBox(const PDFContentContainer& container,
@@ -130,9 +159,17 @@ public:
     /// The box of the solid stroke of a path in the target space
     static QRectF getStrokeBoundingBox(const PDFContentPath& path, bool closeBeforePaint, const PDFContentDisplayState& state);
 
-    /// The resource dictionary of a container: its own resources as the container knows them, else
-    /// (a form or a pattern cell without /Resources) the resources of the page it inherits from
+    /// The resource dictionary of a container: its own resources as the container knows them (also
+    /// the entries an editor has added); a form or a pattern cell without /Resources of its own has
+    /// them over the resources it was built with (getInheritedResourceDictionary): every category of
+    /// those, its own entries replace the entries of the same names
     static PDFObject getResourceDictionary(const PDFContentContainer& container, const PDFDocument* document);
+
+    /// The resources a form or a pattern cell without /Resources of its own inherits (ISO 32000-2,
+    /// 7.8.3 with NOTES.txt 7.8.3): those of the content drawing it, which the builder kept
+    /// (PDFContentContainer::getInheritedResources), else those of the page it was built for; null
+    /// for a container with its own /Resources and without a document
+    static PDFObject getInheritedResourceDictionary(const PDFContentContainer& container, const PDFDocument* document);
 
     /// A resource object of a container (dereferenced): its own resources, else those of the page,
     /// whose resources it inherits
@@ -157,6 +194,28 @@ public:
 
     /// The box of a glyph in the target space (its outline box, else its cell); empty, when it has none
     static QRectF getGlyphBox(const PDFContentDisplayGlyph& glyph);
+
+    /// What the glyphs of one text show share: the glyph space (PDFContentDisplayGlyph::matrix)
+    struct ShowGeometry
+    {
+        PDFReal horizontalScaling = 1.0;            ///< Th = Tz / 100
+        PDFReal sign = 1.0;                         ///< The sign of Tfs
+        PDFReal absoluteFontSize = 0.0;             ///< |Tfs|
+        QTransform outlineMatrix;                   ///< [Th x s 0 0 s 0 Ts]
+        const PDFType0Font* verticalFont = nullptr; ///< The font of the vertical writing mode (/WMode 1), else nullptr
+    };
+
+    static ShowGeometry getShowGeometry(const PDFContentTextState& textState);
+
+    /// The advance cell of a glyph in the glyph space (PDFContentDisplayGlyph::cell) and the end of
+    /// the cell along the base line in the text space (0 for the vertical writing mode)
+    static QRectF getGlyphCell(const ShowGeometry& geometry, const PDFContentTextItem& item, PDFReal* cellEnd);
+
+    /// The union of the glyph boxes of a text show (as getText gives them) without the glyphs of getText
+    static QRectF getTextShowBox(const PDFContentContainer& container, const PDFContentNode& show, const PDFContentDisplayContext& context, const QTransform& containerToTarget);
+
+    /// The union of the glyph boxes of a text object (PDFContentDisplayText::boundingBox) without the glyphs of getText
+    static QRectF getTextBoundingBox(const PDFContentContainer& container, const PDFContentNode& textObject, const PDFContentDisplayContext& context, const QTransform& containerToTarget);
 
     /// Splits the glyphs of a text into lines
     static void splitLines(PDFContentDisplayText& text, const std::vector<PDFReal>& cellEnds);
@@ -609,7 +668,206 @@ PDFObject PDFContentDisplayHelper::getPatternObject(const PDFContentContainer& c
     return node.getSymbolicState()->getSource(property).patternObject;
 }
 
-std::optional<QTransform> PDFContentDisplayHelper::getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses)
+PDFObject PDFContentDisplayHelper::getSessionObject(const PDFObject& object, const std::map<PDFObjectReference, PDFObject>* newObjects)
+{
+    if (newObjects && object.isReference())
+    {
+        auto it = newObjects->find(object.getReference());
+        if (it != newObjects->cend())
+        {
+            return it->second;
+        }
+    }
+    return object;
+}
+
+std::optional<QTransform> PDFContentDisplayHelper::getCopyMatrix(const PDFObject& patternObject, PDFObjectReference cellReference, const PDFContentDisplayContext& context)
+{
+    if (!context.document || !context.newObjects || !patternObject.isReference() || !context.newObjects->count(patternObject.getReference()))
+    {
+        return std::nullopt;
+    }
+
+    const PDFObject copy = getSessionObject(patternObject, context.newObjects);
+    const PDFObject source = context.document->getObjectByReference(cellReference);
+    if (!copy.isStream() || !source.isStream())
+    {
+        return std::nullopt;
+    }
+
+    // The data of the copy are those of the source (PDFContentCommandHelper::copyPattern keeps
+    // the bytes as they are), the dictionary is the one of the source with another /Matrix
+    const PDFStream* copyStream = copy.getStream();
+    const PDFStream* sourceStream = source.getStream();
+    if (*copyStream->getContent() != *sourceStream->getContent())
+    {
+        return std::nullopt;
+    }
+
+    const PDFDictionary* copyDictionary = copyStream->getDictionary();
+    const PDFDictionary* sourceDictionary = sourceStream->getDictionary();
+    size_t copyCount = 0;
+    for (size_t i = 0; i < copyDictionary->getCount(); ++i)
+    {
+        const QByteArray key = copyDictionary->getKey(i).getString();
+        if (key == "Matrix")
+        {
+            continue;
+        }
+
+        ++copyCount;
+        if (!sourceDictionary->hasKey(key) || !(copyDictionary->getValue(i) == sourceDictionary->get(key)))
+        {
+            return std::nullopt;
+        }
+    }
+
+    const size_t sourceCount = sourceDictionary->getCount() - (sourceDictionary->hasKey("Matrix") ? 1 : 0);
+    if (copyCount != sourceCount)
+    {
+        return std::nullopt;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(context.document);
+    QTransform matrix = loader.readMatrixFromDictionary(copyDictionary, "Matrix", QTransform());
+    makePlain(matrix);
+    return matrix;
+}
+
+void PDFContentDisplayHelper::paintMeshPicture(PDFContentDisplayShading& result,
+                                               const PDFShadingPattern& shading,
+                                               const QRectF& pictureRectangle,
+                                               const QTransform& userToContainer,
+                                               bool isBackgroundPainted,
+                                               const PDFContentDisplayImageOptions& options,
+                                               const PDFCMS* cms,
+                                               RenderingIntent intent,
+                                               const PDFOperationControl* control)
+{
+    // The size of the picture: the budget of pixels with the aspect ratio of the rectangle, checked
+    // before anything is allocated
+    const PDFReal width = pictureRectangle.width();
+    const PDFReal height = pictureRectangle.height();
+    if (!(width > 0.0) || !(height > 0.0) || !std::isfinite(width * height))
+    {
+        result.status = PDFContentDisplayShading::Status::Failed;
+        result.errorText = PDFTranslationContext::tr("The extent of the shading is not known.");
+        return;
+    }
+
+    const qint64 maximumPixels = qMax<qint64>(1, options.maximumPixels);
+    const PDFReal scale = std::sqrt(PDFReal(maximumPixels) / (width * height));
+    const qint64 pixelWidth = qBound<qint64>(1, qint64(std::floor(width * scale)), maximumPixels);
+    const qint64 pixelHeight = qBound<qint64>(1, qint64(std::floor(height * scale)), maximumPixels);
+    if (pixelWidth * pixelHeight > maximumPixels || pixelWidth > std::numeric_limits<int>::max() || pixelHeight > std::numeric_limits<int>::max())
+    {
+        result.status = PDFContentDisplayShading::Status::TooLarge;
+        return;
+    }
+
+    // The default space of the container -> the pixels: the rectangle onto the whole picture, the
+    // y axis of the content upward, the rows of the picture downward
+    const PDFReal scaleX = PDFReal(pixelWidth) / width;
+    const PDFReal scaleY = PDFReal(pixelHeight) / height;
+    const QTransform containerToPicture(scaleX, 0.0, 0.0, -scaleY, -pictureRectangle.left() * scaleX, pictureRectangle.bottom() * scaleY);
+
+    // The meshing of the renderer in the space of the picture, with the limit of the triangles
+    PDFMeshQualitySettings settings;
+    settings.deviceSpaceMeshingArea = QRectF(0.0, 0.0, PDFReal(pixelWidth), PDFReal(pixelHeight));
+    settings.userSpaceToDeviceSpaceMatrix = userToContainer * containerToPicture;
+    settings.initResolution();
+
+    PDFMeshLimit limit;
+    limit.maximumTriangleCount = size_t(PDFContentDisplay::MAXIMUM_MESH_TRIANGLES);
+    PDFRenderErrorReporterDummy reporter;
+    PDFMesh mesh;
+    try
+    {
+        mesh = shading.createMesh(settings, cms, intent, &reporter, control, &limit);
+    }
+    catch (const PDFException& exception)
+    {
+        result.status = PDFContentDisplayShading::Status::Failed;
+        result.errorText = exception.getMessage();
+        return;
+    }
+    catch (const PDFRendererException& exception)
+    {
+        result.status = PDFContentDisplayShading::Status::Failed;
+        result.errorText = exception.getError().message;
+        return;
+    }
+
+    if (PDFOperationControl::isOperationCanceled(control))
+    {
+        result.status = PDFContentDisplayShading::Status::Canceled;
+        return;
+    }
+
+    if (limit.isExceeded)
+    {
+        result.status = PDFContentDisplayShading::Status::TooLarge;
+        result.errorText = PDFTranslationContext::tr("The shading has too many parts to be shown.");
+        return;
+    }
+
+    QImage picture(int(pixelWidth), int(pixelHeight), QImage::Format_ARGB32_Premultiplied);
+    PDFAbstractColorSpace::checkImageAllocated(picture);
+    picture.fill(Qt::transparent);
+
+    {
+        // As PDFMesh::paint of the renderer: the clip of /BBox, the background, every triangle
+        // in its color with a pen of the same color (no seams between the triangles)
+        QPainter painter(&picture);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        if (!mesh.getBoundingPath().isEmpty())
+        {
+            painter.setClipPath(mesh.getBoundingPath(), Qt::IntersectClip);
+        }
+
+        const QColor backgroundColor = shading.getBackgroundColor();
+        if (isBackgroundPainted && backgroundColor.isValid())
+        {
+            painter.fillRect(settings.deviceSpaceMeshingArea, toOpaqueRgb(backgroundColor));
+        }
+
+        QRgb currentColor = 0;
+        bool isColorSet = false;
+        size_t paintedCount = 0;
+        for (const PDFMesh::Triangle& triangle : mesh.getTriangles())
+        {
+            if (++paintedCount % MESH_PAINT_BLOCK == 0 && PDFOperationControl::isOperationCanceled(control))
+            {
+                break;
+            }
+
+            if (!isColorSet || currentColor != triangle.color)
+            {
+                const QColor color = QColor::fromRgb(triangle.color);
+                painter.setPen(color);
+                painter.setBrush(QBrush(color, Qt::SolidPattern));
+                currentColor = triangle.color;
+                isColorSet = true;
+            }
+
+            const std::array<QPointF, 3> corners = { mesh.getVertex(triangle.v1), mesh.getVertex(triangle.v2), mesh.getVertex(triangle.v3) };
+            painter.drawConvexPolygon(corners.data(), int(corners.size()));
+        }
+        painter.end();
+    }
+
+    if (PDFOperationControl::isOperationCanceled(control))
+    {
+        result.status = PDFContentDisplayShading::Status::Canceled;
+        return;
+    }
+
+    result.picture = std::move(picture);
+    result.pictureRectangle = pictureRectangle;
+    result.status = PDFContentDisplayShading::Status::Done;
+}
+
+std::optional<QTransform> PDFContentDisplayHelper::getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses, const PDFContentDisplayContext& context)
 {
     if (uses.empty())
     {
@@ -664,19 +922,28 @@ std::optional<QTransform> PDFContentDisplayHelper::getContainerMatrix(const PDFC
 
             case PDFContentContainerKey::Kind::PatternCell:
             {
-                // Pattern space -> the default space of the content, which uses the pattern (8.7.3.1)
-                bool isPainted = false;
+                // Pattern space -> the default space of the content, which uses the pattern (8.7.3.1).
+                // A node moved by a matrix paints with a copy of the pattern made by the session
+                // (R-5): the cell of the pattern under the /Matrix of the copy.
+                std::optional<QTransform> cellMatrix;
                 for (const bool isStroke : { false, true })
                 {
                     const PDFObject patternObject = getPatternObject(*use.container, *node, isStroke);
-                    isPainted = isPainted || (patternObject.isReference() && patternObject.getReference() == innerKey.reference);
+                    if (!cellMatrix && patternObject.isReference() && patternObject.getReference() == innerKey.reference)
+                    {
+                        cellMatrix = inner->getMatrix();
+                    }
+                    if (!cellMatrix)
+                    {
+                        cellMatrix = getCopyMatrix(patternObject, innerKey.reference, context);
+                    }
                 }
 
-                if (!isPainted)
+                if (!cellMatrix)
                 {
                     return std::nullopt;
                 }
-                levelMatrix = inner->getMatrix();
+                levelMatrix = *cellMatrix;
                 break;
             }
 
@@ -704,6 +971,17 @@ QRectF PDFContentDisplayHelper::getStrokeBoundingBox(const PDFContentPath& path,
     {
         // The thinnest line of the device: nothing in the space of the content
         return QRectF();
+    }
+
+    if (path.getSegments().size() > STROKE_OUTLINE_SEGMENTS)
+    {
+        // A long path: its points enlarged by the farthest reach of the stroke in the space of the
+        // node (8.4.3.2 - 8.4.3.5: the half width; a projecting square cap reaches sqrt(2) of it
+        // diagonally, a miter join at most the miter limit of it) - never smaller than the stroke,
+        // and no outline of all its segments is built for every box
+        const PDFReal factor = qMax(std::sqrt(2.0), state.lineJoin == Qt::MiterJoin ? state.miterLimit : 1.0);
+        const PDFReal reach = 0.5 * state.lineWidth * factor;
+        return state.matrix.mapRect(path.getBoundingBox().adjusted(-reach, -reach, reach, reach));
     }
 
     // A local painter path of this thread only (never shared)
@@ -735,11 +1013,13 @@ QRectF PDFContentDisplayHelper::getStrokeBoundingBox(const PDFContentPath& path,
         painterPath.closeSubpath();
     }
 
-    // The solid stroke as the processor strokes it (the miter limit of PDF given to Qt as it is)
+    // The solid stroke by ISO 32000-2, 8.4.3.4 and 8.4.3.5: a miter join, whose miter length
+    // exceeds the miter limit, is a bevel join - Qt::SvgMiterJoin (Qt::MiterJoin, which the
+    // renderer uses, clips the miter instead and reaches further)
     QPainterPathStroker stroker;
     stroker.setWidth(state.lineWidth);
     stroker.setCapStyle(state.lineCap);
-    stroker.setJoinStyle(state.lineJoin);
+    stroker.setJoinStyle(state.lineJoin == Qt::MiterJoin ? Qt::SvgMiterJoin : state.lineJoin);
     stroker.setMiterLimit(state.miterLimit);
     const QPainterPath outline = stroker.createStroke(painterPath);
     return state.matrix.map(outline).boundingRect();
@@ -753,11 +1033,9 @@ PDFObject PDFContentDisplayHelper::getResource(const PDFContentContainer& contai
     PDFObject object = container.getResources().getObject(category, name);
     if (object.isNull() && document && container.getInheritedResourcesPageIndex() >= 0)
     {
-        // A form or a pattern cell without /Resources of its own: the resources of the page (7.8.3)
-        const PDFCatalog* catalog = document->getCatalog();
-        const size_t pageIndex = size_t(container.getInheritedResourcesPageIndex());
-        const PDFPage* page = catalog && pageIndex < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-        const PDFDictionary* resources = page ? document->getDictionaryFromObject(page->getResources()) : nullptr;
+        // A form or a pattern cell without /Resources of its own: the resources it was built with
+        // (those of the content drawing it, NOTES.txt 7.8.3), else the resources of the page (7.8.3)
+        const PDFDictionary* resources = document->getDictionaryFromObject(getInheritedResourceDictionary(container, document));
         const PDFDictionary* categoryDictionary = resources ? document->getDictionaryFromObject(resources->get(PDFContentResources::getCategoryKey(category))) : nullptr;
         if (categoryDictionary)
         {
@@ -765,6 +1043,25 @@ PDFObject PDFContentDisplayHelper::getResource(const PDFContentContainer& contai
         }
     }
     return document ? document->getObject(object) : object;
+}
+
+PDFObject PDFContentDisplayHelper::getInheritedResourceDictionary(const PDFContentContainer& container, const PDFDocument* document)
+{
+    if (container.getInheritedResourcesPageIndex() < 0 || !document)
+    {
+        return PDFObject();
+    }
+
+    // The caller first (a direct dictionary of the builder), then the page (NOTES.txt 7.8.3)
+    if (container.getInheritedResources().isDictionary())
+    {
+        return container.getInheritedResources();
+    }
+
+    const PDFCatalog* catalog = document->getCatalog();
+    const size_t pageIndex = size_t(container.getInheritedResourcesPageIndex());
+    const PDFPage* page = catalog && pageIndex < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
+    return page ? document->getObject(page->getResources()) : PDFObject();
 }
 
 QRectF PDFContentDisplayHelper::getGlyphBox(const PDFContentDisplayGlyph& glyph)
@@ -799,21 +1096,9 @@ PDFContentDisplayBox PDFContentDisplayHelper::getLeafBoundingBox(const PDFConten
             return result;
 
         case PDFContentNodeKind::TextShow:
-        {
             // The glyphs of the show
-            PDFContentDisplayText text;
-            std::vector<PDFReal> cellEnds;
-            addTextShow(text, cellEnds, container, node, context, containerToTarget);
-            for (const PDFContentDisplayGlyph& glyph : text.glyphs)
-            {
-                const QRectF box = getGlyphBox(glyph);
-                if (!box.isNull())
-                {
-                    result.box = result.box.isNull() ? box : result.box.united(box);
-                }
-            }
+            result.box = getTextShowBox(container, node, context, containerToTarget);
             return result;
-        }
 
         default:
             break;
@@ -935,8 +1220,7 @@ PDFContentDisplayBox PDFContentDisplayHelper::getLeafBoundingBox(const PDFConten
                 if (clip.isText)
                 {
                     const PDFContentNodePointer textObject = container.getNode(clip.node);
-                    const PDFContentDisplayTextPointer text = textObject ? getText(container, *textObject, context, containerToTarget) : nullptr;
-                    clipBox = text ? text->boundingBox : QRectF();
+                    clipBox = textObject ? getTextBoundingBox(container, *textObject, context, containerToTarget) : QRectF();
                 }
                 else
                 {
@@ -1012,8 +1296,7 @@ PDFContentDisplayBox PDFContentDisplayHelper::getBoundingBox(const PDFContentCon
         {
             // The union of its glyph boxes
             box.isValid = true;
-            const PDFContentDisplayTextPointer text = getText(container, *item.node, context, containerToTarget);
-            box.box = text ? text->boundingBox : QRectF();
+            box.box = getTextBoundingBox(container, *item.node, context, containerToTarget);
         }
         else if (isParentKind(kind))
         {
@@ -1079,12 +1362,7 @@ void PDFContentDisplayHelper::addTextShow(PDFContentDisplayText& text,
         }
     }
 
-    // The text rendering matrix of 9.4.4 without the font size: the outlines of a realized font are
-    // made for the absolute font size (PDFContentTextItem::outline)
-    const PDFReal horizontalScaling = textState.horizontalScaling * 0.01;
-    const PDFReal sign = textState.fontSize < 0.0 ? -1.0 : 1.0;
-    const PDFReal absoluteFontSize = qAbs(textState.fontSize);
-    const QTransform outlineMatrix(horizontalScaling * sign, 0.0, 0.0, sign, 0.0, textState.rise);
+    const ShowGeometry geometry = getShowGeometry(textState);
     const size_t runIndex = text.runs.size();
 
     for (size_t i = 0; i < data.textItems.size(); ++i)
@@ -1095,22 +1373,12 @@ void PDFContentDisplayHelper::addTextShow(PDFContentDisplayText& text,
             continue;
         }
 
-        // The cell along the advance: w0 x |Tfs| in the glyph space (x_text = Th x s x x_glyph), else the move of Tm
-        PDFReal cellWidth = 0.0;
-        if (item.width.has_value())
-        {
-            cellWidth = *item.width * absoluteFontSize;
-        }
-        else if (horizontalScaling != 0.0)
-        {
-            cellWidth = item.advance / (horizontalScaling * sign);
-        }
-
+        PDFReal cellEnd = 0.0;
         PDFContentDisplayGlyph glyph;
         glyph.outline = textState.realizedFont ? item.outline : nullptr;
-        glyph.cell = QRectF(0.0, -0.2 * absoluteFontSize, cellWidth, 1.2 * absoluteFontSize).normalized();
+        glyph.cell = getGlyphCell(geometry, item, &cellEnd);
         glyph.textMatrix = item.textMatrix * state->matrix;
-        glyph.matrix = outlineMatrix * glyph.textMatrix;
+        glyph.matrix = geometry.outlineMatrix * glyph.textMatrix;
         glyph.codeBytes = item.codeBytes;
         glyph.code = item.code;
         glyph.unicode = item.unicode;
@@ -1126,11 +1394,143 @@ void PDFContentDisplayHelper::addTextShow(PDFContentDisplayText& text,
         }
 
         text.glyphs.push_back(std::move(glyph));
-        cellEnds.push_back(cellWidth * horizontalScaling * sign);
+        cellEnds.push_back(cellEnd);
     }
 
     run.glyphCount = text.glyphs.size() - run.firstGlyph;
     text.runs.push_back(std::move(run));
+}
+
+PDFContentDisplayHelper::ShowGeometry PDFContentDisplayHelper::getShowGeometry(const PDFContentTextState& textState)
+{
+    // The text rendering matrix of 9.4.4 without the font size: the outlines of a realized font are
+    // made for the absolute font size (PDFContentTextItem::outline)
+    ShowGeometry geometry;
+    geometry.horizontalScaling = textState.horizontalScaling * 0.01;
+    geometry.sign = textState.fontSize < 0.0 ? -1.0 : 1.0;
+    geometry.absoluteFontSize = qAbs(textState.fontSize);
+    geometry.outlineMatrix = QTransform(geometry.horizontalScaling * geometry.sign, 0.0, 0.0, geometry.sign, 0.0, textState.rise);
+    makePlain(geometry.outlineMatrix);
+
+    const PDFType0Font* type0Font = dynamic_cast<const PDFType0Font*>(textState.font.data());
+    if (type0Font && type0Font->getCMap() && type0Font->getCMap()->isVertical())
+    {
+        geometry.verticalFont = type0Font;
+    }
+    return geometry;
+}
+
+QRectF PDFContentDisplayHelper::getGlyphCell(const ShowGeometry& geometry, const PDFContentTextItem& item, PDFReal* cellEnd)
+{
+    *cellEnd = 0.0;
+
+    if (geometry.verticalFont)
+    {
+        // The vertical writing mode (ISO 32000-2, 9.7.4.3): the advance along y is the vertical
+        // displacement w1 of /W2, else of /DW2 (w1 x Tfs in the text space, w1 x |Tfs| in the glyph
+        // space, whose y is the text space times the sign of Tfs), across it the cell is |Tfs| wide
+        // and centered on the origin (x_text = Th x s x x_glyph)
+        const PDFReal w1 = geometry.verticalFont->getGlyphAdvance(item.cid) * 0.001;
+        const PDFReal scaling = qAbs(geometry.horizontalScaling);
+        const PDFReal halfWidth = 0.5 * geometry.absoluteFontSize / (scaling > 0.0 ? scaling : 1.0);
+        return QRectF(QPointF(-halfWidth, 0.0), QPointF(halfWidth, w1 * geometry.absoluteFontSize)).normalized();
+    }
+
+    // The cell along the advance: w0 x |Tfs| in the glyph space (x_text = Th x s x x_glyph), else the move of Tm
+    PDFReal cellWidth = 0.0;
+    if (item.width.has_value())
+    {
+        cellWidth = *item.width * geometry.absoluteFontSize;
+    }
+    else if (geometry.horizontalScaling != 0.0)
+    {
+        cellWidth = item.advance / (geometry.horizontalScaling * geometry.sign);
+    }
+
+    *cellEnd = cellWidth * geometry.horizontalScaling * geometry.sign;
+    return QRectF(0.0, -0.2 * geometry.absoluteFontSize, cellWidth, 1.2 * geometry.absoluteFontSize).normalized();
+}
+
+QRectF PDFContentDisplayHelper::getTextShowBox(const PDFContentContainer& container, const PDFContentNode& show, const PDFContentDisplayContext& context, const QTransform& containerToTarget)
+{
+    // The glyph boxes as getText makes them (getGlyphBox), without the glyphs, the colors and the
+    // lines of getText: the cost is one matrix per glyph
+    const std::optional<PDFContentDisplayState> state = computeState(container, show, context, containerToTarget, false, true);
+    if (!state)
+    {
+        return QRectF();
+    }
+
+    const PDFContentNode::Data& data = show.getData();
+    const ShowGeometry geometry = getShowGeometry(data.textState);
+    QRectF result;
+    for (const PDFContentTextItem& item : data.textItems)
+    {
+        if (item.kind != PDFContentTextItem::Kind::Glyph)
+        {
+            continue;
+        }
+
+        PDFReal cellEnd = 0.0;
+        const QRectF cell = getGlyphCell(geometry, item, &cellEnd);
+        const QTransform matrix = geometry.outlineMatrix * item.textMatrix * state->matrix;
+        const PDFGlyphOutline* outline = data.textState.realizedFont ? item.outline : nullptr;
+
+        QRectF box;
+        if (outline && !outline->isEmpty())
+        {
+            box = matrix.mapRect(outline->getBoundingRect());
+        }
+        else if (!cell.isEmpty())
+        {
+            box = matrix.mapRect(cell);
+        }
+
+        if (!box.isNull())
+        {
+            result = result.isNull() ? box : result.united(box);
+        }
+    }
+    return result;
+}
+
+QRectF PDFContentDisplayHelper::getTextBoundingBox(const PDFContentContainer& container, const PDFContentNode& textObject, const PDFContentDisplayContext& context, const QTransform& containerToTarget)
+{
+    if (textObject.getKind() != PDFContentNodeKind::TextObject || !getNodeMatrix(container, textObject, true))
+    {
+        return QRectF();
+    }
+
+    // The shows of the text object, also inside of its marked content; a tree, bounded by the depth
+    QRectF result;
+    std::vector<std::pair<const PDFContentNode*, int>> stack = { { &textObject, 0 } };
+    while (!stack.empty())
+    {
+        const auto [node, depth] = stack.back();
+        stack.pop_back();
+
+        if (node->getKind() == PDFContentNodeKind::TextShow)
+        {
+            const QRectF box = getTextShowBox(container, *node, context, containerToTarget);
+            if (!box.isNull())
+            {
+                result = result.isNull() ? box : result.united(box);
+            }
+            continue;
+        }
+
+        if (isParentKind(node->getKind()) && depth <= MAXIMUM_WALK_DEPTH)
+        {
+            for (const PDFContentNodePointer& child : node->getChildren())
+            {
+                if (child)
+                {
+                    stack.emplace_back(child.get(), depth + 1);
+                }
+            }
+        }
+    }
+    return result;
 }
 
 void PDFContentDisplayHelper::splitLines(PDFContentDisplayText& text, const std::vector<PDFReal>& cellEnds)
@@ -1509,8 +1909,39 @@ protected:
     virtual bool isTextIgnored() const override { return true; }
 
 private:
+    /// The size of an image in its JPEG or JPEG 2000 data
+    struct CodestreamHeader
+    {
+        qint64 width = 0;
+        qint64 height = 0;
+        qint64 componentCount = 0;
+        bool isFound = false;       ///< The header with the size was read
+        bool isComplete = true;     ///< JPEG: the data have the end of the image (EOI) behind the first scan
+    };
+
     /// /Width x /Height of an image stream: 0, when they are not positive numbers
     qint64 getPixelCount(const PDFStream* stream) const;
+
+    /// The image filter of a stream (the last filter of /Filter), as PDFImage::createImage reads it
+    QByteArray getImageFilterName(const PDFStream* stream) const;
+
+    /// The frame header of JPEG data (ISO/IEC 10918-1, B.2.2: the first SOF marker behind SOI, the
+    /// marker segments walked by their lengths, anything else skipped up to the next 0xFF as
+    /// libjpeg does) and whether an EOI marker (B.2.1) follows the first scan (SOS). Bounded by the
+    /// size of the data: every step moves forward.
+    static CodestreamHeader readJpegHeader(const QByteArray& data);
+
+    /// The image size of JPEG 2000 data (ISO/IEC 15444-1): the SIZ marker segment behind SOC of a
+    /// codestream (A.5.1: Xsiz - XOsiz, Ysiz - YOsiz, Csiz), also inside of the contiguous
+    /// codestream box of a JP2 file (I.5.4), else the image header box (I.5.3.1: HEIGHT, WIDTH, NC).
+    /// Bounded by the size of the data: the boxes are walked forward by their lengths.
+    static CodestreamHeader readJpeg2000Header(const QByteArray& data);
+
+    /// The size the JPEG or JPEG 2000 data of a stream give agrees with /Width and /Height, stays
+    /// within MAXIMUM_DECODED_PIXELS (and within the 32-bit buffer of the JPEG decoder, SECURITY_TODO
+    /// item 77) and the JPEG data end with EOI (the decoder does not end on data, which end inside of
+    /// the scan); false with the status of the result set. A stream of another filter passes.
+    bool checkCodestream(const PDFStream* stream);
 
     const PDFOperationControl* m_control;
     PDFContentDisplayImage m_result;
@@ -1656,7 +2087,289 @@ bool PDFContentDisplayImageProcessor::isOriginalImageRequired(const PDFStream* s
         m_result.sourceSize = QSize(int(width), int(height));
     }
 
-    return m_result.status != PDFContentDisplayImage::Status::TooLarge;
+    if (m_result.status == PDFContentDisplayImage::Status::TooLarge)
+    {
+        return false;
+    }
+
+    // The decoders of JPEG and JPEG 2000 allocate by the size in their data, not by /Width and
+    // /Height: the size of the data is checked too, before any decoding (SECURITY_TODO item 77)
+    if (!checkCodestream(stream))
+    {
+        return false;
+    }
+
+    for (const char* key : { "SMask", "Mask" })
+    {
+        const PDFObject maskObject = dictionary ? getDocument()->getObject(dictionary->get(key)) : PDFObject();
+        if (maskObject.isStream() && !checkCodestream(maskObject.getStream()))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+QByteArray PDFContentDisplayImageProcessor::getImageFilterName(const PDFStream* stream) const
+{
+    const PDFDictionary* dictionary = stream ? stream->getDictionary() : nullptr;
+    const PDFObject filters = dictionary ? getDocument()->getObject(dictionary->get("Filter")) : PDFObject();
+    if (filters.isName())
+    {
+        return filters.getString();
+    }
+
+    if (filters.isArray() && filters.getArray()->getCount() > 0)
+    {
+        const PDFObject last = getDocument()->getObject(filters.getArray()->getItem(filters.getArray()->getCount() - 1));
+        return last.isName() ? last.getString() : QByteArray();
+    }
+
+    return QByteArray();
+}
+
+PDFContentDisplayImageProcessor::CodestreamHeader PDFContentDisplayImageProcessor::readJpegHeader(const QByteArray& data)
+{
+    CodestreamHeader header;
+    const qsizetype size = data.size();
+    auto byteAt = [&data](qsizetype index) { return int(uchar(data[index])); };
+
+    // The decoder begins at the first SOI (PDFImage::createImage skips what is in front of it)
+    qsizetype position = qMax<qsizetype>(data.indexOf("\xFF\xD8"), 0);
+    if (position + 1 >= size || byteAt(position) != 0xFF || byteAt(position + 1) != 0xD8)
+    {
+        return header;
+    }
+    position += 2;
+
+    qsizetype scanEnd = -1;
+    while (position < size)
+    {
+        if (byteAt(position) != 0xFF)
+        {
+            ++position;
+            continue;
+        }
+
+        // A marker: 0xFF (fill bytes 0xFF may precede it, B.1.1.2) and its code
+        while (position < size && byteAt(position) == 0xFF)
+        {
+            ++position;
+        }
+        if (position >= size)
+        {
+            break;
+        }
+
+        const int marker = byteAt(position++);
+        if (marker == 0x00 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD8))
+        {
+            // No marker segment: a stuffed byte, TEM, RSTn, SOI (B.1.1.4)
+            continue;
+        }
+
+        if (marker == 0xD9 || position + 1 >= size)
+        {
+            // EOI before a scan, or the data end
+            break;
+        }
+
+        const qsizetype length = (qsizetype(byteAt(position)) << 8) | qsizetype(byteAt(position + 1));
+        if (length < 2)
+        {
+            break;
+        }
+
+        // SOF0 - SOF15 except DHT (C4), JPG (C8) and DAC (CC): P, Y, X, Nf (B.2.2, Table B.2)
+        const bool isFrame = marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+        if (isFrame && !header.isFound)
+        {
+            if (position + 7 >= size)
+            {
+                break;
+            }
+            header.height = (qint64(byteAt(position + 3)) << 8) | qint64(byteAt(position + 4));
+            header.width = (qint64(byteAt(position + 5)) << 8) | qint64(byteAt(position + 6));
+            header.componentCount = byteAt(position + 7);
+            header.isFound = true;
+        }
+        else if (marker == 0xDA)
+        {
+            // SOS: the entropy-coded data of the scan follow its header
+            scanEnd = position + length;
+            break;
+        }
+
+        position += length;
+    }
+
+    // An EOI behind the scan: 0xFF 0xD9 cannot occur in entropy-coded data (a 0xFF there is
+    // followed by a stuffed 0x00, F.1.2.3), so the decoder meets it before the data end
+    header.isComplete = scanEnd >= 0 && scanEnd <= size && data.indexOf("\xFF\xD9", scanEnd) >= 0;
+    return header;
+}
+
+PDFContentDisplayImageProcessor::CodestreamHeader PDFContentDisplayImageProcessor::readJpeg2000Header(const QByteArray& data)
+{
+    CodestreamHeader header;
+    const qsizetype size = data.size();
+    auto byteAt = [&data](qsizetype index) { return quint64(uchar(data[index])); };
+    auto readNumber = [&byteAt](qsizetype index, int byteCount)
+    {
+        quint64 value = 0;
+        for (int i = 0; i < byteCount; ++i)
+        {
+            value = (value << 8) | byteAt(index + i);
+        }
+        return value;
+    };
+
+    // A codestream: SOC (FF4F), then SIZ (FF51) with Lsiz, Rsiz, Xsiz, Ysiz, XOsiz, YOsiz,
+    // XTsiz, YTsiz, XTOsiz, YTOsiz, Csiz (A.5.1, Table A.9)
+    auto readCodestream = [&](qsizetype start) -> bool
+    {
+        if (start < 0 || start > size - 42 || byteAt(start) != 0xFF || byteAt(start + 1) != 0x4F || byteAt(start + 2) != 0xFF || byteAt(start + 3) != 0x51)
+        {
+            return false;
+        }
+
+        header.width = qint64(readNumber(start + 8, 4)) - qint64(readNumber(start + 16, 4));
+        header.height = qint64(readNumber(start + 12, 4)) - qint64(readNumber(start + 20, 4));
+        header.componentCount = qint64(readNumber(start + 40, 2));
+        header.isFound = true;
+        return true;
+    };
+
+    if (readCodestream(0))
+    {
+        return header;
+    }
+
+    // A JP2 file: boxes of LBox, TBox (and XLBox for LBox 1; LBox 0 = to the end), I.4
+    constexpr quint64 BOX_CODESTREAM = 0x6A703263;  // 'jp2c'
+    constexpr quint64 BOX_HEADER = 0x6A703268;      // 'jp2h'
+    constexpr quint64 BOX_IMAGE_HEADER = 0x69686472; // 'ihdr'
+
+    // One box in [position, end): its type, the beginning of its content and its end (behind the
+    // box); false, when no whole box is there. A box is at least 8 bytes long, so a walk moves on.
+    auto readBox = [&readNumber](qsizetype position, qsizetype end, quint64* type, qsizetype* content, qsizetype* boxEnd) -> bool
+    {
+        if (position < 0 || position > end - 8)
+        {
+            return false;
+        }
+
+        quint64 boxLength = readNumber(position, 4);
+        *type = readNumber(position + 4, 4);
+        qsizetype headerLength = 8;
+        if (boxLength == 1)
+        {
+            if (position > end - 16)
+            {
+                return false;
+            }
+            boxLength = readNumber(position + 8, 8);
+            headerLength = 16;
+        }
+        else if (boxLength == 0)
+        {
+            boxLength = quint64(end - position);
+        }
+
+        if (boxLength < quint64(headerLength) || boxLength > quint64(end - position))
+        {
+            return false;
+        }
+
+        *content = position + headerLength;
+        *boxEnd = position + qsizetype(boxLength);
+        return true;
+    };
+
+    CodestreamHeader imageHeader;
+    quint64 type = 0;
+    qsizetype content = 0;
+    qsizetype boxEnd = 0;
+    for (qsizetype position = 0; readBox(position, size, &type, &content, &boxEnd); position = boxEnd)
+    {
+        if (type == BOX_CODESTREAM && readCodestream(content))
+        {
+            return header;
+        }
+
+        if (type == BOX_HEADER && !imageHeader.isFound)
+        {
+            quint64 innerType = 0;
+            qsizetype innerContent = 0;
+            qsizetype innerEnd = 0;
+            for (qsizetype inner = content; readBox(inner, boxEnd, &innerType, &innerContent, &innerEnd); inner = innerEnd)
+            {
+                if (innerType == BOX_IMAGE_HEADER && innerEnd - innerContent >= 10)
+                {
+                    imageHeader.height = qint64(readNumber(innerContent, 4));
+                    imageHeader.width = qint64(readNumber(innerContent + 4, 4));
+                    imageHeader.componentCount = qint64(readNumber(innerContent + 8, 2));
+                    imageHeader.isFound = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return imageHeader;
+}
+
+bool PDFContentDisplayImageProcessor::checkCodestream(const PDFStream* stream)
+{
+    const QByteArray filter = getImageFilterName(stream);
+    const bool isJpeg = filter == "DCTDecode" || filter == "DCT";
+    const bool isJpeg2000 = filter == "JPXDecode";
+    if (!isJpeg && !isJpeg2000)
+    {
+        return true;
+    }
+
+    // The data as the decoder gets them (the filters in front of the image filter applied)
+    const QByteArray data = getDocument()->getDecodedStream(stream);
+    const CodestreamHeader header = isJpeg ? readJpegHeader(data) : readJpeg2000Header(data);
+    if (!header.isFound || header.width <= 0 || header.height <= 0)
+    {
+        m_result.status = PDFContentDisplayImage::Status::Failed;
+        m_result.errorText = PDFTranslationContext::tr("The size of the image cannot be read from its data.");
+        return false;
+    }
+
+    // Both sides are below 2^32, so the products fit (JPEG: below 2^16)
+    const PDFReal pixelCount = PDFReal(header.width) * PDFReal(header.height);
+    const PDFReal sampleCount = pixelCount * PDFReal(qMax<qint64>(1, header.componentCount));
+    const bool isTooLarge = pixelCount > PDFReal(PDFContentDisplay::MAXIMUM_DECODED_PIXELS) ||
+                            (isJpeg && sampleCount > PDFReal(std::numeric_limits<quint32>::max())) ||
+                            (isJpeg2000 && sampleCount > 4.0 * PDFReal(PDFContentDisplay::MAXIMUM_DECODED_PIXELS));
+    if (isTooLarge)
+    {
+        m_result.status = PDFContentDisplayImage::Status::TooLarge;
+        m_result.errorText = PDFTranslationContext::tr("The image is too large to be shown.");
+        return false;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(getDocument());
+    const PDFDictionary* dictionary = stream->getDictionary();
+    if (header.width != loader.readIntegerFromDictionary(dictionary, "Width", 0) || header.height != loader.readIntegerFromDictionary(dictionary, "Height", 0))
+    {
+        m_result.status = PDFContentDisplayImage::Status::Failed;
+        m_result.errorText = PDFTranslationContext::tr("The size of the image in its data differs from /Width and /Height.");
+        return false;
+    }
+
+    if (!header.isComplete)
+    {
+        m_result.status = PDFContentDisplayImage::Status::Failed;
+        m_result.errorText = PDFTranslationContext::tr("The data of the image end before the image does.");
+        return false;
+    }
+
+    return true;
 }
 
 bool PDFContentDisplayImageProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference)
@@ -1712,15 +2425,60 @@ bool PDFContentDisplayImageProcessor::isContentSuppressedByOC(PDFObjectReference
 
 PDFObject PDFContentDisplayHelper::getResourceDictionary(const PDFContentContainer& container, const PDFDocument* document)
 {
-    PDFObject resources = PDFContentDisplayImageProcessor::createResources(container);
-    if (resources.isNull() && document && container.getInheritedResourcesPageIndex() >= 0)
+    const PDFObject own = PDFContentDisplayImageProcessor::createResources(container);
+    const PDFObject inheritedObject = getInheritedResourceDictionary(container, document);
+    const PDFDictionary* inherited = document ? document->getDictionaryFromObject(inheritedObject) : nullptr;
+    if (!inherited)
     {
-        const PDFCatalog* catalog = document->getCatalog();
-        const size_t pageIndex = size_t(container.getInheritedResourcesPageIndex());
-        const PDFPage* page = catalog && pageIndex < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-        resources = page ? document->getObject(page->getResources()) : PDFObject();
+        return own;
     }
-    return resources;
+
+    const PDFDictionary* ownDictionary = own.isDictionary() ? own.getDictionary() : nullptr;
+    if (!ownDictionary || ownDictionary->getCount() == 0)
+    {
+        return inheritedObject;
+    }
+
+    // The categories of the inherited resources, each with the own entries over its entries; the
+    // categories only the container has. Bounded by the entries of the two dictionaries.
+    PDFDictionaryBuilder merged;
+    for (size_t i = 0; i < inherited->getCount(); ++i)
+    {
+        const QByteArray key = inherited->getKey(i).getString();
+        const PDFDictionary* inheritedCategory = document->getDictionaryFromObject(inherited->getValue(i));
+        const PDFDictionary* ownCategory = document->getDictionaryFromObject(ownDictionary->get(key));
+        if (!inheritedCategory || !ownCategory)
+        {
+            merged.addEntry(PDFInplaceOrMemoryString(key), PDFObject(ownCategory ? ownDictionary->get(key) : inherited->getValue(i)));
+            continue;
+        }
+
+        PDFDictionaryBuilder category;
+        for (size_t j = 0; j < inheritedCategory->getCount(); ++j)
+        {
+            const QByteArray name = inheritedCategory->getKey(j).getString();
+            if (!ownCategory->hasKey(name))
+            {
+                category.addEntry(PDFInplaceOrMemoryString(name), PDFObject(inheritedCategory->getValue(j)));
+            }
+        }
+        for (size_t j = 0; j < ownCategory->getCount(); ++j)
+        {
+            category.addEntry(PDFInplaceOrMemoryString(ownCategory->getKey(j).getString()), PDFObject(ownCategory->getValue(j)));
+        }
+        merged.addEntry(PDFInplaceOrMemoryString(key), PDFObject::createDictionary(std::move(category)));
+    }
+
+    for (size_t i = 0; i < ownDictionary->getCount(); ++i)
+    {
+        const QByteArray key = ownDictionary->getKey(i).getString();
+        if (!inherited->hasKey(key))
+        {
+            merged.addEntry(PDFInplaceOrMemoryString(key), PDFObject(ownDictionary->getValue(i)));
+        }
+    }
+
+    return PDFObject::createDictionary(std::move(merged));
 }
 
 /// Paints one cell of a tiling pattern into an image by the painter of the renderer (item 7). A local
@@ -1794,7 +2552,7 @@ std::optional<PDFContentDisplayState> PDFContentDisplay::getDisplayState(const P
                                                                          const PDFContentDisplayUsePath& uses)
 {
     const PDFContentNodePointer node = container.getNode(id);
-    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses) : std::nullopt;
+    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses, context) : std::nullopt;
     if (!containerToTarget)
     {
         return std::nullopt;
@@ -1804,7 +2562,12 @@ std::optional<PDFContentDisplayState> PDFContentDisplay::getDisplayState(const P
 
 std::optional<QTransform> PDFContentDisplay::getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses)
 {
-    return PDFContentDisplayHelper::getContainerMatrix(container, uses);
+    return PDFContentDisplayHelper::getContainerMatrix(container, uses, PDFContentDisplayContext());
+}
+
+std::optional<QTransform> PDFContentDisplay::getContainerMatrix(const PDFContentContainer& container, const PDFContentDisplayUsePath& uses, const PDFContentDisplayContext& context)
+{
+    return PDFContentDisplayHelper::getContainerMatrix(container, uses, context);
 }
 
 PDFContentDisplayBox PDFContentDisplay::getBoundingBox(const PDFContentContainer& container, PDFContentNodeId id, const PDFContentDisplayContext& context)
@@ -1818,7 +2581,7 @@ PDFContentDisplayBox PDFContentDisplay::getBoundingBox(const PDFContentContainer
                                                        const PDFContentDisplayUsePath& uses)
 {
     const PDFContentNodePointer node = container.getNode(id);
-    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses) : std::nullopt;
+    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses, context) : std::nullopt;
     if (!containerToTarget)
     {
         return PDFContentDisplayBox();
@@ -1843,7 +2606,7 @@ PDFContentDisplayTextPointer PDFContentDisplay::getText(const PDFContentContaine
                                                         const PDFContentDisplayUsePath& uses)
 {
     const PDFContentNodePointer node = container.getNode(textObjectId);
-    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses) : std::nullopt;
+    const std::optional<QTransform> containerToTarget = node ? PDFContentDisplayHelper::getContainerMatrix(container, uses, context) : std::nullopt;
     if (!containerToTarget)
     {
         return nullptr;
@@ -1865,7 +2628,7 @@ PDFContentDisplayImage PDFContentDisplay::decodeImage(const PDFDocument* documen
         return result;
     }
 
-    const std::optional<PDFContentDisplayState> state = PDFContentDisplayHelper::computeState(*container, *node, PDFContentDisplayContext{ document, options.cms, options.iccProfileCache }, QTransform(), true, true);
+    const std::optional<PDFContentDisplayState> state = PDFContentDisplayHelper::computeState(*container, *node, PDFContentDisplayContext{ document, options.cms, options.iccProfileCache, options.newObjects }, QTransform(), true, true);
     if (!state)
     {
         result.status = PDFContentDisplayImage::Status::Failed;
@@ -1908,7 +2671,7 @@ PDFContentDisplayImage PDFContentDisplay::decodeImage(const PDFDocument* documen
 
     PDFCMSGeneric genericCms;
     PDFContentDisplayImageProcessor processor(catalog->getPage(size_t(pageIndex)), document, options.cms ? options.cms : &genericCms, options.iccProfileCache, control);
-    processor.decode(PDFContentDisplayImageProcessor::createResources(*container), content, *state);
+    processor.decode(PDFContentDisplayHelper::getResourceDictionary(*container, document), content, *state);
     result = processor.takeResult();
     result.matrix = state->matrix;
 
@@ -1980,8 +2743,17 @@ std::vector<PDFContentNodeId> PDFContentDisplay::getClippedNodes(const PDFConten
 
     if (current->getKind() == PDFContentNodeKind::TextShow)
     {
-        // A clip by text becomes real at the end of its text object (ISO 32000-2, 9.3.6)
-        current = container.getParent(current->getId());
+        // A clip by text becomes real at the end of its text object (ISO 32000-2, 9.3.6): the
+        // text object, also above a marked content inside of it (bounded by the depth of the tree)
+        for (int level = 0; current && current->getKind() != PDFContentNodeKind::TextObject && level <= PDFContentDisplayHelper::MAXIMUM_WALK_DEPTH; ++level)
+        {
+            current = container.getParent(current->getId());
+        }
+
+        if (!current || current->getKind() != PDFContentNodeKind::TextObject)
+        {
+            return result;
+        }
     }
 
     // Up to the end of the enclosing q ... Q (or of the content); bounded by the depth of the tree
@@ -2056,7 +2828,7 @@ PDFContentDisplayShading PDFContentDisplay::getShading(const PDFDocument* docume
 
     PDFCMSGeneric genericCms;
     const PDFCMS* cms = options.cms ? options.cms : &genericCms;
-    const PDFContentDisplayContext context{ document, cms, options.iccProfileCache };
+    const PDFContentDisplayContext context{ document, cms, options.iccProfileCache, options.newObjects };
     const std::optional<PDFContentDisplayState> state = PDFContentDisplayHelper::computeState(*container, *node, context, QTransform(), true, true);
     if (!state)
     {
@@ -2089,7 +2861,7 @@ PDFContentDisplayShading PDFContentDisplay::getShading(const PDFDocument* docume
             {
                 return result;
             }
-            pattern = PDFPattern::createPattern(colorSpaceDictionary, document, options.iccProfileCache, patternObject, cms, intent, &reporter);
+            pattern = PDFPattern::createPattern(colorSpaceDictionary, document, options.iccProfileCache, PDFContentDisplayHelper::getSessionObject(patternObject, options.newObjects), cms, intent, &reporter);
             if (pattern && pattern->getType() == PatternType::Shading)
             {
                 result.matrix = pattern->getMatrix();
@@ -2142,10 +2914,22 @@ PDFContentDisplayShading PDFContentDisplay::getShading(const PDFDocument* docume
         }
 
         default:
-            // Types 1, 4 - 7 (a function of two variables, meshes): not drawn by this package
+        {
+            // Types 1, 4 - 7 (a function of two variables, meshes): the picture of the mesh over the
+            // box of the node (the area the shading can paint there), within the box of the container
             result.kind = PDFContentDisplayShading::Kind::Picture;
-            result.status = PDFContentDisplayShading::Status::NotImplemented;
+            const PDFContentDisplayBox box = PDFContentDisplayHelper::getBoundingBox(*container, *node, context, QTransform());
+            QRectF pictureRectangle = (box.isValid && !box.isUnknown) ? box.box.normalized() : QRectF();
+            const QRectF containerBox = container->getBoundingBox().normalized();
+            if (!containerBox.isEmpty())
+            {
+                pictureRectangle = pictureRectangle.isEmpty() ? containerBox : pictureRectangle.intersected(containerBox);
+            }
+
+            const bool isShadingNode = node->getKind() == PDFContentNodeKind::Shading;
+            PDFContentDisplayHelper::paintMeshPicture(result, *shading, pictureRectangle, isShadingNode ? state->matrix : QTransform(), !isShadingNode, options, cms, intent, control);
             return result;
+        }
     }
 
     result.start = singleDimensionShading->getStartPoint();
@@ -2232,7 +3016,7 @@ PDFContentDisplayTilingCell PDFContentDisplay::getTilingCell(const PDFDocument* 
 
     PDFCMSGeneric genericCms;
     const PDFCMS* cms = options.cms ? options.cms : &genericCms;
-    const PDFContentDisplayContext context{ document, cms, options.iccProfileCache };
+    const PDFContentDisplayContext context{ document, cms, options.iccProfileCache, options.newObjects };
     const std::optional<PDFContentDisplayState> state = PDFContentDisplayHelper::computeState(*container, *node, context, QTransform(), true, true);
     const PDFObject patternObject = PDFContentDisplayHelper::getPatternObject(*container, *node, isStroke);
     if (!state || patternObject.isNull())
@@ -2250,7 +3034,7 @@ PDFContentDisplayTilingCell PDFContentDisplay::getTilingCell(const PDFDocument* 
     PDFRenderErrorReporterDummy reporter;
     try
     {
-        pattern = PDFPattern::createPattern(colorSpaceDictionary, document, options.iccProfileCache, patternObject, cms, intent, &reporter);
+        pattern = PDFPattern::createPattern(colorSpaceDictionary, document, options.iccProfileCache, PDFContentDisplayHelper::getSessionObject(patternObject, options.newObjects), cms, intent, &reporter);
     }
     catch (const PDFException& exception)
     {

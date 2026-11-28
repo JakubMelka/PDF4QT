@@ -23,13 +23,17 @@
 #include "pdfapptoolgui_content.h"
 
 #include "pdfappdocument.h"
+#include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttoolbar.h"
+#include "pdfappdocumentview.h"
 #include "pdfappeditcontentcards.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentkeyboard.h"
 #include "pdfappeditcontentmenus.h"
 #include "pdfappeditcontentnotices.h"
+#include "pdfappeditcontentpanels_objects.h"
 #include "pdfappeditcontentregistry.h"
+#include "pdfappeditcontentscene.h"
 #include "pdfappeditcontentselection.h"
 #include "pdfappeditcontenttools.h"
 #include "pdfappeditcontentundo.h"
@@ -44,6 +48,7 @@
 #include "pdfdocumenttoolrunner.h"
 #include "pdfdocumenttoolshell.h"
 
+#include "pdfcontentdisplay.h"
 #include "pdfcontentjson.h"
 #include "pdfcontentundostack.h"
 #include "pdfdocumenttool_content.h"
@@ -118,6 +123,24 @@ public:
         PDFInteger added = 0;       ///< Objects created in this session (PDFContentEditSession::FIRST_SESSION_NODE_ID)
     };
 
+    /// The node is an object (see ObjectCounts)
+    static bool isObject(const PDFContentNode& node)
+    {
+        switch (node.getKind())
+        {
+            case PDFContentNodeKind::TextObject:
+            case PDFContentNodeKind::Path:
+            case PDFContentNodeKind::Image:
+            case PDFContentNodeKind::FormUse:
+            case PDFContentNodeKind::Shading:
+            case PDFContentNodeKind::Opaque:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
     static ObjectCounts countObjects(const PDFContentContainer& container)
     {
         ObjectCounts counts;
@@ -131,26 +154,17 @@ public:
         {
             const PDFContentNode* node = stack.back();
             stack.pop_back();
-            switch (node->getKind())
+            if (isObject(*node))
             {
-                case PDFContentNodeKind::TextObject:
-                case PDFContentNodeKind::Path:
-                case PDFContentNodeKind::Image:
-                case PDFContentNodeKind::FormUse:
-                case PDFContentNodeKind::Shading:
-                case PDFContentNodeKind::Opaque:
-                    if (node->getId().value >= PDFContentEditSession::FIRST_SESSION_NODE_ID)
-                    {
-                        ++counts.added;
-                    }
-                    else
-                    {
-                        ++counts.original;
-                    }
-                    continue;
-
-                default:
-                    break;
+                if (node->getId().value >= PDFContentEditSession::FIRST_SESSION_NODE_ID)
+                {
+                    ++counts.added;
+                }
+                else
+                {
+                    ++counts.original;
+                }
+                continue;
             }
 
             for (const PDFContentNodePointer& child : node->getChildren())
@@ -163,6 +177,37 @@ public:
         }
 
         return counts;
+    }
+
+    /// The container of the page shown, nullptr while it loads: the states of the page and Clear Page are about the page,
+    /// also while a group is entered (R8-4; getContainer is the edited root)
+    static PDFContentContainerPointer getPageContainer(const PDFAppEditContentContext* context)
+    {
+        const PDFContentContainerKey key = context ? context->getPageKey() : PDFContentContainerKey();
+        return key.isValid() ? context->getSession()->getContainer(key) : PDFContentContainerPointer();
+    }
+
+    /// The object of an error of writing as the tab Objects names it ("Path · 2 segments"; row 28); empty when the
+    /// identifier names no node of a loaded container
+    static QString getErrorObjectName(const PDFAppEditContentContext* context, const QString& nodeId)
+    {
+        if (!context || nodeId.isEmpty())
+        {
+            return QString();
+        }
+        QString errorText;
+        const PDFContentNodeReference reference = PDFContentJson::readNodeId(nodeId, context->getSession(), &errorText);
+        const PDFContentContainerPointer container = reference.isValid() ? context->getSession()->getContainer(reference.container) : PDFContentContainerPointer();
+        const PDFContentNodePointer node = container ? container->getNode(reference.node) : PDFContentNodePointer();
+        if (!node)
+        {
+            return QString();
+        }
+
+        const PDFDocument* document = context->getSession()->getDocument();
+        const QString kind = PDFAppEditContentObjectsModel::getKindText(*node, document);
+        const QString description = PDFAppEditContentObjectsModel::getDescription(*node, document);
+        return description.isEmpty() ? kind : PDFAppToolGUIContent::tr("%1 · %2").arg(kind, description);
     }
 
     /// The page is a scan (edit-content-v2-scanned): its only object is an image, also inside of groups and marked
@@ -251,6 +296,33 @@ PDFAppToolGUIContent::PDFAppToolGUIContent(QObject* parent) :
     BaseClass(parent)
 {
 
+}
+
+bool PDFAppToolGUIContent::hasObjects(const PDFContentContainer& container)
+{
+    // One visit per node at most (an explicit stack over a tree), the first object ends the walk
+    std::vector<const PDFContentNode*> stack;
+    if (container.getRoot())
+    {
+        stack.push_back(container.getRoot().get());
+    }
+    while (!stack.empty())
+    {
+        const PDFContentNode* node = stack.back();
+        stack.pop_back();
+        if (PDFAppToolGUIContentHelper::isObject(*node))
+        {
+            return true;
+        }
+        for (const PDFContentNodePointer& child : node->getChildren())
+        {
+            if (child)
+            {
+                stack.push_back(child.get());
+            }
+        }
+    }
+    return false;
 }
 
 PDFAppToolGUIContent::~PDFAppToolGUIContent()
@@ -345,8 +417,13 @@ bool PDFAppToolGUIContent::ensureContext()
     connect(context->getToolController(), &PDFAppEditContentToolController::activeToolChanged, this, &PDFAppToolGUIContent::onToolStateChanged);
     connect(context->getToolController(), &PDFAppEditContentToolController::stateChanged, this, &PDFAppToolGUIContent::onToolStateChanged);
     connect(context->getSelection(), &PDFAppEditContentSelection::changed, this, &PDFAppToolGUIContent::onSelectionChanged);
+    connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppToolGUIContent::onSessionReplaced);
 
     m_isClean = context->getSession()->getUndoStack()->isClean();
+
+    // R8-8: the declarations of the document of the session never change while the session lives (the decoding of the
+    // metadata stream is done once, not at every update of the notices)
+    m_conformanceDeclarations = PDFDocumentTool::getConformanceDeclarations(context->getSession()->getDocument());
 
     // QE.2: the notice of a declared conformance comes with the first opening (no signal of a part is connected yet)
     updateStateNotices(false);
@@ -457,9 +534,7 @@ QWidget* PDFAppToolGUIContent::createToolActions(QWidget* parent)
 
         for (const PDFAppEditContentActionEntry* entry : entries)
         {
-            // The placements are a value of the entry: findPlacement points into them, they must outlive the pointer
-            const std::vector<PDFAppEditContentActionEntry::Placement> placements = entry->getPlacements();
-            const PDFAppEditContentActionEntry::Placement* placement = PDFAppEditContentRegistry::findPlacement(placements, QString::fromLatin1(PDFAppEditContentMenuIds::TOOLBAR));
+            const std::optional<PDFAppEditContentActionEntry::Placement> placement = PDFAppEditContentRegistry::findPlacement(entry->getPlacements(), QString::fromLatin1(PDFAppEditContentMenuIds::TOOLBAR));
             if (!placement || placement->group != toolbarGroup)
             {
                 continue;
@@ -641,8 +716,19 @@ QWidget* PDFAppToolGUIContent::createCanvasPage(QWidget* parent)
         PDFDeferredDeletion::connect(view, &PDFAppEditContentView::viewChanged, this, &PDFAppToolGUIContent::onViewChanged);
     }
 
-    // The shortcuts of the tool on the key widget of the host (way 3 of zadani_gui.md 4.20)
+    // Row 28: the page item of the status bar of the document view opens Go to page of the tool (the view opens the Go
+    // to panel of the document toolbar, which is hidden while the tool is shown: it does nothing then). A foreign
+    // sender, connected once per status bar.
     PDFAppToolHost* host = getHost();
+    PDFAppDocumentView* documentView = host ? host->getView() : nullptr;
+    PDFAppDocumentStatusBar* statusBar = documentView ? documentView->getStatusBar() : nullptr;
+    if (statusBar && m_statusBar.data() != statusBar)
+    {
+        m_statusBar = statusBar;
+        PDFDeferredDeletion::connect(statusBar, &PDFAppDocumentStatusBar::pageItemClicked, this, &PDFAppToolGUIContent::onStatusPageClicked);
+    }
+
+    // The shortcuts of the tool on the key widget of the host (way 3 of zadani_gui.md 4.20)
     if (m_keyboard && host)
     {
         m_keyboard->install(host->getKeyWidget());
@@ -822,8 +908,9 @@ QString PDFAppToolGUIContent::getStatusText() const
         }
     }
 
-    // The state of the page (edit-content-v2-scanned, -complex-page; measured when the container changes)
-    const PDFContentContainerPointer container = m_context->getContainer();
+    // The state of the page (edit-content-v2-scanned, -complex-page; measured when the container changes; the page also
+    // while a group is entered, R8-4)
+    const PDFContentContainerPointer container = PDFAppToolGUIContentHelper::getPageContainer(m_context);
     const QString pageNumber = PDFAppLocale::formatNumber(m_context->getPageIndex() + 1);
     if (container && container->isReadOnly())
     {
@@ -1011,6 +1098,7 @@ PDFAppToolSaveQuestion PDFAppToolGUIContent::getSaveQuestion() const
     }
     question.cancelText = tr("Cancel");
     question.saveText = tr("Save Without the Changes");
+    question.saveIconName = QStringLiteral("save");
     question.applyText = tr("Apply and Save");
     question.applyIconName = QStringLiteral("check");
     return question;
@@ -1141,17 +1229,66 @@ void PDFAppToolGUIContent::fillResultInput(PDFAppToolResultInput* input) const
 
 void PDFAppToolGUIContent::onDocumentChanged()
 {
-    // zadani_gui.md 4.21: a new version of the document under the tool - the edits of the session belong to the
-    // version they were made on (Apply would end by the error of the fingerprint). The context has no way to load the
-    // session again (a request of P14 to the coordinator): the notice says what to do.
+    // zadani_gui.md 4.21: a new version of the document under the tool. A session without work is loaded again over
+    // it (integration row 26); the edits of a session with work belong to the version they were made on (Apply would
+    // end by the error of the fingerprint): the notice says what to do.
     const PDFAppDocument* document = getDocument();
-    if (!m_context || !document || document->getDocument().data() == m_context->getSession()->getDocument())
+    if (!m_context || !document || !document->getDocument() || document->getDocument().data() == m_context->getSession()->getDocument())
     {
+        return;
+    }
+
+    // A value typed into a card and not confirmed yet is work too: committed first, it is a step of the old version
+    // (its slots run: guarded)
+    QPointer<PDFAppToolGUIContent> guard(this);
+    QPointer<PDFAppEditContentContext> context = m_context;
+    context->commitPendingEdits();
+    if (!guard || !context || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(context.data()))
+    {
+        return;
+    }
+
+    if (!hasUnsavedWork())
+    {
+        // onSessionReplaced takes the new session over; the last call (the slots of the parts run)
+        const PDFAppDocument* currentDocument = getDocument();
+        if (currentDocument && currentDocument->getDocument())
+        {
+            context->reloadDocument(currentDocument->getDocument());
+        }
         return;
     }
 
     m_isDocumentStale = true;
     updateStateNotices(false);
+}
+
+void PDFAppToolGUIContent::onSessionReplaced()
+{
+    if (!m_context)
+    {
+        return;
+    }
+
+    // PDFAppEditContentContext::reloadDocument: the new session over the new version - its signals, its clean stack,
+    // its document; what belonged to the old session goes (the skipped pages and the errors of an old run, the stale
+    // state). pageChanged follows (the notices of the page, the toolbar, the status, the commands).
+    PDFContentEditSession* session = m_context->getSession();
+    connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppToolGUIContent::onModelChanged);
+    m_conformanceDeclarations = PDFDocumentTool::getConformanceDeclarations(session->getDocument());
+    m_skippedPages.clear();
+    m_errorPages.clear();
+    m_errorPage = -1;
+    m_errorNodeId.clear();
+    m_pendingErrorNodeId.clear();
+    m_isDocumentStale = false;
+
+    const bool isClean = session->getUndoStack()->isClean();
+    if (isClean != m_isClean)
+    {
+        m_isClean = isClean;
+        updateConfirmState();
+    }
 }
 
 void PDFAppToolGUIContent::retranslate()
@@ -1207,10 +1344,9 @@ void PDFAppToolGUIContent::updateStateNotices(bool isPageEntered)
     // while it holds and hidden when it is left; a new page enters its states again (a closed notice comes back).
     std::vector<std::pair<QString, std::optional<PDFAppEditContentNoticeRequest>>> states;
 
-    // QE.2 (notes 8.3): the declaration of PDF/A and PDF/UA, once per session
-    const QStringList declarations = PDFDocumentTool::getConformanceDeclarations(context->getSession()->getDocument());
-    const bool isPdfA = declarations.contains(QStringLiteral("PDF/A"));
-    const bool isPdfUA = declarations.contains(QStringLiteral("PDF/UA"));
+    // QE.2 (notes 8.3): the declaration of PDF/A and PDF/UA, once per session (read once, R8-8)
+    const bool isPdfA = m_conformanceDeclarations.contains(QStringLiteral("PDF/A"));
+    const bool isPdfUA = m_conformanceDeclarations.contains(QStringLiteral("PDF/UA"));
     std::optional<PDFAppEditContentNoticeRequest> conformance;
     if (isPdfA || isPdfUA)
     {
@@ -1232,8 +1368,8 @@ void PDFAppToolGUIContent::updateStateNotices(bool isPageEntered)
     }
     states.emplace_back(QString::fromLatin1(Ids::PREVIEW), preview);
 
-    // The states of the page shown
-    const PDFContentContainerPointer container = context->getContainer();
+    // The states of the page shown (its container also while a group is entered, R8-4)
+    const PDFContentContainerPointer container = H::getPageContainer(context);
     std::optional<PDFAppEditContentNoticeRequest> readOnly;
     std::optional<PDFAppEditContentNoticeRequest> scanned;
     std::optional<PDFAppEditContentNoticeRequest> complex;
@@ -1252,14 +1388,27 @@ void PDFAppToolGUIContent::updateStateNotices(bool isPageEntered)
     m_isComplexPage = false;
     if (container)
     {
-        // QE.10 (edit-content-v2-complex-page): the segments of the paths are no query of the core yet - the objects
-        const H::ObjectCounts counts = H::countObjects(*container);
-        const PDFInteger objects = counts.original + counts.added;
-        m_isComplexPage = objects >= COMPLEX_PAGE_OBJECT_COUNT;
+        // QE.10 (edit-content-v2-complex-page): the one policy of the canvas and of this notice (objects or path
+        // segments; integration row 27). The counts are kept by the core per version; the objects are counted for the
+        // text only on a complex page.
+        const PDFContentDisplayCounts counts = PDFContentDisplay::getCounts(*container);
+        m_isComplexPage = PDFAppEditContentContext::isComplexPage(counts);
         if (m_isComplexPage)
         {
-            complex = H::createState(Ids::COMPLEX_PAGE, Severity::Warning, tr("This page is complex"),
-                                     tr("%1 objects. Everything can be edited as usual; moving many objects at once and snapping may respond more slowly.").arg(PDFAppLocale::formatNumber(objects)));
+            // The frame names the objects; a page complex by its paths alone names their segments
+            QString text;
+            if (counts.nodeCount > PDFAppEditContentScene::COMPLEX_PAGE_OBJECTS)
+            {
+                const H::ObjectCounts objectCounts = H::countObjects(*container);
+                text = tr("%1 objects. Everything can be edited as usual; moving many objects at once and snapping may respond more slowly.")
+                           .arg(PDFAppLocale::formatNumber(objectCounts.original + objectCounts.added));
+            }
+            else
+            {
+                text = tr("%1 path segments. Everything can be edited as usual; moving many objects at once and snapping may respond more slowly.")
+                           .arg(PDFAppLocale::formatNumber(qint64(counts.pathSegmentCount)));
+            }
+            complex = H::createState(Ids::COMPLEX_PAGE, Severity::Warning, tr("This page is complex"), text);
         }
     }
     states.emplace_back(QString::fromLatin1(Ids::READ_ONLY_PAGE), readOnly);
@@ -1275,7 +1424,7 @@ void PDFAppToolGUIContent::updateStateNotices(bool isPageEntered)
     {
         userUnit = H::createState(Ids::USER_UNIT, Severity::Information, tr("The page has its own unit"),
                                   tr("The page sets one unit to %1 points (UserUnit). The editor and its rulers work in the points of the page without it, as this application shows the page.")
-                                      .arg(QLocale::c().toString(page->getUserUnit(), 'g', 6)));
+                                      .arg(PDFAppLocale::getUiLocale().toString(page->getUserUnit(), 'g', 6)));
     }
     states.emplace_back(QString::fromLatin1(Ids::USER_UNIT), userUnit);
 
@@ -1317,14 +1466,58 @@ void PDFAppToolGUIContent::onEditingAllowedChanged()
 
     // Only when an entry answers a command of the application at all. The last call: the shell emits the change of the
     // states into the tab (its slots may close the tool).
-    bool hasApplicationCommands = false;
-    for (const PDFAppEditContentActionEntry* entry : m_context ? m_context->getRegistry()->getActions() : std::vector<const PDFAppEditContentActionEntry*>())
-    {
-        hasApplicationCommands = hasApplicationCommands || !entry->getApplicationCommandIds().isEmpty();
-    }
-    if (guard && hasApplicationCommands)
+    refreshCommandStates();
+    if (guard && !m_commandStates.empty())
     {
         updateDocumentCommands();
+    }
+}
+
+bool PDFAppToolGUIContent::refreshCommandStates()
+{
+    // About fifteen commands, each a cheap question of the context (the isEnabled of an entry stops at its first
+    // object); asked at a change of the selection and of the model (R8-2) instead of refreshing ~150 actions of the
+    // window each time
+    std::map<QString, PDFAppToolCommandState> states;
+    if (m_context)
+    {
+        for (const PDFAppEditContentActionEntry* entry : m_context->getRegistry()->getActions())
+        {
+            for (const QString& commandId : entry->getApplicationCommandIds())
+            {
+                states[commandId] = m_context->getApplicationCommandState(commandId);
+            }
+        }
+    }
+
+    const bool isChanged = states != m_commandStates;
+    m_commandStates = std::move(states);
+    return isChanged;
+}
+
+void PDFAppToolGUIContent::updateStatusTextIfChanged()
+{
+    const QString text = getStatusText();
+    const QString pageText = getOwnTabPageText();
+    const QString zoomText = getOwnTabZoomText();
+    if (m_isStatusTold && text == m_lastStatusText && pageText == m_lastPageText && zoomText == m_lastZoomText)
+    {
+        return;
+    }
+
+    m_isStatusTold = true;
+    m_lastStatusText = text;
+    m_lastPageText = pageText;
+    m_lastZoomText = zoomText;
+    updateStatusText();
+}
+
+void PDFAppToolGUIContent::onStatusPageClicked()
+{
+    // Only while the canvas of the tool is shown (the page item of a document without the tool belongs to the view)
+    if (m_context && m_canvas && !PDFDeferredDeletion::isRetired(this))
+    {
+        openGoToPage();
     }
 }
 
@@ -1377,11 +1570,12 @@ void PDFAppToolGUIContent::onPageChanged()
     {
         return;
     }
-    updateStatusText();
+    updateStatusTextIfChanged();
 
     // The answers of the commands of the pages changed (the first and the last page). The last call.
     if (guard)
     {
+        refreshCommandStates();
         updateDocumentCommands();
     }
 }
@@ -1394,7 +1588,7 @@ void PDFAppToolGUIContent::onContainerChanged()
     selectPendingErrorNode();
     if (guard)
     {
-        updateStatusText();
+        updateStatusTextIfChanged();
     }
 }
 
@@ -1405,7 +1599,7 @@ void PDFAppToolGUIContent::onPreviewActiveChanged()
     updateToolbarStates();
     if (guard)
     {
-        updateStatusText();
+        updateStatusTextIfChanged();
     }
 }
 
@@ -1419,7 +1613,7 @@ void PDFAppToolGUIContent::onCommandRefused(const QString& text)
     }
 }
 
-void PDFAppToolGUIContent::onModelChanged()
+void PDFAppToolGUIContent::onModelChanged(const PDFContentChange& change)
 {
     if (!m_context)
     {
@@ -1429,9 +1623,17 @@ void PDFAppToolGUIContent::onModelChanged()
     // A change of the model after an error of writing: the skipped pages are asked again by the next error
     m_skippedPages.clear();
 
+    // R8-3: the states of the page (a scan, a complex page) are measured again when the page got a new version (a
+    // Clear Page of a scan, a paste over the limit, their Undo); the notices only, nothing here closes the tool
+    const PDFContentContainerKey pageKey = m_context->getPageKey();
+    if (std::find(change.containers.cbegin(), change.containers.cend(), pageKey) != change.containers.cend())
+    {
+        updateStateNotices(false);
+    }
+
     QPointer<PDFAppToolGUIContent> guard(this);
     updateToolbarStates();
-    updateStatusText();
+    updateStatusTextIfChanged();
     if (!guard || !m_context)
     {
         return;
@@ -1444,6 +1646,42 @@ void PDFAppToolGUIContent::onModelChanged()
     {
         m_isClean = isClean;
         updateConfirmState();
+        if (!guard || !m_context || PDFDeferredDeletion::isRetired(this))
+        {
+            return;
+        }
+    }
+
+    // R8-2: Select All and Delete of the window follow the model - from the event loop: inside of the emission the
+    // session executes, every routed command reads Disabled then (isEditingAllowed); the refresh of the window, which the
+    // shell made at a crossing of the clean point inside of the command, read those states too, so it is made again
+    queueCommandRefresh(true);
+}
+
+void PDFAppToolGUIContent::queueCommandRefresh(bool isForced)
+{
+    m_isCommandRefreshForced = m_isCommandRefreshForced || isForced;
+    if (!m_isCommandRefreshQueued)
+    {
+        m_isCommandRefreshQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolGUIContent::onCommandRefreshQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolGUIContent::onCommandRefreshQueued()
+{
+    const bool isForced = m_isCommandRefreshForced;
+    m_isCommandRefreshQueued = false;
+    m_isCommandRefreshForced = false;
+    if (PDFDeferredDeletion::isRetired(this) || !m_context)
+    {
+        return;
+    }
+
+    // The last call: the shell refreshes the window (its slots may close the tool)
+    if (refreshCommandStates() || isForced)
+    {
+        updateDocumentCommands();
     }
 }
 
@@ -1459,13 +1697,31 @@ void PDFAppToolGUIContent::onOptionsChanged(const QString& name)
 void PDFAppToolGUIContent::onToolStateChanged()
 {
     updateToolbarStates();
-    updateStatusText();
+    updateStatusTextIfChanged();
 }
 
 void PDFAppToolGUIContent::onSelectionChanged()
 {
     // The status text tells the selection and what Esc does
-    updateStatusText();
+    QPointer<PDFAppToolGUIContent> guard(this);
+    updateStatusTextIfChanged();
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    // R8-2: Delete of the window follows the selection (the last call; only when an answer changed - a rubber band
+    // does not refresh the window at every move). A change of the selection inside of a command (the pruning of the
+    // removed nodes) is read from the event loop, when the session does not execute any more.
+    if (m_context && m_context->getSession()->isExecuting())
+    {
+        queueCommandRefresh(false);
+        return;
+    }
+    if (refreshCommandStates())
+    {
+        updateDocumentCommands();
+    }
 }
 
 // ------------------------------------------------------------------ slots of the parts
@@ -1530,7 +1786,8 @@ void PDFAppToolGUIContent::onTabClicked(int index)
 
 void PDFAppToolGUIContent::onViewChanged()
 {
-    updateStatusText();
+    // A scroll changes no item (R8-9); a zoom changes the zoom item
+    updateStatusTextIfChanged();
 }
 
 // ------------------------------------------------------------------ Clear Page, Go to page
@@ -1538,7 +1795,9 @@ void PDFAppToolGUIContent::onViewChanged()
 PDFMessageBox* PDFAppToolGUIContent::openClearPageQuestion()
 {
     using H = PDFAppToolGUIContentHelper;
-    const PDFContentContainerPointer container = m_context ? m_context->getContainer() : nullptr;
+
+    // The page is cleared (createClearPage of the page key) and counted, also while a group is entered (R8-4)
+    const PDFContentContainerPointer container = H::getPageContainer(m_context);
     if (!container || !m_context->isEditingAllowed())
     {
         return nullptr;
@@ -1709,8 +1968,22 @@ void PDFAppToolGUIContent::openApplyErrorDialog(const PDFDocumentToolResult& res
             }
             if (rows.size() < MAXIMUM_LISTED_ERRORS)
             {
+                // "Page 7 · Path · 2 segments: text" when the error names an object (row 28; the kind and the
+                // description as the tab Objects shows them), "Page 7: text" otherwise
                 const QString text = error.value(QStringLiteral("text")).toString();
-                rows << (pageNumber > 0 ? tr("Page %1: %2").arg(PDFAppLocale::formatNumber(pageNumber), text) : text);
+                const QString objectName = H::getErrorObjectName(m_context, error.value(QStringLiteral("id")).toString());
+                if (pageNumber <= 0)
+                {
+                    rows << (objectName.isEmpty() ? text : tr("%1: %2").arg(objectName, text));
+                }
+                else if (objectName.isEmpty())
+                {
+                    rows << tr("Page %1: %2").arg(PDFAppLocale::formatNumber(pageNumber), text);
+                }
+                else
+                {
+                    rows << tr("Page %1 · %2: %3").arg(PDFAppLocale::formatNumber(pageNumber), objectName, text);
+                }
             }
         }
     }
@@ -1835,18 +2108,17 @@ void PDFAppToolGUIContent::selectPendingErrorNode()
     // The identifier names a node of the page, or of a form drawn by the page (the selection of a node of a form is
     // the use of the form until the group is entered, stage E4)
     QString errorText;
-    const PDFContentNodeReference node = PDFContentJson::readNodeId(m_pendingErrorNodeId, m_context->getSession(), &errorText);
+    const QString nodeId = m_pendingErrorNodeId;
+    const PDFContentNodeReference node = PDFContentJson::readNodeId(nodeId, m_context->getSession(), &errorText);
     m_pendingErrorNodeId.clear();
-    if (!node.isValid())
-    {
-        return;
-    }
 
+    // A node of a form, whose container is not loaded, cannot be read (R8-14): its use on the page (the part before the
+    // first '/') is selected then, as for a node of a loaded form
     PDFContentNodeReference selected = node;
-    if (node.container != m_context->getPageKey())
+    if (!node.isValid() || node.container != m_context->getPageKey())
     {
-        const QString pagePart = m_errorNodeId.section(QLatin1Char('/'), 0, 0);
-        selected = PDFContentJson::readNodeId(pagePart, m_context->getSession(), &errorText);
+        const QString pagePart = nodeId.section(QLatin1Char('/'), 0, 0);
+        selected = pagePart != nodeId || node.isValid() ? PDFContentJson::readNodeId(pagePart, m_context->getSession(), &errorText) : PDFContentNodeReference();
     }
     if (!selected.isValid())
     {
@@ -1876,11 +2148,12 @@ void PDFAppToolGUIContent::onApplyErrorSkip()
 
 void PDFAppToolGUIContent::onSkipRunQueued()
 {
-    // The last call: the shell runs the tool (its slots may close it)
+    // The last call: the shell runs the tool (its slots may close it). The run continues the failed one: a choice
+    // "Apply and Save" of that run holds for it (R8-1, PDFDocumentToolShell::retryRun)
     PDFDocumentToolShell* shell = getShell();
     if (!PDFDeferredDeletion::isRetired(this) && shell && !m_skippedPages.empty())
     {
-        shell->confirm();
+        shell->retryRun();
     }
 }
 

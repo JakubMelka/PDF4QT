@@ -359,9 +359,10 @@ private:
 class PDFContentSetPropertiesCommand : public PDFContentModelCommand
 {
 public:
-    explicit PDFContentSetPropertiesCommand(std::vector<PDFContentNodeReference> nodes, std::map<Property, PDFContentStateValue> properties, bool isAppearance) :
+    explicit PDFContentSetPropertiesCommand(std::vector<PDFContentNodeReference> nodes, std::map<Property, PDFContentStateValue> properties, bool isAppearance, PDFContentPaintSwitches switches = PDFContentPaintSwitches()) :
         m_nodes(std::move(nodes)),
         m_properties(std::move(properties)),
+        m_switches(switches),
         m_isAppearance(isAppearance)
     {
         if (!m_nodes.empty())
@@ -384,8 +385,10 @@ public:
     {
         // A dragged value: the same properties of the same objects again within the merge interval
         const PDFContentSetPropertiesCommand* other = dynamic_cast<const PDFContentSetPropertiesCommand*>(&next);
-        if (!other || other->m_isAppearance != m_isAppearance || other->m_nodes != m_nodes || other->m_properties.size() != m_properties.size())
+        if (!other || other->m_isAppearance != m_isAppearance || other->m_nodes != m_nodes || other->m_properties.size() != m_properties.size() ||
+            other->m_switches.fill.has_value() != m_switches.fill.has_value() || other->m_switches.stroke.has_value() != m_switches.stroke.has_value())
         {
+            // A switch of the painting is a field as the properties: only the same fields merge
             return false;
         }
 
@@ -403,6 +406,7 @@ public:
         }
 
         m_properties = other->m_properties;
+        m_switches = other->m_switches;
         return true;
     }
 
@@ -413,6 +417,15 @@ public:
         QJsonObject object;
         object.insert(QLatin1String(PDFContentJson::KEY_TYPE), QString::fromLatin1(getType()));
         object.insert(QLatin1String(Json::KEY_IDS), writeIds(m_nodes));
+
+        if (m_switches.fill)
+        {
+            object.insert(QLatin1String(Json::KEY_FILL_ENABLED), *m_switches.fill);
+        }
+        if (m_switches.stroke)
+        {
+            object.insert(QLatin1String(Json::KEY_STROKE_ENABLED), *m_switches.stroke);
+        }
 
         for (const auto& item : m_properties)
         {
@@ -473,10 +486,28 @@ public:
 
         std::vector<PDFContentNodeReference> nodes;
         std::map<Property, PDFContentStateValue> properties;
+        PDFContentPaintSwitches switches;
 
         bool result = Json::checkKeys(object, { PDFContentJson::KEY_ID, Json::KEY_IDS, Json::KEY_FILL, Json::KEY_STROKE, Json::KEY_LINE_WIDTH, Json::KEY_LINE_CAP,
-                                                Json::KEY_LINE_JOIN, Json::KEY_MITER_LIMIT, Json::KEY_DASH }, path, errors);
+                                                Json::KEY_LINE_JOIN, Json::KEY_MITER_LIMIT, Json::KEY_DASH, Json::KEY_FILL_ENABLED, Json::KEY_STROKE_ENABLED }, path, errors);
         result = Json::readNodes(object, session, path, errors, &nodes) && result;
+
+        for (const auto& item : { std::make_pair(Json::KEY_FILL_ENABLED, &switches.fill), std::make_pair(Json::KEY_STROKE_ENABLED, &switches.stroke) })
+        {
+            if (object.contains(QLatin1String(item.first)))
+            {
+                const QJsonValue value = object.value(QLatin1String(item.first));
+                if (value.isBool())
+                {
+                    *item.second = value.toBool();
+                }
+                else
+                {
+                    Json::addError(errors, path, item.first, PDFTranslationContext::tr("true or false is expected."));
+                    result = false;
+                }
+            }
+        }
 
         for (const auto& item : { std::make_pair(Json::KEY_FILL, Property::FillColor), std::make_pair(Json::KEY_STROKE, Property::StrokeColor) })
         {
@@ -579,7 +610,7 @@ public:
             }
         }
 
-        return result ? PDFContentCommandFactory::createSetAppearance(std::move(nodes), std::move(properties)) : nullptr;
+        return result ? PDFContentCommandFactory::createSetAppearance(std::move(nodes), std::move(properties), switches) : nullptr;
     }
 
     static PDFContentCommandPointer transparencyFromJson(const QJsonObject& object, const PDFContentEditSession* session, const QString& path, std::vector<QString>* errors)
@@ -634,9 +665,16 @@ protected:
     {
         using ValueKind = PDFContentStateValue::Kind;
 
-        if (m_properties.empty())
+        if (m_properties.empty() && m_switches.isEmpty())
         {
             *errorText = PDFTranslationContext::tr("There is no property to set.");
+            return false;
+        }
+
+        if (!m_isAppearance && !m_switches.isEmpty())
+        {
+            // The painting is switched by the appearance only
+            *errorText = PDFTranslationContext::tr("A value of the change is not valid.");
             return false;
         }
 
@@ -761,7 +799,7 @@ protected:
         size_t count = 0;
         for (const auto& item : changed)
         {
-            if (!work.setProperties(item.first, item.second, m_properties, m_isAppearance, true, 0, &count, errorText))
+            if (!work.setProperties(item.first, item.second, m_properties, m_switches, m_isAppearance, true, 0, &count, errorText))
             {
                 return false;
             }
@@ -784,6 +822,7 @@ private:
 
     std::vector<PDFContentNodeReference> m_nodes;
     std::map<Property, PDFContentStateValue> m_properties;
+    PDFContentPaintSwitches m_switches;
     bool m_isAppearance = true;
 };
 
@@ -2688,6 +2727,11 @@ PDFContentCommandPointer PDFContentCommandFactory::createCopy(std::vector<PDFCon
 PDFContentCommandPointer PDFContentCommandFactory::createSetAppearance(std::vector<PDFContentNodeReference> nodes, std::map<PDFContentStateProperty, PDFContentStateValue> properties)
 {
     return std::make_shared<PDFContentSetPropertiesCommand>(std::move(nodes), std::move(properties), true);
+}
+
+PDFContentCommandPointer PDFContentCommandFactory::createSetAppearance(std::vector<PDFContentNodeReference> nodes, std::map<PDFContentStateProperty, PDFContentStateValue> properties, PDFContentPaintSwitches switches)
+{
+    return std::make_shared<PDFContentSetPropertiesCommand>(std::move(nodes), std::move(properties), true, switches);
 }
 
 PDFContentCommandPointer PDFContentCommandFactory::createSetTransparency(std::vector<PDFContentNodeReference> nodes, std::optional<PDFReal> alphaStroking, std::optional<PDFReal> alphaFilling, std::optional<QByteArray> blendMode)

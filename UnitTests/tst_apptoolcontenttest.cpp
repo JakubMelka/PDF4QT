@@ -34,16 +34,20 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
 #include "pdfappeditcontentcards.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentkeyboard.h"
 #include "pdfappeditcontentnotices.h"
 #include "pdfappeditcontentregistry.h"
+#include "pdfappeditcontentscene.h"
 #include "pdfappeditcontentselection.h"
 #include "pdfappeditcontenttools.h"
 #include "pdfappeditcontentundo.h"
 #include "pdfappeditcontentview.h"
+#include "pdfapplocale.h"
 #include "pdfappmainwindow.h"
 #include "pdfapptoolgui_content.h"
 #include "pdfapptoolhost.h"
@@ -76,6 +80,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QScopeGuard>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QStackedWidget>
@@ -110,6 +115,38 @@ public:
     QPointer<Context> context;
 
     bool isValid() const { return tab && shell && gui && context; }
+};
+
+/// A value typed into a field of a card and not confirmed yet (zadani_gui.md 4.19; R8-5): its command is executed at
+/// the first commit of the context, as a card does in its slot of pendingEditsCommitRequested
+class ContentToolPendingValue : public QObject
+{
+public:
+    ContentToolPendingValue(Context* context, pdf::PDFContentCommandPointer command) :
+        m_context(context),
+        m_command(std::move(command))
+    {
+        connect(context, &Context::pendingEditsCommitRequested, this, &ContentToolPendingValue::onCommitRequested);
+    }
+
+    bool isExecuted = false;            ///< The command was executed (and applied)
+    bool wasPreviewActive = false;      ///< Preview was on, when the commit came
+
+private:
+    void onCommitRequested()
+    {
+        if (!m_command || !m_context)
+        {
+            return;
+        }
+        wasPreviewActive = m_context->isPreviewActive();
+        const pdf::PDFContentCommandPointer command = std::move(m_command);
+        m_command = nullptr;
+        isExecuted = m_context->execute(command);
+    }
+
+    QPointer<Context> m_context;
+    pdf::PDFContentCommandPointer m_command;
 };
 
 /// A tool entry of a test registry (the toolbar, the menu Shape)
@@ -226,6 +263,63 @@ public:
         const pdf::PDFObject metadata = D::addStreamObject(&builder, { { "Type", pdf::PDFObject::createName("Metadata") }, { "Subtype", pdf::PDFObject::createName("XML") } }, xmp);
         builder.mergeTo(builder.getCatalogReference(), D::createDictionaryObject({ { "Metadata", metadata } }));
         return builder.build();
+    }
+
+    /// One page with one stroked path of a move and \p lineCount lines: lineCount + 1 segments (PDFContentPath::
+    /// getSegments counts the move; ISO 32000-2 8.5.2.1: m starts the subpath, each l is a segment)
+    static pdf::PDFDocument createSegmentsDocument(int lineCount)
+    {
+        QByteArray content;
+        content.reserve(lineCount * 8 + 16);
+        content += QByteArrayLiteral("0 0 m\n");
+        for (int i = 0; i < lineCount; ++i)
+        {
+            content += QByteArrayLiteral("1 1 l\n");
+        }
+        content += QByteArrayLiteral("S\n");
+        return pdftest::ContentTestDocuments::createDocument(content, pdftest::ContentTestDocuments::createNoResources);
+    }
+
+    /// One page with two paths and a use of the form /Fm1 (one path "0 0 10 10 re f"): three objects of the page, one
+    /// of the form
+    static pdf::PDFDocument createFormDocument()
+    {
+        using D = pdftest::ContentTestDocuments;
+        return D::createDocument(QByteArrayLiteral("10 10 5 5 re f 20 20 5 5 re f q 1 0 0 1 50 0 cm /Fm1 Do Q"), [](pdf::PDFDocumentBuilder* builder)
+        {
+            const pdf::PDFObject form = D::addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") }, { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                      { "BBox", D::createNumberArrayObject({ 0, 0, 40, 40 }) }, { "Resources", D::createDictionaryObject({ }) } },
+                                                           QByteArrayLiteral("0 0 10 10 re f"));
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), D::createDictionaryObject({ { "Fm1", form } }));
+            return resources;
+        });
+    }
+
+    /// The nodes of the kind in the container, in the order of the content (a walk of a tree of a test)
+    static std::vector<pdf::PDFContentNodeReference> findNodes(const pdf::PDFContentContainerPointer& container, pdf::PDFContentNodeKind kind)
+    {
+        std::vector<pdf::PDFContentNodeReference> result;
+        std::vector<const pdf::PDFContentNode*> stack;
+        if (container && container->getRoot())
+        {
+            stack.push_back(container->getRoot().get());
+        }
+        while (!stack.empty())
+        {
+            const pdf::PDFContentNode* current = stack.back();
+            stack.pop_back();
+            if (current->getKind() == kind)
+            {
+                result.push_back(node(container->getKey(), current->getId().value));
+            }
+            const std::vector<pdf::PDFContentNodePointer>& children = current->getChildren();
+            for (auto it = children.crbegin(); it != children.crend(); ++it)
+            {
+                stack.push_back(it->get());
+            }
+        }
+        return result;
     }
 
     static bool setDeveloperMode(pdf::PDFAppContext* context, bool isOn)
@@ -437,10 +531,26 @@ private Q_SLOTS:
     void languageChange();
     void leakPixels();
 
+    // the fix package FX3 (reviews R6 - R8, integration rows 26 - 28)
+    void reloadWithoutWork();
+    void reloadWithWorkIsStale();
+    void complexPageBySegments();
+    void pageNoticesFollowCommands();
+    void clearPageOfThePage();
+    void windowCommandsFollowSelection();
+    void statusOnlyWhenChanged();
+    void userUnitInUiLocale();
+    void noticeCloseRetranslated();
+    void errorRowsNameTheObject();
+    void errorInUnloadedForm();
+    void statusPageItemOpensGoToPage();
+    void pendingValueCommittedByApplyUndoPreview();
+
     // rows over the real parts of the other packages
     void toolButtonsFromRegistry();
     void keyboardCard();
     void viewPanel();
+    void previewKeyOnCanvas();
 };
 
 void AppToolContentTest::initTestCase()
@@ -1176,7 +1286,8 @@ void AppToolContentTest::applyErrorBackToEditing()
     QVERIFY(!opened.shell->getResultDialog());
     QVERIFY(H::hasLabel(dialog, QStringLiteral("Some content could not be written")));
     QVERIFY(H::hasLabel(dialog, QStringLiteral("2 errors on page 2. Pages without errors are ready.")));
-    QVERIFY(H::hasLabel(dialog, QStringLiteral("Page 2: A fallback font cannot be made.")));
+    // Integration row 28: the row of an error with an object names the object as the tab Objects does
+    QVERIFY(H::hasLabel(dialog, QStringLiteral("Page 2 · Path · Rectangle: A fallback font cannot be made.")));
     QVERIFY(H::hasLabel(dialog, QStringLiteral("Page 2: The image file is no longer available.")));
     QVERIFY(H::hasLabel(dialog, QStringLiteral("Skip Page 2 writes the other pages; page 2 stays as it is in the document and its edits are not written. "
                                                "Back to Editing keeps the tool open and selects the first object with an error.")));
@@ -1350,7 +1461,9 @@ void AppToolContentTest::saveQuestionAnswers()
     QCOMPARE(question.text, QStringLiteral("The document is being saved while Edit Content is open. The changes on page 1 are not part of the document until they are applied."));
     QCOMPARE(question.cancelText, QStringLiteral("Cancel"));
     QCOMPARE(question.saveText, QStringLiteral("Save Without the Changes"));
+    QCOMPARE(question.saveIconName, QStringLiteral("save"));
     QCOMPARE(question.applyText, QStringLiteral("Apply and Save"));
+    QCOMPARE(question.applyIconName, QStringLiteral("check"));
 
     QPointer<pdf::PDFDocumentToolShell> shell = opened.shell;
     const QString path = opened.tab->getDocument()->getFilePath();
@@ -1361,6 +1474,11 @@ void AppToolContentTest::saveQuestionAnswers()
         pdftest::AppToolShellFixture::settle();
         pdf::PDFMessageBox* dialog = shell->getSaveQuestion();
         QVERIFY2(dialog && dialog->isVisible(), answer);
+
+        // The frame: Cancel without an icon, Save Without the Changes with icon/save, Apply and Save with icon/check
+        QVERIFY(dialog->findChild<QPushButton*>(QStringLiteral("toolSaveCancel"))->icon().isNull());
+        QVERIFY(!dialog->findChild<QPushButton*>(QStringLiteral("toolSaveWithoutChanges"))->icon().isNull());
+        QVERIFY(!dialog->findChild<QPushButton*>(QStringLiteral("toolSaveApply"))->icon().isNull());
         QTest::mouseClick(dialog->findChild<QPushButton*>(QString::fromLatin1(answer)), Qt::LeftButton);
         pdftest::AppToolShellFixture::settle();
         QVERIFY2(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Editing, answer);
@@ -1450,7 +1568,8 @@ void AppToolContentTest::pageNotices()
     }
 
     {
-        ContentToolOpened opened = H::open(fixture, H::createManyObjectsDocument(int(GUI::COMPLEX_PAGE_OBJECT_COUNT)), QStringLiteral("complex.pdf"));
+        // The one policy (integration row 27): more than COMPLEX_PAGE_OBJECTS nodes - 20 000 paths and the root
+        ContentToolOpened opened = H::open(fixture, H::createManyObjectsDocument(int(pdf::PDFAppEditContentScene::COMPLEX_PAGE_OBJECTS)), QStringLiteral("complex.pdf"));
         QVERIFY(opened.isValid());
         const std::optional<Notice> notice = H::currentNotice(opened.gui);
         QVERIFY(notice);
@@ -1462,8 +1581,8 @@ void AppToolContentTest::pageNotices()
     }
 
     {
-        // One object less is no complex page
-        ContentToolOpened opened = H::open(fixture, H::createManyObjectsDocument(int(GUI::COMPLEX_PAGE_OBJECT_COUNT) - 1), QStringLiteral("almost.pdf"));
+        // One object less is no complex page (20 000 nodes with the root)
+        ContentToolOpened opened = H::open(fixture, H::createManyObjectsDocument(int(pdf::PDFAppEditContentScene::COMPLEX_PAGE_OBJECTS) - 1), QStringLiteral("almost.pdf"));
         QVERIFY(opened.isValid());
         QVERIFY(!H::currentNotice(opened.gui));
         H::close(opened);
@@ -1631,7 +1750,455 @@ void AppToolContentTest::leakPixels()
     H::close(opened);
 }
 
+// ------------------------------------------------------------------ the fix package FX3
+
+void AppToolContentTest::reloadWithoutWork()
+{
+    // zadani_gui.md 4.21 (integration row 26): a new version of the document under the tool, while the tool has no
+    // work - the session is loaded again over it: a new session with a clean stack, the selection cleared, the page shown
+    // again with the content of the new version, no notice of a stale document; the GUI and the undo target follow the
+    // new session (a step is work, Undo takes it back)
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("reload.pdf"));
+    QVERIFY(opened.isValid());
+    opened.context->getSelection()->setNodes(H::getPaths(opened.context));
+    QVERIFY(!opened.context->getSelection()->isEmpty());
+    QPointer<pdf::PDFContentEditSession> oldSession = opened.context->getSession();
+    QSignalSpy replaced(opened.context.data(), &Context::sessionReplaced);
+    QSignalSpy confirm(opened.gui.data(), &GUI::confirmStateChanged);
+
+    // The new version: one page with three paths (the old one has two)
+    const pdf::PDFDocumentPointer newDocument(new pdf::PDFDocument(H::createManyObjectsDocument(3)));
+    opened.tab->getDocument()->restore(newDocument, pdf::PDFModifiedDocument::Reset);
+    QTRY_COMPARE_WITH_TIMEOUT(replaced.count(), 1, H::timeout(5000));
+    QVERIFY(opened.context->getDocumentPointer() == newDocument);
+    QVERIFY(opened.context->getSession() != oldSession.data());
+    QVERIFY(opened.context->getSelection()->isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(opened.context->getContainer() != nullptr, H::timeout(15000));
+    QCOMPARE(H::getPaths(opened.context).size(), size_t(3));
+    QTRY_VERIFY_WITH_TIMEOUT(!oldSession, H::timeout(5000));
+    const std::optional<Notice> notice = H::currentNotice(opened.gui);
+    QVERIFY(!notice || notice->id != QLatin1String(NoticeIds::STALE_DOCUMENT));
+    QVERIFY(!opened.gui->hasUnsavedWork());
+    QCOMPARE(confirm.count(), 0);
+
+    QSignalSpy undoState(opened.shell->getUndoTarget(), &pdf::PDFAppToolUndoTarget::undoStateChanged);
+    QVERIFY(H::deleteFirstPath(opened.context));
+    QVERIFY(opened.gui->hasUnsavedWork());
+    QCOMPARE(confirm.count(), 1);
+    QVERIFY(undoState.count() >= 1);
+    QVERIFY(opened.shell->getUndoTarget()->canUndo());
+    opened.shell->getUndoTarget()->undo();
+    QCOMPARE(H::getPaths(opened.context).size(), size_t(3));
+    QCOMPARE(confirm.count(), 2);
+    H::close(opened);
+}
+
+void AppToolContentTest::reloadWithWorkIsStale()
+{
+    // zadani_gui.md 4.21: with work the session stays on its version and the notice of the stale document says what
+    // to do; a value typed into a card and not confirmed yet is work too (committed first, then the notice)
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+
+    {
+        ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("stalework.pdf"));
+        QVERIFY(opened.isValid());
+        QVERIFY(H::deleteFirstPath(opened.context));
+        const pdf::PDFDocumentPointer oldDocument = opened.context->getDocumentPointer();
+        opened.tab->getDocument()->restore(pdf::PDFDocumentPointer(new pdf::PDFDocument(H::createManyObjectsDocument(3))), pdf::PDFModifiedDocument::Reset);
+        pdftest::AppToolShellFixture::settle();
+        QVERIFY(opened.context->getDocumentPointer() == oldDocument);
+        const std::optional<Notice> notice = H::currentNotice(opened.gui);
+        QVERIFY(notice);
+        QCOMPARE(notice->id, QString::fromLatin1(NoticeIds::STALE_DOCUMENT));
+        QCOMPARE(notice->text, QStringLiteral("The edits belong to the previous version of the document and cannot be applied to it. Close the tool and open it again to edit the document as it is now."));
+        QVERIFY(opened.gui->hasUnsavedWork());
+        H::close(opened);
+    }
+
+    {
+        ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("stalepending.pdf"));
+        QVERIFY(opened.isValid());
+        const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(opened.context);
+        QCOMPARE(paths.size(), size_t(2));
+        ContentToolPendingValue pending(opened.context, pdf::PDFContentCommandFactory::createDelete({ paths.front() }));
+        const pdf::PDFDocumentPointer oldDocument = opened.context->getDocumentPointer();
+        opened.tab->getDocument()->restore(pdf::PDFDocumentPointer(new pdf::PDFDocument(H::createManyObjectsDocument(3))), pdf::PDFModifiedDocument::Reset);
+        pdftest::AppToolShellFixture::settle();
+        QVERIFY(pending.isExecuted);
+        QVERIFY(opened.context->getDocumentPointer() == oldDocument);
+        QCOMPARE(H::currentNotice(opened.gui)->id, QString::fromLatin1(NoticeIds::STALE_DOCUMENT));
+        QCOMPARE(H::getPaths(opened.context).size(), size_t(1));
+        H::close(opened);
+    }
+}
+
+void AppToolContentTest::complexPageBySegments()
+{
+    // The one policy of the complex page (integration row 27, QE.10): also a page of few objects with more than
+    // COMPLEX_PAGE_PATH_SEGMENTS segments of its paths (the canvas limit) - one path of a move and 500 000 lines is
+    // 500 001 segments; one line less is no complex page
+    using H = ContentToolHelper;
+    using Scene = pdf::PDFAppEditContentScene;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+
+    {
+        ContentToolOpened opened = H::open(fixture, H::createSegmentsDocument(int(Scene::COMPLEX_PAGE_PATH_SEGMENTS)), QStringLiteral("segments.pdf"));
+        QVERIFY(opened.isValid());
+        const std::optional<Notice> notice = H::currentNotice(opened.gui);
+        QVERIFY(notice);
+        QCOMPARE(notice->id, QString::fromLatin1(NoticeIds::COMPLEX_PAGE));
+        QCOMPARE(notice->text, QStringLiteral("500,001 path segments. Everything can be edited as usual; moving many objects at once and snapping may respond more slowly."));
+        H::close(opened);
+    }
+
+    {
+        ContentToolOpened opened = H::open(fixture, H::createSegmentsDocument(int(Scene::COMPLEX_PAGE_PATH_SEGMENTS) - 1), QStringLiteral("fewsegments.pdf"));
+        QVERIFY(opened.isValid());
+        QVERIFY(!H::currentNotice(opened.gui));
+        H::close(opened);
+    }
+}
+
+void AppToolContentTest::pageNoticesFollowCommands()
+{
+    // R8-3: the states of the page are measured again after a command of the page - Clear Page of a scan ends the
+    // notice of the scan, Undo brings it back
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createScannedDocument(), QStringLiteral("scancommand.pdf"));
+    QVERIFY(opened.isValid());
+    QCOMPARE(H::currentNotice(opened.gui)->id, QString::fromLatin1(NoticeIds::SCANNED_PAGE));
+
+    QVERIFY(opened.context->execute(pdf::PDFContentCommandFactory::createClearPage(opened.context->getPageKey())));
+    std::optional<Notice> notice = H::currentNotice(opened.gui);
+    QVERIFY(!notice || notice->id != QLatin1String(NoticeIds::SCANNED_PAGE));
+
+    opened.shell->getUndoTarget()->undo();
+    notice = H::currentNotice(opened.gui);
+    QVERIFY(notice);
+    QCOMPARE(notice->id, QString::fromLatin1(NoticeIds::SCANNED_PAGE));
+    H::close(opened);
+}
+
+void AppToolContentTest::clearPageOfThePage()
+{
+    // R8-4: Clear Page clears and counts the page, also while a form of the page is entered (the edited root is the
+    // root of the form then): the page has two paths and the use of the form - three objects; the form has one.
+    // R8-10: a page without an object (only a state run in a group) has nothing to clear - the button is disabled.
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+
+    {
+        ContentToolOpened opened = H::open(fixture, H::createFormDocument(), QStringLiteral("clearform.pdf"));
+        QVERIFY(opened.isValid());
+        const pdf::PDFContentContainerPointer page = opened.context->getContainer();
+        const std::vector<pdf::PDFContentNodeReference> forms = H::findNodes(page, pdf::PDFContentNodeKind::FormUse);
+        QCOMPARE(forms.size(), size_t(1));
+        pdf::PDFAppEditContentIsolationLevel level;
+        level.root.container = pdf::PDFContentContainerKey::createForm(page->getNode(forms.front().node)->getData().xobject);
+        level.entry = forms.front();
+        opened.context->setIsolationPath({ level });
+        QTRY_VERIFY_WITH_TIMEOUT(opened.context->getContainer() && opened.context->getContainer()->getKey() == level.root.container, H::timeout(15000));
+        QCOMPARE(H::findNodes(opened.context->getContainer(), pdf::PDFContentNodeKind::Path).size(), size_t(1));
+
+        QVERIFY(opened.gui->openClearPageQuestion());
+        QVERIFY(H::hasLabel(opened.gui->getClearPageQuestion(), QStringLiteral("Every object of the page is removed – the 3 objects of the original content. Layers and tags stay in the document. Undo brings the content back while the tool is open.")));
+        QTest::mouseClick(opened.gui->getClearPageQuestion()->findChild<QPushButton*>(QStringLiteral("editContentClearCancel")), Qt::LeftButton);
+        QTRY_VERIFY_WITH_TIMEOUT(!opened.gui->getClearPageQuestion(), H::timeout(5000));
+        opened.context->setIsolationPath({ });
+        H::close(opened);
+    }
+
+    {
+        ContentToolOpened opened = H::open(fixture, pdftest::ContentTestDocuments::createDocument(QByteArrayLiteral("q 1 0 0 RG 2 w Q"), pdftest::ContentTestDocuments::createNoResources), QStringLiteral("noobjects.pdf"));
+        QVERIFY(opened.isValid());
+        QVERIFY(opened.context->isEditingAllowed());
+        QAbstractButton* button = opened.gui->getActionButton(QString::fromLatin1(pdf::PDFAppEditContentActionIds::CLEAR_PAGE));
+        QVERIFY(button);
+        QVERIFY(!button->isEnabled());
+        QVERIFY(!opened.gui->openClearPageQuestion());
+        H::close(opened);
+    }
+}
+
+void AppToolContentTest::windowCommandsFollowSelection()
+{
+    // R8-2 (notes 11.2 R3-1): the actions of the window for the routed commands follow the selection and the model -
+    // Delete is enabled with a selection; a change of the selection, which changes no answer, does not refresh the
+    // window; Select All is disabled when the page has nothing left
+    using H = ContentToolHelper;
+    if (!H::isMenusReal())
+    {
+        QSKIP("needs P12 (the entries of Delete and Select All)");
+    }
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("commands.pdf"));
+    QVERIFY(opened.isValid());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(opened.context);
+    QCOMPARE(paths.size(), size_t(2));
+    const QAction* deleteAction = fixture.window->getCommandAction(pdf::PDFAppCommands::deleteSelection());
+    const QAction* selectAllAction = fixture.window->getCommandAction(pdf::PDFAppCommands::selectAll());
+    QVERIFY(deleteAction && selectAllAction);
+    QVERIFY(!deleteAction->isEnabled());
+    QVERIFY(selectAllAction->isEnabled());
+
+    QSignalSpy refreshed(opened.gui.data(), &GUI::documentCommandStatesChanged);
+    opened.context->getSelection()->setNodes({ paths.front() });
+    QVERIFY(deleteAction->isEnabled());
+    QCOMPARE(refreshed.count(), 1);
+    opened.context->getSelection()->setNodes({ paths.back() });
+    QCOMPARE(refreshed.count(), 1);
+    opened.context->getSelection()->clear();
+    QVERIFY(!deleteAction->isEnabled());
+    QCOMPARE(refreshed.count(), 2);
+
+    // The first delete crosses the clean point: the shell refreshes the window inside of the command, when every routed
+    // command reads Disabled (the session executes) - the GUI refreshes it again from the event loop; the second delete
+    // crosses nothing, the GUI refreshes the window, because the answer of Select All changed
+    QVERIFY(opened.context->execute(pdf::PDFContentCommandFactory::createDelete({ paths.front() })));
+    pdftest::AppToolShellFixture::settle();
+    QVERIFY(selectAllAction->isEnabled());
+    QVERIFY(opened.context->execute(pdf::PDFContentCommandFactory::createDelete({ paths.back() })));
+    pdftest::AppToolShellFixture::settle();
+    QVERIFY(!selectAllAction->isEnabled());
+    H::close(opened);
+}
+
+void AppToolContentTest::statusOnlyWhenChanged()
+{
+    // R8-9: the GUI tells the shell a change of the status only when the message or an item of it changed - a change
+    // of the view, which changes none of them (a scroll), is no change of the work of the tool
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(2), QStringLiteral("status.pdf"));
+    QVERIFY(opened.isValid());
+    if (!H::isCanvasReal(opened.gui))
+    {
+        QSKIP("needs P11 (the view of the canvas)");
+    }
+    pdf::PDFAppEditContentView* view = opened.context->getView();
+    QVERIFY(view);
+    pdftest::AppToolShellFixture::settle();
+
+    QSignalSpy status(opened.gui.data(), &GUI::statusTextChanged);
+    Q_EMIT view->viewChanged();
+    Q_EMIT view->viewChanged();
+    QCOMPARE(status.count(), 0);
+
+    // A new page changes the page item: told once
+    QVERIFY(H::showPage(opened.context, 1));
+    QCOMPARE(opened.gui->getOwnTabPageText(), QStringLiteral("Page 2 of 2"));
+    QVERIFY(status.count() >= 1);
+    const int count = status.count();
+    Q_EMIT view->viewChanged();
+    QCOMPARE(status.count(), count);
+    H::close(opened);
+}
+
+void AppToolContentTest::userUnitInUiLocale()
+{
+    // R8-7 (CLAUDE.md O17): the number of the notice of /UserUnit is written in the language of the application -
+    // 2.5 is "2,5" in Czech
+    using H = ContentToolHelper;
+    const QLocale previous = pdf::PDFAppLocale::getUiLocale();
+    auto restore = qScopeGuard([&previous]() { pdf::PDFAppLocale::setUiLocale(previous); });
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    pdf::PDFAppLocale::setUiLocale(QLocale(QLocale::Czech, QLocale::Czechia));
+    ContentToolOpened opened = H::open(fixture, H::createDocument(2, 2.5), QStringLiteral("unitlocale.pdf"));
+    QVERIFY(opened.isValid());
+    QVERIFY(H::showPage(opened.context, 1));
+    const std::optional<Notice> notice = H::currentNotice(opened.gui);
+    QVERIFY(notice);
+    QCOMPARE(notice->id, QString::fromLatin1(NoticeIds::USER_UNIT));
+    QCOMPARE(notice->text, QStringLiteral("The page sets one unit to 2,5 points (UserUnit). The editor and its rulers work in the points of the page without it, as this application shows the page."));
+    H::close(opened);
+}
+
+void AppToolContentTest::noticeCloseRetranslated()
+{
+    // R8-13 (zadani_gui.md 4.23): the close button of the notice gets its tooltip and accessible name again at a change
+    // of the language (the notice widget is built once per entry of the tool)
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createScannedDocument(), QStringLiteral("noticelanguage.pdf"));
+    QVERIFY(opened.isValid());
+    pdf::PDFAppEditContentNotice* notice = opened.gui->getNoticeWidget();
+    QVERIFY(notice);
+    QAbstractButton* close = notice->findChild<QAbstractButton*>(QStringLiteral("editContentNoticeClose"));
+    QVERIFY(close);
+    QCOMPARE(close->toolTip(), QStringLiteral("Close"));
+    close->setToolTip(QStringLiteral("old"));
+    close->setAccessibleName(QStringLiteral("old"));
+
+    QEvent event(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(notice, &event);
+    QCOMPARE(close->toolTip(), QStringLiteral("Close"));
+    QCOMPARE(close->accessibleName(), QStringLiteral("Close"));
+    H::close(opened);
+}
+
+void AppToolContentTest::errorRowsNameTheObject()
+{
+    // Integration row 28, edit-content-v2-apply-error: a row of an error, which names an object, says which object it
+    // is as the tab Objects names it (zadani_gui.md 4.18: the kind Path, the description Rectangle of "re f")
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("errorname.pdf"));
+    QVERIFY(opened.isValid());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(opened.context);
+    QCOMPARE(paths.size(), size_t(2));
+
+    QJsonArray errors;
+    errors.append(QJsonObject({ { QStringLiteral("id"), pdf::PDFContentJson::writeNodeId(0, { paths.front().node }) }, { QStringLiteral("text"), QStringLiteral("A fallback font cannot be made.") } }));
+    errors.append(QJsonObject({ { QStringLiteral("text"), QStringLiteral("The image file is no longer available.") } }));
+    QJsonArray pages;
+    pages.append(QJsonObject({ { QStringLiteral("page"), 1 }, { QStringLiteral("errors"), errors } }));
+    opened.gui->onRunNotAccepted(H::createPageErrors(pages));
+    pdf::PDFMessageBox* dialog = opened.gui->getApplyErrorDialog();
+    QVERIFY(dialog);
+    QVERIFY(H::hasLabel(dialog, QStringLiteral("Page 1 · Path · Rectangle: A fallback font cannot be made.")));
+    QVERIFY(H::hasLabel(dialog, QStringLiteral("Page 1: The image file is no longer available.")));
+    H::close(opened);
+}
+
+void AppToolContentTest::errorInUnloadedForm()
+{
+    // R8-14, zadani_gui.md 4.21: Back to Editing for an error of an object inside of a form, which the session cannot
+    // read (a node the form does not have), selects the use of the form on the page - the part of the identifier
+    // before the first '/'
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createFormDocument(), QStringLiteral("errorform.pdf"));
+    QVERIFY(opened.isValid());
+    const std::vector<pdf::PDFContentNodeReference> forms = H::findNodes(opened.context->getContainer(), pdf::PDFContentNodeKind::FormUse);
+    QCOMPARE(forms.size(), size_t(1));
+    pdf::PDFContentNodeId missing;
+    missing.value = 999999;
+
+    QJsonArray errors;
+    errors.append(QJsonObject({ { QStringLiteral("id"), pdf::PDFContentJson::writeNodeId(0, { forms.front().node, missing }) }, { QStringLiteral("text"), QStringLiteral("The form cannot be written.") } }));
+    QJsonArray pages;
+    pages.append(QJsonObject({ { QStringLiteral("page"), 1 }, { QStringLiteral("errors"), errors } }));
+    opened.gui->onRunNotAccepted(H::createPageErrors(pages));
+    pdf::PDFMessageBox* dialog = opened.gui->getApplyErrorDialog();
+    QVERIFY(dialog);
+    QTest::mouseClick(dialog->findChild<QPushButton*>(QStringLiteral("editContentApplyErrorBack")), Qt::LeftButton);
+    QTRY_COMPARE_WITH_TIMEOUT(opened.context->getSelection()->getNodes(), std::vector<pdf::PDFContentNodeReference>({ forms.front() }), H::timeout(15000));
+    H::close(opened);
+}
+
+void AppToolContentTest::statusPageItemOpensGoToPage()
+{
+    // Integration row 28: a click on the page item of the status bar opens Go to page of the tool (the Go to panel of
+    // the document toolbar is hidden while the tool is shown)
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(3), QStringLiteral("statuspage.pdf"));
+    QVERIFY(opened.isValid());
+    pdf::PDFAppDocumentView* view = opened.shell->getHost()->getView();
+    QVERIFY(view && view->getStatusBar());
+    QToolButton* item = view->getStatusBar()->getPageItem();
+    QVERIFY(item);
+    QVERIFY(!opened.gui->getGoToPageQuestion());
+
+    item->click();
+    pdftest::AppToolShellFixture::settle();
+    pdf::PDFMessageBox* question = opened.gui->getGoToPageQuestion();
+    QVERIFY(question && question->isVisible());
+    QTest::mouseClick(question->findChild<QPushButton*>(QStringLiteral("editContentGoToPageCancel")), Qt::LeftButton);
+    QTRY_VERIFY_WITH_TIMEOUT(!opened.gui->getGoToPageQuestion(), H::timeout(5000));
+    H::close(opened);
+}
+
+void AppToolContentTest::pendingValueCommittedByApplyUndoPreview()
+{
+    // R8-5, zadani_gui.md 4.19 / 4.21: a value typed into a card and not confirmed yet belongs to what follows - Undo
+    // takes it back first (its step is the one undone), Preview shows it (committed while the editing is allowed, before
+    // Preview is on), Apply Changes writes it. Four paths p0 - p3.
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createManyObjectsDocument(4), QStringLiteral("pending.pdf"));
+    QVERIFY(opened.isValid());
+    const std::vector<pdf::PDFContentNodeReference> paths = H::getPaths(opened.context);
+    QCOMPARE(paths.size(), size_t(4));
+    QVERIFY(opened.context->execute(pdf::PDFContentCommandFactory::createDelete({ paths[0] })));
+
+    // Undo: the pending delete of p1 is executed and undone; the delete of p0 stays
+    {
+        ContentToolPendingValue pending(opened.context, pdf::PDFContentCommandFactory::createDelete({ paths[1] }));
+        opened.shell->getUndoTarget()->undo();
+        QVERIFY(pending.isExecuted);
+        QCOMPARE(H::getPaths(opened.context), std::vector<pdf::PDFContentNodeReference>({ paths[1], paths[2], paths[3] }));
+    }
+
+    // Preview: the pending delete of p1 is executed before Preview is on
+    {
+        ContentToolPendingValue pending(opened.context, pdf::PDFContentCommandFactory::createDelete({ paths[1] }));
+        QVERIFY(opened.context->triggerAction(QString::fromLatin1(pdf::PDFAppEditContentActionIds::PREVIEW)));
+        QTRY_VERIFY_WITH_TIMEOUT(opened.context->isPreviewActive(), H::timeout(5000));
+        QVERIFY(pending.isExecuted);
+        QVERIFY(!pending.wasPreviewActive);
+        QCOMPARE(H::getPaths(opened.context), std::vector<pdf::PDFContentNodeReference>({ paths[2], paths[3] }));
+        opened.context->setPreviewActive(false);
+    }
+
+    // Apply Changes: the pending delete of p2 is a part of the run - three objects removed
+    ContentToolPendingValue pending(opened.context, pdf::PDFContentCommandFactory::createDelete({ paths[2] }));
+    QPointer<pdf::PDFDocumentToolShell> shell = opened.shell;
+    QTest::mouseClick(shell->getToolbar()->getConfirmButton(), Qt::LeftButton);
+    QVERIFY(pending.isExecuted);
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&shell]() { return !shell || shell->getResultDialog(); }, H::timeout(30000)));
+    pdf::PDFAppToolResultDialog* dialog = shell ? shell->getResultDialog() : nullptr;
+    QVERIFY(dialog);
+    QStringList rows;
+    for (int i = 0; i < dialog->getFacts()->getRowCount(); ++i)
+    {
+        rows << dialog->getFacts()->getKey(i) + QStringLiteral("=") + dialog->getFacts()->getValue(i);
+    }
+    QVERIFY2(rows.contains(QStringLiteral("Objects removed=3")), qPrintable(rows.join(QStringLiteral("; "))));
+    dialog->getDiscardButton()->click();
+    pdftest::AppToolShellFixture::settle();
+}
+
 // ------------------------------------------------------------------ rows over the real parts of the other packages
+
+void AppToolContentTest::previewKeyOnCanvas()
+{
+    // R6-6, zadani_gui.md 4.15 / 4.20: P on the canvas of the tool switches Preview (the key of the registry wins over
+    // the Canvas-scope shortcut P of view.fitPage, which stays reachable by the menu and the status bar)
+    using H = ContentToolHelper;
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    ContentToolOpened opened = H::open(fixture, H::createDocument(1), QStringLiteral("previewkey.pdf"));
+    QVERIFY(opened.isValid());
+    if (!H::isCanvasReal(opened.gui))
+    {
+        QSKIP("needs P11 (the view of the canvas)");
+    }
+    pdf::PDFAppEditContentView* view = opened.context->getView();
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_P);
+    QTRY_VERIFY_WITH_TIMEOUT(opened.context->isPreviewActive(), H::timeout(5000));
+    QTest::keyClick(view, Qt::Key_P);
+    QTRY_VERIFY_WITH_TIMEOUT(!opened.context->isPreviewActive(), H::timeout(5000));
+    H::close(opened);
+}
 
 void AppToolContentTest::toolButtonsFromRegistry()
 {

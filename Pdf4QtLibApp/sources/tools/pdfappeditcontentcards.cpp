@@ -23,12 +23,15 @@
 #include "pdfappeditcontentcards.h"
 
 #include "pdfappeditcontentcontext.h"
+#include "pdfappeditcontentpanels_objects.h"
 #include "pdfappeditcontentregistry.h"
 #include "pdfappeditcontentselection.h"
 #include "pdfapplocale.h"
 #include "pdfcatalog.h"
 #include "pdfcomponentsections.h"
+#include "pdfcontentarrange.h"
 #include "pdfcontenteditsession.h"
+#include "pdfcontenttextlayout.h"
 #include "pdfdocument.h"
 #include "pdffluentwidgets.h"
 
@@ -99,10 +102,154 @@ std::vector<PDFAppEditContentCardTools::SelectedNode> PDFAppEditContentCardTools
     return result;
 }
 
+std::vector<PDFAppEditContentCardTools::SelectedNode> PDFAppEditContentCardTools::getInspectedNodes(const PDFAppEditContentContext* context, bool* isTruncated, bool* isChangeable)
+{
+    if (isTruncated)
+    {
+        *isTruncated = false;
+    }
+    if (isChangeable)
+    {
+        *isChangeable = false;
+    }
+
+    const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
+    if (!container)
+    {
+        return { };
+    }
+
+    // The changeable nodes (the nodes a command changes); bound: MAXIMUM_INSPECTED_NODES of them are read
+    std::vector<SelectedNode> result;
+    for (const PDFContentNodeReference& reference : context->getChangeableSelection())
+    {
+        if (result.size() >= MAXIMUM_INSPECTED_NODES)
+        {
+            if (isTruncated)
+            {
+                *isTruncated = true;
+            }
+            break;
+        }
+
+        PDFContentNodePointer node = container->getNode(reference.node);
+        if (node)
+        {
+            result.push_back(SelectedNode{ reference, std::move(node) });
+        }
+    }
+
+    if (!result.empty())
+    {
+        if (isChangeable)
+        {
+            *isChangeable = true;
+        }
+        return result;
+    }
+
+    // Only locked (or opaque) objects are selected: their values are shown read only
+    return getSelectedNodes(context, isTruncated);
+}
+
+std::vector<PDFAppEditContentCardTools::SelectedNode> PDFAppEditContentCardTools::getCommandNodes(const PDFAppEditContentContext* context)
+{
+    std::vector<SelectedNode> result;
+    const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
+    if (!container)
+    {
+        return result;
+    }
+
+    // The whole changeable selection (R7-1: a command is never cut by the bound of what a card shows)
+    const std::vector<PDFContentNodeReference> references = context->getChangeableSelection();
+    result.reserve(references.size());
+    for (const PDFContentNodeReference& reference : references)
+    {
+        PDFContentNodePointer node = container->getNode(reference.node);
+        if (node)
+        {
+            result.push_back(SelectedNode{ reference, std::move(node) });
+        }
+    }
+    return result;
+}
+
+std::vector<PDFContentNodeReference> PDFAppEditContentCardTools::getReferences(const std::vector<SelectedNode>& nodes)
+{
+    std::vector<PDFContentNodeReference> references;
+    references.reserve(nodes.size());
+    for (const SelectedNode& node : nodes)
+    {
+        references.push_back(node.reference);
+    }
+    return references;
+}
+
+std::vector<PDFAppEditContentCardTools::SelectedNode> PDFAppEditContentCardTools::getAppearanceObjects(const PDFContentContainer& container, const std::vector<SelectedNode>& nodes)
+{
+    // A walk over the trees of the nodes: one visited set (a node selected together with its group is taken once), a
+    // depth limit; every node of the container is visited once at most
+    std::vector<SelectedNode> objects;
+    std::set<quint64> visited;
+    std::vector<std::pair<const PDFContentNode*, int>> stack;
+    const int maximumDepth = PDFContentContainer::MAXIMUM_DEPTH + 2;
+
+    for (const SelectedNode& selected : nodes)
+    {
+        stack.emplace_back(selected.node.get(), 0);
+        while (!stack.empty())
+        {
+            const auto [node, depth] = stack.back();
+            stack.pop_back();
+
+            if (!visited.insert(node->getId().value).second)
+            {
+                continue;
+            }
+
+            switch (node->getKind())
+            {
+                case PDFContentNodeKind::Path:
+                    if (!node->getData().paint.isClippingPath())
+                    {
+                        objects.push_back(SelectedNode{ PDFContentNodeReference{ selected.reference.container, node->getId() }, container.getNode(node->getId()) });
+                    }
+                    break;
+
+                case PDFContentNodeKind::TextObject:
+                    objects.push_back(SelectedNode{ PDFContentNodeReference{ selected.reference.container, node->getId() }, container.getNode(node->getId()) });
+                    break;
+
+                case PDFContentNodeKind::Group:
+                case PDFContentNodeKind::MarkedContent:
+                {
+                    if (depth >= maximumDepth)
+                    {
+                        break;
+                    }
+                    const std::vector<PDFContentNodePointer>& children = node->getChildren();
+                    for (auto it = children.crbegin(); it != children.crend(); ++it)
+                    {
+                        stack.emplace_back(it->get(), depth + 1);
+                    }
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    return objects;
+}
+
 std::vector<PDFContentNodePointer> PDFAppEditContentCardTools::getLeaves(const PDFContentContainer& container,
                                                                         const std::vector<SelectedNode>& nodes,
                                                                         bool (*isKind)(const PDFContentNode& node),
-                                                                        bool* isTruncated)
+                                                                        bool* isTruncated,
+                                                                        size_t maximumVisits)
 {
     std::vector<PDFContentNodePointer> leaves;
     if (isTruncated)
@@ -111,7 +258,7 @@ std::vector<PDFContentNodePointer> PDFAppEditContentCardTools::getLeaves(const P
     }
 
     // A walk over the trees of the selected nodes: one visited set (a node selected together with its group is
-    // visited once), a depth limit and a limit of the visits (MAXIMUM_INSPECTED_NODES)
+    // visited once), a depth limit and a limit of the visits (maximumVisits)
     std::set<quint64> visited;
     std::vector<std::pair<const PDFContentNode*, int>> stack;
     size_t visits = 0;
@@ -130,7 +277,7 @@ std::vector<PDFContentNodePointer> PDFAppEditContentCardTools::getLeaves(const P
                 continue;
             }
 
-            if (++visits > MAXIMUM_INSPECTED_NODES)
+            if (++visits > maximumVisits)
             {
                 if (isTruncated)
                 {
@@ -173,10 +320,8 @@ bool PDFAppEditContentCardTools::isPaintedLeaf(const PDFContentNode& node)
     switch (node.getKind())
     {
         case PDFContentNodeKind::Path:
-        {
-            const PDFContentPathPaint& paint = node.getData().paint;
-            return paint.fill || paint.stroke;
-        }
+            // A path painted by f / S / B, and one switched off ("n" without a clip): it can be painted again
+            return !node.getData().paint.isClippingPath();
 
         case PDFContentNodeKind::TextShow:
             return true;
@@ -214,74 +359,102 @@ PDFContentDisplayContext PDFAppEditContentCardTools::getDisplayContext(const PDF
     return displayContext;
 }
 
-QString PDFAppEditContentCardTools::getKindTitle(const PDFContentNode& node)
+QString PDFAppEditContentCardTools::getKindTitle(const PDFContentNode& node, const PDFDocument* document)
 {
-    const PDFContentNode::Data& data = node.getData();
     switch (node.getKind())
     {
         case PDFContentNodeKind::Root:
             return tr("Page content");
 
-        case PDFContentNodeKind::Group:
-        {
-            // A group, whose first object is a clipping path, is a clipping group (the tab Objects)
-            for (const PDFContentNodePointer& child : node.getChildren())
-            {
-                if (child->getKind() == PDFContentNodeKind::StateRun)
-                {
-                    continue;
-                }
-                if (child->getKind() == PDFContentNodeKind::Path && child->getData().paint.isClippingPath())
-                {
-                    return tr("Clipping group");
-                }
-                break;
-            }
-            return tr("Group");
-        }
-
-        case PDFContentNodeKind::MarkedContent:
-            if (data.optionalContent.isValid() || data.tag == "OC")
-            {
-                return tr("Layer content");
-            }
-            if (data.isArtifact)
-            {
-                return tr("Artifact");
-            }
-            if (data.mcid.has_value())
-            {
-                return tr("Tagged content");
-            }
-            return tr("Marked content");
-
-        case PDFContentNodeKind::MarkedPoint:
-            return tr("Marked point");
-
-        case PDFContentNodeKind::TextObject:
         case PDFContentNodeKind::TextShow:
             return tr("Text");
-
-        case PDFContentNodeKind::Path:
-            return data.paint.isClippingPath() ? tr("Clipping path") : tr("Path");
-
-        case PDFContentNodeKind::Image:
-            return tr("Image");
-
-        case PDFContentNodeKind::FormUse:
-            return tr("Form XObject");
-
-        case PDFContentNodeKind::Shading:
-            return tr("Shading");
 
         case PDFContentNodeKind::StateRun:
             return tr("Graphics state");
 
-        case PDFContentNodeKind::Opaque:
-            return tr("Unknown content");
+        default:
+            // The kind of the row of the tab Objects (R7-10: a clipping group, a layer, a tagged content by the rules of
+            // the tree)
+            return PDFAppEditContentObjectsModel::getKindText(node, document);
+    }
+}
+
+QTransform PDFAppEditContentCardTools::getDisplayedPageMatrix(const PDFAppEditContentContext* context)
+{
+    const PDFDocument* document = context && context->getSession() ? context->getSession()->getDocument() : nullptr;
+    const PDFInteger pageIndex = context ? context->getPageIndex() : -1;
+    if (!document || pageIndex < 0 || pageIndex >= PDFInteger(document->getCatalog()->getPageCount()))
+    {
+        return QTransform();
+    }
+    return PDFContentArrange::getDisplayedPageMatrix(document->getCatalog()->getPage(size_t(pageIndex))->getPageRotation());
+}
+
+std::optional<QTransform> PDFAppEditContentCardTools::getContainerToDisplayed(const PDFAppEditContentContext* context)
+{
+    const PDFContentContainerPointer container = context ? context->getContainer() : nullptr;
+    if (!container)
+    {
+        return std::nullopt;
     }
 
-    return QString();
+    const std::optional<QTransform> containerToPage = PDFAppEditContentGeometryHelper::getContainerToPageMatrix(*context->getSession(), container->getKey(), context->getIsolationPath());
+    if (!containerToPage)
+    {
+        return std::nullopt;
+    }
+    return *containerToPage * getDisplayedPageMatrix(context);
+}
+
+std::optional<QTransform> PDFAppEditContentCardTools::getLeafMatrix(const PDFContentContainer& container, const PDFContentNode& leaf, const PDFContentDisplayContext& displayContext)
+{
+    // A text object: the matrix of its first show (bounded: one visit per node of the text object)
+    const PDFContentNode* node = &leaf;
+    if (leaf.getKind() == PDFContentNodeKind::TextObject)
+    {
+        std::vector<const PDFContentNode*> stack = { &leaf };
+        const PDFContentNode* show = nullptr;
+        while (!stack.empty() && !show)
+        {
+            const PDFContentNode* current = stack.back();
+            stack.pop_back();
+            if (current->getKind() == PDFContentNodeKind::TextShow)
+            {
+                show = current;
+                break;
+            }
+            const std::vector<PDFContentNodePointer>& children = current->getChildren();
+            for (auto it = children.crbegin(); it != children.crend(); ++it)
+            {
+                stack.push_back(it->get());
+            }
+        }
+        if (show)
+        {
+            node = show;
+        }
+    }
+
+    const std::optional<PDFContentDisplayState> state = PDFContentDisplay::getDisplayState(container, node->getId(), displayContext);
+    if (!state)
+    {
+        return std::nullopt;
+    }
+
+    if (node->getKind() != PDFContentNodeKind::TextShow)
+    {
+        return state->matrix;
+    }
+
+    // The text space of the first glyph: Tm x (the override and the CTM), as PDFContentDisplay::getText lays it out
+    for (const PDFContentTextItem& item : node->getData().textItems)
+    {
+        if (item.kind == PDFContentTextItem::Kind::Glyph)
+        {
+            return item.textMatrix * state->matrix;
+        }
+    }
+    return state->matrix;
 }
 
 bool PDFAppEditContentCardTools::isSelectionStateShown(const PDFAppEditContentContext* context)
@@ -541,7 +714,7 @@ public:
         }
         else
         {
-            showMany(nodes, count);
+            showMany(context, nodes, count);
         }
     }
 
@@ -574,16 +747,65 @@ private:
         }
     }
 
+    /// The values of the one selected node, which cost a walk over its subtree (the box of a group, the glyphs of a
+    /// text): computed once per version of the container and node (R7-9), not at every rebuild of the stack
+    struct Measure
+    {
+        std::weak_ptr<const PDFContentContainer> container;
+        PDFContentNodeId node;
+        QRectF box;             ///< In the space the user sees (R5-6)
+        int lines = 0;
+        int characters = 0;
+    };
+
+    const Measure& getMeasure(const PDFAppEditContentContext* context, const PDFAppEditContentCardTools::SelectedNode& selected)
+    {
+        const PDFContentContainerPointer container = context->getContainer();
+        if (m_measure.container.lock() == container && m_measure.node == selected.node->getId())
+        {
+            return m_measure;
+        }
+
+        m_measure = Measure();
+        m_measure.container = container;
+        m_measure.node = selected.node->getId();
+        const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, selected.reference);
+        m_measure.box = box.isNull() ? QRectF() : PDFAppEditContentCardTools::getDisplayedPageMatrix(context).mapRect(box);
+        if (selected.node->getKind() == PDFContentNodeKind::TextObject)
+        {
+            // The lines by the rule of the core (the tree's one source of truth, R7-10), the characters = the glyphs of the
+            // shows (PDFContentDisplay::getText takes every glyph item); one visit per node of the text object
+            m_measure.lines = PDFAppEditContentObjectsModel::getLineCount(*selected.node);
+            std::vector<const PDFContentNode*> stack = { selected.node.get() };
+            while (!stack.empty())
+            {
+                const PDFContentNode* current = stack.back();
+                stack.pop_back();
+                for (const PDFContentTextItem& item : current->getData().textItems)
+                {
+                    m_measure.characters += item.kind == PDFContentTextItem::Kind::Glyph ? 1 : 0;
+                }
+                for (const PDFContentNodePointer& child : current->getChildren())
+                {
+                    stack.push_back(child.get());
+                }
+            }
+        }
+        return m_measure;
+    }
+
     void showOne(const PDFAppEditContentContext* context, const PDFAppEditContentCardTools::SelectedNode& selected)
     {
         const PDFContentContainerPointer container = context->getContainer();
+        const PDFDocument* document = context->getSession()->getDocument();
         const PDFContentNode& node = *selected.node;
-        const QString kind = PDFAppEditContentCardTools::getKindTitle(node);
+        const QString kind = PDFAppEditContentCardTools::getKindTitle(node, document);
         m_section->setBadgeText(kind);
 
         QString title = kind;
         QStringList subtitle;
-        const QRectF box = PDFAppEditContentGeometryHelper::getPageBoundingBox(context, selected.reference);
+        const Measure& measure = getMeasure(context, selected);
+        const QRectF box = measure.box;
         const double factor = PDFAppEditContentCardTools::getUnitFactor(context);
         const QString size = box.isNull() ? QString() : tr("%1 × %2 %3").arg(PDFAppEditContentCardTools::formatReal(box.width() / factor, 1),
                                                                              PDFAppEditContentCardTools::formatReal(box.height() / factor, 1),
@@ -600,7 +822,8 @@ private:
                 }
                 else
                 {
-                    title = tr("%1 · %Ln segment(s)", nullptr, int(nodeData.path.getSegments().size())).arg(kind);
+                    // The drawn segments, as the row of the tree counts them (R7-10)
+                    title = tr("%1 · %Ln segment(s)", nullptr, PDFAppEditContentObjectsModel::getSegmentCount(node)).arg(kind);
                 }
                 if (!size.isEmpty())
                 {
@@ -623,12 +846,10 @@ private:
 
             case PDFContentNodeKind::TextObject:
             {
-                // The lines and the characters of the core (the display queries): one text object only
-                const PDFContentDisplayTextPointer text = PDFContentDisplay::getText(*container, node.getId(), PDFAppEditContentCardTools::getDisplayContext(context));
-                if (text)
+                if (measure.characters > 0)
                 {
-                    title = tr("%1 · %Ln line(s)", nullptr, int(text->lines.size())).arg(kind);
-                    subtitle << tr("%Ln character(s)", nullptr, int(text->glyphs.size()));
+                    title = tr("%1 · %Ln line(s)", nullptr, measure.lines).arg(kind);
+                    subtitle << tr("%Ln character(s)", nullptr, measure.characters);
                 }
                 break;
             }
@@ -636,15 +857,13 @@ private:
             case PDFContentNodeKind::Group:
             case PDFContentNodeKind::MarkedContent:
             {
-                int objects = 0;
-                for (const PDFContentNodePointer& child : node.getChildren())
+                // The objects as the tree has rows for them; a marked content adds its description (the name of the
+                // layer, an artifact, the tag) as its row does
+                title = tr("%1 · %Ln object(s)", nullptr, PDFAppEditContentObjectsModel::getChildRowCount(node)).arg(kind);
+                if (node.getKind() == PDFContentNodeKind::MarkedContent)
                 {
-                    if (child->getKind() != PDFContentNodeKind::StateRun && child->getKind() != PDFContentNodeKind::MarkedPoint)
-                    {
-                        ++objects;
-                    }
+                    subtitle << PDFAppEditContentObjectsModel::getDescription(node, document);
                 }
-                title = tr("%1 · %Ln object(s)", nullptr, objects).arg(kind);
                 if (!size.isEmpty())
                 {
                     subtitle << size;
@@ -702,7 +921,7 @@ private:
         }
         for (auto it = ancestors.crbegin(); it != ancestors.crend(); ++it)
         {
-            segments << PDFAppEditContentCardTools::getKindTitle(**it);
+            segments << PDFAppEditContentCardTools::getKindTitle(**it, document);
             Target target;
             target.node = PDFContentNodeReference{ container->getKey(), (*it)->getId() };
             m_targets.push_back(target);
@@ -725,7 +944,7 @@ private:
         }
     }
 
-    void showMany(const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes, int count)
+    void showMany(const PDFAppEditContentContext* context, const std::vector<PDFAppEditContentCardTools::SelectedNode>& nodes, int count)
     {
         m_section->setBadgeText(QString());
         m_title->setText(tr("%Ln object(s)", nullptr, count));
@@ -735,7 +954,7 @@ private:
         QStringList kinds;
         for (size_t i = 0; i < nodes.size() && i < MAXIMUM_LISTED; ++i)
         {
-            kinds << PDFAppEditContentCardTools::getKindTitle(*nodes[i].node);
+            kinds << PDFAppEditContentCardTools::getKindTitle(*nodes[i].node, context->getSession()->getDocument());
         }
         QString list = kinds.join(QStringLiteral(", "));
         if (size_t(count) > MAXIMUM_LISTED)
@@ -779,6 +998,7 @@ private:
     PDFPathBar* m_path = nullptr;
     PDFLabel* m_note = nullptr;
     std::vector<Target> m_targets;
+    Measure m_measure;
 };
 
 /// The card Locked object (-locked-click): the clicked object is locked; Unlock
@@ -819,7 +1039,7 @@ public:
         const PDFContentNodeReference& reference = context->getLockedClickNode();
         const PDFContentContainerPointer container = context->getSession()->getContainer(reference.container);
         const PDFContentNodePointer node = container ? container->getNode(reference.node) : PDFContentNodePointer();
-        const QString kind = node ? PDFAppEditContentCardTools::getKindTitle(*node) : tr("The object");
+        const QString kind = node ? PDFAppEditContentCardTools::getKindTitle(*node, context->getSession()->getDocument()) : tr("The object");
 
         // The key of the action Lock, as the registry has it (the frame shows the key of a draft)
         QString key;
@@ -1010,6 +1230,9 @@ public:
     virtual QString getId() const override { return QLatin1String(PDFAppEditContentCardIds::SELECTION); }
     virtual bool isShown(const PDFAppEditContentContext* context) const override { return context && !context->isPreviewActive(); }
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const override { return new PDFAppEditContentSelectionCard(context, parent); }
+
+    /// Its path selects and leaves levels: usable on a read-only page and during a run (R7-8)
+    virtual bool isChangingModel() const override { return false; }
 };
 
 /// The entry of the card Locked object: requested by a click on a locked object (P11 sets the node)
@@ -1024,6 +1247,9 @@ public:
     }
 
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const override { return new PDFAppEditContentLockedObjectCard(context, parent); }
+
+    /// Unlock changes a state of the session, no command (QE.8): usable on a read-only page and during a run (R7-8)
+    virtual bool isChangingModel() const override { return false; }
 };
 
 /// The entry of the card Annotations and fields: nothing selected on a page with annotations
@@ -1046,6 +1272,9 @@ public:
     }
 
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const override { return new PDFAppEditContentAnnotationsCard(context, parent); }
+
+    /// A display option (zadani_gui.md 4.26)
+    virtual bool isChangingModel() const override { return false; }
 };
 
 /// The entry of the card Preview: Preview is on (it is the only card then)
@@ -1055,6 +1284,9 @@ public:
     virtual QString getId() const override { return QLatin1String(PDFAppEditContentCardIds::PREVIEW); }
     virtual bool isShown(const PDFAppEditContentContext* context) const override { return context && context->isPreviewActive(); }
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const override { return new PDFAppEditContentPreviewCard(context, parent); }
+
+    /// The options of Preview are display options (zadani_gui.md 4.15)
+    virtual bool isChangingModel() const override { return false; }
 };
 
 // ---------------------------------------------------------------- PDFAppEditContentCardStack
@@ -1084,11 +1316,34 @@ PDFAppEditContentCardStack::PDFAppEditContentCardStack(PDFAppEditContentContext*
     PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::containerChanged, this, &PDFAppEditContentCardStack::onStateChanged);
     PDFDeferredDeletion::connect(context->getSelection(), &PDFAppEditContentSelection::changed, this, &PDFAppEditContentCardStack::onStateChanged);
     PDFDeferredDeletion::connect(context->getOptions(), &PDFAppEditContentOptions::changed, this, &PDFAppEditContentCardStack::onStateChanged);
-    PDFDeferredDeletion::connect(context->getSession(), &PDFContentEditSession::modelChanged, this, &PDFAppEditContentCardStack::onStateChanged);
-    PDFDeferredDeletion::connect(context->getSession(), &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentCardStack::onStateChanged);
+    PDFDeferredDeletion::connect(context, &PDFAppEditContentContext::sessionReplaced, this, &PDFAppEditContentCardStack::onSessionReplaced);
+    connectSession();
 
     // The first cards now: the stack is created by the shell, not inside of a signal of a card
     onRebuild();
+}
+
+void PDFAppEditContentCardStack::connectSession()
+{
+    // The old session of a reload is disconnected and deleted by the context (its connections die with it)
+    PDFContentEditSession* session = m_context ? m_context->getSession() : nullptr;
+    if (session)
+    {
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::modelChanged, this, &PDFAppEditContentCardStack::onStateChanged);
+        PDFDeferredDeletion::connect(session, &PDFContentEditSession::editorStateChanged, this, &PDFAppEditContentCardStack::onStateChanged);
+    }
+}
+
+void PDFAppEditContentCardStack::onSessionReplaced()
+{
+    // A new session of a new version of the document (PDFAppEditContentContext::reloadDocument): the cards read it at
+    // the rebuild (pageChanged follows; the caches of the cards are keyed by the container objects of the old session)
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    connectSession();
+    scheduleRebuild();
 }
 
 PDFAppEditContentCardStack::~PDFAppEditContentCardStack() = default;
@@ -1156,11 +1411,10 @@ void PDFAppEditContentCardStack::onRebuild()
         return;
     }
 
-    setEnabled(!m_context->isRunning());
-
-    // The cards of the entries shown, in the fixed order of the registry; a card shown before is kept
+    // The cards of the entries shown, in the fixed order of the registry; a card shown before is kept. Whether a card
+    // changes the model is asked of its entry (R7-8), not of a list of identifiers here.
     std::vector<QPointer<PDFAppEditContentCard>> cards;
-    std::vector<QPointer<PDFAppEditContentCard>> created;
+    std::set<const PDFAppEditContentCard*> displayCards;
     for (const PDFAppEditContentCardEntry* entry : m_context->getRegistry()->getCards())
     {
         if (!entry->isShown(m_context))
@@ -1176,9 +1430,12 @@ void PDFAppEditContentCardStack::onRebuild()
             {
                 continue;
             }
-            created.emplace_back(card);
         }
         cards.emplace_back(card);
+        if (!entry->isChangingModel())
+        {
+            displayCards.insert(card);
+        }
     }
 
     // The cards, which are not shown any more, go (the rebuild runs from the event loop, never inside of a signal of
@@ -1212,12 +1469,9 @@ void PDFAppEditContentCardStack::onRebuild()
                 continue;
             }
 
-            // The fields, which change the model, are disabled while the editing is paused (a run, a read-only page);
-            // the cards of the display options and the Selection stay usable
-            const QString& cardId = card->getCardId();
-            const bool isDisplayCard = cardId == QLatin1String(PDFAppEditContentCardIds::PREVIEW) || cardId == QLatin1String(PDFAppEditContentCardIds::SELECTION) ||
-                                       cardId == QLatin1String(PDFAppEditContentCardIds::ANNOTATIONS);
-            card->setEnabled(isDisplayCard || m_context->isEditingAllowed());
+            // A card, which changes the model, is disabled while the editing is paused (Preview, a run, a read-only
+            // page); a card of the display, of the selection or of the state of the session stays usable
+            card->setEnabled(displayCards.count(card.data()) > 0 || m_context->isEditingAllowed());
             card->show();
         }
     }

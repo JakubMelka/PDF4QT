@@ -32,6 +32,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 class QGraphicsItem;
@@ -484,6 +485,13 @@ public:
     /// at every change.
     virtual bool isShown(const PDFAppEditContentContext* context) const = 0;
 
+    /// The card changes the model by commands (R7-8): the stack disables it while
+    /// PDFAppEditContentContext::isEditingAllowed is false (Preview, a run, a read-only page). A
+    /// card of the display, of the selection or of the state of the session outside of undo (the
+    /// Selection, Preview, Annotations and fields, Locked object, Keyboard) says false and stays
+    /// usable then. Default: true.
+    virtual bool isChangingModel() const;
+
     /// Creates the card (new, a child of \p parent). The stack owns it and retires it
     /// (PDFDeferredDeletion::retireLater) when the entry says isShown no more.
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const = 0;
@@ -539,6 +547,11 @@ public:
 
     /// Icon of the menu row; empty = none (the default)
     virtual QString getIconName() const;
+
+    /// Translated second line of the row of the action in a panel of the toolbar (the panel View,
+    /// frame -menus-view: "Blue dashed outlines"); empty = none (the default). \p context may be
+    /// nullptr, as for getTitle.
+    virtual QString getDescription(const PDFAppEditContentContext* context) const;
 
     /// Keys of the action; none by default. A key must not be a key of the application
     /// (zadani_gui.md 4.20; the test of the key table refuses it).
@@ -661,8 +674,10 @@ public:
     /// shell asks for every command of the application at a change of its state.
     const PDFAppEditContentActionEntry* findActionByApplicationCommand(const QString& commandId) const;
 
-    /// The placement of the action in the menu (group and order), nullptr = it is not there
-    static const PDFAppEditContentActionEntry::Placement* findPlacement(const std::vector<PDFAppEditContentActionEntry::Placement>& placements, const QString& menuId);
+    /// The placement of the action in the menu (group and order), no value = it is not there. A
+    /// value, not a pointer (R8-12): getPlacements returns a temporary vector, a pointer into it
+    /// dangled at three callers.
+    static std::optional<PDFAppEditContentActionEntry::Placement> findPlacement(const std::vector<PDFAppEditContentActionEntry::Placement>& placements, const QString& menuId);
 
 private:
     class Impl;
@@ -717,6 +732,18 @@ public:
     /// (of either scope), which is a shortcut of a command the entry answers. Empty = valid. English
     /// texts for a test log.
     static QStringList checkApplicationCommands(const PDFAppEditContentRegistry& registry, const std::map<QString, std::vector<QKeySequence>>& commandShortcuts);
+
+    /// The canvas keys of the registry (the keys of the tool entries and the keys of the scope
+    /// Canvas of the action entries), which equal a shortcut of the scope Canvas of a command of
+    /// the application, which an action entry of the registry answers (R6-6): on the canvas of
+    /// the tool the key of the registry wins (the view asks the keys of the tool entries and the
+    /// canvas keys of the registry before the Canvas-scope commands of the application), so the
+    /// command is reachable there only by the menu, the status bar and MCP. Every such key is
+    /// reported; a test accepts only the ones the plan decided (P = Preview over view.fitPage,
+    /// zadani_gui.md 4.15 / 4.20). \p canvasCommandShortcuts are the shortcuts of the commands of
+    /// the scope Canvas (default and alternate ones, PDFAppCommandRegistry); a command no entry
+    /// answers is no conflict (its key never reaches the tool canvas). English texts for a test log.
+    static QStringList checkCanvasKeys(const PDFAppEditContentRegistry& registry, const std::map<QString, std::vector<QKeySequence>>& canvasCommandShortcuts);
 
     /// The commands of the application, which the shell of the tool answers itself and no entry
     /// may answer: edit.undo, edit.redo (the own undo target of the tool), file.save, file.saveAs

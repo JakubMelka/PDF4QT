@@ -27,31 +27,43 @@
 // never from a run.
 
 #include "appdocumentfixture.h"
+#include "apptoolshellfixture.h"
 #include "contenttestdocuments.h"
 
 #include "pdfappcommand.h"
+#include "pdfappcontext.h"
+#include "pdfappdocument.h"
+#include "pdfappdocumenttab.h"
 #include "pdfappeditcontentcontext.h"
 #include "pdfappeditcontentmenus.h"
 #include "pdfappeditcontentpanels_objects.h"
 #include "pdfappeditcontentpanels_pages.h"
 #include "pdfappeditcontentregistry.h"
 #include "pdfappeditcontentselection.h"
+#include "pdfapptoolgui_content.h"
 #include "pdfapptoolpagegrid.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfappworkspace.h"
+#include "pdfdocumenttoolshell.h"
+#include "pdfsettingdefinitions.h"
+#include "pdfshortcutrepository.h"
 
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 
+#include "pdfcontenteditsession.h"
 #include "pdfcontentundostack.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumenttool_content.h"
 
 #include <QAction>
 #include <QElapsedTimer>
+#include <QImage>
 #include <QItemSelectionModel>
 #include <QMenu>
 #include <QMimeData>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QToolButton>
 #include <QtTest>
@@ -285,6 +297,66 @@ public:
         }
         return nullptr;
     }
+
+    /// The page of the kinds and the counts of R7-10 (page [0 0 200 200]; ISO 32000-2, 8.5.2, 9.4, 14.11.3.2):
+    ///  0 a closed triangle "m l l h": 3 drawn segments (h draws the third side)
+    ///  1 a square, whose last l returns to the start: 3 + 0 (h draws nothing, the subpath is closed)
+    ///  2 one curve "m c": 1 segment
+    ///  3 a text rotated by Tm (0 1 -1 0) and "0 -14 Td": the second show is moved across the writing direction, 2 lines
+    ///  4 two shows on one baseline ("100 0 Td" along the writing direction): 1 line
+    ///  5 /OC with a name /Properties does not have: optional content all the same - Layer content, its name
+    ///  6 a group, whose first object is a clipping path: a clipping group of 2 objects
+    ///  7 a group, whose second object fills and clips (re W f): a clipping group too (the clip holds up to its Q)
+    static QByteArray kindsContent()
+    {
+        return QByteArrayLiteral("0 0 m 50 0 l 25 40 l h f\n"
+                                 "0 0 m 10 0 l 10 10 l 0 0 l h S\n"
+                                 "0 0 m 10 10 20 10 30 0 c S\n"
+                                 "BT /F1 12 Tf 0 1 -1 0 100 100 Tm (AB) Tj 0 -14 Td (BA) Tj ET\n"
+                                 "BT /F1 12 Tf 10 150 Td (AB) Tj 100 0 Td (BA) Tj ET\n"
+                                 "/OC /Missing BDC 10 10 5 5 re f EMC\n"
+                                 "q 20 20 m 40 20 l 30 40 l h W n 0 0 100 100 re f Q\n"
+                                 "q 0 0 10 10 re f 5 5 10 10 re W f Q\n");
+    }
+
+    static pdf::PDFDocumentPointer createDocumentWithFont(const QByteArray& content)
+    {
+        using D = pdftest::ContentTestDocuments;
+        return pdf::PDFDocumentPointer(new pdf::PDFDocument(D::createDocument(content, [](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), D::createDictionaryObject({ { "F1", D::addSimpleFontObject(builder) } }));
+            return resources;
+        })));
+    }
+
+    /// The developer switch of the application (the tool is registered only with it, zadani.md 11.2)
+    static bool setDeveloperMode(pdf::PDFAppContext* context, bool isOn)
+    {
+        if (context->getSettings().setValue(pdf::PDFSettingKeys::advancedDeveloperMode(), isOn).isError())
+        {
+            return false;
+        }
+        return pdftest::AppToolShellFixture::waitFor([isOn]() { return pdf::PDFAppToolGUIContent::isContentToolRegistered() == isOn; });
+    }
+
+    /// The image of a row of the tree as the view paints it
+    static QImage rowImage(pdf::PDFTreeView* tree, const QModelIndex& index)
+    {
+        return tree->viewport()->grab(tree->visualRect(index)).toImage().convertToFormat(QImage::Format_ARGB32);
+    }
+
+    /// The selected nodes of the rows of the root (in the order of the rows)
+    static std::vector<pdf::PDFContentNodeReference> topNodes(const Model* model)
+    {
+        std::vector<pdf::PDFContentNodeReference> nodes;
+        nodes.reserve(size_t(model->rowCount()));
+        for (int row = 0; row < model->rowCount(); ++row)
+        {
+            nodes.push_back(node(model, row));
+        }
+        return nodes;
+    }
 };
 
 class AppToolContentPanelsTest : public QObject
@@ -305,12 +377,21 @@ private Q_SLOTS:
     void filterKeepsGroupsOfMatches();
     void lockAndHideAreNoCommands();
     void hundredThousandObjects();
+    void kindsAndCountsOneRule();
+    void rowTextsComputedOncePerNode();
+    void transformOfManyRowsOneRange();
+    void lockOfManyObjectsBoundedRows();
+    void lockedObjectsLeftAlone();
+    void sessionReplacedReconnects();
 
     // the panel Objects
     void treeFollowsSelection();
     void selectionFollowsTree();
     void filterFieldWaitsForTyping();
     void treeKeysAndToggles();
+    void clippingBadgePaintedAndTold();
+    void filteredTreeKeepsHiddenSelection();
+    void selectAllOfHundredThousand();
 
     // the actions
     void deleteSelection();
@@ -325,6 +406,8 @@ private Q_SLOTS:
     void contextMenuRows();
     void contextMenuQueuesAndCloses();
     void viewPanelRows();
+    void shownKeyFollowsRebinding();
+    void contextMenuOfManyObjects();
 
     // the panel Pages
     void pagesTilesAndRequest();
@@ -1179,6 +1262,493 @@ void AppToolContentPanelsTest::pagesTilesAndRequest()
     QCOMPARE(grid->getTile(1).state, pdf::PDFComponentPainter::PageTileState::Normal);
     QCOMPARE(grid->getTile(1).dotColor, std::optional<pdf::PDFAccentHue>(pdf::PDFAccentHue::Blue));
     H::finish(context, host);
+}
+
+void AppToolContentPanelsTest::kindsAndCountsOneRule()
+{
+    // R7-10: one rule of the kind and of the counts, which the row and the card Selection show (the public statics of
+    // the model); the expected values from the hand-written content of kindsContent
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createDocumentWithFont(H::kindsContent()), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    const Model* model = H::model(context);
+    const pdf::PDFContentContainerPointer container = context->getContainer();
+
+    QCOMPARE(H::rows(model), QStringList({ QStringLiteral("Path|3 segments|"),
+                                           QStringLiteral("Path|3 segments|"),
+                                           QStringLiteral("Path|1 segments|"),
+                                           QStringLiteral("Text|Paragraph · 2 lines|"),
+                                           QStringLiteral("Text|“ABBA”|"),
+                                           QStringLiteral("Layer content|Missing|"),
+                                           QStringLiteral("Clipping group|2 objects|"),
+                                           QStringLiteral("Clipping group|2 objects|") }));
+
+    const auto contentNode = [&](int row) -> const pdf::PDFContentNode& { return *container->getNode(H::node(model, row).node); };
+    QCOMPARE(Model::getSegmentCount(contentNode(0)), 3);
+    QCOMPARE(Model::getSegmentCount(contentNode(1)), 3);
+    QCOMPARE(Model::getSegmentCount(contentNode(2)), 1);
+    QCOMPARE(Model::getSegmentCount(contentNode(3)), 0);
+    QCOMPARE(Model::getLineCount(contentNode(3)), 2);
+    QCOMPARE(Model::getLineCount(contentNode(4)), 1);
+    QCOMPARE(Model::getLineCount(contentNode(0)), 0);
+    QVERIFY(Model::isLayerContent(contentNode(5)));
+    QVERIFY(!Model::isLayerContent(contentNode(6)));
+    QVERIFY(Model::isClippingGroup(contentNode(6)));
+    QVERIFY(Model::isClippingGroup(contentNode(7)));
+    QVERIFY(!Model::isClippingGroup(contentNode(5)));
+    QCOMPARE(Model::getChildRowCount(contentNode(6)), 2);
+
+    // A rectangle of re: 4 drawn segments (8.5.2.1: three l and the h back to x y)
+    const pdf::PDFContentNode& rectangle = *container->getNode(H::node(model, 0, model->index(5, 0)).node);
+    QCOMPARE(Model::getSegmentCount(rectangle), 4);
+    H::finish(context);
+}
+
+void AppToolContentPanelsTest::rowTextsComputedOncePerNode()
+{
+    // R7-9: the kind and the description of a row are computed once per node object - a paint or an accessibility
+    // query reads them again from the cache; a command computes only the rows of the nodes it changed
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createSquaresDocument(), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QCOMPARE(model->getTextComputationCount(), 0);
+
+    const QStringList before = H::rows(model);
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        QCOMPARE(model->index(row, 0).data(Qt::DisplayRole).toString(), QStringLiteral("Path Rectangle"));
+        QCOMPARE(model->index(row, 0).data(Qt::AccessibleTextRole).toString(), QStringLiteral("Path Rectangle"));
+    }
+    QCOMPARE(model->getTextComputationCount(), 4);
+
+    // A Transform of the square 30 (row 2): only its row is computed again
+    QVERIFY(context->execute(pdf::PDFContentCommandFactory::createTransform({ H::node(model, 2) }, QTransform::fromTranslate(1, 0))));
+    QVERIFY(H::waitForModel(context));
+    QCOMPARE(H::rows(model), before);
+    QCOMPARE(model->getTextComputationCount(), 5);
+
+    // Another language: all again
+    model->clearTextCache();
+    QCOMPARE(H::rows(model), before);
+    QCOMPARE(model->getTextComputationCount(), 9);
+    H::finish(context);
+}
+
+void AppToolContentPanelsTest::transformOfManyRowsOneRange()
+{
+    // R7-9: a Transform of more than LARGE_CHANGE objects (an arrow key on a selection of a large page) changes no row's
+    // place: one dataChanged of the range of the changed rows, no reset, no dataChanged per row; a Transform of two
+    // objects is a dataChanged of each of them
+    using H = ContentPanelsHelper;
+    constexpr int COUNT = Model::LARGE_CHANGE + 50;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createManyDocument(COUNT), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QCOMPARE(model->rowCount(), COUNT);
+
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy moved(model, &QAbstractItemModel::rowsMoved);
+    QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+    QVERIFY(context->execute(pdf::PDFContentCommandFactory::createTransform(H::topNodes(model), QTransform::fromTranslate(0, -1))));
+    QVERIFY(H::waitForModel(context));
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(moved.count(), 0);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(changed.front().at(0).value<QModelIndex>(), model->index(0, 0));
+    QCOMPARE(changed.front().at(1).value<QModelIndex>(), model->index(COUNT - 1, 0));
+
+    changed.clear();
+    QVERIFY(context->execute(pdf::PDFContentCommandFactory::createTransform({ H::node(model, 3), H::node(model, 7) }, QTransform::fromTranslate(0, 1))));
+    QVERIFY(H::waitForModel(context));
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(changed.at(0).at(0).value<QModelIndex>(), model->index(3, 0));
+    QCOMPARE(changed.at(1).at(0).value<QModelIndex>(), model->index(7, 0));
+    QCOMPARE(reset.count(), 0);
+    H::finish(context);
+}
+
+void AppToolContentPanelsTest::lockOfManyObjectsBoundedRows()
+{
+    // R6-2: the session tells a lock of every node by itself (no batch call); the tree answers each with one dataChanged
+    // of its row up to LARGE_CHANGE rows in a turn of the event loop, then with one dataChanged of all rows - no reset,
+    // no rebuild
+    using H = ContentPanelsHelper;
+    constexpr int COUNT = 1000;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createManyDocument(COUNT), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+
+    context->getSelection()->setNodes(H::topNodes(model));
+    QSignalSpy reset(model, &QAbstractItemModel::modelReset);
+    QSignalSpy refreshed(model, &Model::refreshed);
+    QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+    QVERIFY(context->triggerAction(QString::fromLatin1(Ids::LOCK)));
+    QTRY_VERIFY_WITH_TIMEOUT(context->getSession()->isNodeLocked(H::node(model, COUNT - 1)), H::timeout(5000));
+    H::settle();
+    QCOMPARE(reset.count(), 0);
+    QCOMPARE(refreshed.count(), 0);
+    QCOMPARE(changed.count(), Model::LARGE_CHANGE + 1);
+    for (int i = 0; i < Model::LARGE_CHANGE; ++i)
+    {
+        QCOMPARE(changed.at(i).at(0).value<QModelIndex>(), model->index(i, 0));
+        QCOMPARE(changed.at(i).at(1).value<QModelIndex>(), model->index(i, 0));
+    }
+    QCOMPARE(changed.back().at(0).value<QModelIndex>(), model->index(0, 0));
+    QCOMPARE(changed.back().at(1).value<QModelIndex>(), model->index(COUNT - 1, 0));
+    QVERIFY(model->index(COUNT - 1, 0).data(Model::IsLockedRole).toBool());
+
+    // The next turn starts counting again: Unlock of three objects is three rows
+    changed.clear();
+    context->getSelection()->setNodes({ H::node(model, 5), H::node(model, 6), H::node(model, 900) });
+    QVERIFY(context->triggerAction(QString::fromLatin1(Ids::LOCK)));
+    QTRY_VERIFY_WITH_TIMEOUT(!context->getSession()->isNodeLocked(H::node(model, 900)), H::timeout(5000));
+    H::settle();
+    QCOMPARE(changed.count(), 3);
+    QCOMPARE(changed.at(2).at(0).value<QModelIndex>(), model->index(900, 0));
+    H::finish(context);
+}
+
+void AppToolContentPanelsTest::lockedObjectsLeftAlone()
+{
+    // R7-4, one rule of the lock (PDFAppEditContentContext::isNodeChangeable): a locked row and a row inside of a locked
+    // group are not dragged, nothing is dropped into a locked group, a row locked after its drag started is not dropped,
+    // and the actions which change the content (Delete) leave them alone; Lock itself acts on them
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createObjectsDocument(), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+
+    const QModelIndex groupIndex = model->index(0, 0);
+    const pdf::PDFContentNodeReference group = model->getNode(groupIndex);
+    const pdf::PDFContentNodeReference child = H::node(model, 1, groupIndex);
+    const pdf::PDFContentNodeReference path = H::node(model, 2);
+    context->getSession()->setNodeLocked(group, true);
+
+    QVERIFY(!(model->flags(groupIndex) & Qt::ItemIsDragEnabled));
+    QVERIFY(!(model->flags(groupIndex) & Qt::ItemIsDropEnabled));
+    QVERIFY(!(model->flags(model->index(1, 0, groupIndex)) & Qt::ItemIsDragEnabled));
+    QVERIFY(model->flags(model->index(1, 0, groupIndex)) & Qt::ItemIsSelectable);
+    QVERIFY(model->flags(model->index(2, 0)) & Qt::ItemIsDragEnabled);
+    QVERIFY(model->flags(model->index(3, 0)) & Qt::ItemIsDropEnabled);
+    QVERIFY(!model->mimeData({ model->index(1, 0, groupIndex) }));
+
+    // The path: not into the locked group, into the clipping group (row 3) and between the top rows yes
+    std::unique_ptr<QMimeData> data(model->mimeData({ model->index(2, 0) }));
+    QVERIFY(data);
+    QVERIFY(!model->canDropMimeData(data.get(), Qt::MoveAction, -1, -1, groupIndex));
+    QVERIFY(model->canDropMimeData(data.get(), Qt::MoveAction, -1, -1, model->index(3, 0)));
+    QVERIFY(model->canDropMimeData(data.get(), Qt::MoveAction, 0, 0, QModelIndex()));
+
+    // Locked while it is dragged: the drop is refused, no command
+    context->getSession()->setNodeLocked(path, true);
+    QVERIFY(!model->canDropMimeData(data.get(), Qt::MoveAction, 0, 0, QModelIndex()));
+    QVERIFY(!model->dropMimeData(data.get(), Qt::MoveAction, 0, 0, QModelIndex()));
+    H::settle();
+    QCOMPARE(context->getSession()->getUndoStack()->getCount(), size_t(0));
+
+    // Delete of the child of the locked group, the locked path and the text: only the text goes
+    const pdf::PDFContentNodeReference text = H::node(model, 1);
+    context->getSelection()->setNodes({ child, path, text });
+    QVERIFY(H::runAction(context, Ids::DELETE_SELECTION));
+    QVERIFY(model->getIndex(child).isValid());
+    QVERIFY(model->getIndex(path).isValid());
+    QVERIFY(!model->getIndex(text).isValid());
+
+    // Only locked objects selected: Delete is disabled, Lock (Unlock) is not
+    context->getSelection()->setNodes({ child, path });
+    QVERIFY(!registry->findAction(QString::fromLatin1(Ids::DELETE_SELECTION))->isEnabled(context));
+    QVERIFY(registry->findAction(QString::fromLatin1(Ids::LOCK))->isEnabled(context));
+    H::finish(context);
+}
+
+void AppToolContentPanelsTest::sessionReplacedReconnects()
+{
+    // PDFAppEditContentContext::reloadDocument (zadani_gui.md 4.21, a session without work is loaded again): the tree and
+    // the tab Pages follow the new session - its rows, its commands, its lock; the old session reaches nothing
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    const pdf::PDFDocumentPointer first = H::createPagesDocument(3);
+    QPointer<Context> context = new Context(first, pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QCOMPARE(model->rowCount(), 2);
+    QWidget* host = new QWidget();
+    pdf::PDFAppEditContentPagesPanel* pages = new pdf::PDFAppEditContentPagesPanel(context, host);
+    pages->setDocument(first, QStringLiteral("test"), nullptr);
+    QCOMPARE(pages->getGrid()->getModel()->rowCount(), 3);
+
+    // The new version: one page of three squares
+    QPointer<pdf::PDFContentEditSession> oldSession = context->getSession();
+    const pdf::PDFContentNodeReference oldNode = H::node(model, 0);
+    context->reloadDocument(H::createManyDocument(3));
+    QVERIFY(context->getSession() != oldSession.data());
+
+    // The old session (deleted from the event loop) reaches nothing
+    QSignalSpy changed(model, &QAbstractItemModel::dataChanged);
+    if (oldSession)
+    {
+        Q_EMIT oldSession->editorStateChanged(oldNode);
+    }
+    QCOMPARE(changed.count(), 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(context->getContainer() && model->getContainer() == context->getContainer(), H::timeout(10000));
+    QCOMPARE(model->rowCount(), 3);
+    QCOMPARE(pages->getGrid()->getModel()->rowCount(), 1);
+    QCOMPARE(pages->getSubtitle()->text(), QStringLiteral("Page 1 of 1"));
+
+    // A command of the new session: the rows follow (incrementally), the page has the blue dot
+    QSignalSpy removed(model, &QAbstractItemModel::rowsRemoved);
+    QVERIFY(context->execute(pdf::PDFContentCommandFactory::createDelete({ H::node(model, 1) })));
+    QTRY_COMPARE_WITH_TIMEOUT(model->rowCount(), 2, H::timeout(5000));
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(pages->getGrid()->getModel()->getTile(0).dotColor, std::optional<pdf::PDFAccentHue>(pdf::PDFAccentHue::Blue));
+    QCOMPARE(pages->getSubtitle()->text(), QStringLiteral("Page 1 of 1 · 1 pages edited"));
+
+    // The lock of the new session: the row follows
+    changed.clear();
+    context->getSession()->setNodeLocked(H::node(model, 0), true);
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(model->index(0, 0).data(Model::IsLockedRole).toBool());
+    H::finish(context, host);
+}
+
+void AppToolContentPanelsTest::clippingBadgePaintedAndTold()
+{
+    // R7-7, zadani_gui.md 4.18: a path, which paints and clips (re W f), has the clipping badge in its row - painted at
+    // the trailing side and told by the accessible description; the same path without W has none
+    using H = ContentPanelsHelper;
+    using D = pdftest::ContentTestDocuments;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    const pdf::PDFDocumentPointer document(new pdf::PDFDocument(D::createDocument(QByteArrayLiteral("10 10 20 20 re W f\n40 10 20 20 re f\n"), &D::createNoResources)));
+    QPointer<Context> context = new Context(document, pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QCOMPARE(H::rows(model), QStringList({ QStringLiteral("Path|Rectangle|"), QStringLiteral("Path|Rectangle|") }));
+
+    QWidget* host = new QWidget();
+    pdf::PDFAppEditContentObjectsPanel* panel = new pdf::PDFAppEditContentObjectsPanel(context, model, host);
+    pdf::PDFTreeView* tree = panel->getTree();
+    host->resize(320, 400);
+    host->show();
+    QVERIFY(QTest::qWaitForWindowExposed(host));
+    tree->selectionModel()->clearCurrentIndex();
+    H::settle();
+
+    const QImage clipping = H::rowImage(tree, model->index(0, 0));
+    const QImage plain = H::rowImage(tree, model->index(1, 0));
+    QCOMPARE(clipping.size(), plain.size());
+    QVERIFY(!clipping.isNull());
+
+    // The rows differ only at the trailing side (the badge left of the toggles), the kind and the description are the same
+    int firstDifferent = clipping.width();
+    int differentPixels = 0;
+    for (int y = 0; y < clipping.height(); ++y)
+    {
+        for (int x = 0; x < clipping.width(); ++x)
+        {
+            if (clipping.pixel(x, y) != plain.pixel(x, y))
+            {
+                firstDifferent = qMin(firstDifferent, x);
+                ++differentPixels;
+            }
+        }
+    }
+    QVERIFY(differentPixels > 10);
+    QVERIFY2(firstDifferent > clipping.width() / 2, qPrintable(QStringLiteral("first different column %1 of %2").arg(firstDifferent).arg(clipping.width())));
+
+    QVERIFY(model->index(0, 0).data(Qt::AccessibleDescriptionRole).toString().contains(QStringLiteral("Clipping")));
+    QVERIFY(!model->index(1, 0).data(Qt::AccessibleDescriptionRole).toString().contains(QStringLiteral("Clipping")));
+    H::finish(context, host);
+}
+
+void AppToolContentPanelsTest::filteredTreeKeepsHiddenSelection()
+{
+    // R7-12: a row added in a filtered tree keeps the selected objects the filter hides (Ctrl+click means "add")
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createObjectsDocument(), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QWidget* host = new QWidget();
+    pdf::PDFAppEditContentObjectsPanel* panel = new pdf::PDFAppEditContentObjectsPanel(context, model, host);
+    pdf::PDFTreeView* tree = panel->getTree();
+
+    // The path (row 2) and the text "AB" (row 1); the filter "text" shows the three texts only
+    const pdf::PDFContentNodeReference path = H::node(model, 2);
+    const pdf::PDFContentNodeReference first = H::node(model, 1);
+    const pdf::PDFContentNodeReference second = H::node(model, 4);
+    context->getSelection()->setNodes({ path, first });
+    model->setFilter(QStringLiteral("text"), model->getFilterKinds());
+    H::settle();
+    QCOMPARE(H::rows(model), QStringList({ QStringLiteral("Text|“AB”|"), QStringLiteral("Text|“BA”|P"), QStringLiteral("Text|Paragraph · 2 lines|") }));
+    QVERIFY(!model->getIndex(path).isValid());
+    QVERIFY(tree->selectionModel()->isRowSelected(0, QModelIndex()));
+    QCOMPARE(context->getSelection()->getNodes(), std::vector<pdf::PDFContentNodeReference>({ path, first }));
+
+    // Ctrl+click of the second text
+    tree->selectionModel()->select(model->getIndex(second), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    QTRY_COMPARE_WITH_TIMEOUT(context->getSelection()->getCount(), 3, H::timeout(5000));
+    QCOMPARE(context->getSelection()->getNodes(), std::vector<pdf::PDFContentNodeReference>({ path, first, second }));
+
+    // A click of the second text alone replaces only the shown rows: the path stays
+    tree->selectionModel()->select(model->getIndex(second), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    QTRY_COMPARE_WITH_TIMEOUT(context->getSelection()->getCount(), 2, H::timeout(5000));
+    QCOMPARE(context->getSelection()->getNodes(), std::vector<pdf::PDFContentNodeReference>({ path, second }));
+    H::finish(context, host);
+}
+
+void AppToolContentPanelsTest::selectAllOfHundredThousand()
+{
+    // R7-3, R7-9 (zadani_gui.md 4.24: the page is never refused): Ctrl+A in the tree and Select All of the action over a
+    // page of 100 000 objects, then Ctrl+click and the context menu - every step does O(n log n) work, counted (the rows
+    // and the nodes read, the comparisons of the sets of nodes; a quadratic step would count n^2 / 2 = 5 * 10^9). The
+    // bound by hand: per row at most six operations on sets of n nodes (three inserts, three lookups), each at most the
+    // height of a red-black tree + 1 comparisons (height <= 2 log2(n + 1) = 34 for n = 100 000), and five reads:
+    // n * (6 * 35 + 5) < 256 n.
+    using H = ContentPanelsHelper;
+    constexpr int COUNT = 100000;
+    constexpr quint64 BOUND = quint64(COUNT) * 256;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createManyDocument(COUNT), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    QWidget* host = new QWidget();
+    pdf::PDFAppEditContentObjectsPanel* panel = new pdf::PDFAppEditContentObjectsPanel(context, model, host);
+    pdf::PDFTreeView* tree = panel->getTree();
+    pdf::PDFAppEditContentSelection* selection = context->getSelection();
+
+    // Ctrl+A in the tree (Qt's select all of an ExtendedSelection view)
+    QSignalSpy selectionChanged(selection, &pdf::PDFAppEditContentSelection::changed);
+    QTest::keyClick(tree, Qt::Key_A, Qt::ControlModifier);
+    QTRY_COMPARE_WITH_TIMEOUT(selection->getCount(), COUNT, H::timeout(30000));
+    QCOMPARE(selectionChanged.count(), 1);
+    QVERIFY2(panel->getLastTreeSelectionWork() <= BOUND, qPrintable(QString::number(panel->getLastTreeSelectionWork())));
+    QVERIFY(panel->getLastTreeSelectionWork() >= quint64(COUNT));
+
+    // Delete is enabled by the first object it finds: 1 node inspected; with the first ten locked: 11
+    const pdf::PDFAppEditContentActionEntry* deleteEntry = registry->findAction(QString::fromLatin1(Ids::DELETE_SELECTION));
+    quint64 work = pdf::PDFAppEditContentMenus::getWorkCount();
+    QVERIFY(deleteEntry->isEnabled(context));
+    QCOMPARE(pdf::PDFAppEditContentMenus::getWorkCount() - work, quint64(1));
+    for (int row = 0; row < 10; ++row)
+    {
+        context->getSession()->setNodeLocked(H::node(model, row), true);
+    }
+    work = pdf::PDFAppEditContentMenus::getWorkCount();
+    QVERIFY(deleteEntry->isEnabled(context));
+    QCOMPARE(pdf::PDFAppEditContentMenus::getWorkCount() - work, quint64(11));
+
+    // Select All of the action (no locked object): the tree takes the selection, its relayed change finds no change
+    selection->clear();
+    H::settle();
+    selectionChanged.clear();
+    QVERIFY(context->triggerAction(QString::fromLatin1(Ids::SELECT_ALL)));
+    QTRY_COMPARE_WITH_TIMEOUT(selection->getCount(), COUNT - 10, H::timeout(30000));
+    H::settle();
+    QCOMPARE(selectionChanged.count(), 1);
+    QCOMPARE(tree->selectionModel()->selection().size(), 1);
+    QVERIFY2(panel->getLastTreeSelectionWork() <= BOUND, qPrintable(QString::number(panel->getLastTreeSelectionWork())));
+
+    // Ctrl+click of a selected row: it leaves the selection
+    tree->selectionModel()->select(model->index(500, 0), QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
+    QTRY_COMPARE_WITH_TIMEOUT(selection->getCount(), COUNT - 11, H::timeout(30000));
+    QVERIFY(!selection->contains(H::node(model, 500)));
+    QVERIFY2(panel->getLastTreeSelectionWork() <= BOUND, qPrintable(QString::number(panel->getLastTreeSelectionWork())));
+
+    // The context menu over the selection: its rows ask Group, Ungroup, the orders, Hide and Lock
+    pdf::PDFAppEditContentMenus* menus = new pdf::PDFAppEditContentMenus(context, nullptr);
+    work = pdf::PDFAppEditContentMenus::getWorkCount();
+    QVERIFY(menus->openMenu(QString::fromLatin1(pdf::PDFAppEditContentMenuIds::CONTEXT), QPoint(100, 100)));
+    QVERIFY2(pdf::PDFAppEditContentMenus::getWorkCount() - work <= 2 * BOUND, qPrintable(QString::number(pdf::PDFAppEditContentMenus::getWorkCount() - work)));
+    H::finish(context, menus);
+    pdf::PDFDeferredDeletion::retire(host);
+    pdf::PDFDeferredDeletion::flush();
+}
+
+void AppToolContentPanelsTest::shownKeyFollowsRebinding()
+{
+    // Integration row 20 / FX3 item 3: the row of an entry, which answers an application command, shows the key of the
+    // command as the user has it (Settings), not its default: the Delete row of the context menu
+    using H = ContentPanelsHelper;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    pdf::PDFAppToolGUIContent::setRegistry(registry.get());
+    auto resetRegistry = qScopeGuard([]() { pdf::PDFAppToolGUIContent::setRegistry(nullptr); });
+
+    pdftest::AppToolShellFixture fixture;
+    QVERIFY(fixture.window);
+    QVERIFY(H::setDeveloperMode(fixture.context.get(), true));
+    pdf::PDFAppDocumentTab* tab = fixture.openDocument(3);
+    QVERIFY(tab);
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }));
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, QString::fromLatin1(pdf::PDFDocumentToolContent::TOOL_ID));
+    QVERIFY(shell);
+    pdf::PDFAppToolGUIContent* gui = qobject_cast<pdf::PDFAppToolGUIContent*>(shell->getGUI());
+    QVERIFY(gui && gui->getEditContext() && gui->getMenus());
+    Context* context = gui->getEditContext();
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([context]() { return context->isEditingAllowed(); }));
+    const pdf::PDFAppEditContentActionEntry* deleteEntry = registry->findAction(QString::fromLatin1(Ids::DELETE_SELECTION));
+
+    // The default key of edit.delete (pdfappcommand.cpp: Qt::Key_Delete)
+    QCOMPARE(pdf::PDFAppEditContentMenus::getShownKey(deleteEntry, context), QKeySequence(Qt::Key_Delete));
+
+    // Rebound by the user: the row shows the new key
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(pdf::PDFAppCommands::deleteSelection(), QStringLiteral("Ctrl+Shift+F7")).isError());
+    QCOMPARE(pdf::PDFAppEditContentMenus::getShownKey(deleteEntry, context), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F7));
+    const Model* objects = H::model(context);
+    QVERIFY(objects && objects->rowCount() > 0);
+    context->getSelection()->setNode(objects->getNode(objects->index(0, 0)));
+    QPointer<QMenu> menu = gui->getMenus()->openMenu(QString::fromLatin1(pdf::PDFAppEditContentMenuIds::CONTEXT), QPoint(100, 100));
+    QVERIFY(menu);
+    QCOMPARE(H::findMenuAction(menu, Ids::DELETE_SELECTION)->shortcut(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F7));
+    menu->close();
+
+    // Removed by the user: no key
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(pdf::PDFAppCommands::deleteSelection(), QString()).isError());
+    QVERIFY(pdf::PDFAppEditContentMenus::getShownKey(deleteEntry, context).isEmpty());
+
+    shell->cancel();
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&shell]() { return !shell; }));
+    pdftest::AppToolShellFixture::settle();
+}
+
+void AppToolContentPanelsTest::contextMenuOfManyObjects()
+{
+    // R7-3, R7-9: the context menu over a selection of n = 2000 objects of one parent asks Delete, the two orders, Group,
+    // Ungroup, Hide and Lock - linear work up to the logarithm (counted: the selected nodes inspected, the comparisons of
+    // the set of the places). By hand: Delete, Hide and Lock stop at the first object; Bring to Front, Send to Back and
+    // Group inspect every node once and insert its place into a set (<= 2 log2(n + 1) + 1 = 23 comparisons); Ungroup
+    // inspects every node once: <= 3 * 24 n + n + 8 < 128 n (a de-duplication of the places by a search of a vector
+    // would compare 3 * n^2 = 1.2 * 10^7 times)
+    using H = ContentPanelsHelper;
+    constexpr int COUNT = 2000;
+    std::unique_ptr<Registry> registry = H::createRegistry();
+    QPointer<Context> context = new Context(H::createManyDocument(COUNT), pdf::PDFCMSPointer(), registry.get(), nullptr);
+    QVERIFY(H::showPage(context, 0));
+    Model* model = H::model(context);
+    context->getSelection()->setNodes(H::topNodes(model));
+    pdf::PDFAppEditContentMenus* menus = new pdf::PDFAppEditContentMenus(context, nullptr);
+
+    const quint64 work = pdf::PDFAppEditContentMenus::getWorkCount();
+    QMenu* menu = menus->openMenu(QString::fromLatin1(pdf::PDFAppEditContentMenuIds::CONTEXT), QPoint(100, 100));
+    QVERIFY(menu);
+    const quint64 done = pdf::PDFAppEditContentMenus::getWorkCount() - work;
+    QVERIFY2(done <= quint64(COUNT) * 128, qPrintable(QString::number(done)));
+    QVERIFY(done >= quint64(COUNT) * 4);
+
+    // The rows of a selection of every square of the root: Delete and Group enabled; Bring to Front and Send to Back have
+    // no other object to step over (disabled); no Ungroup (no group selected)
+    QCOMPARE(H::menuRows(menu), QStringList({ "delete", "|", "order.bring-to-front", "order.send-to-back", "|", "group", "|", "hide", "lock" }));
+    QVERIFY(H::findMenuAction(menu, Ids::DELETE_SELECTION)->isEnabled());
+    QVERIFY(H::findMenuAction(menu, Ids::GROUP)->isEnabled());
+    QVERIFY(!H::findMenuAction(menu, Ids::ORDER_BRING_TO_FRONT)->isEnabled());
+    QVERIFY(!H::findMenuAction(menu, Ids::ORDER_SEND_TO_BACK)->isEnabled());
+    H::finish(context, menus);
 }
 
 QTEST_MAIN(AppToolContentPanelsTest)

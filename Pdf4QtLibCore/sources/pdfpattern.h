@@ -147,6 +147,9 @@ public:
     /// Returns true, if mesh is empty
     bool isEmpty() const { return m_vertices.empty(); }
 
+    /// The triangles of the mesh (indices of getVertex and the color of each one)
+    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
     /// Returns estimate of number of bytes, which this mesh occupies in memory
     qint64 getMemoryConsumptionEstimate() const;
 
@@ -303,6 +306,14 @@ protected:
     const PDFShadingPattern* m_pattern;
 };
 
+/// A limit of the triangles of one meshing (PDFShadingPattern::createMesh with a limit; the canvas
+/// of Edit Content draws a mesh of at most 200 000 triangles, zadani_overeni.md 6.2)
+struct PDFMeshLimit
+{
+    size_t maximumTriangleCount = 0;    ///< Most triangles of the mesh
+    bool isExceeded = false;            ///< Set by the meshing, which stopped, because the mesh would have more triangles (the mesh is empty then)
+};
+
 /// Shading pattern - smooth color distribution along the pattern's space
 class PDFShadingPattern : public PDFPattern
 {
@@ -322,10 +333,29 @@ public:
     /// \param intent Rendering intent
     /// \param reporter Error reporter
     /// \param operationControl Operation control
+    PDFMesh createMesh(const PDFMeshQualitySettings& settings,
+                       const PDFCMS* cms, RenderingIntent intent,
+                       PDFRenderErrorReporter* reporter,
+                       const PDFOperationControl* operationControl) const
+    {
+        return createMesh(settings, cms, intent, reporter, operationControl, nullptr);
+    }
+
+    /// Creates the mesh as createMesh above with a limit of its triangles. The meshing stops, as
+    /// soon as the mesh would have more than limit->maximumTriangleCount triangles: it sets
+    /// limit->isExceeded and returns an empty mesh. The triangles the data define are counted
+    /// before anything is allocated for them (type 4: the vertices of the data - 2; type 5: two per
+    /// cell of the lattice; types 6, 7: two per patch the data can hold, the patches of the least
+    /// size; type 1: two per cell of the grid of the resolution tried; types 2, 3: their strips);
+    /// their subdivision is counted as it goes. A meshing with a limit is canceled by
+    /// \p operationControl between blocks of triangles (an empty mesh). Without a limit (nullptr)
+    /// the mesh is the one of the renderer, exactly.
+    /// \param limit The limit; nullptr = none
     virtual PDFMesh createMesh(const PDFMeshQualitySettings& settings,
                                const PDFCMS* cms, RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const = 0;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const = 0;
 
     /// Returns patterns graphic state. This state must be applied before
     /// the shading pattern is painted to the target device.
@@ -361,6 +391,13 @@ public:
 
 protected:
     friend class PDFPattern;
+
+    /// A mesh of \p triangleCount triangles is over the limit: sets limit->isExceeded then (no
+    /// limit: never)
+    static bool isOverLimit(PDFMeshLimit* limit, PDFReal triangleCount);
+
+    /// A meshing with a limit asks the operation control after this many triangles of the data
+    static constexpr size_t MESH_LIMIT_CANCEL_BLOCK = 1024;
 
     PDFObject m_patternGraphicState;
     PDFColorSpacePointer m_colorSpace;
@@ -404,7 +441,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
     const QRectF& getDomain() const { return m_domain; }
@@ -429,7 +467,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -446,7 +485,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
     PDFReal getR0() const { return m_r0; }
@@ -480,7 +520,8 @@ protected:
                                 PDFColor c3,
                                 const PDFCMS* cms,
                                 RenderingIntent intent,
-                                PDFRenderErrorReporter* reporter) const;
+                                PDFRenderErrorReporter* reporter,
+                                PDFMeshLimit* limit = nullptr) const;
 
     uint8_t m_bitsPerCoordinate = 0;
     uint8_t m_bitsPerComponent = 0;
@@ -510,7 +551,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -543,7 +585,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFShadingSampler* createSampler(QTransform userSpaceToDeviceSpaceMatrix) const override;
 
 private:
@@ -709,8 +752,14 @@ public:
 protected:
     struct Triangle;
 
-    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm, const PDFOperationControl* operationControl) const;
-    void fillMesh(PDFMesh& mesh, const QTransform& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, const PDFOperationControl* operationControl) const;
+    void fillMesh(PDFMesh& mesh, const PDFMeshQualitySettings& settings, const PDFTensorPatch& patch, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, bool fastAlgorithm, const PDFOperationControl* operationControl, PDFMeshLimit* limit) const;
+    void fillMesh(PDFMesh& mesh, const QTransform& patternSpaceToDeviceSpaceMatrix, const PDFMeshQualitySettings& settings, const PDFTensorPatches& patches, const PDFCMS* cms, RenderingIntent intent, PDFRenderErrorReporter* reporter, const PDFOperationControl* operationControl, PDFMeshLimit* limit) const;
+
+    /// The most patches the data can hold (every patch of the least size: one, which shares an
+    /// edge with the previous one, ISO 32000-2, 8.7.4.5.7): the bound of the patches createMesh
+    /// checks against a limit before createPatches allocates them
+    /// \param pointCount The points of a patch of the least size (Coons 8, tensor product 12)
+    size_t getMaximumPatchCount(size_t pointCount) const;
     static void addTriangle(std::vector<Triangle>& triangles, const PDFTensorPatch& patch, std::array<QPointF, 3> uvCoordinates);
 
 private:
@@ -727,7 +776,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFTensorPatches createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:
@@ -744,7 +794,8 @@ public:
                                const PDFCMS* cms,
                                RenderingIntent intent,
                                PDFRenderErrorReporter* reporter,
-                               const PDFOperationControl* operationControl) const override;
+                               const PDFOperationControl* operationControl,
+                               PDFMeshLimit* limit) const override;
     virtual PDFTensorPatches createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const override;
 
 private:

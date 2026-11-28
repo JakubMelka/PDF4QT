@@ -470,6 +470,14 @@ private Q_SLOTS:
     void reorderInOrderOfFixedPriorities();
     void commandOnStructureReadAgain();
 
+    // ---- stage E1, fix package FX1 (pe1_fixes.md item 1): the painting switched on and off ----
+    void paintSwitchesOfPath_data();
+    void paintSwitchesOfPath();
+    void paintSwitchesUndoAndGroup();
+    void paintSwitchesOfText();
+    void paintSwitchesRefusals();
+    void paintSwitchesMergeAndJson();
+
 private:
     /// A page with a content, the font /F1 and the tiling pattern /P1 with /Matrix [2 0 0 2 3 4]
     /// \param paintType 1: a colored pattern; 2: an uncolored one, with the color space
@@ -8060,6 +8068,365 @@ void ContentCommandsTest::commandOnStructureReadAgain()
     QVERIFY(!deleteSpan->isRefusedAsUnchanged());
     QCOMPARE(session->getStructure(), readModel);
     QCOMPARE(fixture.written(key), original);
+}
+
+// -------------------------------------------------------------------------------------------------
+//  Stage E1, fix package FX1: the painting of a path or of a text switched on and off
+//  (set_appearance with "fillEnabled" / "strokeEnabled")
+// -------------------------------------------------------------------------------------------------
+
+void ContentCommandsTest::paintSwitchesOfPath_data()
+{
+    QTest::addColumn<QByteArray>("content");
+    QTest::addColumn<int>("fill");
+    QTest::addColumn<int>("stroke");
+    QTest::addColumn<QByteArray>("expected");
+
+    // -1: the switch is not given; 0: off; 1: on. The painting operators of ISO 32000-2, 8.5.3.1,
+    // Table 59, written by hand: f / f* fill, S strokes, B / B* both, n neither; s, b, b* close the
+    // subpath first; W / W* (8.5.4) stand in front of the painting operator and stay.
+    QTest::newRow("f, stroke on") << QByteArray("0 0 10 10 re f") << -1 << 1 << QByteArray("0 0 10 10 re B");
+    QTest::newRow("f*, stroke on: even-odd kept") << QByteArray("0 0 10 10 re f*") << -1 << 1 << QByteArray("0 0 10 10 re B*");
+    QTest::newRow("S, fill on: nonzero") << QByteArray("0 0 10 10 re S") << 1 << -1 << QByteArray("0 0 10 10 re B");
+    QTest::newRow("B, fill off") << QByteArray("0 0 10 10 re B") << 0 << -1 << QByteArray("0 0 10 10 re S");
+    QTest::newRow("B*, stroke off: even-odd kept") << QByteArray("0 0 10 10 re B*") << -1 << 0 << QByteArray("0 0 10 10 re f*");
+    QTest::newRow("B, both off") << QByteArray("0 0 10 10 re B") << 0 << 0 << QByteArray("0 0 10 10 re n");
+    QTest::newRow("n, fill on") << QByteArray("0 0 10 10 re n") << 1 << -1 << QByteArray("0 0 10 10 re f");
+    QTest::newRow("n, both on") << QByteArray("0 0 10 10 re n") << 1 << 1 << QByteArray("0 0 10 10 re B");
+    QTest::newRow("s, fill on: closed") << QByteArray("0 0 m 10 0 l 10 10 l s") << 1 << -1 << QByteArray("0 0 m 10 0 l 10 10 l b");
+    QTest::newRow("b, fill off: closed") << QByteArray("0 0 m 10 0 l 10 10 l b") << 0 << -1 << QByteArray("0 0 m 10 0 l 10 10 l s");
+    QTest::newRow("b*, stroke off") << QByteArray("0 0 m 10 0 l 10 10 l b*") << -1 << 0 << QByteArray("0 0 m 10 0 l 10 10 l f*");
+    QTest::newRow("W f, stroke on: clip kept") << QByteArray("0 0 10 10 re W f") << -1 << 1 << QByteArray("0 0 10 10 re W B");
+    QTest::newRow("W* B, fill off: clip kept") << QByteArray("0 0 10 10 re W* B") << 0 << -1 << QByteArray("0 0 10 10 re W* S");
+    QTest::newRow("W f, fill off: a clipping path") << QByteArray("0 0 10 10 re W f") << 0 << -1 << QByteArray("0 0 10 10 re W n");
+    QTest::newRow("W n named, fill on") << QByteArray("0 0 10 10 re W n") << 1 << -1 << QByteArray("0 0 10 10 re W f");
+}
+
+void ContentCommandsTest::paintSwitchesOfPath()
+{
+    QFETCH(QByteArray, content);
+    QFETCH(int, fill);
+    QFETCH(int, stroke);
+    QFETCH(QByteArray, expected);
+
+    ContentCommandsFixture fixture(plainDocument(content));
+    const Key key = fixture.page();
+    const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+    const PDFContentNodeReference path = fixture.node(key, Kind::Path);
+
+    PDFContentPaintSwitches switches;
+    if (fill >= 0)
+    {
+        switches.fill = fill > 0;
+    }
+    if (stroke >= 0)
+    {
+        switches.stroke = stroke > 0;
+    }
+
+    QString errorText;
+    QVERIFY2(fixture.execute(Factory::createSetAppearance({ path }, { }, switches), &errorText), qPrintable(errorText));
+    QCOMPARE(fixture.written(key), expected);
+
+    // The node: the new painting, the fill rule, the closing and the clip of the source
+    const PDFContentPathPaint& oldPaint = before->getNode(path.node)->getData().paint;
+    const PDFContentPathPaint& newPaint = fixture.get(path)->getData().paint;
+    QCOMPARE(newPaint.fill, fill >= 0 ? fill > 0 : oldPaint.fill);
+    QCOMPARE(newPaint.stroke, stroke >= 0 ? stroke > 0 : oldPaint.stroke);
+    QCOMPARE(newPaint.fillEvenOdd, oldPaint.fillEvenOdd);
+    QCOMPARE(newPaint.closeBeforePaint, oldPaint.closeBeforePaint);
+    QCOMPARE(newPaint.clip, oldPaint.clip);
+    QVERIFY(fixture.get(path)->getOverride() == nullptr);
+
+    // One step; undo gives the source, byte for byte
+    QCOMPARE(fixture.session()->getUndoStack()->getCount(), size_t(1));
+    QVERIFY(isUndoRedoExact(fixture, key, before));
+    QVERIFY(fixture.session()->undo().has_value());
+    QCOMPARE(PDFContentStreamWriter::write(*fixture.session()->getContainer(key)).content, content);
+}
+
+void ContentCommandsTest::paintSwitchesUndoAndGroup()
+{
+    // A switch, which changes nothing, is refused as unchanged: the content stays byte for byte
+    {
+        ContentCommandsFixture fixture(plainDocument("0 0 10 10 re B"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        PDFContentPaintSwitches switches;
+        switches.fill = true;
+        switches.stroke = true;
+
+        const PDFContentCommandPointer command = Factory::createSetAppearance({ fixture.node(key, Kind::Path) }, { }, switches);
+        QString errorText;
+        QVERIFY(!fixture.execute(command, &errorText));
+        QVERIFY(command->isRefusedAsUnchanged());
+        QCOMPARE(fixture.session()->getContainer(key), before);
+        QCOMPARE(fixture.session()->getUndoStack()->getCount(), size_t(0));
+    }
+
+    // Switched on with a color in one command: the painting operator changes, the color goes
+    // into the wrap (R-1); without the color the fill is the one of the state of the place
+    {
+        ContentCommandsFixture fixture(plainDocument("0 0 1 rg 0 0 10 10 re S 20 0 10 10 re S"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        PDFContentPaintSwitches switches;
+        switches.fill = true;
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::Path, 0) }, { { Property::FillColor, deviceColor("DeviceRGB", { 1, 0, 0 }) } }, switches), &errorText), qPrintable(errorText));
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::Path, 1) }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 1 rg q 1 0 0 rg 0 0 10 10 re B Q 20 0 10 10 re B"));
+        QCOMPARE(fixture.session()->getUndoStack()->getCount(), size_t(2));
+
+        // Switched off again: the painting of the source, the path written by its geometry. The
+        // same switch of the same object right after the last one is merged into its step.
+        switches.fill = false;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::Path, 1) }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 1 rg q 1 0 0 rg 0 0 10 10 re B Q 20 0 10 10 re S"));
+        QCOMPARE(fixture.session()->getUndoStack()->getCount(), size_t(2));
+        QCOMPARE(fixture.session()->getUndoStack()->getUndoStep()->commands.front()->toJson().value("fillEnabled"), QJsonValue(false));
+
+        QVERIFY(fixture.session()->undo().has_value());
+        QCOMPARE(fixture.written(key), QByteArray("0 0 1 rg q 1 0 0 rg 0 0 10 10 re B Q 20 0 10 10 re S"));
+        QVERIFY(fixture.session()->undo().has_value());
+        QVERIFY(!fixture.session()->undo().has_value());
+        QCOMPARE(fixture.session()->getContainer(key), before);
+        QCOMPARE(PDFContentStreamWriter::write(*before).content, QByteArray("0 0 1 rg 0 0 10 10 re S 20 0 10 10 re S"));
+    }
+
+    // A group gives the switch to its paths and texts (one command, one step); a clipping path
+    // inside of it is left alone, an image too
+    {
+        ContentCommandsFixture fixture(fontDocument("q 0 0 10 10 re S 20 0 10 10 re W n BT /F1 12 Tf (A) Tj ET Q"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        PDFContentPaintSwitches switches;
+        switches.stroke = false;
+        switches.fill = true;
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::Group) }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("q 0 0 10 10 re f 20 0 10 10 re W n BT /F1 12 Tf (A) Tj ET Q"));
+        QCOMPARE(fixture.session()->getUndoStack()->getCount(), size_t(1));
+        QVERIFY(isUndoRedoExact(fixture, key, before));
+    }
+}
+
+void ContentCommandsTest::paintSwitchesOfText()
+{
+    // ISO 32000-2, 9.3.6, Table 104: 0 fill, 1 stroke, 2 fill and stroke, 3 neither. The mode goes
+    // into the wrap of the text, its own Tr is suppressed (R-1). The text state outlives ET (9.3.1),
+    // so the text behind it keeps the mode the first text leaves behind: the residual state run
+    // sets it again (R-3), with the font the text has set (in the order of the properties).
+    {
+        ContentCommandsFixture fixture(fontDocument("BT /F1 12 Tf 1 Tr (A) Tj ET BT (B) Tj ET"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        const PDFContentNodeReference first = fixture.node(key, Kind::TextObject, 0);
+        PDFContentPaintSwitches switches;
+        switches.fill = true;
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ first }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("q 2 Tr BT /F1 12 Tf (A) Tj ET Q /F1 12 Tf 1 Tr BT (B) Tj ET"));
+        QCOMPARE(fixture.get(first)->getOverride()->properties.at(Property::TextRenderingMode).integer, PDFInteger(2));
+        QVERIFY(isUndoRedoExact(fixture, key, before));
+
+        // The stroke off: the mode of the wrap changes (the text paints the fill only)
+        switches = PDFContentPaintSwitches();
+        switches.stroke = false;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ first }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("q 0 Tr BT /F1 12 Tf (A) Tj ET Q /F1 12 Tf 1 Tr BT (B) Tj ET"));
+
+        // The fill off too: neither (the invisible text of an OCR layer)
+        switches = PDFContentPaintSwitches();
+        switches.fill = false;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ first }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("q 3 Tr BT /F1 12 Tf (A) Tj ET Q /F1 12 Tf 1 Tr BT (B) Tj ET"));
+
+        // Undo to the source, byte for byte
+        while (fixture.session()->undo().has_value())
+        {
+        }
+        QCOMPARE(fixture.session()->getContainer(key), before);
+        QCOMPARE(PDFContentStreamWriter::write(*fixture.session()->getContainer(key)).content, QByteArray("BT /F1 12 Tf 1 Tr (A) Tj ET BT (B) Tj ET"));
+    }
+
+    // A text without its own Tr: the wrap ends the mode with Q, nothing is set again behind it
+    {
+        ContentCommandsFixture fixture(fontDocument("/F1 12 Tf BT (A) Tj ET BT (B) Tj ET"));
+        const Key key = fixture.page();
+        PDFContentPaintSwitches switches;
+        switches.fill = false;
+        switches.stroke = true;
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::TextObject, 0) }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("/F1 12 Tf q 1 Tr BT (A) Tj ET Q BT (B) Tj ET"));
+    }
+
+    // Shows of different modes, which get one mode: allowed; which keep different modes: refused
+    {
+        ContentCommandsFixture fixture(fontDocument("BT /F1 12 Tf (A) Tj 1 Tr (B) Tj ET"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        const PDFContentNodeReference text = fixture.node(key, Kind::TextObject);
+
+        PDFContentPaintSwitches switches;
+        switches.fill = false;
+        QString errorText;
+        const PDFContentCommandPointer refused = Factory::createSetAppearance({ text }, { }, switches);
+        QVERIFY(!fixture.execute(refused, &errorText));
+        QVERIFY(!errorText.isEmpty());
+        QVERIFY(!refused->isRefusedAsUnchanged());
+        QCOMPARE(fixture.session()->getContainer(key), before);
+
+        switches.fill = true;
+        switches.stroke = true;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ text }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("q 2 Tr BT /F1 12 Tf (A) Tj (B) Tj ET Q /F1 12 Tf 1 Tr"));
+    }
+
+    // A text, which paints so already: refused as unchanged
+    {
+        ContentCommandsFixture fixture(fontDocument("BT /F1 12 Tf (A) Tj ET"));
+        const Key key = fixture.page();
+        PDFContentPaintSwitches switches;
+        switches.fill = true;
+        switches.stroke = false;
+
+        const PDFContentCommandPointer command = Factory::createSetAppearance({ fixture.node(key, Kind::TextObject) }, { }, switches);
+        QString errorText;
+        QVERIFY(!fixture.execute(command, &errorText));
+        QVERIFY(command->isRefusedAsUnchanged());
+    }
+}
+
+void ContentCommandsTest::paintSwitchesRefusals()
+{
+    PDFContentPaintSwitches switches;
+    switches.stroke = true;
+
+    // A text, which adds to the clipping path (a change of its appearance, RE-4); a part of a text;
+    // an Opaque node; an image (no painting to switch)
+    const std::vector<std::pair<QByteArray, Kind>> refused = { { QByteArray("BT /F1 12 Tf 5 Tr (A) Tj ET"), Kind::TextObject },
+                                                               { QByteArray("BT /F1 12 Tf (A) Tj ET"), Kind::TextShow },
+                                                               { QByteArray("0 0 10 10 re f 1 2 xyz"), Kind::Opaque },
+                                                               { QByteArray("q 0 0 10 10 re W n Q"), Kind::Group } };
+    for (const auto& item : refused)
+    {
+        ContentCommandsFixture fixture(fontDocument(item.first));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        const PDFContentNodeReference node = fixture.node(key, item.second);
+        QVERIFY2(node.isValid(), item.first.constData());
+
+        QString errorText;
+        const PDFContentCommandPointer command = Factory::createSetAppearance({ node }, { }, switches);
+        const bool isExecuted = fixture.execute(command, &errorText);
+        QVERIFY2(!isExecuted, item.first.constData());
+        QVERIFY2(!errorText.isEmpty(), item.first.constData());
+        QCOMPARE(fixture.session()->getContainer(key), before);
+    }
+
+    // A text without its ET (an unclosed node): the switch goes the way of every other change of its
+    // appearance - set_appearance does not refuse such a text (stage E0), the model writes the ET
+    // it lacks inside of the wrap, and the residual state run keeps the font behind it (R-3).
+    // (The comment of the engine on unclosed nodes, R-7, says no command gives one a wrap: the
+    // refusal is a question to the coordinator, pe1fx1_state.md.)
+    {
+        ContentCommandsFixture fixture(fontDocument("0 0 5 5 re f BT /F1 12 Tf 10 10 Td (x) Tj"));
+        const Key key = fixture.page();
+        const PDFContentContainerPointer before = fixture.session()->getContainer(key);
+        const PDFContentNodeReference text = fixture.node(key, Kind::TextObject);
+        QVERIFY(before->isUnclosed(text.node));
+
+        QString errorText;
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ text }, { { Property::FillColor, deviceColor("DeviceGray", { 0.5 }) } }), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f q 0.5 g BT /F1 12 Tf 10 10 Td (x) Tj ET Q /F1 12 Tf"));
+        QVERIFY(fixture.session()->undo().has_value());
+
+        QVERIFY2(fixture.execute(Factory::createSetAppearance({ text }, { }, switches), &errorText), qPrintable(errorText));
+        QCOMPARE(fixture.written(key), QByteArray("0 0 5 5 re f q 2 Tr BT /F1 12 Tf 10 10 Td (x) Tj ET Q /F1 12 Tf"));
+    }
+
+    // No property and no switch; a switch of the transparency does not exist (only the appearance)
+    {
+        ContentCommandsFixture fixture(plainDocument("0 0 10 10 re f"));
+        const Key key = fixture.page();
+        QString errorText;
+        QVERIFY(!fixture.execute(Factory::createSetAppearance({ fixture.node(key, Kind::Path) }, { }, PDFContentPaintSwitches()), &errorText));
+        QVERIFY(!errorText.isEmpty());
+    }
+}
+
+void ContentCommandsTest::paintSwitchesMergeAndJson()
+{
+    ContentCommandsFixture fixture(plainDocument("0 0 1 1 re S 2 2 1 1 re S"));
+    PDFContentEditSession* session = fixture.session();
+    PDFContentUndoStack* stack = session->getUndoStack();
+    const Key key = fixture.page();
+    const PDFContentNodeReference first{ key, PDFContentNodeId{ 2 } };
+    const PDFContentNodeReference second{ key, PDFContentNodeId{ 3 } };
+    QCOMPARE(fixture.node(key, Kind::Path, 0), first);
+
+    // A switch with a dragged color: the same fields of the same objects merge into one step,
+    // the last values win; a command with other fields (the color alone) is a new step
+    PDFContentPaintSwitches on;
+    on.fill = true;
+    QVERIFY(fixture.execute(Factory::createTransform({ second }, matrix(1, 0, 0, 1, 1, 0))));
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ first }, { { Property::FillColor, deviceColor("DeviceGray", { 0.25 }) } }, on)));
+    const size_t stepCount = stack->getCount();
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ first }, { { Property::FillColor, deviceColor("DeviceGray", { 0.5 }) } }, on)));
+    QCOMPARE(stack->getCount(), stepCount);
+    QCOMPARE(fixture.written(key), QByteArray("q 0.5 g 0 0 1 1 re B Q q 1 0 0 1 1 0 cm 2 2 1 1 re S Q"));
+    QCOMPARE(stack->getUndoStep()->commands.front()->toJson().value("fillEnabled"), QJsonValue(true));
+    QCOMPARE(stack->getUndoStep()->commands.front()->toJson().value("fill").toObject().value("values").toArray(), QJsonArray({ 0.5 }));
+
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ first }, { { Property::FillColor, deviceColor("DeviceGray", { 0.75 }) } })));
+    QCOMPARE(stack->getCount(), stepCount + 1);
+    PDFContentPaintSwitches off;
+    off.fill = false;
+    QVERIFY(fixture.execute(Factory::createSetAppearance({ first }, { }, off)));
+    QCOMPARE(stack->getCount(), stepCount + 2);
+    QCOMPARE(fixture.written(key), QByteArray("q 0.75 g 0 0 1 1 re S Q q 1 0 0 1 1 0 cm 2 2 1 1 re S Q"));
+
+    // One undo takes the merged step back: the stroke of the source
+    QVERIFY(session->undo().has_value());
+    QVERIFY(session->undo().has_value());
+    QVERIFY(session->undo().has_value());
+    QCOMPARE(fixture.written(key), QByteArray("0 0 1 1 re S q 1 0 0 1 1 0 cm 2 2 1 1 re S Q"));
+
+    // JSON: what a command writes, and an operation written by hand
+    PDFContentPaintSwitches both;
+    both.fill = true;
+    both.stroke = false;
+    const QJsonArray one({ QStringLiteral("p1:2") });
+    QCOMPARE(Factory::createSetAppearance({ first }, { }, both)->toJson(), QJsonObject({ { "type", "set_appearance" }, { "ids", one }, { "fillEnabled", true }, { "strokeEnabled", false } }));
+    QCOMPARE(Factory::createSetAppearance({ first }, { }, off)->toJson(), QJsonObject({ { "type", "set_appearance" }, { "ids", one }, { "fillEnabled", false } }));
+
+    auto read = [session](const QJsonObject& operation, std::vector<QString>* errors) -> PDFContentCommandPointer
+    {
+        return Factory::fromJson(operation, session, QStringLiteral("operations.items[0]"), errors);
+    };
+
+    std::vector<QString> errors;
+    const QJsonObject operation({ { "type", "set_appearance" }, { "ids", one }, { "fillEnabled", true }, { "strokeEnabled", false } });
+    const PDFContentCommandPointer command = read(operation, &errors);
+    QVERIFY(command && errors.empty());
+    QCOMPARE(command->toJson(), operation);
+    QVERIFY(fixture.execute(command));
+    QCOMPARE(fixture.written(key), QByteArray("0 0 1 1 re f q 1 0 0 1 1 0 cm 2 2 1 1 re S Q"));
+
+    // A switch, which is no boolean, is an error of its field
+    for (const QJsonValue& value : { QJsonValue(1), QJsonValue(QStringLiteral("true")), QJsonValue(QJsonValue::Null) })
+    {
+        errors.clear();
+        QVERIFY(!read(QJsonObject({ { "type", "set_appearance" }, { "ids", one }, { "strokeEnabled", value } }), &errors));
+        QCOMPARE(errors.size(), size_t(1));
+        QVERIFY2(errors.front().startsWith(QStringLiteral("operations.items[0].strokeEnabled: ")), qPrintable(errors.front()));
+    }
 }
 
 QTEST_MAIN(ContentCommandsTest)

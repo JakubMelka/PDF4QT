@@ -143,8 +143,16 @@ public:
     QString getTitle() const;
     QString getText() const;
 
+protected:
+    /// A change of the language: the tooltip and the accessible name of the close button (R8-13; the texts of the
+    /// notice come with the notices requested again by the GUI)
+    virtual void changeEvent(QEvent* event) override;
+
 private:
     void onCurrentChanged();
+
+    /// The translated texts of the close button
+    void updateTexts();
     void onCloseClicked();
     void onActionClicked();
 

@@ -143,15 +143,17 @@ public:
         return { placement };
     }
 
-    /// The page can be edited and has content (a ClearPage of an empty page changes nothing)
+    /// The page can be edited and has an object (a ClearPage of a page without objects changes nothing, R8-10): the
+    /// container of the page, also while a group is entered (R8-4: the page is cleared, not the edited root)
     virtual bool isEnabled(const PDFAppEditContentContext* context) const override
     {
         if (!context || !context->isEditingAllowed())
         {
             return false;
         }
-        const PDFContentContainerPointer container = context->getContainer();
-        return container && container->getRoot() && !container->getRoot()->getChildren().empty();
+        const PDFContentContainerKey pageKey = context->getPageKey();
+        const PDFContentContainerPointer container = pageKey.isValid() ? context->getSession()->getContainer(pageKey) : PDFContentContainerPointer();
+        return container && PDFAppToolGUIContent::hasObjects(*container);
     }
 
     virtual void trigger(PDFAppEditContentContext* context) const override
@@ -301,6 +303,9 @@ public:
     virtual QString getId() const override { return QString::fromLatin1(PDFAppEditContentCardIds::KEYBOARD); }
     virtual bool isShown(const PDFAppEditContentContext* context) const override { return context && context->isCardRequested(getId()); }
     virtual PDFAppEditContentCard* createCard(PDFAppEditContentContext* context, QWidget* parent) const override { return new PDFAppEditContentKeyboardCard(context, parent); }
+
+    /// The list of the keys and its Close link work in Preview, during a run and on a read-only page (R7-8)
+    virtual bool isChangingModel() const override { return false; }
 };
 
 /// What the keyboard needs besides the entries

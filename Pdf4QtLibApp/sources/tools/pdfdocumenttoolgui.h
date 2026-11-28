@@ -152,6 +152,7 @@ public:
     QString text;               ///< What the file will and will not contain
     QString cancelText;         ///< The button, which saves nothing ("Cancel"); empty = "Cancel"
     QString saveText;           ///< The button, which saves the document of the tab as it is and keeps the tool open ("Save Without the Changes")
+    QString saveIconName;       ///< The icon of that button; empty = none
     QString applyText;          ///< The button, which runs the tool and saves after its result is kept in the tab ("Apply and Save"); empty = no such choice
     QString applyIconName;      ///< The icon of that button; empty = none
 

@@ -25,6 +25,7 @@
 
 #include "pdfcontentcommands.h"
 #include "pdfglobal.h"
+#include "pdfpage.h"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -57,6 +58,14 @@ namespace pdf
 /// null, empty in both dimensions or not finite, takes part in no operation: its matrix is the
 /// identity and it does not count to the union.
 ///
+/// The space of the boxes is the space the user sees (review R5-6): left, right, up and down are
+/// the directions on the screen. On a page with /Rotate the default space of the page is shown
+/// turned, so the caller gives the boxes and the page box mapped by getDisplayedPageMatrix (the
+/// default space of the page -> the space the user sees) and gives createCommand the matrix of the
+/// container to that space (containerToPage x getDisplayedPageMatrix); the matrices of the result
+/// are moves and changes of the size in that space, which createCommand conjugates into the
+/// container. Nothing here reads /Rotate.
+///
 /// The operations (the result is one matrix per box, a move or a change of the size in the space
 /// of the boxes; the identity for a box, which does not change):
 ///  - Align (the key object is the reference, zadani_jadro.md 4.13; the old code aligned to the
@@ -72,10 +81,10 @@ namespace pdf
 ///     - DistributeInRow: the boxes sorted by their left edges (a stable sort: equal edges keep the
 ///       order of the input) are put side by side from the left edge of U, each moved in x only:
 ///       the first box starts at U.left, the next one at the right edge of the previous one placed.
-///     - DistributeInColumn: the boxes sorted by their upper edges, the highest first (stable), are
-///       put one below the other from the upper edge of U, each moved in y only: the upper edge of
-///       the first box is the upper edge of U, the upper edge of the next one is the lower edge of
-///       the previous one placed.
+///     - DistributeInColumn: the boxes sorted by their lower edges, the highest first (stable; the
+///       key of the old code, QRectF::y()), are put one below the other from the upper edge of U,
+///       each moved in y only: the upper edge of the first box is the upper edge of U, the upper
+///       edge of the next one is the lower edge of the previous one placed.
 ///     - DistributeAsForm: two columns of labels and fields. A box is in the left column, when the
 ///       distance of its left edge from U.left is smaller than the distance of its right edge from
 ///       U.right, otherwise in the right one. Pairs (left, right) are made greedily by the largest
@@ -92,18 +101,20 @@ namespace pdf
 ///       boxes. Bound: at most MAXIMUM_FORM_BOXES boxes (the pairing compares every left box with
 ///       every right one); more are refused with a text.
 ///     - DistributeAsGrid: rows and columns are found, then every box is put into its cell. Rows:
-///       the boxes sorted by their upper edges (ascending, stable); while boxes remain, the box with
-///       the highest upper edge of the remaining ones (the last of the sorted remaining ones) starts
-///       a row and takes every remaining box, whose y interval overlaps its own by more than zero;
-///       the height of the row is the largest height of its boxes; the rows are numbered from 0 from
-///       the top. Columns the same way in x: sorted by their left edges descending (stable), the box
-///       with the smallest left edge of the remaining ones starts a column and takes every remaining
-///       box, whose x interval overlaps its own by more than zero; the width of the column is the
-///       largest width of its boxes; the columns are numbered from 0 from the left. A box of the row
-///       r and the column c gets its left edge at U.left + the sum of the widths of the columns
-///       before c, and its upper edge at the upper edge of U - the sum of the heights of the rows
-///       before r. The cost is O(n log n) (the boxes, which overlap the starting box of a row, are a
-///       run of the sorted remaining ones; the same for the columns).
+///       the boxes sorted by their lower edges (ascending, stable: the key of the old code,
+///       QRectF::top()); while boxes remain, the last of the sorted remaining ones (the highest
+///       lower edge) starts a row and takes every remaining box, whose y interval overlaps its own
+///       by more than 10^-12 (the old qFuzzyIsNull); the height of the row is the largest height of
+///       its boxes; the rows are numbered from 0 from the top. Columns the same way in x: sorted by
+///       their left edges descending (stable), the box with the smallest left edge of the remaining
+///       ones starts a column and takes every remaining box, whose x interval overlaps its own by
+///       more than 10^-12; the width of the column is the largest width of its boxes; the columns
+///       are numbered from 0 from the left. A line (a box without a height, or without a width for
+///       the columns) overlaps nothing: it is a row (column) of its own, of the size 0, when it is
+///       the starter. A box of the row r and the column c gets its left edge at U.left + the sum of
+///       the widths of the columns before c, and its upper edge at the upper edge of U - the sum of
+///       the heights of the rows before r. The cost is O(n log n) (the remaining boxes, which can
+///       join a line, are kept in an ordered set; each is taken once).
 ///  - Match size (to the key box; needs at least two boxes): MatchWidth scales every other box in x
 ///    to the width of the key box, MatchHeight in y to its height, MatchSize both. The upper left
 ///    corner of a box stays where it is (the left edge and the upper edge). A dimension of a box,
@@ -168,9 +179,19 @@ public:
     /// The least number of the boxes the operation needs (1 for the center on the page, 2 else)
     static size_t getMinimumBoxCount(Operation operation);
 
+    /// The matrix from the default space of a page to the space the user sees it in: the page turned
+    /// clockwise by its /Rotate (ISO 32000-2, 7.7.3.3, Table 31: "the number of degrees by which the
+    /// page shall be rotated clockwise when displayed"), the y axis up. A rotation about the origin
+    /// only - (x, y) -> (y, -x) for 90, (-x, -y) for 180, (-y, x) for 270, the identity for none;
+    /// [0 -1 1 0 0 0], [-1 0 0 -1 0 0], [0 1 -1 0 0 0] as PDF matrices. No translation is needed: the
+    /// operations measure the boxes against each other and against the page box mapped by the same
+    /// matrix.
+    static QTransform getDisplayedPageMatrix(PageRotation rotation);
+
     /// Computes the matrices of the operation (see the class).
     /// \param operation The operation
-    /// \param boxes The boxes of the objects in one space with the y axis up
+    /// \param boxes The boxes of the objects in one space with the y axis up: the space the user
+    ///        sees (the default space of the page mapped by getDisplayedPageMatrix)
     /// \param keyIndex The index of the key box (Align, Match size); ignored by the others
     /// \param pageBox The box of the page in the same space (the center on the page); ignored by the others
     /// \param errorText Translated reason of a refusal
@@ -188,10 +209,13 @@ public:
     /// Creates the command of the operation over the nodes: one undo step, which transforms each
     /// node by its own matrix (as PDFContentCommandFactory::createTransform does for one matrix: R-1,
     /// R-5, R-6; a Group or a MarkedContent gives its matrix to its leaves; a node below another
-    /// node of the command moves with it only). The boxes and the page box are in the default space
-    /// of the page; \p containerToPage maps the default space of the container of the nodes to it
-    /// (the identity for the page itself; PDFAppEditContentGeometryHelper::getContainerToPageMatrix):
-    /// the matrix T of a box becomes C x T x C^-1 in the container (row vectors, C = containerToPage).
+    /// node of the command moves with it only). The boxes and the page box are in the space the user
+    /// sees (the class: the default space of the page mapped by getDisplayedPageMatrix, the default
+    /// space itself on a page without /Rotate); \p containerToPage maps the default space of the
+    /// container of the nodes to that space (PDFAppEditContentGeometryHelper::
+    /// getContainerToPageMatrix x getDisplayedPageMatrix; getDisplayedPageMatrix alone for the
+    /// page itself): the matrix T of a box becomes C x T x C^-1 in the container (row vectors,
+    /// C = containerToPage).
     /// \param nodes The nodes of one container, distinct
     /// \param boxes Their boxes (the same count)
     /// \param keyIndex The index of the key object in \p nodes

@@ -48,6 +48,7 @@ class PDFAppEditContentContext;
 class PDFAppEditContentRegistry;
 class PDFAppHeaderText;
 class PDFAppParagraph;
+class PDFContentEditSession;
 class PDFDocument;
 class PDFLineEdit;
 class PDFTreeView;
@@ -81,10 +82,17 @@ class PDFTreeView;
 ///
 /// Updates: a command, an undo, a redo changes the rows incrementally (rows removed, inserted
 /// and moved, dataChanged of the changed rows; subtrees, whose nodes did not change, are not
-/// compared); a change of more than LARGE_CHANGE rows, another page, another edited root and a
-/// change of the filter reset the model. Bounds (hostile input): the walk over the tree visits
-/// every node once and stops at PDFContentContainer::MAXIMUM_DEPTH + 2 levels; the text of a
-/// row is read up to MAXIMUM_TEXT_LENGTH characters.
+/// compared); more than LARGE_CHANGE rows removed, inserted or moved, another page, another
+/// edited root and a change of the filter reset the model; more than LARGE_CHANGE changed rows
+/// (a Transform of many objects) are told by one dataChanged of the range of each parent. The
+/// lock and the hidden flag (editorStateChanged, one per node) are one dataChanged of the row
+/// each, up to LARGE_CHANGE rows in one turn of the event loop, then one dataChanged of all top
+/// rows from the event loop. The kind and the description of a row are computed once per node
+/// object (a node, which a command did not change, keeps them over versions). After
+/// PDFAppEditContentContext::sessionReplaced the model is connected to the new session.
+/// Bounds (hostile input): the walk over the tree visits every node once and stops at
+/// PDFContentContainer::MAXIMUM_DEPTH + 2 levels; the text of a row is read up to
+/// MAXIMUM_TEXT_LENGTH characters, its lines are counted over all its glyphs once per node.
 ///
 /// Threads and ownership: a child of the context (it lives as long as the tool), GUI thread. The
 /// panels (parts) hold it by a QPointer.
@@ -203,6 +211,44 @@ public:
     static QString getKindText(const PDFContentNode& node, const PDFDocument* document);
     static QString getDescription(const PDFContentNode& node, const PDFDocument* document);
 
+    // ---- One source of truth of the kind and of the counts, which the row and the card
+    //      Selection both show (R7-10)
+
+    /// A Group, one of whose children (state runs aside) sets a clipping path
+    /// (PDFContentNode::hasClipEffect: a clipping path, a path with W / W*, a text of the
+    /// rendering mode 4 - 7); the clip holds for what follows it up to the Q
+    static bool isClippingGroup(const PDFContentNode& node);
+
+    /// A MarkedContent of optional content: /OC BDC (ISO 32000-2, 14.11.3.2), also when its
+    /// OCG cannot be resolved
+    static bool isLayerContent(const PDFContentNode& node);
+
+    /// The drawn segments of a Path (ISO 32000-2, 8.5.2): every l / c / v / y and every h, which
+    /// draws a line back to the start of its subpath (an h at the start point draws nothing); m
+    /// draws nothing. A closed triangle "m l l h" = 3, a rectangle "re" = 4. 0 for another kind.
+    static int getSegmentCount(const PDFContentNode& node);
+
+    /// The lines of a text object by the rule of the core (PDFContentDisplay::getText,
+    /// splitLines): the next glyph is on the line of the previous one, when its text space is
+    /// the text space of the previous one moved along the writing direction (|dy| <= 0.001 |Tfs|
+    /// for a horizontal font, |dx| for a vertical one, no rotation); computed from the text items
+    /// without laying out the glyphs. 0 for another kind or a text without glyphs. Cost: the
+    /// glyphs of the text object (one matrix inversion each).
+    static int getLineCount(const PDFContentNode& textObject);
+
+    /// The objects of a Group / MarkedContent as the tree has them: its children with a row
+    /// (getRowNodeOfChild)
+    static int getChildRowCount(const PDFContentNode& node);
+
+    // ---- P12's own functions (tests)
+
+    /// The kind and the description of the rows are computed once per node of a version (a
+    /// node, which a command did not change, keeps them); the number of the computations
+    int getTextComputationCount() const { return m_textComputationCount; }
+
+    /// The texts of the rows are computed again (a change of the language: the panel calls it)
+    void clearTextCache();
+
 Q_SIGNALS:
     /// The counts of the header may have changed
     void countsChanged();
@@ -234,12 +280,41 @@ private:
         int matchCount = 0;
     };
 
+    /// The texts of a row node; valid while the container has this node object (the pointer is
+    /// held: a node of the cache is never freed and its address never reused meanwhile)
+    struct TextEntry
+    {
+        PDFContentNodePointer node;
+        QString kind;
+        QString description;
+    };
+
+    /// The counts of countChanges: rows removed, inserted and moved (a reset above
+    /// LARGE_CHANGE), and kept rows, whose node changed (one dataChanged each up to LARGE_CHANGE,
+    /// one dataChanged of the range of each parent above it)
+    struct ChangeCount
+    {
+        int structure = 0;
+        int data = 0;
+    };
+
     void onPageChanged();
     void onContainerChanged();
     void onContainerLoaded(const pdf::PDFContentContainerKey& key);
     void onModelChanged(const pdf::PDFContentChange& change);
     void onEditorStateChanged(const pdf::PDFContentNodeReference& node);
+    void onSessionReplaced();
     void onQueuedRefresh();
+    void onQueuedStateRefresh();
+
+    /// The connections to the session of the context (the constructor, sessionReplaced)
+    void connectSession();
+
+    /// The kind and the description of the row node \p id of \p container (cached)
+    const TextEntry& getTexts(const PDFContentContainer& container, quint64 id) const;
+
+    /// Drops the texts of the nodes, which the current container does not have any more
+    void pruneTextCache();
 
     /// Queues the refresh of the rows (one for more signals)
     void queueRefresh();
@@ -249,10 +324,10 @@ private:
 
     Tree buildTree(const PDFContentContainerPointer& container, PDFContentNodeId rootId) const;
     bool buildRows(Tree& tree, const PDFContentContainer& container, const PDFContentNode& node, quint64 rowId, int depth, std::vector<quint64>* keptChildren) const;
-    bool isMatched(const PDFContentNode& node) const;
+    bool isMatched(const PDFContentContainer& container, const PDFContentNode& node) const;
 
     void resetTo(Tree tree, PDFContentContainerPointer container, const PDFContentNodeReference& root);
-    int countChanges(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer) const;
+    void countChanges(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer, ChangeCount* count) const;
     void removeMissing(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer);
     void insertAndMove(const Tree& tree, quint64 parentId, const PDFContentContainer* oldContainer, const PDFContentContainer& newContainer);
     void insertSubtree(const Tree& tree, quint64 id, quint64 parentId, std::vector<quint64>* siblings, size_t position);
@@ -267,6 +342,7 @@ private:
     std::vector<PDFContentNodeId> decodeNodes(const QMimeData* data) const;
 
     QPointer<PDFAppEditContentContext> m_context;
+    QPointer<PDFContentEditSession> m_session;  ///< The session the model is connected to
     QString m_filterText;
     FilterKinds m_filterKinds = FilterKinds(0x7F);
 
@@ -277,12 +353,17 @@ private:
     quintptr m_nextSerial = 1;
     mutable std::unordered_set<quint64> m_dirtyParents;
     std::set<PDFContentNodeReference> m_expanded;
+    mutable std::unordered_map<quint64, TextEntry> m_textCache;
+    mutable int m_textComputationCount = 0;
     int m_objectCount = 0;
     int m_newObjectCount = 0;
     int m_matchCount = 0;
+    int m_stateChangeCount = 0;                 ///< The rows told by editorStateChanged in this turn of the event loop
     bool m_isFilterShown = false;
     bool m_isRefreshQueued = false;
     bool m_isResetQueued = false;
+    bool m_isStateRefreshQueued = false;
+    bool m_isBulkDataChange = false;            ///< The refresh tells the changed rows of a parent by one range
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFAppEditContentObjectsModel::FilterKinds)
@@ -326,6 +407,10 @@ public:
     /// The time, after which a typed filter text is given to the model
     static constexpr int FILTER_DELAY = 250;
 
+    /// The work of the last change of the selection by the tree (R7-3): the rows and the
+    /// selected nodes read, and the comparisons of the sets of nodes - O(n log n) in the rows
+    quint64 getLastTreeSelectionWork() const { return m_treeSelectionWork; }
+
 protected:
     virtual void retire() override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
@@ -362,6 +447,7 @@ private:
     QPointer<PDFLineEdit> m_filterField;
     QPointer<PDFAppParagraph> m_hint;
     QPointer<QTimer> m_filterTimer;
+    quint64 m_treeSelectionWork = 0;
     bool m_isSyncing = false;
 };
 

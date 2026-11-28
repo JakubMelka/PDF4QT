@@ -65,7 +65,7 @@ enum class BlendMode
     Invalid
 };
 
-class PDFBlendModeInfo
+class PDF4QTLIBCORESHARED_EXPORT PDFBlendModeInfo
 {
 public:
     PDFBlendModeInfo() = delete;

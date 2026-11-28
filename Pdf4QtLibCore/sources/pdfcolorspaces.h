@@ -166,6 +166,8 @@ public:
 
     bool isValid() const { return m_width && m_height && m_components && m_bitsPerComponent; }
 
+    /// Returns the row \p rowIndex, getStride() bytes of the data. Throws PDFException, when they
+    /// are not all in the data (in every build).
     const unsigned char* getRow(unsigned int rowIndex) const;
 
 private:

@@ -70,7 +70,9 @@ class PDFAppEditContentScene;
 ///   PDFAppEditContentContext::handleApplicationCommand of the command, whose current shortcut it
 ///   is (PDFAppContext::getCommandRegistry: a shortcut rebound by the user is followed), when the
 ///   context answers Enabled for it; else the key goes to the controller as above
-///   (pe1_skeleton_notes.md 8.2, 11).
+///   (pe1_skeleton_notes.md 8.2, 11). The keys of the tool entries and the canvas keys of the
+///   action entries of the registry are asked first: the tool's own keys win on its canvas (R6-6:
+///   P is Preview there; view.fitPage stays reachable by the menu and the status bar).
 /// - A drop from outside goes to the first drop entry of the registry, which can take it.
 /// - A drag of an object out of the canvas toward the left panel starts a QDrag (the allowed
 ///   exception of the nested event loops): the view holds itself by a QPointer and checks
@@ -148,6 +150,19 @@ public:
     /// without a page)
     PDFAppEditContentPreviewRequest getPreviewRequest() const;
 
+    /// The heights (pixels) of the overlays of the canvas over the top edge (the bar of the group,
+    /// the floating panels, the mode label) and over the bottom edge (the notice) of the view: the
+    /// scroll range grows by them, so the edges of the paper can be scrolled into the clear area
+    /// (zadani_gui.md 4.15). PDFAppEditContentCanvas sets them when it places the overlays.
+    void setOverlayMargins(int top, int bottom);
+
+    /// The announcement of the selection for the assistive technologies (zadani_gui.md 4.23): the
+    /// kind of one selected object as the card Selection titles it ("Path"), "3 objects" for more,
+    /// "No object selected"; one announcement per change of the selection, from the event loop
+    /// (more changes in one turn are one announcement). The count is for the tests.
+    const QString& getAnnouncementText() const { return m_announcementText; }
+    int getAnnouncementCount() const { return m_announcementCount; }
+
 Q_SIGNALS:
     /// The zoom or the visible part changed
     void viewChanged();
@@ -167,6 +182,7 @@ protected:
     virtual void focusOutEvent(QFocusEvent* event) override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
     virtual void scrollContentsBy(int dx, int dy) override;
     virtual bool focusNextPrevChild(bool next) override;
     virtual void dragEnterEvent(QDragEnterEvent* event) override;
@@ -185,11 +201,29 @@ private:
     qreal getDeviceScale() const;
     PageRotation getRotation() const;
     void fit(bool isWidth, bool isHeight);
+
+    /// The fit of a page, which has no view of its own yet: done when the paper is known, and once more when the view is
+    /// shown (a view, which is not shown yet, has no real size: the layout of the tool gives it one at the show)
+    void fitPendingPage();
+
     void loadCommandKeys();
     bool isCanvasKey(const QKeyEvent* event) const;
+
+    /// The key of a tool entry or the canvas key of an action entry of the registry: the tool's own keys win over the
+    /// Canvas-scope shortcuts of the application on its canvas (R6-6: P is Preview, not view.fitPage)
+    bool isRegistryKey(const QKeyEvent* event) const;
+
     void updateCursor(const QPointF& scenePoint);
     void schedulePreview();
     void requestPreview();
+
+    /// The scroll range: the rectangle of the scene grown by half of the viewport on every side (any point of the page
+    /// can be brought to the center) and by the overlays at the top and at the bottom of the screen (item 5)
+    void updateSceneRectangle();
+
+    void onSceneRectChanged(const QRectF& rectangle);
+    void onSelectionChanged();
+    void onAnnouncementQueued();
 
     void onPageChanged();
     void onContainerChanged();
@@ -204,11 +238,16 @@ private:
     std::map<PDFInteger, PageView> m_pageViews;
     PDFInteger m_shownPage = -1;
     qreal m_zoom = 1.0;
-    bool m_isFitPending = true;                     ///< The page is fitted when its paper is known
+    bool m_isFitPending = true;                     ///< The page is fitted when its paper is known and the view is shown
     bool m_isPanning = false;
     QPoint m_panPosition;
     std::vector<std::pair<QKeySequence, QString>> m_commandKeys;   ///< Canvas-scope shortcuts of the application -> the command
     bool m_isCommandKeysLoaded = false;
+    int m_overlayTop = 0;                           ///< Pixels of the overlays over the top edge (setOverlayMargins)
+    int m_overlayBottom = 0;                        ///< Pixels of the overlays over the bottom edge
+    bool m_isAnnouncementQueued = false;
+    QString m_announcementText;
+    int m_announcementCount = 0;
 };
 
 /// The canvas page of the tool (PDFDocumentToolGUI::createCanvasPage): the view, the widgets of

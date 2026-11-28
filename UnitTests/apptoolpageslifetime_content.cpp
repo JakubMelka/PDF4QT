@@ -267,6 +267,28 @@ public:
         return reference;
     }
 
+    /// zadani_gui.md 4.21 (integration row 26): a new version of the document of the tab under the tool without work -
+    /// the GUI loads the session again (PDFAppEditContentContext::reloadDocument): every part connects to the new
+    /// session (sessionReplaced), the page is shown again; the old session goes from the event loop with its builds
+    static bool reloadDocument(ToolPagesLifetimeRun& run)
+    {
+        GUI* current = gui(run);
+        pdf::PDFAppDocument* document = run.tab ? run.tab->getDocument() : nullptr;
+        if (!current || !current->getEditContext() || !document || !document->getDocument() || current->hasUnsavedWork())
+        {
+            return true;
+        }
+
+        const pdf::PDFDocumentPointer newDocument(new pdf::PDFDocument(*document->getDocument()));
+        document->restore(newDocument, pdf::PDFModifiedDocument::Reset);
+        Steps::settle();
+        waitForContainer(run);
+
+        // The discovery run checks, that the session follows the new version
+        current = gui(run);
+        return current && current->getEditContext() && current->getEditContext()->getDocumentPointer() == newDocument;
+    }
+
     /// Work of the user: the first object of the page is deleted (one undo step; Apply Changes, the save question)
     static bool addContentWork(ToolPagesLifetimeRun& run)
     {
@@ -612,6 +634,7 @@ public:
             steps->push_back(&H::previewOn);
             steps->push_back(&H::changeLanguage);
             steps->push_back(&H::previewOff);
+            steps->push_back(&H::reloadDocument);
             steps->push_back(&H::addContentWork);
             steps->push_back(&H::writeErrorBack);
             steps->push_back(&H::writeErrorSkip);

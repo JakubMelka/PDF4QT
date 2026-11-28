@@ -681,7 +681,20 @@ bool PDFDocumentToolShell::enter()
     connect(m_toolbar.data(), &PDFAppToolToolbar::stopClicked, this, &PDFDocumentToolShell::stop);
     m_toolbar->installEventFilter(this);
 
+    // The parts may run foreign code (R8-6: Edit Content shows its first page inside of createCanvasPage): a slot,
+    // which closed the page or the tab of the tool, leaves a retired shell - it enters no mode (as below after
+    // enterMode)
+    QPointer<PDFDocumentToolShell> contentGuard(this);
     createContent();
+    if (!contentGuard)
+    {
+        return false;
+    }
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        m_state = State::Closed;
+        return false;
+    }
     updateCertificationCallout(false);
 
     PDFAppToolModeParts parts;
@@ -883,8 +896,24 @@ void PDFDocumentToolShell::createContent()
     if (isEntering)
     {
         // The canvas page moves into the canvas area of the view and the overlay is a child of that area from its
-        // start: both belong to the shell logically (see enter)
-        m_canvasPage = m_gui->createCanvasPage(m_partsParent);
+        // start: both belong to the shell logically (see enter). The creation may run foreign code (Edit Content shows
+        // its first page: the slots of the page and of the commands of the tab, R8-6): a shell retired meanwhile takes
+        // nothing more; the page, a child of the retired holder of the parts, is retired with it.
+        QPointer<PDFDocumentToolShell> guard(this);
+        QWidget* canvasPage = m_gui->createCanvasPage(m_partsParent);
+        if (!guard)
+        {
+            return;
+        }
+        if (PDFDeferredDeletion::isRetired(this) || !m_gui)
+        {
+            if (canvasPage)
+            {
+                PDFDeferredDeletion::retire(canvasPage);
+            }
+            return;
+        }
+        m_canvasPage = canvasPage;
         PDFDeferredDeletion::setOwner(m_canvasPage, this);
         if (m_host && m_host->getCanvasArea())
         {
@@ -970,6 +999,7 @@ void PDFDocumentToolShell::close()
         PDFDeferredDeletion::retire(m_permissionDialog.data());
     }
     m_saveAfterResultCommandId.clear();
+    m_retrySaveCommandId.clear();
     m_saveQuestionCommandId.clear();
     if (PDFMessageBox* saveQuestion = m_saveQuestion.data())
     {
@@ -1246,6 +1276,10 @@ bool PDFDocumentToolShell::requestSaveQuestion(const QString& commandId)
     connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
     QPushButton* saveButton = dialog->addActionButton(question.saveText, PDFMessageBox::ActionPosition::Trailing, !hasApply);
     saveButton->setObjectName(QStringLiteral("toolSaveWithoutChanges"));
+    if (!question.saveIconName.isEmpty())
+    {
+        saveButton->setIcon(PDFThemeIcons::getIcon(question.saveIconName));
+    }
     connect(saveButton, &QPushButton::clicked, this, &PDFDocumentToolShell::onSaveQuestionSaveClicked);
     if (hasApply)
     {
@@ -1492,6 +1526,9 @@ void PDFDocumentToolShell::confirm()
         popup->close();
     }
 
+    // R8-1: a confirmation of its own is no retry of a failed run of "Apply and Save" (retryRun hands the choice over)
+    m_retrySaveCommandId.clear();
+
     if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmShown() || !m_gui->isConfirmEnabled() || m_runPermissionDialog ||
         m_resultState == PDFAppToolResultState::Current)
     {
@@ -1499,8 +1536,14 @@ void PDFDocumentToolShell::confirm()
     }
 
     // A Primary button, which never runs the tool (Keep Proofing On, RS7APP L4): the GUI takes it, nothing of a
-    // run follows (the last call - its action may close the tool)
+    // run follows (the last call - its action may close the tool). With false the GUI may have run foreign code too
+    // (Edit Content commits the typed values of its cards, R8-6): the shell goes on only when it survived.
+    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui->confirmWithoutRun())
+    {
+        return;
+    }
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_gui || !m_runner || !m_host || m_state != State::Editing)
     {
         return;
     }
@@ -1571,6 +1614,21 @@ void PDFDocumentToolShell::confirm()
         {
             m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
         }
+    }
+}
+
+void PDFDocumentToolShell::retryRun()
+{
+    // R8-1: the run of "Apply and Save", which failed, goes on (Skip Page of Edit Content): the save of its choice
+    // follows its result again, exactly as for the first run (onSaveQuestionApplyClicked)
+    const QString commandId = m_retrySaveCommandId;
+    m_retrySaveCommandId.clear();
+    m_saveAfterResultCommandId = commandId;
+    QPointer<PDFDocumentToolShell> guard(this);
+    confirm();
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_state == State::Editing)
+    {
+        m_saveAfterResultCommandId.clear();
     }
 }
 
@@ -2877,7 +2935,13 @@ void PDFDocumentToolShell::onRunStarted()
 
     if (m_gui)
     {
+        // setContentEnabled may run foreign code (Edit Content: the slots of the paused editing, R8-6)
+        QPointer<PDFDocumentToolShell> guard(this);
         m_gui->setContentEnabled(false);
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_gui)
+        {
+            return;
+        }
         showProgress(true);
         m_gui->onRunStateChanged(true);
         if (PDFDeferredDeletion::isRetired(this))
@@ -2991,7 +3055,13 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     showProgress(false);
     if (m_gui)
     {
+        // setContentEnabled may run foreign code (Edit Content: the slots of the editing allowed again, R8-6)
+        QPointer<PDFDocumentToolShell> guard(this);
         m_gui->setContentEnabled(true);
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_gui)
+        {
+            return;
+        }
         m_gui->onRunStateChanged(false);
         if (PDFDeferredDeletion::isRetired(this))
         {
@@ -3056,6 +3126,9 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         }
     }
 
+    // R8-1: a failed run of the choice "Apply and Save" keeps the choice for one retry the GUI starts (retryRun: Skip
+    // Page of Edit Content); setState(Editing) forgets it for every other way on
+    m_retrySaveCommandId = result.status == PDFDocumentToolResultStatus::Failed ? m_saveAfterResultCommandId : QString();
     setState(State::Editing);
     if (!PDFDeferredDeletion::isRetired(this) && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
     {
@@ -3673,11 +3746,20 @@ void PDFDocumentToolShell::onLanguageChanged()
     const bool isRunning = m_state == State::Running;
     showProgress(false);
     createContent();
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_gui)
+    {
+        return;
+    }
     updateCertificationCallout(true);
     updateStaleCallout(true);
     if (isRunning)
     {
+        // R8-6: the GUI may run foreign code in it (Edit Content: the slots of the paused editing)
         m_gui->setContentEnabled(false);
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_gui)
+        {
+            return;
+        }
         showProgress(true);
         updateProgress(m_percentage, m_stepText);
     }
